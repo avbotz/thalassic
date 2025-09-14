@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>sub_sim</name>
+  <version>0.0.0</version>
+  <description>
+    Use Stonefish simulator to simulate the mission.
+  </description>
+
+  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>xacro</depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
