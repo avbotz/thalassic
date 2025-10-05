@@ -25,9 +25,8 @@
 
   <looks>
     <look name="Gray" gray="0.5" roughness="0.7"/>
-    <look name="Yellow" rgb="1.0 0.9 0" roughness="0.3"/>
-
-    <look name="Pool" gray="1.0" roughness="1.0" texture="models/pools/woollett/white_texture.jpg"/>
+    <look name="Trash_Yellow" rgb="1.0 0.8588 0" roughness="0.3"/>  <!-- 255, 219, 0 -->
+    <look name="Trash_Red" rgb="1.0 0 0" roughness="0.3"/>  <!-- 255, 0, 0 -->
   </looks>
 
   <static name="woollett" type="model">
@@ -41,7 +40,7 @@
     </visual>
 
     <material name="Concrete"/>
-    <look name="Pool"/>
+    <look name="Gray"/>
     <world_transform xyz="0 0 0" rpy="0 0 0"/>
   </static>
 
@@ -162,7 +161,7 @@
     </physical>
     <material name="Plastic"/>
     <look name="Gray"/>
-    <world_transform xyz="3 -5 0" rpy="0 0 0"/>
+    <world_transform xyz="21.6 -8 0" rpy="0 0 0"/>
   </static>
 
   <static name="table" type="model">
@@ -176,7 +175,7 @@
     </visual>
     <material name="Plastic"/>
     <look name="Gray"/>
-    <world_transform xyz="3 -5 2.1" rpy="0 0 0"/>
+    <world_transform xyz="21.6 -8 2.1" rpy="0 0 0"/>
   </static>
 
   <dynamic name="bottle_red" type="model" physics="submerged" buoyant="false">
@@ -190,8 +189,8 @@
     </visual>
 
     <material name="Plastic"/>
-    <look name="Gray"/>
-    <world_transform xyz="3.1 -5 0" rpy="0 0 0"/>
+    <look name="Trash_Red"/>
+    <world_transform xyz="21.3 -8 0.7" rpy="0 0 0"/>
   </dynamic>
 
   <dynamic name="bottle_yellow" type="model" physics="submerged" buoyant="false">
@@ -205,9 +204,9 @@
     </visual>
 
     <material name="Plastic"/>
-    <look name="Gray"/>
+    <look name="Trash_Yellow"/>
 
-    <world_transform xyz="0.5 -0.5 0.5" rpy="0 0 0"/>
+    <world_transform xyz="21.7 -8 0.7" rpy="0 0 0"/>
   </dynamic>
 
   <dynamic name="ladle_red" type="model" physics="submerged" buoyant="false">
@@ -216,8 +215,8 @@
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </physical>
     <material name="Plastic"/>
-    <look name="Gray"/>
-    <world_transform xyz="3 -5.5 0" rpy="0 0 0"/>
+    <look name="Trash_Red"/>
+    <world_transform xyz="21.6 -8.1 0.7" rpy="0 0 0"/>
   </dynamic>
 
   <dynamic name="ladle_yellow" type="model" physics="submerged" buoyant="false">
@@ -226,7 +225,7 @@
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </physical>
     <material name="Plastic"/>
-    <look name="Gray"/>
-    <world_transform xyz="3 -4.5 0" rpy="0 0 0"/>
+    <look name="Trash_Yellow"/>
+    <world_transform xyz="21.7 -7.9 0.7" rpy="0 0 0"/>
   </dynamic>
 </scenario>

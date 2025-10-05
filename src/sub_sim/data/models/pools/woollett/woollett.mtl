@@ -1,7 +1,7 @@
 # Blender 4.5.3 LTS MTL File: 'None'
 # www.blender.org
 
-newmtl Black.001
+newmtl Black.003
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -11,7 +11,7 @@ d 1.000000
 illum 2
 map_Kd black.png
 
-newmtl Blue.001
+newmtl Blue.002
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -21,7 +21,17 @@ d 1.000000
 illum 2
 map_Kd blue.png
 
-newmtl Floor.001
+newmtl Blue.004
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd blue.png
+
+newmtl Floor.003
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -31,7 +41,7 @@ d 1.000000
 illum 2
 map_Kd white_floor.jpg
 
-newmtl White_Texture.001
+newmtl White_Texture.003
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
