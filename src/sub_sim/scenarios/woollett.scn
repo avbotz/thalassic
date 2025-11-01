@@ -19,13 +19,12 @@
 
   <materials>
     <material name="Plastic" density="2000" restitution="0.2" />
+    <material name="Steel" density="8000" restitution="0.2" />   <!-- 8 g/cm^3 converted to kg/m^3 -->
     <material name="Concrete" density="2400" restitution="0.8" />  <!-- 2.4 g/cm^3 converted to kg/m^3 -->
     <material name="PVC" density="1450" restitution="0.2" />  <!-- 1.45 g/cm^3 converted to kg/m^3 -->
   </materials>
 
-  <looks>
-    <look name="Gray" gray="0.5" roughness="0.7" />
-  </looks>
+  <include file="robots/marlin_v2/layout.scn"></include>
 
   <include file="models/pools/woollett/woollett.scn">
     <arg name="x" value="0" />

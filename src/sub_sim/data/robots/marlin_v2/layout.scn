@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="White" gray="1.0" roughness="0.5" />
+    <look name="Marlin_Blue" rgb="0.231373 0.376471 0.705882" roughness="0.5" />
+  </looks>
+
+  <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
+    <base_link name="Vehicle" type="compound" physics="submerged">
+      <external_part name="Frame" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_collision.obj" scale="1.0" convex="true" />
+          <thickness value="0.01" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="15.0" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Meb" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/tube/tube_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/tube/tube.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="1.0" />
+
+        <material name="Plastic" />
+        <look name="White" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Front_Tube_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/front_tube_mounting/front_tube_mounting_collision.obj"
+            scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/front_tube_mounting/front_tube_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="1.0" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Rear_Tube_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/rear_tube_mounting/rear_tube_mounting_collision.obj"
+            scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/rear_tube_mounting/rear_tube_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="1.0" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+    </base_link>
+
+    <sensor name="DVL" rate="10.0" type="dvl">
+      <specs beam_angle="30.0" beam_positive_z="false" />
+      <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0" />
+      <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0" />
+      <noise velocity_percent="0.3" velocity="0.05" altitude="0.03" water_velocity_percent="0.1" water_velocity="0.05" />
+      <history samples="1" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <link name="Vehicle" />
+
+      <ros_publisher topic="/marlin_v2/dvl"/>
+    </sensor>
+
+    <sensor name="Cam" rate="10.0" type="camera">
+      <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0" />
+      <origin xyz="0.0 -0.37506 0.16631" rpy="0.0 0.0 3.141519" />
+      <link name="Vehicle" />
+
+      <ros_publisher topic="/marlin_v2/front_camera"/>
+    </sensor>
+
+    <world_transform xyz="1.0 0.0 0.5" rpy="0.0 0.0 0.0" />
+  </robot>
+</scenario>
