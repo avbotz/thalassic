@@ -1,7 +1,7 @@
 # Blender 4.5.3 LTS MTL File: 'None'
 # www.blender.org
 
-newmtl Default_OBJ.002
+newmtl White
 Ns 224.999985
 Ka 1.000000 1.000000 1.000000
 Kd 0.800000 0.800000 0.800000
@@ -11,7 +11,7 @@ Ni 1.450000
 d 1.000000
 illum 2
 
-newmtl Pink.002
+newmtl Yellow
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -21,7 +21,7 @@ d 1.000000
 illum 2
 map_Kd yellow.png
 
-newmtl Pink.004
+newmtl Red
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -31,7 +31,7 @@ d 1.000000
 illum 2
 map_Kd red.png
 
-newmtl White.002
+newmtl White
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000

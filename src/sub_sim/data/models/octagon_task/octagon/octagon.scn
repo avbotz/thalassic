@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Octagon_White" gray="1.0" roughness="0.7"/>
+  </looks>
+
+  <static name="octagon" type="model">
+    <physical>
+      <mesh filename="models/octagon_task/octagon/octagon.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Octagon_White" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

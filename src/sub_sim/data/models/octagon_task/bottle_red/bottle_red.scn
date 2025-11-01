@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Bottle_Red" rgb="1.0 0 0" roughness="0.3"/>  <!-- 255, 0, 0 -->
+  </looks>
+
+  <dynamic name="bottle_red" type="model" physics="submerged" buoyant="false">
+    <physical>
+      <mesh filename="models/octagon_task/bottle_red/bottle_red_collision.obj" scale="1.0" convex="true"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </physical>
+    <visual>
+      <mesh filename="models/octagon_task/bottle_red/bottle_red.obj" scale="1.0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </visual>
+
+    <material name="Plastic"/>
+    <look name="Bottle_Red"/>
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </dynamic>
+</scenario>

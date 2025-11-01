@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Table_White" gray="1.0" roughness="0.7"/>  <!-- 255, 255, 255 -->
+    <look name="Table_Yellow" rgb="1.0 1.0 0.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
+    <look name="Table_Red" rgb="1.0 0.008 0.008" roughness="0.7"/>  <!-- 255, 2, 2 -->
+  </looks>
+
+  <static name="table_main_part" type="model">
+    <physical>
+      <mesh filename="models/octagon_task/table/table_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/octagon_task/table/parts/main_part.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Plastic" />
+    <look name="Table_White" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="table_red_bucket" type="model">
+    <physical>
+      <mesh filename="models/octagon_task/table/parts/empty.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/octagon_task/table/parts/red_bucket.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Plastic" />
+    <look name="Table_Red" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="table_yellow_bucket" type="model">
+    <physical>
+      <mesh filename="models/octagon_task/table/parts/empty.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/octagon_task/table/parts/yellow_bucket.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Plastic" />
+    <look name="Table_Yellow" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

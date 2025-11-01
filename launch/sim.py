@@ -16,11 +16,11 @@ def generate_launch_description():
             ]),
             launch_arguments = {
                 "simulation_data" : PathJoinSubstitution([FindPackageShare("sub_sim"), "data"]),
-                "scenario_desc" : PathJoinSubstitution([FindPackageShare("sub_sim"), "scenarios", "wollett.scn"]),
+                "scenario_desc" : PathJoinSubstitution([FindPackageShare("sub_sim"), "scenarios", "woollett.scn"]),
                 "simulation_rate" : "300.0",
                 "window_res_x" : "1900",
                 "window_res_y" : "1000",
-                "rendering_quality" : "high"
+                "rendering_quality" : "high",
             }.items()
         )
     ])

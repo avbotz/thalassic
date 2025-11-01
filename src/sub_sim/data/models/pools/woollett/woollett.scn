@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Woollett_White_Floor" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_floor.jpg" />
+    <look name="Woollett_White_Texture" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_texture.jpg" />
+    <look name="Woollett_Black" gray="0.0" roughness="0.1" />
+    <look name="Woollett_Blue" rgb="0.043 0.322 0.553" roughness="0.1" />  <!-- 11, 82, 141 -->
+  </looks>
+
+  <static name="woollett_black_trim" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/empty.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/pools/woollett/parts/black_trim.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Concrete" />
+    <look name="Woollett_Black" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_blue_trim" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/empty.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/pools/woollett/parts/blue_trim.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Concrete" />
+    <look name="Woollett_Blue" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_floor" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/empty.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/pools/woollett/parts/floor.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Concrete" />
+    <look name="Woollett_White_Texture" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_sides" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/woollett_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/pools/woollett/parts/sides.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="Concrete" />
+    <look name="Woollett_White_Texture" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

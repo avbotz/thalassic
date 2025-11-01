@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Slalom_Orange_Red" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/orange_red.png" />
+    <look name="Slalom_White" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/white.png" />
+  </looks>
+
+  <static name="slalom_white_poles" type="model">
+    <physical>
+      <mesh filename="models/slalom_task/slalom/parts/white_poles/white_poles_collision.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/slalom_task/slalom/parts/white_poles/white_poles.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="PVC" />
+    <look name="Slalom_White" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="slalom_red_poles" type="model">
+    <physical>
+      <mesh filename="models/slalom_task/slalom/parts/red_pole/red_pole_collision.obj" scale="1.0" convex="true" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/slalom_task/slalom/parts/red_pole/red_pole.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="PVC" />
+    <look name="Slalom_Orange_Red" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Gate_Red" rgb="0.671 0.047 0.047" roughness="0.1" />  <!-- 171, 12, 12 -->
+    <look name="Gate_Black" rgb="0.051 0.047 0.047" roughness="0.1" />  <!-- 13, 12, 12 -->
+    <look name="Gate_White" gray="1.0" roughness="0.1" />
+    <look name="Gate_Sawfish" gray="1.0" roughness="0.1" texture="models/gate_task/gate/sawfish.png" />
+    <look name="Gate_Shark" gray="1.0" roughness="0.1" texture="models/gate_task/gate/shark.png" />
+  </looks>
+
+  <static name="gate_red_part" type="model">
+    <physical>
+      <mesh filename="models/gate_task/gate/parts/red_part.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Gate_Red" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="gate_black_part" type="model">
+    <physical>
+      <mesh filename="models/gate_task/gate/parts/black_part.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Gate_Black" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="gate_pvc" type="model">
+    <physical>
+      <mesh filename="models/gate_task/gate/parts/pvc.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="PVC" />
+    <look name="Gate_White" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="gate_left_image" type="model">
+    <physical>
+      <mesh filename="models/gate_task/gate/parts/left_image.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Gate_Sawfish" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="gate_right_image" type="model">
+    <physical>
+      <mesh filename="models/gate_task/gate/parts/right_image.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Gate_Shark" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

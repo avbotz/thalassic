@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="Path_Orange" gray="1.0" roughness="0.1" texture="models/path/orange.png" />
+    <look name="Path_Stand" rgb="0.8 0.8 0.8" roughness="0.1" />
+    <look name="Path_Gray" rgb="0.25 0.25 0.25" roughness="0.1" />
+  </looks>
+
+  <static name="path_stand" type="model">
+    <physical>
+      <mesh filename="models/path/parts/stand.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="PVC" />
+    <look name="Path_Stand" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="path_orange_plastic" type="model">
+    <physical>
+      <mesh filename="models/path/parts/orange_plastic.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Path_Orange" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="path_beads" type="model">
+    <physical>
+      <mesh filename="models/path/parts/beads.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="Plastic" />
+    <look name="Path_Gray" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

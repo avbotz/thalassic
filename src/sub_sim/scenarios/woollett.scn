@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<scenario>
+  <environment>
+    <ned latitude="33.701722" longitude="-117.780354" />
+
+    <ocean>
+      <water density="1025.0" jerlov="0.20" />
+      <waves height="0" />
+      <particles enabled="false" />
+      <current type="uniform">
+        <velocity xyz="0 0 0" />
+      </current>
+    </ocean>
+
+    <atmosphere>
+      <sun azimuth="120" elevation="50" />
+    </atmosphere>
+  </environment>
+
+  <materials>
+    <material name="Plastic" density="2000" restitution="0.2" />
+    <material name="Concrete" density="2400" restitution="0.8" />  <!-- 2.4 g/cm^3 converted to kg/m^3 -->
+    <material name="PVC" density="1450" restitution="0.2" />  <!-- 1.45 g/cm^3 converted to kg/m^3 -->
+  </materials>
+
+  <looks>
+    <look name="Gray" gray="0.5" roughness="0.7" />
+  </looks>
+
+  <include file="models/pools/woollett/woollett.scn">
+    <arg name="x" value="0" />
+    <arg name="y" value="0" />
+    <arg name="z" value="0" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+
+  <!-- Gate Task -->
+
+  <include file="models/gate_task/gate/gate.scn">
+    <arg name="x" value="17.25" />
+    <arg name="y" value="7.3" />
+    <arg name="z" value="0.2" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="1.570795" />
+  </include>
+
+  <include file="models/path/path.scn">
+    <arg name="x" value="17.6" />
+    <arg name="y" value="6.26" />
+    <arg name="z" value="2.1" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="-0.5466737594090874" />
+  </include>
+
+
+  <!-- Slalom Task -->
+
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="19.65" />
+    <arg name="y" value="5.05" />
+    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="1.570795" />
+  </include>
+
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="20.95" />
+    <arg name="y" value="3.05" />
+    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="1.570795" />
+  </include>
+
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="19.95" />
+    <arg name="y" value="1.05" />
+    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="1.570795" />
+  </include>
+
+  <include file="models/path/path.scn">
+    <arg name="x" value="21.5" />
+    <arg name="y" value="-8" />
+    <arg name="z" value="2.1" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="-0.5466737594090874" />
+  </include>
+
+
+  <!-- Bin Task -->
+
+  <include file="models/bin_task/bin/bin.scn">
+    <arg name="x" value="15.5" />
+    <arg name="y" value="0.2" />
+    <arg name="z" value="2.1" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/torpedoes_task/torpboard_sawfish/torpboard_sawfish.scn">
+    <arg name="x" value="0" />
+    <arg name="y" value="-5.0" />
+    <arg name="z" value="2.0" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+
+  <!-- Octagon Task -->
+
+  <include file="models/octagon_task/octagon/octagon.scn">
+    <arg name="x" value="21.6" />
+    <arg name="y" value="-8" />
+    <arg name="z" value="0" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/octagon_task/table/table.scn">
+    <arg name="x" value="21.6" />
+    <arg name="y" value="-8" />
+    <arg name="z" value="2.1" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/octagon_task/bottle_red/bottle_red.scn">
+    <arg name="x" value="21.3" />
+    <arg name="y" value="-8" />
+    <arg name="z" value="0.7" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/octagon_task/bottle_yellow/bottle_yellow.scn">
+    <arg name="x" value="21.7" />
+    <arg name="y" value="-8" />
+    <arg name="z" value="0.7" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/octagon_task/ladle_red/ladle_red.scn">
+    <arg name="x" value="21.6" />
+    <arg name="y" value="-8.1" />
+    <arg name="z" value="0.7" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+
+  <include file="models/octagon_task/ladle_yellow/ladle_yellow.scn">
+    <arg name="x" value="21.7" />
+    <arg name="y" value="-7.9" />
+    <arg name="z" value="0.7" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
+</scenario>
