@@ -24,7 +24,14 @@
     <material name="PVC" density="1450" restitution="0.2" />  <!-- 1.45 g/cm^3 converted to kg/m^3 -->
   </materials>
 
-  <include file="robots/marlin_v2/layout.scn"></include>
+  <include file="robots/marlin_v2/layout.scn">
+    <arg name="x" value="0" />
+    <arg name="y" value="0" />
+    <arg name="z" value="0" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="0" />
+  </include>
 
   <include file="models/pools/woollett/woollett.scn">
     <arg name="x" value="0" />

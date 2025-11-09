@@ -84,7 +84,91 @@
 
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
+
+      <external_part name="Grabber_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="1.0" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
     </base_link>
+
+    <link name="Left_Grabber" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/grabber/left/left_collision.obj" scale="1.0" convex="false" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/grabber/left/left.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <world_transform xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Left_Grabber_Joint" type="revolute">
+      <parent name="Vehicle"/>
+      <child name="Left_Grabber"/>
+      <origin xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 1.0 0.0"/>
+    </joint>
+
+    <actuator name="Left_Grabber_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1"/>
+      <joint name="Left_Grabber_Joint"/>
+      <initial position="0.0"/>
+    </actuator>
+
+
+    <link name="Right_Grabber" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/grabber/right/right_collision.obj" scale="1.0" convex="false" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/grabber/right/right.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <world_transform xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Right_Grabber_Joint" type="revolute">
+      <parent name="Vehicle"/>
+      <child name="Right_Grabber"/>
+      <origin xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 1.0 0.0"/>
+    </joint>
+
+    <actuator name="Right_Grabber_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1"/>
+      <joint name="Right_Grabber_Joint"/>
+      <initial position="0.0"/>
+    </actuator>
 
     <sensor name="DVL" rate="10.0" type="dvl">
       <specs beam_angle="30.0" beam_positive_z="false" />
@@ -105,6 +189,9 @@
 
       <ros_publisher topic="/marlin_v2/front_camera"/>
     </sensor>
+
+    <ros_publisher servos="/marlin_v2/sim/joint_states"/>
+    <ros_subscriber servos="/marlin_v2/sim/joint_setpoints"/>
 
     <world_transform xyz="1.0 0.0 0.5" rpy="0.0 0.0 0.0" />
   </robot>
