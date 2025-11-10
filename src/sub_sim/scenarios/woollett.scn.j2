@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- Change language type to XML in VSCode for syntax highlighting -->
 <scenario>
   <environment>
     <ned latitude="33.701722" longitude="-117.780354" />
@@ -25,12 +26,12 @@
   </materials>
 
   <include file="robots/marlin_v2/layout.scn">
-    <arg name="x" value="17.25" />
-    <arg name="y" value="-9" />
-    <arg name="z" value="0.5" />
+    <arg name="x" value="{{ fuzz(17.25, DX) }}" />
+    <arg name="y" value="{{ fuzz(-10.35,  DY) }}" />
+    <arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />
     <arg name="roll" value="0.0" />
     <arg name="pitch" value="0.0" />
-    <arg name="yaw" value="3.141593" />
+    <arg name="yaw" value="{{ fuzz(PI, DYAW) }}" />
   </include>
 
   <include file="models/pools/woollett/woollett.scn">
@@ -46,137 +47,137 @@
   <!-- Gate Task -->
 
   <include file="models/gate_task/gate/gate.scn">
-    <arg name="x" value="17.25" />
-    <arg name="y" value="-6" />
-    <arg name="z" value="0.2" />
+    <arg name="x" value="{{ fuzz(17.25, DX) }}" />
+    <arg name="y" value="{{ fuzz(-7,    DY) }}" />
+    <arg name="z" value="{{ fuzz_z(0.2, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="1.570795" />
+    <arg name="yaw" value="{{ fuzz(PI/2, DYAW) }}" />
   </include>
 
   <include file="models/path/path.scn">
-    <arg name="x" value="18" />
-    <arg name="y" value="-5.5" />
-    <arg name="z" value="2.1" />
+    <arg name="x" value="{{ fuzz(17.5,    0.05) }}" />
+    <arg name="y" value="{{ fuzz(-5.8,  0.05) }}" />
+    <arg name="z" value="{{ fuzz_z(2.1, 0.10) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0.84" />
+    <arg name="yaw" value="{{ 0.84 }}" />
   </include>
 
 
   <!-- Slalom Task -->
 
   <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="${18 + 0.65}" />
-    <arg name="y" value="${-2.85+1*2}" />
-    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="x" value="{{ fuzz(18 + 0.65,   0.05) }}" />
+    <arg name="y" value="{{ fuzz(-3.85 + 1*2, 0.05) }}" />
+    <arg name="z" value="{{ rand(1.05, 1.35) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="1.570795" />
+    <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
   </include>
 
   <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="${18 + 1.95}" />
-    <arg name="y" value="${-2.85+1*1}" />
-    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="x" value="{{ fuzz(18 + 1.95, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(-3.85 + 1*1, 0.05) }}" />
+    <arg name="z" value="{{ rand(1.05, 1.35) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="1.570795" />
+    <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
   </include>
 
   <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="${18 + 0.95}" />
-    <arg name="y" value="${-2.85+1*0}" />
-    <arg name="z" value="1.1" />   <!-- Randomize height to be between 1.05 - 1.35 m -->
+    <arg name="x" value="{{ fuzz(18 + 0.95, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(-3.85 + 1*0, 0.05) }}" />
+    <arg name="z" value="{{ rand(1.05, 1.35) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="1.570795" />
+    <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
   </include>
 
   <include file="models/path/path.scn">
-    <arg name="x" value="17" />
-    <arg name="y" value="-0.6" />
-    <arg name="z" value="2.1" />
+    <arg name="x" value="{{ fuzz(17.5,   0.05) }}" />
+    <arg name="y" value="{{ fuzz(-0.6, 0.05) }}" />
+    <arg name="z" value="{{ fuzz_z(2.1, 0.10) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="-0.5466737594090874" />
+    <arg name="yaw" value="{{ fuzz(-0.5466737594090874, DYAW/2) }}" />
   </include>
 
 
   <!-- Bin Task -->
 
   <include file="models/bin_task/bin/bin.scn">
-    <arg name="x" value="15.4" />
-    <arg name="y" value="1.1" />
-    <arg name="z" value="2.1" />
+    <arg name="x" value="{{ fuzz(15.4, DX) }}" />
+    <arg name="y" value="{{ fuzz(1.1,  DY) }}" />
+    <arg name="z" value="{{ fuzz_z(2.1, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="-0.25" />
+    <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
   </include>
 
   <include file="models/torpedoes_task/torpboard_sawfish/torpboard_sawfish.scn">
-    <arg name="x" value="16.3" />
-    <arg name="y" value="5.0" />
-    <arg name="z" value="2.0" />
+    <arg name="x" value="{{ fuzz(16.3, DX) }}" />
+    <arg name="y" value="{{ fuzz(5.0,  DY) }}" />
+    <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="-1.9" />
+    <arg name="yaw" value="{{ fuzz(1.2, DYAW) }}" />
   </include>
 
 
   <!-- Octagon Task -->
 
   <include file="models/octagon_task/octagon/octagon.scn">
-    <arg name="x" value="21.6" />
-    <arg name="y" value="8" />
+    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(8,    0.05) }}" />
     <arg name="z" value="0" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW/5) }}" />
   </include>
 
   <include file="models/octagon_task/table/table.scn">
-    <arg name="x" value="21.6" />
-    <arg name="y" value="8" />
+    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(8,    0.05) }}" />
     <arg name="z" value="2.1" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW/5) }}" />
   </include>
 
   <include file="models/octagon_task/bottle_red/bottle_red.scn">
-    <arg name="x" value="21.3" />
-    <arg name="y" value="8" />
+    <arg name="x" value="{{ fuzz(21.3, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(8,    0.05) }}" />
     <arg name="z" value="0.7" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
 
   <include file="models/octagon_task/bottle_yellow/bottle_yellow.scn">
-    <arg name="x" value="21.7" />
-    <arg name="y" value="8" />
+    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(8,    0.05) }}" />
     <arg name="z" value="0.7" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
 
   <include file="models/octagon_task/ladle_red/ladle_red.scn">
-    <arg name="x" value="21.6" />
-    <arg name="y" value="8.1" />
+    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(8.1,  0.05) }}" />
     <arg name="z" value="0.7" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
 
   <include file="models/octagon_task/ladle_yellow/ladle_yellow.scn">
-    <arg name="x" value="21.7" />
-    <arg name="y" value="7.9" />
+    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(7.9,  0.05) }}" />
     <arg name="z" value="0.7" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
 </scenario>

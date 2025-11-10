@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>sub_sim</name>
+  <name>sub_launch</name>
   <version>0.0.0</version>
-  <description>Files and scripts relating to simulator</description>
+  <description>Launch files</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
+
+  <depend>sub_sim</depend>
 
   <export>
     <build_type>ament_python</build_type>
