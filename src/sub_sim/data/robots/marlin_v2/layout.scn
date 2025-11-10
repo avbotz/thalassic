@@ -193,6 +193,9 @@
     <ros_publisher servos="/marlin_v2/sim/joint_states"/>
     <ros_subscriber servos="/marlin_v2/sim/joint_setpoints"/>
 
-    <world_transform xyz="1.0 0.0 0.5" rpy="0.0 0.0 0.0" />
+    <ros_publisher servos="/marlin_v2/sim/joint_states"/>
+    <ros_subscriber servos="/marlin_v2/sim/joint_setpoints"/>
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </robot>
 </scenario>
