@@ -6,7 +6,9 @@ from pathlib import Path
 
 from jinja2 import Template
 
-def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, seed: None | int=None):
+def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, ROBOT_SCENARIO_PATH: str, seed: None | int=None) -> str:
+    scenario_template_file = Path(scenario_template_file)
+
     rng = random.Random()
     if seed:
         rng.seed(seed)
@@ -26,12 +28,12 @@ def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, 
     with open(scenario_template_file, "r") as f:
         scenario_template = Template(f.read())
 
-    scn_text = scenario_template.render(
-        fuzz=fuzz, fuzz_z=fuzz_z, rand=rand, choose=choose, DX=DX, DY=DY, DZ=DZ, DYAW=DYAW, PI=math.pi
+    rendered = scenario_template.render(
+        fuzz=fuzz, fuzz_z=fuzz_z, rand=rand, choose=choose, DX=DX, DY=DY, DZ=DZ, DYAW=DYAW, ROBOT_SCENARIO_PATH=ROBOT_SCENARIO_PATH, PI=math.pi
     )
 
-    fd, temp_path = tempfile.mkstemp(prefix=Path(scenario_template_file).stem, suffix=".scn")
+    fd, temp_path = tempfile.mkstemp(prefix=scenario_template_file.stem, suffix=".scn")
     with os.fdopen(fd, "w") as f:
-        f.write(scn_text)
+        f.write(rendered)
 
     return temp_path
