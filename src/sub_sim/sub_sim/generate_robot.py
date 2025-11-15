@@ -1,0 +1,25 @@
+import os
+import tempfile
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader
+
+
+def render_robot_scenario(robot_template_file: Path | str) -> str:
+    robot_template_file = Path(robot_template_file)
+
+    # Let Jinja resolve `{% from "thrusters.jinja" import thruster %}`
+    env = Environment(loader=FileSystemLoader(str(robot_template_file.parent)))
+
+    template = env.get_template(robot_template_file.name)
+
+    rendered = template.render()
+
+    fd, temp_path = tempfile.mkstemp(
+        prefix=robot_template_file.stem,
+        suffix=".scn",
+    )
+    with os.fdopen(fd, "w") as f:
+        f.write(rendered)
+
+    return temp_path
