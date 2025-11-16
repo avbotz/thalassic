@@ -103,6 +103,25 @@
 
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
+
+      <external_part name="Dropper_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/dropper_mounting/dropper_mounting_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/dropper_mounting/dropper_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="1.0" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
     </base_link>
 
     <link name="Left_Grabber" type="model" physics="submerged">
@@ -170,6 +189,39 @@
       <initial position="0.0"/>
     </actuator>
 
+
+    <link name="Dropper" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/dropper/dropper_collision.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/dropper/dropper.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <world_transform xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Dropper_Joint" type="revolute">
+      <parent name="Vehicle"/>
+      <child name="Dropper"/>
+      <origin xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 1.0 0.0"/>
+    </joint>
+
+    <actuator name="Dropper_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1"/>
+      <joint name="Dropper_Joint"/>
+      <initial position="0.0"/>
+    </actuator>
+
     <sensor name="DVL" rate="10.0" type="dvl">
       <specs beam_angle="30.0" beam_positive_z="false" />
       <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0" />
@@ -189,9 +241,6 @@
 
       <ros_publisher topic="/marlin_v2/front_camera"/>
     </sensor>
-
-    <ros_publisher servos="/marlin_v2/sim/joint_states"/>
-    <ros_subscriber servos="/marlin_v2/sim/joint_setpoints"/>
 
     <ros_publisher servos="/marlin_v2/sim/joint_states"/>
     <ros_subscriber servos="/marlin_v2/sim/joint_setpoints"/>
