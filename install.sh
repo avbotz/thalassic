@@ -1,3 +1,6 @@
+
+ROS_WS_DIR=$(pwd)
+
 sudo apt install software-properties-common
 sudo add-apt-repository universe
 
@@ -16,3 +19,26 @@ sudo apt update
 DIST=jazzy
 
 sudo apt install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop
+
+git submodule update --init --recursive
+
+# Stonefish
+mkdir /tmp/stonefish
+cd /tmp/stonefish
+sudo apt-get update
+sudo apt-get upgrade -y
+sudo apt-get install -y python3-pip libglm-dev libsdl2-dev libfreetype6-dev
+git clone https://github.com/kethan1/stonefish
+cd stonefish
+git switch fixes-merged
+mkdir build && cd build
+cmake ..
+make -j4
+sudo make install
+cd $ROS_WS_DIR
+
+sudo rosdep init
+rosdep update
+rosdep install -i --from-paths src 
+
+colcon build
