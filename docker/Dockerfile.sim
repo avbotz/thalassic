@@ -1,12 +1,8 @@
 FROM osrf/ros:jazzy-desktop-full
-ARG USERNAME=ros
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+ARG USERNAME=ubuntu
 
 # Create the user
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && usermod -aG dialout $USERNAME \
+RUN usermod -aG dialout $USERNAME \
     && usermod -aG video $USERNAME \
     && mkdir /home/$USERNAME/.config && chown $USER_UID:$USER_GID /home/$USERNAME/.config \
     #
