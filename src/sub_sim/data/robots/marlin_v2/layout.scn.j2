@@ -421,6 +421,95 @@
       <initial position="0.0"/>
     </actuator>
 
+
+    <link name="Torpedo_Left_Link" type="model" physics="submerged">
+     <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <world_transform xyz="-0.010376 -0.35104 0.0514595" rpy="0.0 0.0 0.0"/>
+      <material name="Plastic"/>
+      <look name="White"/>
+    </link>
+
+    <joint name="Torpedo_Left_Mount_Joint" type="fixed">
+      <parent name="Vehicle"/>
+      <child name="Torpedo_Left_Link"/>
+      <origin xyz="-0.0097835 -0.35124 0.0513385" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 0.0 0.0"/>
+    </joint>
+
+    <animated name="Torpedoes" type="model" collision="true" frame="Torpedo_Left_Link">
+      <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <trajectory type="manual">
+        <!-- Put Animation Here-->
+      </trajectory>
+    </animated>
+
+    <link name="Torpedo_Right_Link" type="model" physics="submerged">
+
+      <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <world_transform xyz="0.0097835 -0.35124 0.0513385" rpy="0.0 0.0 0.0"/>
+      <material name="Plastic"/>
+      <look name="White"/>
+    </link>
+
+    <joint name="Torpedo_Right_Mount_Joint" type="fixed">
+      <parent name="Vehicle"/>
+      <child name="Torpedo_Right_Link"/>
+      <origin xyz="0.0097835 -0.35124 0.0513385" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 0.0 0.0"/>
+    </joint>
+
+    <animated name="Torpedoes" type="model" collision="true" frame="Torpedo_Right_Link">
+      <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <trajectory type="manual">
+        <!-- Put Animation Here-->
+      </trajectory>
+    </animated>
+
     <sensor name="DVL" rate="10.0" type="dvl">
       <link name="base_link" />
 
