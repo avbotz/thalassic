@@ -1,15 +1,15 @@
 {
-  "name": "Boops-Boops Simulator Container",
+  "name": "Thalassic Simulator Container",
   "privileged": true,
-  "remoteUser": "ros",
+  "remoteUser": "ubuntu",
   "build": {
     "dockerfile": "../docker/Dockerfile.sim",
     "args": {
-      "USERNAME": "ros"
+      "USERNAME": "ubuntu"
     }
   },
-  "workspaceFolder": "/home/ros/Boops-Boops",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/home/ros/Boops-Boops,type=bind",
+  "workspaceFolder": "/home/ubuntu/thalassic",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/ubuntu/thalassic,type=bind",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -40,5 +40,5 @@
     "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
     "source=/dev/dri,target=/dev/dri,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "sudo apt update && rosdep update --rosdistro=jazzy && rosdep -i install --from-paths src --rosdistro jazzy -y"
+  "postCreateCommand": "sudo apt update && rosdep update --rosdistro=jazzy && rosdep -i install --from-paths src --rosdistro jazzy -y --skip-keys=\"pcl\""
 }
