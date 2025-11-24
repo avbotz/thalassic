@@ -7,6 +7,8 @@
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
+  <depend>python3-jinja2</depend>
+
   <export>
     <build_type>ament_python</build_type>
   </export>
