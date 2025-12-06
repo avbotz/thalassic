@@ -1,0 +1,387 @@
+<?xml version="1.0"?>
+<scenario>
+  {% from "macros/thruster.j2" import thruster %}
+
+  <looks>
+    <look name="White" gray="1.0" roughness="0.5" />
+    <look name="Marlin_Blue" rgb="0.231373 0.376471 0.705882" roughness="0.5" />
+  </looks>
+
+  <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
+    <base_link name="base_link" type="compound" physics="submerged">
+      <external_part name="Frame_Top" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_top/frame_top_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame_top/frame_top.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="15.0" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+
+      <external_part name="Frame_Front" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_front/frame_front_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame_front/frame_front.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="3.5" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Frame_Back" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_back/frame_back_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame_back/frame_back.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="2.7" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Frame_Left" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_left/frame_left_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame_left/frame_left.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="2.7" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Frame_Right" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/frame/frame_right/frame_right_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/frame/frame_right/frame_right.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="2.7" />
+
+        <material name="Steel" />
+        <look name="White" />
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Meb" type="model" physics="submerged" buoyant="true">
+        <physical>
+          <mesh filename="robots/marlin_v2/tube/tube_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/tube/tube.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="6.3" />
+
+        <material name="Plastic" />
+        <look name="White" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Front_Tube_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/front_tube_mounting/front_tube_mounting_collision.obj"
+            scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/front_tube_mounting/front_tube_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="0.1" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Rear_Tube_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/rear_tube_mounting/rear_tube_mounting_collision.obj"
+            scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/rear_tube_mounting/rear_tube_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="0.1" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
+      <external_part name="Grabber_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="0.3" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+    </base_link>
+
+    <link name="Left_Grabber" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/grabber/left/left_collision.obj" scale="1.0" convex="false" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/grabber/left/left.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic" />
+      <look name="White" />
+
+      <world_transform xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Left_Grabber_Joint" type="revolute">
+      <parent name="base_link" />
+      <child name="Left_Grabber" />
+      <origin xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0" />
+      <axis xyz="0.0 1.0 0.0" />
+    </joint>
+
+    <actuator name="Left_Grabber_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1" />
+      <joint name="Left_Grabber_Joint" />
+      <initial position="0.0" />
+    </actuator>
+
+
+    <link name="Right_Grabber" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/grabber/right/right_collision.obj" scale="1.0"
+          convex="false" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/grabber/right/right.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic" />
+      <look name="White" />
+
+      <world_transform xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Right_Grabber_Joint" type="revolute">
+      <parent name="base_link" />
+      <child name="Right_Grabber" />
+      <origin xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0" />
+      <axis xyz="0.0 1.0 0.0" />
+    </joint>
+
+    <actuator name="Right_Grabber_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1" />
+      <joint name="Right_Grabber_Joint" />
+      <initial position="0.0" />
+    </actuator>
+
+
+    <link name="Dropper" type="model" physics="submerged">
+      <physical>
+        <mesh filename="robots/marlin_v2/dropper/dropper_collision.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/dropper/dropper.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <mass value="1.0" />
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <world_transform xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0" />
+    </link>
+
+    <joint name="Dropper_Joint" type="revolute">
+      <parent name="Vehicle"/>
+      <child name="Dropper"/>
+      <origin xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0"/>
+      <axis xyz="0.0 1.0 0.0"/>
+    </joint>
+
+    <actuator name="Dropper_Servo" type="servo">
+      <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1"/>
+      <joint name="Dropper_Joint"/>
+      <initial position="0.0"/>
+    </actuator>
+
+    <sensor name="DVL" rate="10.0" type="dvl">
+      <link name="base_link" />
+
+      <specs beam_angle="30.0" beam_positive_z="false" />
+      <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0" />
+      <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0" />
+      <noise velocity_percent="0.3" velocity="0.05" altitude="0.03" water_velocity_percent="0.1"
+        water_velocity="0.05" />
+      <history samples="1" />
+
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+      <ros_publisher topic="/marlin_v2/sim/dvl" />
+    </sensor>
+
+    <sensor name="front_camera" rate="10.0" type="camera">
+      <link name="base_link" />
+
+      <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />
+      <origin xyz="0.0 -0.37506 -0.16631" rpy="-1.570796 3.141519 3.141519" />
+
+      <ros_publisher topic="/marlin_v2/front_camera" />
+    </sensor>
+
+    <!-- Thrusters -->
+    <!-- Order of thrusters is VERT FL, VERT FR, VERT BL, VERT BR, SURGE FL, SURGE FR, SURGE BL, SURGE BR -->
+    <!-- Cannot use include tag here because they can only be used at the top level -->
+    {{ thruster(
+      name="thuster_0",
+      link_name="base_link",
+      xyz="-0,29 0.34 0.08",
+      rpy="0 0 -45",
+      right="true",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_1",
+      link_name="base_link",
+      xyz="-0.29 -0.34 0.08",
+      rpy="0 0 45",
+      right="false",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_2",
+      link_name="base_link",
+      xyz="0.29 0.34 0.08",
+      rpy="0 0 225",
+      right="true",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_3",
+      link_name="base_link",
+      xyz="0.29 -0.34 0.08",
+      rpy="0 0 135",
+      right="false",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_4",
+      link_name="base_link",
+      xyz="0.23 -0.22 0.000",
+      rpy="0 270 0",
+      right="true",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_5",
+      link_name="base_link",
+      xyz="-0.23 -0.22 0.000",
+      rpy="0 270 0",
+      right="false",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_6",
+      link_name="base_link",
+      xyz="0.23 0.22 0.000",
+      rpy="0 270 0",
+      right="false",
+      look_name="Black"
+    ) }}
+
+    {{ thruster(
+      name="thruster_7",
+      link_name="base_link",
+      xyz="-0.23 0.22 0.000",
+      rpy="0 270 0",
+      right="true",
+      look_name="Black"
+    ) }}
+
+    <ros_base_link_transform publish="true" />
+
+    <ros_publisher servos="/marlin_v2/sim/joint_states" thrusters="/marlin_v2/sim/thruster_states" />
+    <ros_subscriber servos="/marlin_v2/sim/joint_setpoints" thrusters="/marlin_v2/sim/thruster_setpoints" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </robot>
+</scenario>

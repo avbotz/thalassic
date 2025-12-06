@@ -1,0 +1,29 @@
+{% macro thruster(
+    name,
+    link_name="base_link",
+    xyz="0.0 0.0 0.0",
+    rpy="0.0 0.0 0.0",
+    right="true",
+    look_name="Black"
+) -%}
+  <actuator name="{{ name }}" type="thruster">
+    <link name="{{ link_name }}" />
+
+    <specs max_setpoint="1000.0" inverted_setpoint="false" normalized_setpoint="true" />
+    <propeller diameter="0.2" right="{{ right }}">
+      <mesh filename="robots/marlin_v2/propeller/propeller.obj" scale="1.0" />
+      <material name="Steel" />
+      <look name="{{ look_name }}" />
+    </propeller>
+
+    <rotor_dynamics type="first_order">
+      <time_constant value="0.01" />
+    </rotor_dynamics>
+    <thrust_model type="deadband">
+      <thrust_coeff forward="3.645e-3" reverse="2.905e-3" />  <!-- N/(rad/s)^2 -->
+      <deadband lower="-40.63" upper="32.25" />               <!-- rad/s -->
+    </thrust_model>
+
+    <origin xyz="{{ xyz }}" rpy="{{ rpy }}" />
+  </actuator>
+{%- endmacro %}

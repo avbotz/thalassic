@@ -25,7 +25,7 @@
     <material name="PVC" density="1450" restitution="0.2" />  <!-- 1.45 g/cm^3 converted to kg/m^3 -->
   </materials>
 
-  <include file="robots/marlin_v2/layout.scn">
+  <include file="{{ ROBOT_SCENARIO_PATH }}">
     <arg name="x" value="{{ fuzz(17.25, DX) }}" />
     <arg name="y" value="{{ fuzz(-10.35,  DY) }}" />
     <arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />
