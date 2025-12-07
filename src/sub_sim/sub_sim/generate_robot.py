@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 def render_robot_scenario(robot_template_file: Path | str) -> str:
     robot_template_file = Path(robot_template_file)
 
-    # Let Jinja resolve `{% from "thrusters.jinja" import thruster %}`
+    # Let Jinja resolve `{% from "thrusters.jinja" import ... %}`
     env = Environment(loader=FileSystemLoader(str(robot_template_file.parent)))
 
     template = env.get_template(robot_template_file.name)

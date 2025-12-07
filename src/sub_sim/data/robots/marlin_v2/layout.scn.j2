@@ -144,6 +144,26 @@
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
 
+      <external_part name="Meb_Front_Camera_Dome" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome_collision.obj"
+            scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="0.1" />
+
+        <material name="Plastic" />
+        <look name="White" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
       <external_part name="Meb_Mounting_Rear" type="model" physics="submerged" buoyant="false">
         <physical>
           <mesh filename="robots/marlin_v2/meb_mounting_rear/meb_mounting_rear_collision.obj"
