@@ -234,6 +234,25 @@
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
 
+      <external_part name="Torpedo_Mounting" type="model" physics="submerged" buoyant="false">
+        <physical>
+          <mesh filename="robots/marlin_v2/torpedo_mounting/torpedo_mounting_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/torpedo_mounting/torpedo_mounting.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <mass value="0.3" />
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </external_part>
+
 
       <!-- Thrusters, excluding propeller which is added below -->
        {{ thruster_visual(
@@ -420,6 +439,46 @@
       <joint name="Dropper_Joint"/>
       <initial position="0.0"/>
     </actuator>
+
+
+    <!-- TODO: Make torpedoes display and animate properly -->
+    <animated name="Torpedo_Left" type="model" collision="true">
+      <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <trajectory type="manual">
+        <!-- Put Animation Here-->
+      </trajectory>
+    </animated>
+
+    <animated name="Torpedo_Right" type="model" collision="true">
+      <physical>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <visual>
+        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </visual>
+
+      <material name="Plastic"/>
+      <look name="White"/>
+
+      <trajectory type="manual">
+        <!-- Put Animation Here-->
+      </trajectory>
+    </animated>
 
     <sensor name="DVL" rate="10.0" type="dvl">
       <link name="base_link" />
