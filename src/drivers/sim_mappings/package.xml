@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>sim_mappings</name>
+  <version>0.0.0</version>
+  <description>Simulation message mappings for drivers</description>
+  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>stonefish_ros2</depend>
+  <depend>marine_acoustic_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
