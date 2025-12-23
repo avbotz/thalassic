@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <scenario>
-  {% from "thruster.j2" import thruster, thruster_visual %}
+  {% from "thruster.j2" import thruster_actuator, thruster_visual %}
 
   <looks>
     <look name="White" gray="0.9" roughness="0.5" />
     <look name="Gray" gray="0.5" roughness="0.5" />
     <look name="Black" gray="0.05" roughness="0.5" />
-    <look name="Marlin_Blue" rgb="0.231373 0.376471 0.705882" roughness="0.5" />
+    <look name="Marlin_Blue" rgb="{{ 59 / 255 }} {{ 96 / 255 }} {{ 180 / 255 }}" roughness="0.5" />
   </looks>
 
   <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
@@ -21,14 +21,13 @@
 
         <visual>
           <mesh filename="robots/marlin_v2/frame/frame_top/frame_top.obj" scale="1.0" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+          <origin xyz="0.0 0.0 0.025" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="35.0" />
-
-        <material name="Steel" />
+        <material name="Aluminum" />
         <look name="Black" />
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+        <compound_transform xyz="0.0 0.0 -0.025" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Frame_Front" type="model" physics="submerged" buoyant="false">
@@ -42,11 +41,10 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="3.5" />
-
-        <material name="Steel" />
+        <material name="Aluminum" />
         <look name="Black" />
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+        <compound_transform xyz="0.0 -0.314 0.08462" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Frame_Back" type="model" physics="submerged" buoyant="false">
@@ -60,11 +58,10 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="2.7" />
-
-        <material name="Steel" />
+        <material name="Aluminum" />
         <look name="Black" />
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+        <compound_transform xyz="0.0 0.309 0.08462" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Frame_Left" type="model" physics="submerged" buoyant="false">
@@ -78,11 +75,10 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="2.7" />
-
-        <material name="Steel" />
+        <material name="Aluminum" />
         <look name="Black" />
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+        <compound_transform xyz="0.3304 0.016419 0.083065" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Frame_Right" type="model" physics="submerged" buoyant="false">
@@ -96,38 +92,27 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="2.7" />
-
-        <material name="Steel" />
+        <material name="Aluminum" />
         <look name="Black" />
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+        <compound_transform xyz="-0.3304 0.016419 0.083065" rpy="0.0 0.0 0.0" />
       </external_part>
 
 
       <!-- Meb -->
-      <external_part name="Meb" type="model" physics="submerged" buoyant="true">
-        <physical>
-          <mesh filename="robots/marlin_v2/meb/meb_collision.obj" scale="1.0" convex="true" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </physical>
+      <external_part name="Meb" type="cylinder" physics="surface">
+        <dimensions radius="0.117" height="0.66" thickness="0.003" />
+        <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
 
-        <visual>
-          <mesh filename="robots/marlin_v2/meb/meb.obj" scale="1.0" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </visual>
+        <material name="Acrylic"/>
+        <look name="White"/>
 
-        <mass value="6.3" />
-
-        <material name="Plastic" />
-        <look name="White" />
-
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Meb_Mounting_Front" type="model" physics="submerged" buoyant="false">
         <physical>
-          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front_collision.obj"
-            scale="1.0" convex="true" />
+          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </physical>
 
@@ -136,18 +121,15 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.1" />
-
         <material name="Plastic" />
         <look name="Marlin_Blue" />
 
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.0 -0.32 -0.2" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Meb_Front_Camera_Dome" type="model" physics="submerged" buoyant="false">
+      <external_part name="Meb_Front_Camera_Dome" type="model" physics="surface">
         <physical>
-          <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome_collision.obj"
-            scale="1.0" convex="true" />
+          <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </physical>
 
@@ -156,18 +138,15 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.1" />
-
-        <material name="Plastic" />
+        <material name="Acrylic" />
         <look name="White" />
 
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.0 -0.348744 -0.166305" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Meb_Mounting_Rear" type="model" physics="submerged" buoyant="false">
         <physical>
-          <mesh filename="robots/marlin_v2/meb_mounting_rear/meb_mounting_rear_collision.obj"
-            scale="1.0" convex="true" />
+          <mesh filename="robots/marlin_v2/meb_mounting_rear/meb_mounting_rear_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </physical>
 
@@ -176,47 +155,37 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.1" />
-
         <material name="Plastic" />
         <look name="Marlin_Blue" />
 
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.0 0.32 -0.2" rpy="0.0 0.0 0.0" />
       </external_part>
 
 
       <!-- ESC Boxes -->
-      <external_part name="ESC_Box_Left" type="model" physics="submerged" buoyant="false">
-        <physical>
-          <mesh filename="robots/marlin_v2/esc_box/esc_box.obj" scale="1.0" convex="true" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </physical>
+      <external_part name="ESC_Box_Left" type="box" physics="submerged" buoyant="false">
+        <dimensions xyz="0.15 0.22 0.04"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
-        <mass value="5.0" />
+        <material name="Aluminum"/>
+        <look name="White"/>
 
-        <material name="Plastic" />
-        <look name="White" />
-
-        <compound_transform xyz="-0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="-0.237215 0.0 -0.0475" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="ESC_BOX_Right" type="model" physics="submerged" buoyant="false">
-        <physical>
-          <mesh filename="robots/marlin_v2/esc_box/esc_box.obj" scale="1.0" convex="true" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </physical>
+      <external_part name="ESC_Box_Right" type="box" physics="submerged" buoyant="false">
+        <dimensions xyz="0.15 0.22 0.04"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
-        <mass value="5.0" />
+        <material name="Aluminum"/>
+        <look name="White"/>
 
-        <material name="Plastic" />
-        <look name="White" />
-
-        <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.237215 0.0 -0.0475" rpy="0.0 0.0 0.0" />
       </external_part>
 
 
       <!-- Task Based Component Mounting -->
-      <external_part name="Grabber_Mounting" type="model" physics="submerged" buoyant="false">
+      <external_part name="Grabber_Mounting" type="model" physics="surface">
         <physical>
           <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -227,7 +196,7 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.3" />
+        <mass value="0.001" />
 
         <material name="Plastic" />
         <look name="Marlin_Blue" />
@@ -235,7 +204,7 @@
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Dropper_Mounting" type="model" physics="submerged" buoyant="false">
+      <external_part name="Dropper_Mounting" type="model" physics="surface">
         <physical>
           <mesh filename="robots/marlin_v2/dropper_mounting/dropper_mounting_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -246,7 +215,7 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.3" />
+        <mass value="0.001" />
 
         <material name="Plastic" />
         <look name="Marlin_Blue" />
@@ -254,7 +223,7 @@
         <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Torpedo_Mounting" type="model" physics="submerged" buoyant="false">
+      <external_part name="Torpedo_Mounting" type="model" physics="surface">
         <physical>
           <mesh filename="robots/marlin_v2/torpedo_mounting/torpedo_mounting_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -265,7 +234,7 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.3" />
+        <mass value="0.001" />
 
         <material name="Plastic" />
         <look name="Marlin_Blue" />
@@ -275,93 +244,88 @@
 
 
       <!-- Thrusters, excluding propeller which is added below -->
-       {{ thruster_visual(
+      {{ thruster_visual(
         name="thuster_0",
         xyz="-0.29 0.34 -0.08",
-        rpy="0 0 " ~ PI * 7 / 4,
-        material="Plastic",
-        look_name="Black"
+        rpy="0 0 " ~ PI * 7 / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_1",
         xyz="-0.29 -0.34 -0.08",
-        rpy="0 0 " ~ PI / 4,
-        material="Plastic",
-        look_name="Black"
+        rpy="0 0 " ~ PI / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_2",
         xyz="0.29 0.34 -0.08",
-        rpy="0 0 " ~ PI * 5 / 4,
-        material="Plastic",
-        look_name="Black"
+        rpy="0 0 " ~ PI * 5 / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_3",
         xyz="0.29 -0.34 -0.08",
-        rpy="0 0 " ~ PI * 3 / 4,
-        material="Plastic",
-        look_name="Black"
+        rpy="0 0 " ~ PI * 3 / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_4",
         xyz="0.23 -0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0",
-        material="Plastic",
-        look_name="Black"
+        rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_5",
         xyz="-0.23 -0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0",
-        material="Plastic",
-        look_name="Black"
+        rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_6",
         xyz="0.23 0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0",
-        material="Plastic",
-        look_name="Black"
+        rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_7",
         xyz="-0.23 0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0",
-        material="Plastic",
-        look_name="Black"
+        rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
 
       <!-- Rack, internal_part so it doesn't affect drag -->
-      <internal_part name="Rack" type="model" physics="submerged" buoyant="false">
-        <physical>
-          <mesh filename="robots/marlin_v2/rack/rack_collision.obj" scale="1.0" convex="true" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </physical>
+      <internal_part name="Rack" type="cylinder" physics="submerged" buoyant="true">
+        <dimensions radius="0.1135" height="0.66" />
+        <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
 
-        <visual>
-          <mesh filename="robots/marlin_v2/rack/rack.obj" scale="1.0" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </visual>
+        <material name="Air"/>
+        <look name="Gray"/>
 
-        <mass value="6.3" />
+        <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
+      </internal_part>
 
-        <material name="Plastic" />
-        <look name="Gray" />
+      <internal_part name="ESC_Box_Left_Internal" type="box" physics="submerged" buoyant="true">
+        <dimensions xyz="0.13 0.2 0.03" />
 
-        <compound_transform xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        <material name="Air"/>
+        <look name="White"/>
+
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+        <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </internal_part>
+
+      <internal_part name="ESC_Box_Right_Internal" type="box" physics="submerged" buoyant="true">
+        <dimensions xyz="0.13 0.2 0.03" />
+
+        <material name="Air"/>
+        <look name="White"/>
+
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+        <compound_transform xyz="-0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
     </base_link>
 
-    <link name="Left_Grabber" type="model" physics="submerged">
+    <link name="Left_Grabber" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/grabber/left/left_collision.obj" scale="1.0" convex="false" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -371,8 +335,6 @@
         <mesh filename="robots/marlin_v2/grabber/left/left.obj" scale="1.0" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
-
-      <mass value="1.0" />
 
       <material name="Plastic" />
       <look name="White" />
@@ -394,7 +356,7 @@
     </actuator>
 
 
-    <link name="Right_Grabber" type="model" physics="submerged">
+    <link name="Right_Grabber" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/grabber/right/right_collision.obj" scale="1.0"
           convex="false" />
@@ -405,8 +367,6 @@
         <mesh filename="robots/marlin_v2/grabber/right/right.obj" scale="1.0" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
-
-      <mass value="1.0" />
 
       <material name="Plastic" />
       <look name="White" />
@@ -428,7 +388,7 @@
     </actuator>
 
 
-    <link name="Dropper" type="model" physics="submerged">
+    <link name="Dropper" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/dropper/dropper_collision.obj" scale="1.0" convex="true" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -438,8 +398,6 @@
         <mesh filename="robots/marlin_v2/dropper/dropper.obj" scale="1.0" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
-
-      <mass value="1.0" />
 
       <material name="Plastic"/>
       <look name="White"/>
@@ -459,46 +417,6 @@
       <joint name="Dropper_Joint"/>
       <initial position="0.0"/>
     </actuator>
-
-
-    <!-- TODO: Make torpedoes display and animate properly -->
-    <animated name="Torpedo_Left" type="model" collision="true">
-      <physical>
-        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" convex="true" />
-        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-      </physical>
-
-      <visual>
-        <mesh filename="robots/marlin_v2/torpedoes/torpedo_left_facing.obj" scale="1.0" />
-        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-      </visual>
-
-      <material name="Plastic"/>
-      <look name="White"/>
-
-      <trajectory type="manual">
-        <!-- Put Animation Here-->
-      </trajectory>
-    </animated>
-
-    <animated name="Torpedo_Right" type="model" collision="true">
-      <physical>
-        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" convex="true" />
-        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-      </physical>
-
-      <visual>
-        <mesh filename="robots/marlin_v2/torpedoes/torpedo_right_facing.obj" scale="1.0" />
-        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-      </visual>
-
-      <material name="Plastic"/>
-      <look name="White"/>
-
-      <trajectory type="manual">
-        <!-- Put Animation Here-->
-      </trajectory>
-    </animated>
 
     <sensor name="DVL" rate="10.0" type="dvl">
       <link name="base_link" />
@@ -527,76 +445,68 @@
     <!-- Thrusters -->
     <!-- Order of thrusters is VERT FL, VERT FR, VERT BL, VERT BR, SURGE FL, SURGE FR, SURGE BL, SURGE BR -->
     <!-- Cannot use include tag here because they can only be used at the top level -->
-    {{ thruster(
+    {{ thruster_actuator(
       name="thuster_0",
       link_name="base_link",
       xyz="-0.29 0.34 -0.08",
       rpy="0 0 " ~ PI * 7 / 4,
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_1",
       link_name="base_link",
       xyz="-0.29 -0.34 -0.08",
       rpy="0 0 " ~ PI / 4,
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_2",
       link_name="base_link",
       xyz="0.29 0.34 -0.08",
       rpy="0 0 " ~ PI * 5 / 4,
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_3",
       link_name="base_link",
       xyz="0.29 -0.34 -0.08",
       rpy="0 0 " ~ PI * 3 / 4,
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_4",
       link_name="base_link",
       xyz="0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_5",
       link_name="base_link",
       xyz="-0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_6",
       link_name="base_link",
       xyz="0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
-    {{ thruster(
+    {{ thruster_actuator(
       name="thruster_7",
       link_name="base_link",
       xyz="-0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
-      right="true",
-      look_name="Marlin_Blue"
+      right="true"
     ) }}
 
     <ros_base_link_transform publish="true" />
