@@ -8,6 +8,7 @@
   <license>Proprietary</license>
 
   <depend>sub_sim</depend>
+  <depend>sim_mappings</depend>
 
   <export>
     <build_type>ament_python</build_type>

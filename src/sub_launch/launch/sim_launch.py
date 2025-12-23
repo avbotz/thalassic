@@ -5,6 +5,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, SetLaunchConfi
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -72,4 +73,12 @@ def generate_launch_description():
         ),
     )
 
-    return LaunchDescription(args + [render, include_stonefish, include_transforms])
+    # DVL bridge: translates Stonefish DVL messages to marine_acoustic_msgs
+    sim_dvl_bridge = Node(
+        package='sim_mappings',
+        executable='sim_dvl_bridge',
+        name='sim_dvl_bridge',
+        output='screen',
+    )
+
+    return LaunchDescription(args + [render, include_stonefish, include_transforms, sim_dvl_bridge])
