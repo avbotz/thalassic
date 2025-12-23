@@ -5,7 +5,7 @@
     material="Plastic",
     look_name="Black"
 ) -%}
-  <external_part name="{{ name }}_visual" type="model" physics="submerged" buoyant="false">
+  <external_part name="{{ name }}_visual" type="model" physics="submerged" buoyant="true">
     <physical>
       <mesh filename="robots/marlin_v2/thruster/thruster_collision.obj" scale="1.0" convex="true" />
       <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -16,21 +16,22 @@
       <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
     </visual>
 
-    <mass value="0.15" />
+    <mass value="0.239" />
 
-    <material name="material" />
-    <look name="Black" />
+    <material name="{{ material }}" />
+    <look name="{{ look_name }}" />
 
     <compound_transform xyz="{{ xyz }}" rpy="{{ rpy }}" />
   </external_part>
 {%- endmacro %}
 
-{% macro thruster(
+{% macro thruster_actuator(
     name,
     link_name="base_link",
     xyz="0.0 0.0 0.0",
     rpy="0.0 0.0 0.0",
     right="true",
+    material="Plastic",
     look_name="Black"
 ) -%}
   <actuator name="{{ name }}" type="thruster">
@@ -39,7 +40,7 @@
     <specs max_setpoint="1000.0" inverted_setpoint="false" normalized_setpoint="true" />
     <propeller diameter="0.2" right="{{ right }}">
       <mesh filename="robots/marlin_v2/thruster/propeller.obj" scale="1.0" />
-      <material name="Steel" />
+      <material name="{{ material }}" />
       <look name="{{ look_name }}" />
     </propeller>
 
