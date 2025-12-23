@@ -13,6 +13,7 @@
     <base_link name="base_link" type="compound" physics="submerged">
 
       <!-- Frame -->
+
       <external_part name="Frame_Top" type="model" physics="submerged" buoyant="false">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_top/frame_top_collision.obj" scale="1.0" convex="true" />
@@ -100,6 +101,7 @@
 
 
       <!-- Meb -->
+
       <external_part name="Meb" type="cylinder" physics="surface">
         <dimensions radius="0.117" height="0.66" thickness="0.003" />
         <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
@@ -163,6 +165,7 @@
 
 
       <!-- ESC Boxes -->
+
       <external_part name="ESC_Box_Left" type="box" physics="submerged" buoyant="false">
         <dimensions xyz="0.15 0.22 0.04"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
@@ -185,6 +188,7 @@
 
 
       <!-- Task Based Component Mounting -->
+
       <external_part name="Grabber_Mounting" type="model" physics="surface">
         <physical>
           <mesh filename="robots/marlin_v2/grabber_mounting/grabber_mounting_collision.obj" scale="1.0" convex="true" />
@@ -244,6 +248,7 @@
 
 
       <!-- Thrusters, excluding propeller which is added below -->
+
       {{ thruster_visual(
         name="thuster_0",
         xyz="-0.29 0.34 -0.08",
@@ -293,7 +298,8 @@
       ) }}
 
 
-      <!-- Rack, internal_part so it doesn't affect drag -->
+      <!-- internal_part so it doesn't affect drag, mainly for buoyancy -->
+
       <internal_part name="Rack" type="cylinder" physics="submerged" buoyant="true">
         <dimensions radius="0.1135" height="0.66" />
         <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
@@ -324,6 +330,9 @@
         <compound_transform xyz="-0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
     </base_link>
+
+
+    <!-- Task Based Components -->
 
     <link name="Left_Grabber" type="model" physics="surface">
       <physical>
@@ -417,6 +426,9 @@
       <joint name="Dropper_Joint"/>
       <initial position="0.0"/>
     </actuator>
+
+
+    <!-- Sensors -->
 
     <sensor name="DVL" rate="10.0" type="dvl">
       <link name="base_link" />
