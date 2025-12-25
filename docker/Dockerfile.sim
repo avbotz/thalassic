@@ -16,19 +16,19 @@ RUN usermod -aG dialout $USERNAME \
 # Install stonefish
 RUN apt-get update \
     && apt-get install -y libglm-dev libsdl2-dev libfreetype6-dev \
+    && git clone https://github.com/kethan1/stonefish \
+    && cd stonefish \
+    && git switch fix-transparent-surface \
+    && mkdir build && cd build \
+    && cmake .. \
+    && make -j4 \
+    && sudo make install \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y python3-pip \
-    && rm -rf /var/lib/apt/lists/* \
-    && git clone https://github.com/kethan1/stonefish \
-    && cd stonefish \
-    && git switch fixes-merged \
-    && mkdir build && cd build \
-    && cmake .. \
-    && make -j4 \
-    && sudo make install
+    && rm -rf /var/lib/apt/lists/*
 
 # Install updated mesa drivers
 # Greatly improves Gazebo performance for systems with newer AMD gpus
