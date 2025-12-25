@@ -25,6 +25,8 @@
           <origin xyz="0.0 0.0 0.025" rpy="0.0 0.0 0.0" />
         </visual>
 
+        <mass value="3.460" />
+
         <material name="Aluminum" />
         <look name="Black" />
 
@@ -41,6 +43,8 @@
           <mesh filename="robots/marlin_v2/frame/frame_front/frame_front.obj" scale="1.0" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
+
+        <mass value="0.274" />
 
         <material name="Aluminum" />
         <look name="Black" />
@@ -59,6 +63,8 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
+        <mass value="0.274" />
+
         <material name="Aluminum" />
         <look name="Black" />
 
@@ -76,6 +82,8 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
+        <mass value="0.481" />
+
         <material name="Aluminum" />
         <look name="Black" />
 
@@ -92,6 +100,8 @@
           <mesh filename="robots/marlin_v2/frame/frame_right/frame_right.obj" scale="1.0" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
+
+        <mass value="0.481" />
 
         <material name="Aluminum" />
         <look name="Black" />
@@ -303,6 +313,9 @@
       <internal_part name="Rack" type="cylinder" physics="submerged" buoyant="true">
         <dimensions radius="0.1135" height="0.66" />
         <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
+
+        <!-- Rack consists of electrical components along with air -->
+        <mass value="5.0" />
 
         <material name="Air"/>
         <look name="Gray"/>
