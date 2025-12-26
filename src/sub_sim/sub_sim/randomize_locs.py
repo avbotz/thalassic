@@ -6,7 +6,7 @@ from pathlib import Path
 
 from jinja2 import Template
 
-def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, ROBOT_SCENARIO_PATH: str, seed: None | int=None) -> str:
+def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, ROBOT_SCENARIO_PATH: str, seed: None | int=None) -> Path:
     scenario_template_file = Path(scenario_template_file)
 
     rng = random.Random()
@@ -36,4 +36,4 @@ def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, 
     with os.fdopen(fd, "w") as f:
         f.write(rendered)
 
-    return temp_path
+    return Path(temp_path)
