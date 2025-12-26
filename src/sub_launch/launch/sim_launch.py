@@ -1,15 +1,21 @@
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction, SetLaunchConfiguration, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import (
+    OpaqueFunction,
+    DeclareLaunchArgument,
+    SetLaunchConfiguration,
+    IncludeLaunchDescription,
+)
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 from ament_index_python.packages import get_package_share_directory
 
-from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.generate_robot import render_robot_scenario
+from sub_sim.randomize_locs import randomize_scenario_locations
+from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
 
 def _render_scn(context, *_, **__):
@@ -21,11 +27,28 @@ def _render_scn(context, *_, **__):
     DYAW = float(lc("DYAW"))
     SEED = int(lc("seed")) if lc("seed") != "" and lc("seed").isdigit() else None
 
-
-    scenario_file = Path(get_package_share_directory("sub_sim")) / "scenarios" / "woollett.scn.j2"
-    robot_scenario_file = Path(get_package_share_directory("sub_sim")) / "data" / "robots" / "marlin_v2" / "layout.scn.j2"
+    scenario_file = (
+        Path(get_package_share_directory("sub_sim")) / "scenarios" / "woollett.scn.j2"
+    )
+    robot_scenario_file = (
+        Path(get_package_share_directory("sub_sim"))
+        / "data"
+        / "robots"
+        / "marlin_v2"
+        / "layout.scn.j2"
+    )
 
     robot_rendered_path = render_robot_scenario(robot_scenario_file)
+
+    urdf_robot = robot_scenario_to_urdf(
+        scenario_xml=robot_rendered_path,
+        robot_name="marlin_v2",
+        mesh_prefix="file://"
+        + str(Path(get_package_share_directory("sub_sim")) / "data")
+        + "/",
+    )
+
+    robot_description = Path(urdf_robot).read_text()
 
     temp_path = randomize_scenario_locations(
         scenario_template_file=scenario_file,
@@ -34,10 +57,14 @@ def _render_scn(context, *_, **__):
         DZ=DZ,
         DYAW=DYAW,
         seed=SEED,
-        ROBOT_SCENARIO_PATH=robot_rendered_path,
+        ROBOT_SCENARIO_PATH=robot_rendered_path.as_posix(),
     )
 
-    return [SetLaunchConfiguration("scenario_file", temp_path)]
+    return [
+        SetLaunchConfiguration("scenario_file", temp_path.as_posix()),
+        SetLaunchConfiguration("robot_urdf_file", Path(urdf_robot).as_posix()),
+        SetLaunchConfiguration("robot_description", robot_description),
+    ]
 
 
 def generate_launch_description():
@@ -51,25 +78,43 @@ def generate_launch_description():
 
     render = OpaqueFunction(function=_render_scn)
 
+    include_transforms = IncludeLaunchDescription(
+        PathJoinSubstitution(
+            [FindPackageShare("sub_launch"), "launch", "marlin_v2_launch.py"]
+        ),
+    )
+
     include_stonefish = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [PathJoinSubstitution([FindPackageShare("sub_launch"), "launch", "marlin_v2_launch.py"])]
+        PathJoinSubstitution(
+            [
+                FindPackageShare("stonefish_ros2"),
+                "launch",
+                "stonefish_simulator.launch.py",
+            ]
         ),
         launch_arguments={
-            "simulation_data": PathJoinSubstitution([FindPackageShare("sub_sim"), "data"]),
+            "simulation_data": PathJoinSubstitution(
+                [FindPackageShare("sub_sim"), "data"]
+            ),
             "scenario_desc": LaunchConfiguration("scenario_file"),
             "simulation_rate": "300.0",
             "window_res_x": "1900",
             "window_res_y": "1000",
             "rendering_quality": "medium",
-            "use_sim_time": "true",
+            "use_sim_time": "false",
         }.items(),
     )
 
-    include_transforms = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [PathJoinSubstitution([FindPackageShare("stonefish_ros2"), "launch", "stonefish_simulator.launch.py"])]
-        ),
+    robot_state_publisher = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        name="robot_state_publisher",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "robot_description": LaunchConfiguration("robot_description"),
+            }
+        ],
     )
 
-    return LaunchDescription(args + [render, include_stonefish, include_transforms])
+    return LaunchDescription(args + [render, include_stonefish, include_transforms, robot_state_publisher])
