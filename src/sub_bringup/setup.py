@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = "sub_launch"
+package_name = "sub_bringup"
 
 setup(
     name=package_name,
@@ -12,7 +12,8 @@ setup(
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/launch", glob(os.path.join("launch", "*launch.[pxy][yma]*"))),
-        (f"share/{package_name}/config", glob(os.path.join("config", "*.[yaml]*"))),
+        (f"share/{package_name}/config", glob(os.path.join("config", "*"))),
+        (f"share/{package_name}/rviz", glob(os.path.join("rviz", "*.rviz*"))),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

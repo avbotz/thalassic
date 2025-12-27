@@ -28,15 +28,11 @@ def _render_scn(context, *_, **__):
     DYAW = float(lc("DYAW"))
     SEED = int(lc("seed")) if lc("seed") != "" and lc("seed").isdigit() else None
 
-    scenario_file = (
-        Path(get_package_share_directory("sub_sim")) / "scenarios" / "woollett.scn.j2"
-    )
+    sub_sim_share = get_package_share_directory("sub_sim")
+
+    scenario_file = Path(sub_sim_share) / "scenarios" / "woollett.scn.j2"
     robot_scenario_file = (
-        Path(get_package_share_directory("sub_sim"))
-        / "data"
-        / "robots"
-        / "marlin_v2"
-        / "layout.scn.j2"
+        Path(sub_sim_share) / "data" / "robots" / "marlin_v2" / "layout.scn.j2"
     )
 
     robot_rendered_path = render_robot_scenario(robot_scenario_file)
@@ -44,12 +40,10 @@ def _render_scn(context, *_, **__):
     urdf_robot = robot_scenario_to_urdf(
         scenario_xml=robot_rendered_path,
         robot_name="marlin_v2",
-        mesh_prefix="file://"
-        + str(Path(get_package_share_directory("sub_sim")) / "data")
-        + "/",
+        mesh_prefix=f"file://{Path(sub_sim_share) / "data"}/",
     )
 
-    robot_description = Path(urdf_robot).read_text()
+    robot_description = urdf_robot.read_text()
 
     temp_path = randomize_scenario_locations(
         scenario_template_file=scenario_file,
@@ -63,7 +57,7 @@ def _render_scn(context, *_, **__):
 
     return [
         SetLaunchConfiguration("scenario_file", temp_path.as_posix()),
-        SetLaunchConfiguration("robot_urdf_file", Path(urdf_robot).as_posix()),
+        SetLaunchConfiguration("robot_urdf_file", urdf_robot.as_posix()),
         SetLaunchConfiguration("robot_description", robot_description),
     ]
 
@@ -81,7 +75,7 @@ def generate_launch_description():
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
-            [FindPackageShare("sub_launch"), "launch", "marlin_v2_launch.py"]
+            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
         ),
     )
 
@@ -135,7 +129,7 @@ def generate_launch_description():
         name="ekf_filter_node",
         output="screen",
         parameters=[
-            os.path.join(get_package_share_directory("sub_launch"), "config/ekf.yaml"),
+            os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
         ],
     )
 
