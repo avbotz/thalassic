@@ -24,7 +24,30 @@ def generate_launch_description():
             "--frame-id",
             "map",
             "--child-frame-id",
+            "marlin_v2/odom",
+        ],
+    )
+
+    tf_base_link_to_base_link_ned = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=[
+            "--x",
+            "0.0",
+            "--y",
+            "-0.0",
+            "--z",
+            "-0.0",
+            "--roll",
+            str(math.pi),
+            "--pitch",
+            "0.0",
+            "--yaw",
+            str(math.pi / 2),
+            "--frame-id",
             "marlin_v2/base_link",
+            "--child-frame-id",
+            "marlin_v2/base_link_ned",
         ],
     )
 
@@ -48,6 +71,58 @@ def generate_launch_description():
             "marlin_v2/base_link_ned",
             "--child-frame-id",
             "marlin_v2/front_camera",
+        ],
+    )
+
+    # tf_down_cam = Node(
+    #     package="tf2_ros",
+    #     executable="static_transform_publisher",
+    #     arguments=["0.16", "0.0725", "0.15", "1.571", "0", "1.571", "base_link", "bluerov2/camera_right"],
+    # )
+
+    tf_dvl = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=[
+            "--x",
+            "0.0",
+            "--y",
+            "0.0",
+            "--z",
+            "0.015797",
+            "--roll",
+            "0.0",
+            "--pitch",
+            "0.0",
+            "--yaw",
+            "0.0",
+            "--frame-id",
+            "marlin_v2/base_link_ned",
+            "--child-frame-id",
+            "marlin_v2/dvl_link",
+        ],
+    )
+
+    tf_dvl = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=[
+            "--x",
+            "0.0",
+            "--y",
+            "0.0",
+            "--z",
+            "0.015797",
+            "--roll",
+            "0.0",
+            "--pitch",
+            "0.0",
+            "--yaw",
+            "0.0",
+            "--frame-id",
+            "marlin_v2/base_link_ned",
+            "--child-frame-id",
+            "marlin_v2/dvl_imu_link",
         ],
     )
 
@@ -120,40 +195,12 @@ def generate_launch_description():
         ],
     )
 
-    tf_base_link_to_base_link_ned = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        arguments=[
-            "--x",
-            "0.0",
-            "--y",
-            "-0.0",
-            "--z",
-            "-0.0",
-            "--roll",
-            str(math.pi),
-            "--pitch",
-            "0.0",
-            "--yaw",
-            str(math.pi / 2),
-            "--frame-id",
-            "marlin_v2/base_link",
-            "--child-frame-id",
-            "marlin_v2/base_link_ned",
-        ],
-    )
-
-    # tf_down_cam = Node(
-    #     package="tf2_ros",
-    #     executable="static_transform_publisher",
-    #     arguments=["0.16", "0.0725", "0.15", "1.571", "0", "1.571", "base_link", "bluerov2/camera_right"],
-    # )
-
     return LaunchDescription(
         [
             tf_position,
             tf_base_link_to_base_link_ned,
             tf_front_cam,
+            tf_dvl,
             tf_dropper,
             tf_grabber_left,
             tf_grabber_right,
