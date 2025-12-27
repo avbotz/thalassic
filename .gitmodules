@@ -1,3 +1,6 @@
 [submodule "src/stonefish_ros2"]
 	path = src/stonefish_ros2
 	url = https://github.com/patrykcieslak/stonefish_ros2.git
+[submodule "src/waterlinked_dvl"]
+	path = src/sub_drivers/waterlinked_dvl
+	url = https://github.com/Robotic-Decision-Making-Lab/waterlinked_dvl

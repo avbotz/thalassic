@@ -443,19 +443,31 @@
 
     <!-- Sensors -->
 
-    <sensor name="DVL" rate="10.0" type="dvl">
+    <sensor name="dvl_link" rate="10.0" type="dvl">
       <link name="base_link_ned" />
 
       <specs beam_angle="30.0" beam_positive_z="false" />
-      <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0" />
+      <range velocity="3.75 3.75 3.75" altitude_min="0.05" altitude_max="50.0" />
       <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0" />
-      <noise velocity_percent="0.3" velocity="0.05" altitude="0.03" water_velocity_percent="0.1"
-        water_velocity="0.05" />
+      <noise velocity_percent="0.0101" velocity="0.01" altitude="0.03" water_velocity_percent="0.0" water_velocity="0.00" />
       <history samples="1" />
 
-      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0" />
 
       <ros_publisher topic="/marlin_v2/sim/dvl" />
+    </sensor>
+
+    <!-- The WaterLinked a50 DVL has an IMU inside of it, so we use a separate IMU sensor to represent it -->
+    <sensor name="dvl_imu_link" rate="10.0" type="imu">
+      <link name="base_link_ned"/>
+
+      <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0"/>
+      <noise angle="0.05 0.05 1.0" angular_velocity="0.00" yaw_drift="0.00" linear_acceleration="0.00"/>
+      <history samples="1"/>
+
+      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0"/>
+
+      <ros_publisher topic="/marlin_v2/sim/dvl_imu"/>
     </sensor>
 
     <sensor name="front_camera" rate="10.0" type="camera">
@@ -534,7 +546,7 @@
       right="true"
     ) }}
 
-    <ros_base_link_transform publish="true" />
+    <ros_base_link_transform publish="false" />
 
     <ros_publisher servos="/marlin_v2/sim/joint_states" thrusters="/marlin_v2/sim/thruster_states" />
     <ros_subscriber servos="/marlin_v2/sim/joint_setpoints" thrusters="/marlin_v2/sim/thruster_setpoints" />

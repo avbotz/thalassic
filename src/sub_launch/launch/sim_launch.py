@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from launch import LaunchDescription
@@ -117,4 +118,35 @@ def generate_launch_description():
         ],
     )
 
-    return LaunchDescription(args + [render, include_stonefish, include_transforms, robot_state_publisher])
+    sim_dvl_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_dvl_remapper",
+        name="sim_dvl_remapper",
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
+    robot_localization_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        output="screen",
+        parameters=[
+            os.path.join(get_package_share_directory("sub_launch"), "config/ekf.yaml"),
+        ],
+    )
+
+    return LaunchDescription(
+        args
+        + [
+            render,
+            include_stonefish,
+            include_transforms,
+            robot_state_publisher,
+            sim_dvl_remapper,
+            robot_localization_node,
+        ]
+    )
