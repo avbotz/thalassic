@@ -22,6 +22,8 @@ sudo apt install -y python3-rosdep python3-rosinstall-generator python3-vcstool 
 
 git submodule update --init --recursive
 
+vcs import src < src/sub_drivers/waterlinked_dvl/ros2.repos
+
 # Stonefish
 mkdir /tmp/stonefish
 cd /tmp/stonefish
@@ -39,6 +41,6 @@ cd $ROS_WS_DIR
 
 sudo rosdep init
 rosdep update
-rosdep install -i --from-paths src 
+rosdep install -y -i --from-paths src --skip-keys="pcl nlohmann_json"
 
 colcon build

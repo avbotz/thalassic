@@ -1,0 +1,3 @@
+waterlinked_dvl_driver_node:
+  ros__parameters:
+    frame_id: "/marlin_v2/dvl_link"
