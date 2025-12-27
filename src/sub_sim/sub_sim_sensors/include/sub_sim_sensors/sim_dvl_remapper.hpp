@@ -20,13 +20,11 @@ class SimDVLRemapper : public rclcpp::Node {
 
    private:
     std::string robot_name_;
-    rclcpp::Time last_time_;
-    std::array<double, 3> accumulated_pos_{0.0f, 0.0f, 0.0f};
     std::array<double, 3> rpy_{0.0f, 0.0f, 0.0f};
     rclcpp::Subscription<stonefish_ros2::msg::DVL>::SharedPtr subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr dvl_imu_subscriber_;
     rclcpp::Publisher<marine_acoustic_msgs::msg::Dvl>::SharedPtr vel_publisher_;
-    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pos_publisher_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
 };
 
 int main(int argc, char* argv[]);

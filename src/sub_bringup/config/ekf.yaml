@@ -43,7 +43,7 @@ ekf_filter_node:
                       true, true, true,
                       false, false, false]
 
-        odom0: /marlin_v2/dead_reckoning
+        odom0: /marlin_v2/dvl_odom
         odom0_config: [false, false, false,
                       false, false, false,
                       true, true, true,
