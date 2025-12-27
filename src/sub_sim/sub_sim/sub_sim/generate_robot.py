@@ -6,7 +6,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 
-def render_robot_scenario(robot_template_file: Path | str) -> str:
+def render_robot_scenario(robot_template_file: Path | str) -> Path:
     robot_template_file = Path(robot_template_file)
 
     # Let Jinja resolve `{% from "thrusters.jinja" import ... %}`
@@ -23,4 +23,4 @@ def render_robot_scenario(robot_template_file: Path | str) -> str:
     with os.fdopen(fd, "w") as f:
         f.write(rendered)
 
-    return temp_path
+    return Path(temp_path)

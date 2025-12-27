@@ -10,7 +10,7 @@
   </looks>
 
   <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
-    <base_link name="base_link" type="compound" physics="submerged">
+    <base_link name="base_link_ned" type="compound" physics="submerged">
 
       <!-- Frame -->
 
@@ -347,7 +347,7 @@
 
     <!-- Task Based Components -->
 
-    <link name="Left_Grabber" type="model" physics="surface">
+    <link name="left_grabber_link" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/grabber/left/left_collision.obj" scale="1.0" convex="false" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -364,21 +364,21 @@
       <world_transform xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0" />
     </link>
 
-    <joint name="Left_Grabber_Joint" type="revolute">
-      <parent name="base_link" />
-      <child name="Left_Grabber" />
+    <joint name="left_grabber_joint" type="revolute">
+      <parent name="base_link_ned" />
+      <child name="left_grabber_link" />
       <origin xyz="0.056319 0.3506 0.13631" rpy="0.0 0.0 0.0" />
       <axis xyz="0.0 1.0 0.0" />
     </joint>
 
-    <actuator name="Left_Grabber_Servo" type="servo">
+    <actuator name="left_grabber_servo" type="servo">
       <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1" />
-      <joint name="Left_Grabber_Joint" />
+      <joint name="left_grabber_joint" />
       <initial position="0.0" />
     </actuator>
 
 
-    <link name="Right_Grabber" type="model" physics="surface">
+    <link name="right_grabber_link" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/grabber/right/right_collision.obj" scale="1.0"
           convex="false" />
@@ -396,21 +396,21 @@
       <world_transform xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0" />
     </link>
 
-    <joint name="Right_Grabber_Joint" type="revolute">
-      <parent name="base_link" />
-      <child name="Right_Grabber" />
+    <joint name="right_grabber_joint" type="revolute">
+      <parent name="base_link_ned" />
+      <child name="right_grabber_link" />
       <origin xyz="0.091319 0.35087 0.13636" rpy="0.0 0.0 0.0" />
       <axis xyz="0.0 1.0 0.0" />
     </joint>
 
-    <actuator name="Right_Grabber_Servo" type="servo">
+    <actuator name="right_grabber_servo" type="servo">
       <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1" />
-      <joint name="Right_Grabber_Joint" />
+      <joint name="right_grabber_joint" />
       <initial position="0.0" />
     </actuator>
 
 
-    <link name="Dropper" type="model" physics="surface">
+    <link name="dropper_link" type="model" physics="surface">
       <physical>
         <mesh filename="robots/marlin_v2/dropper/dropper_collision.obj" scale="1.0" convex="true" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -427,39 +427,51 @@
       <world_transform xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0" />
     </link>
 
-    <joint name="Dropper_Joint" type="revolute">
-      <parent name="base_link"/>
-      <child name="Dropper"/>
+    <joint name="dropper_joint" type="revolute">
+      <parent name="base_link_ned"/>
+      <child name="dropper_link"/>
       <origin xyz="-0.19074 0.40252 0.15565" rpy="0.0 0.0 0.0"/>
       <axis xyz="0.0 1.0 0.0"/>
     </joint>
 
-    <actuator name="Dropper_Servo" type="servo">
+    <actuator name="dropper_servo" type="servo">
       <controller position_gain="1.0" velocity_gain="1.0" max_torque="10.0" max_velocity="0.1"/>
-      <joint name="Dropper_Joint"/>
+      <joint name="dropper_joint"/>
       <initial position="0.0"/>
     </actuator>
 
 
     <!-- Sensors -->
 
-    <sensor name="DVL" rate="10.0" type="dvl">
-      <link name="base_link" />
+    <sensor name="dvl_link" rate="10.0" type="dvl">
+      <link name="base_link_ned" />
 
       <specs beam_angle="30.0" beam_positive_z="false" />
-      <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0" />
+      <range velocity="3.75 3.75 3.75" altitude_min="0.05" altitude_max="50.0" />
       <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0" />
-      <noise velocity_percent="0.3" velocity="0.05" altitude="0.03" water_velocity_percent="0.1"
-        water_velocity="0.05" />
+      <noise velocity_percent="0.0101" velocity="0.01" altitude="0.03" water_velocity_percent="0.0" water_velocity="0.00" />
       <history samples="1" />
 
-      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0" />
 
       <ros_publisher topic="/marlin_v2/sim/dvl" />
     </sensor>
 
+    <!-- The WaterLinked a50 DVL has an IMU inside of it, so we use a separate IMU sensor to represent it -->
+    <sensor name="dvl_imu_link" rate="10.0" type="imu">
+      <link name="base_link_ned"/>
+
+      <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0"/>
+      <noise angle="0.05 0.05 1.0" angular_velocity="0.00" yaw_drift="0.00" linear_acceleration="0.00"/>
+      <history samples="1"/>
+
+      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0"/>
+
+      <ros_publisher topic="/marlin_v2/sim/dvl_imu"/>
+    </sensor>
+
     <sensor name="front_camera" rate="10.0" type="camera">
-      <link name="base_link" />
+      <link name="base_link_ned" />
 
       <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />
       <origin xyz="0.0 -0.37506 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
@@ -472,7 +484,7 @@
     <!-- Cannot use include tag here because they can only be used at the top level -->
     {{ thruster_actuator(
       name="thuster_0",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="-0.29 0.34 -0.08",
       rpy="0 0 " ~ PI * 7 / 4,
       right="true"
@@ -480,7 +492,7 @@
 
     {{ thruster_actuator(
       name="thruster_1",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="-0.29 -0.34 -0.08",
       rpy="0 0 " ~ PI / 4,
       right="true"
@@ -488,7 +500,7 @@
 
     {{ thruster_actuator(
       name="thruster_2",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="0.29 0.34 -0.08",
       rpy="0 0 " ~ PI * 5 / 4,
       right="true"
@@ -496,7 +508,7 @@
 
     {{ thruster_actuator(
       name="thruster_3",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="0.29 -0.34 -0.08",
       rpy="0 0 " ~ PI * 3 / 4,
       right="true"
@@ -504,7 +516,7 @@
 
     {{ thruster_actuator(
       name="thruster_4",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
@@ -512,7 +524,7 @@
 
     {{ thruster_actuator(
       name="thruster_5",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="-0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
@@ -520,7 +532,7 @@
 
     {{ thruster_actuator(
       name="thruster_6",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
@@ -528,13 +540,13 @@
 
     {{ thruster_actuator(
       name="thruster_7",
-      link_name="base_link",
+      link_name="base_link_ned",
       xyz="-0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
     ) }}
 
-    <ros_base_link_transform publish="true" />
+    <ros_base_link_transform publish="false" />
 
     <ros_publisher servos="/marlin_v2/sim/joint_states" thrusters="/marlin_v2/sim/thruster_states" />
     <ros_subscriber servos="/marlin_v2/sim/joint_setpoints" thrusters="/marlin_v2/sim/thruster_setpoints" />
