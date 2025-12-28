@@ -5,12 +5,11 @@
 #include <memory>
 #include <string>
 
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
-#include "tf2/LinearMath/Quaternion.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 using std::placeholders::_1;
 
@@ -20,11 +19,10 @@ SimDVLRemapper::SimDVLRemapper() : Node("sim_dvl_remapper") {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
-    subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>(robot_name_ + "/sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
-    dvl_imu_subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(robot_name_ + "/sim/dvl_imu", 10, std::bind(&SimDVLRemapper::imu_callback, this, _1));
+    subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>("sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
 
-    vel_publisher_ = this->create_publisher<marine_acoustic_msgs::msg::Dvl>(robot_name_ + "/dvl", 10);
-    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>(robot_name_ + "/dvl_odom", 10);
+    vel_publisher_ = this->create_publisher<marine_acoustic_msgs::msg::Dvl>("dvl", 10);
+    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("dvl_odom", 10);
 }
 
 void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_stonefish) {
@@ -59,7 +57,6 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
 
     vel_publisher_->publish(msg_marine);
 
-
     nav_msgs::msg::Odometry odom_msg{};
     odom_msg.header = msg_marine.header;
 
@@ -71,10 +68,6 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
     odom_msg.twist.covariance[14] = msg_marine.velocity_covar[8];
 
     odom_publisher_->publish(odom_msg);
-}
-
-void SimDVLRemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-    rpy_ = {msg->orientation.x, msg->orientation.y, msg->orientation.z};
 }
 
 int main(int argc, char* argv[]) {

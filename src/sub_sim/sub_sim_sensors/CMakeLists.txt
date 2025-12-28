@@ -8,10 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(tf2 REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(stonefish_ros2 REQUIRED)
 find_package(marine_acoustic_msgs REQUIRED)
@@ -30,7 +27,7 @@ endif()
 
 add_executable(sim_dvl_remapper src/sim_dvl_remapper.cpp)
 include_directories(sim_dvl_remapper include)
-ament_target_dependencies(sim_dvl_remapper rclcpp tf2 nav_msgs tf2_geometry_msgs sensor_msgs geometry_msgs stonefish_ros2 marine_acoustic_msgs)
+ament_target_dependencies(sim_dvl_remapper rclcpp nav_msgs geometry_msgs stonefish_ros2 marine_acoustic_msgs)
 
 install(TARGETS
   sim_dvl_remapper

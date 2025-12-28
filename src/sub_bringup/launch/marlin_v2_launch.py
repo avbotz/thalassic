@@ -110,9 +110,9 @@ def generate_launch_description():
             "--x",
             "0.0",
             "--y",
-            "0.0",
+            "-0.15",
             "--z",
-            "0.015797",
+            "-0.2",
             "--roll",
             "0.0",
             "--pitch",
@@ -122,7 +122,7 @@ def generate_launch_description():
             "--frame-id",
             "marlin_v2/base_link_ned",
             "--child-frame-id",
-            "marlin_v2/dvl_imu_link",
+            "marlin_v2/imu_link",
         ],
     )
 
