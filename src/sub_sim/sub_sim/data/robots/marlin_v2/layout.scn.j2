@@ -457,20 +457,19 @@
       <ros_publisher topic="/marlin_v2/sim/dvl" />
     </sensor>
 
-    <!-- The WaterLinked a50 DVL has an IMU inside of it, so we use a separate IMU sensor to represent it -->
-    <sensor name="dvl_imu_link" rate="10.0" type="imu">
+    <sensor name="imu_link" rate="30.0" type="imu">
       <link name="base_link_ned"/>
 
       <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0"/>
       <noise angle="0.05 0.05 1.0" angular_velocity="0.00" yaw_drift="0.00" linear_acceleration="0.00"/>
       <history samples="1"/>
 
-      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0"/>
+      <origin xyz="0.0 -0.15 -0.2" rpy="0.0 0.0 0.0"/>
 
-      <ros_publisher topic="/marlin_v2/sim/dvl_imu"/>
+      <ros_publisher topic="/marlin_v2/imu"/>
     </sensor>
 
-    <sensor name="front_camera" rate="10.0" type="camera">
+    <sensor name="front_camera" rate="20.0" type="camera">
       <link name="base_link_ned" />
 
       <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />

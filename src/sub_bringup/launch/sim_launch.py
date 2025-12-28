@@ -116,6 +116,7 @@ def generate_launch_description():
         package="sub_sim_sensors",
         executable="sim_dvl_remapper",
         name="sim_dvl_remapper",
+        namespace="marlin_v2",
         parameters=[
             {
                 "robot_name": "marlin_v2",
@@ -128,6 +129,7 @@ def generate_launch_description():
         executable="ekf_node",
         name="ekf_filter_node",
         output="screen",
+        namespace="marlin_v2",
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
         ],
