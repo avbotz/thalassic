@@ -146,7 +146,7 @@
         </physical>
 
         <visual>
-          <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome.obj" scale="1.0" />
+          <mesh filename="empty.obj" scale="1.0" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
@@ -473,7 +473,7 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />
-      <origin xyz="0.0 -0.37506 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
+      <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
 
       <ros_publisher topic="/marlin_v2/front_camera" />
     </sensor>
