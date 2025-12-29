@@ -124,6 +124,13 @@ def generate_launch_description():
         ],
     )
 
+    dvl_odom_remapping = Node(
+        package="sub_drivers_mappings",
+        executable="dvl_odom_remapper",
+        name="dvl_odom_remapper",
+        namespace="marlin_v2",
+    )
+
     robot_localization_node = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -143,6 +150,7 @@ def generate_launch_description():
             include_transforms,
             robot_state_publisher,
             sim_dvl_remapper,
+            dvl_odom_remapping,
             robot_localization_node,
         ]
     )
