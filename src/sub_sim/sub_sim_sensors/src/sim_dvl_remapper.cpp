@@ -1,13 +1,9 @@
 #include "sub_sim_sensors/sim_dvl_remapper.hpp"
 
 #include <array>
-#include <chrono>
 #include <memory>
-#include <string>
 
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "marine_acoustic_msgs/msg/dvl.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
 
@@ -22,7 +18,6 @@ SimDVLRemapper::SimDVLRemapper() : Node("sim_dvl_remapper") {
     subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>("sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
 
     vel_publisher_ = this->create_publisher<marine_acoustic_msgs::msg::Dvl>("dvl", 10);
-    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("dvl_odom", 10);
 }
 
 void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_stonefish) {
@@ -56,18 +51,6 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
     msg_marine.dvl_type = marine_acoustic_msgs::msg::Dvl::DVL_TYPE_PISTON;
 
     vel_publisher_->publish(msg_marine);
-
-    nav_msgs::msg::Odometry odom_msg{};
-    odom_msg.header = msg_marine.header;
-
-    odom_msg.twist.twist.linear.x = msg_marine.velocity.x;
-    odom_msg.twist.twist.linear.y = msg_marine.velocity.y;
-    odom_msg.twist.twist.linear.z = msg_marine.velocity.z;
-    odom_msg.twist.covariance[0] = msg_marine.velocity_covar[0];
-    odom_msg.twist.covariance[7] = msg_marine.velocity_covar[4];
-    odom_msg.twist.covariance[14] = msg_marine.velocity_covar[8];
-
-    odom_publisher_->publish(odom_msg);
 }
 
 int main(int argc, char* argv[]) {
