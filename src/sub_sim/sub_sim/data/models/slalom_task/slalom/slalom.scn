@@ -7,7 +7,7 @@
 
   <static name="slalom_white_poles" type="model">
     <physical>
-      <mesh filename="models/slalom_task/slalom/parts/empty.obj" scale="1.0" convex="true" />
+      <mesh filename="empty.obj" scale="1.0" convex="true" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
     <visual>
