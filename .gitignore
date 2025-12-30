@@ -1,6 +1,7 @@
 src/json
 
 **/.vscode/
+.cache/
 
 **/build/
 **/install/
@@ -20,3 +21,9 @@ weights/*
 *.log
 
 *~
+
+# Skills files
+.agents/
+.claude
+.pi
+skills-lock.json
