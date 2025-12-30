@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(sub_drivers_mappings)
+project(sub_control_interfaces)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -7,10 +7,8 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(marine_acoustic_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -24,12 +22,9 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_executable(dvl_odom_remapper src/dvl_odom_remapper.cpp)
-include_directories(dvl_odom_remapper include)
-ament_target_dependencies(dvl_odom_remapper rclcpp nav_msgs std_msgs marine_acoustic_msgs)
-
-install(TARGETS
-  dvl_odom_remapper
-  DESTINATION lib/${PROJECT_NAME})
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Setpoint.msg"
+  DEPENDENCIES geometry_msgs
+)
 
 ament_package()

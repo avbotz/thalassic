@@ -1,6 +1,5 @@
 #include "sub_sim_sensors/sim_dvl_remapper.hpp"
 
-#include <array>
 #include <memory>
 
 #include "marine_acoustic_msgs/msg/dvl.hpp"

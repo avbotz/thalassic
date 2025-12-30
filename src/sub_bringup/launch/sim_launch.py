@@ -131,6 +131,30 @@ def generate_launch_description():
         namespace="marlin_v2",
     )
 
+    sim_imu_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_imu_remapper",
+        name="sim_imu_remapper",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
+    thruster_republisher = Node(
+        package="sub_sim_sensors",
+        executable="thruster_republishers",
+        name="thruster_republishers",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
     robot_localization_node = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -139,6 +163,20 @@ def generate_launch_description():
         namespace="marlin_v2",
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
+        ],
+    )
+
+    sub_control_node = Node(
+        package="sub_control",
+        executable="sub_control",
+        name="sub_control",
+        output="screen",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "world_frame": "map",
+                "control_frame": "marlin_v2/base_link",
+            }
         ],
     )
 
@@ -151,6 +189,9 @@ def generate_launch_description():
             robot_state_publisher,
             sim_dvl_remapper,
             dvl_odom_remapping,
+            sim_imu_remapper,
+            thruster_republisher,
             robot_localization_node,
+            sub_control_node,
         ]
     )
