@@ -132,6 +132,59 @@ def generate_launch_description():
         ],
     )
 
+    # RTAB-Map RGBD sync to handle timestamp differences between cameras
+    rgbd_sync = Node(
+        package="rtabmap_sync",
+        executable="rgbd_sync",
+        name="rgbd_sync",
+        namespace="marlin_v2",
+        output="screen",
+        parameters=[
+            {
+                "approx_sync": True,
+                "approx_sync_max_interval": 1.0,  # Very permissive for sim
+                "qos": 1,
+                "qos_image": 1,
+                "qos_camera_info": 1,
+            }
+        ],
+        remappings=[
+            ("rgb/image", "/marlin_v2/front_camera/image_color"),
+            ("depth/image", "/marlin_v2/depth_camera/image_depth"),
+            ("rgb/camera_info", "/marlin_v2/front_camera/camera_info"),
+            ("rgbd_image", "/marlin_v2/rgbd_image"),
+        ],
+    )
+
+    # RTAB-Map visual odometry using synchronized RGBD
+    depth_camera_visual_odom = Node(
+        package="rtabmap_odom",
+        executable="rgbd_odometry",
+        name="rgbd_odometry",
+        namespace="marlin_v2",
+        output="screen",
+        parameters=[
+            {
+                "frame_id": "marlin_v2/base_link_ned",
+                "odom_frame_id": "marlin_v2/visual_odom",
+                "publish_tf": False,  # Let robot_localization handle TF
+                "subscribe_depth": False,
+                "subscribe_rgbd": True,  # Use synchronized RGBD topic
+                "wait_for_transform": 0.2,
+                "qos": 1,
+                # RTAB-Map internal parameters
+                "Odom/Strategy": "0",  # 0=Frame-to-Map, 1=Frame-to-Frame
+                "Odom/ResetCountdown": "1",
+                "Vis/MaxFeatures": "500",
+                "Vis/MinInliers": "10",
+            }
+        ],
+        remappings=[
+            ("rgbd_image", "/marlin_v2/rgbd_image"),
+            ("odom", "/marlin_v2/depth_camera_odom"),
+        ],
+    )
+
     robot_localization_node = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -243,6 +296,8 @@ def generate_launch_description():
             include_transforms,
             robot_state_publisher,
             dvl_odom_remapping,
+            rgbd_sync,
+            depth_camera_visual_odom,
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,
