@@ -163,6 +163,39 @@ def generate_launch_description():
         ],
     )
 
+    # RTAB-Map visual odometry for depth camera
+    # Uses feature tracking and ICP for robust odometry estimation
+    depth_camera_visual_odom = Node(
+        package="rtabmap_odom",
+        executable="rgbd_odometry",
+        name="rgbd_odometry",
+        namespace="marlin_v2",
+        output="screen",
+        parameters=[
+            {
+                "frame_id": "marlin_v2/base_link_ned",
+                "odom_frame_id": "marlin_v2/depth_camera_odom",
+                "publish_tf": False,  # Let robot_localization handle TF
+                "subscribe_depth": True,
+                "subscribe_rgbd": False,
+                "approx_sync": True,
+                "approx_sync_max_interval": 0.1,
+                "wait_for_transform": 0.2,
+                # RTAB-Map internal parameters
+                "Odom/Strategy": "0",  # 0=Frame-to-Map, 1=Frame-to-Frame
+                "Odom/ResetCountdown": "1",
+                "Vis/MaxFeatures": "500",
+                "Vis/MinInliers": "15",
+            }
+        ],
+        remappings=[
+            ("rgb/image", "/marlin_v2/depth_camera/image_depth"),  # Use depth as "RGB"
+            ("depth/image", "/marlin_v2/depth_camera/image_depth"),
+            ("rgb/camera_info", "/marlin_v2/depth_camera/camera_info"),
+            ("odom", "/marlin_v2/depth_camera_odom"),
+        ],
+    )
+
     robot_localization_node = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -238,6 +271,7 @@ def generate_launch_description():
             dvl_odom_remapping,
             sim_imu_remapper,
             thruster_republisher,
+            depth_camera_visual_odom,
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,

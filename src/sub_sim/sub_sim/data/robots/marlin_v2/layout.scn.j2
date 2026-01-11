@@ -500,6 +500,17 @@
       <ros_publisher topic="/marlin_v2/front_camera" />
     </sensor>
 
+    <!-- Down-facing depth camera for visual odometry and depth estimation -->
+    <sensor name="depth_camera" rate="15.0" type="depthcamera">
+      <link name="base_link_ned" />
+
+      <specs resolution_x="640" resolution_y="480" horizontal_fov="70.0" depth_min="0.1" depth_max="10.0" />
+      <noise depth="0.01" />
+      <origin xyz="0.0 0.0 0.1" rpy="0.0 {{ PI/2 }} 0.0" />
+
+      <ros_publisher topic="/marlin_v2/depth_camera" />
+    </sensor>
+
     <!-- Thrusters -->
     <!--   0-3 (yaw-only rpy)  = horizontal vectored -> surge / sway / yaw
            4-7 (pitch 90 rpy)  = vertical            -> heave / roll / pitch-->

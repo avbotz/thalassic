@@ -77,6 +77,30 @@ def generate_launch_description():
         ros_arguments=["--disable-stdout-logs"],
     )
 
+    # Down-facing depth camera for visual odometry
+    tf_depth_cam = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=[
+            "--x",
+            "0.0",
+            "--y",
+            "0.0",
+            "--z",
+            "0.1",
+            "--roll",
+            "0.0",
+            "--pitch",
+            str(math.pi / 2),
+            "--yaw",
+            "0.0",
+            "--frame-id",
+            "marlin_v2/base_link_ned",
+            "--child-frame-id",
+            "marlin_v2/depth_camera",
+        ],
+    )
+
     # tf_down_cam = Node(
     #     package="tf2_ros",
     #     executable="static_transform_publisher",
@@ -395,6 +419,7 @@ def generate_launch_description():
             tf_position,
             tf_base_link_to_base_link_ned,
             tf_front_cam,
+            tf_depth_cam,
             tf_dvl,
             tf_imu,
             tf_dropper,
