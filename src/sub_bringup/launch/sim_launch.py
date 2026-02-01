@@ -158,7 +158,7 @@ def generate_launch_description():
         parameters=[{
                 'port': 8765,
                 'use_compression': True,
-                'use_sim_time': True, #might not be needed
+                'use_sim_time': True,
         }],
     )
 
@@ -180,6 +180,6 @@ def generate_launch_description():
             dvl_odom_remapping,
             robot_localization_node,
             clear_port,
-            bridge_after_port_clear,
+            foxglove_bridge_node,
         ]
     )
