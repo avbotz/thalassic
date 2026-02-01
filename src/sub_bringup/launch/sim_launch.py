@@ -180,6 +180,6 @@ def generate_launch_description():
             dvl_odom_remapping,
             robot_localization_node,
             clear_port,
-            bridge_after_port-clear,
+            bridge_after_port_clear,
         ]
     )
