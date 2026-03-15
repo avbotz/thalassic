@@ -478,6 +478,15 @@
       <ros_publisher topic="/marlin_v2/front_camera" />
     </sensor>
 
+    <sensor name="seg_cam" rate="10.0" type="segmentation">
+      <link name="base_link_ned" />
+
+      <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />
+      <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
+
+      <ros_publisher topic="/marlin_v2/sim/segment" />
+    </sensor>
+
     <!-- Thrusters -->
     <!-- Order of thrusters is VERT FL, VERT FR, VERT BL, VERT BR, SURGE FL, SURGE FR, SURGE BL, SURGE BR -->
     <!-- Cannot use include tag here because they can only be used at the top level -->
