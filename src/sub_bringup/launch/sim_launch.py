@@ -10,6 +10,7 @@ from launch.actions import (
     SetLaunchConfiguration,
 )
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from sub_sim.generate_robot import render_robot_scenario
@@ -76,6 +77,16 @@ def generate_launch_description():
         DeclareLaunchArgument("DY", default_value="0.25"),
         DeclareLaunchArgument("DZ", default_value="0.10"),
         DeclareLaunchArgument("DYAW", default_value="0.10"),
+        DeclareLaunchArgument(
+            "enable_deepseecolor",
+            default_value="true",
+            description="Start the DeepSeeColor RGB-D color correction node.",
+        ),
+        DeclareLaunchArgument(
+            "deepseecolor_device",
+            default_value="cuda:0",
+            description="Torch device for DeepSeeColor, e.g. cuda:0 or cpu.",
+        ),
     ]
     declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
 
@@ -182,6 +193,27 @@ def generate_launch_description():
         remappings=[
             ("rgbd_image", "/marlin_v2/rgbd_image"),
             ("odom", "/marlin_v2/depth_camera_odom"),
+        ],
+    )
+
+    deepseecolor_node = Node(
+        package="sub_color_correction",
+        executable="deepseecolor_node",
+        name="deepseecolor",
+        namespace="marlin_v2",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
+        parameters=[
+            {
+                "rgb_topic": "/marlin_v2/front_camera/image_color",
+                "depth_topic": "/marlin_v2/depth_camera/image_depth",
+                "corrected_topic": "/marlin_v2/front_camera/image_color_corrected",
+                "device": LaunchConfiguration("deepseecolor_device"),
+                "init_iters": 10,
+                "iters": 2,
+                "max_inference_dimension": 640,
+                "sync_slop": 0.15,
+            }
         ],
     )
 
@@ -298,6 +330,7 @@ def generate_launch_description():
             dvl_odom_remapping,
             rgbd_sync,
             depth_camera_visual_odom,
+            deepseecolor_node,
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,

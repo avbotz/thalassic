@@ -8,7 +8,10 @@
   <license>Proprietary</license>
 
   <exec_depend>sub_sim</exec_depend>
+  <exec_depend>sub_color_correction</exec_depend>
   <exec_depend>robot_localization</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rtabmap_sync</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
