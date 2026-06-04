@@ -173,9 +173,25 @@ def generate_launch_description():
         output="screen",
         namespace="marlin_v2",
         parameters=[
+            os.path.join(
+                get_package_share_directory("sub_bringup"), "config/control_gains.yaml"
+            ),
             {
                 "world_frame": "map",
                 "control_frame": "marlin_v2/base_link",
+            },
+        ],
+    )
+
+    sim_kill_switch = Node(
+        package="sub_sim_sensors",
+        executable="sim_kill_switch",
+        name="sim_kill_switch",
+        output="screen",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "off_delay": 5.0,
             }
         ],
     )
@@ -193,5 +209,6 @@ def generate_launch_description():
             thruster_republisher,
             robot_localization_node,
             sub_control_node,
+            sim_kill_switch,
         ]
     )

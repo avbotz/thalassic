@@ -1,6 +1,7 @@
 #include "sub_control/sub_control.hpp"
 #include "sub_control/utils.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <mutex>
@@ -8,6 +9,7 @@
 
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
 #include "tf2_ros/buffer.hpp"
@@ -23,31 +25,63 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
     this->declare_parameter<std::string>("odom_topic", "odometry/filtered");
     this->declare_parameter("control_rate_hz", 50.0);
     this->declare_parameter("thruster_max_force", 35.0);
+    this->declare_parameter("power_level", MAX_POWER_LEVEL);
 
     control_frame_ = this->get_parameter("control_frame").as_string();
     world_frame_ = this->get_parameter("world_frame").as_string();
     control_rate_hz = this->get_parameter("control_rate_hz").as_double();
     max_force_ = this->get_parameter("thruster_max_force").as_double();
+    power_level_ = std::clamp(this->get_parameter("power_level").as_double(),
+                              0.0, MAX_POWER_LEVEL);
 
     const std::string odom_topic = this->get_parameter("odom_topic").as_string();
 
     cap_ = allocator_.max_wrench(max_force_);
 
-    pos_pid[0] = PID{0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_};
-    pos_pid[1] = PID{0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_};
-    pos_pid[2] = PID{0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_};
+    // Gains default to the previously hardcoded values but are now parameters
+    // (see config/control_gains.yaml) so the auto-tuner can set them live.
+    init_pid("gains.pos.x", pos_pid[0], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
+    init_pid("gains.pos.y", pos_pid[1], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
+    init_pid("gains.pos.z", pos_pid[2], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
 
-    att_pid[0] = PID{1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_};
-    att_pid[1] = PID{1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_};
-    att_pid[2] = PID{1.0, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_};
+    init_pid("gains.att.x", att_pid[0], 1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
+    init_pid("gains.att.y", att_pid[1], 1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
+    init_pid("gains.att.z", att_pid[2], 1.0, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
 
-    vel_pid[0] = PID{40.0, 8.0, 2.0, 0.0, -cap_[0], cap_[0]};
-    vel_pid[1] = PID{40.0, 8.0, 2.0, 0.0, -cap_[1], cap_[1]};
-    vel_pid[2] = PID{60.0, 12.0, 3.0, 0.0, -cap_[2], cap_[2]};
+    init_pid("gains.vel.x", vel_pid[0], 40.0, 8.0, 2.0, 0.0, -cap_[0], cap_[0]);
+    init_pid("gains.vel.y", vel_pid[1], 40.0, 8.0, 2.0, 0.0, -cap_[1], cap_[1]);
+    init_pid("gains.vel.z", vel_pid[2], 60.0, 12.0, 3.0, 0.0, -cap_[2], cap_[2]);
 
-    ang_pid[0] = PID{6.0, 0.0, 1.0, 0.0, -cap_[3], cap_[3]};
-    ang_pid[1] = PID{6.0, 0.0, 1.0, 0.0, -cap_[4], cap_[4]};
-    ang_pid[2] = PID{8.0, 0.0, 1.5, 0.0, -cap_[5], cap_[5]};
+    init_pid("gains.ang.x", ang_pid[0], 6.0, 0.0, 1.0, 0.0, -cap_[3], cap_[3]);
+    init_pid("gains.ang.y", ang_pid[1], 6.0, 0.0, 1.0, 0.0, -cap_[4], cap_[4]);
+    init_pid("gains.ang.z", ang_pid[2], 8.0, 0.0, 1.5, 0.0, -cap_[5], cap_[5]);
+
+    // Update a PID's gains live whenever any of its .kp/.ki/.kd parameters change.
+    // Runs in the executor thread (same as the control timer), so guarding with
+    // state_mutex_ is enough to stay consistent with the control loop.
+    post_set_handle_ = this->add_post_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params) {
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            for (const auto& prm : params) {
+                const std::string& full = prm.get_name();
+                if (full == "power_level") {
+                    power_level_ = std::clamp(prm.as_double(), 0.0, MAX_POWER_LEVEL);
+                    continue;
+                }
+                const auto dot = full.rfind('.');
+                if (dot == std::string::npos) continue;
+                const std::string key = full.substr(0, dot);
+                const std::string tok = full.substr(dot + 1);
+                auto cit = gain_cache_.find(key);
+                auto pit = pid_by_key_.find(key);
+                if (cit == gain_cache_.end() || pit == pid_by_key_.end()) continue;
+                const int idx = (tok == "kp") ? 0 : (tok == "ki") ? 1 : (tok == "kd") ? 2 : -1;
+                if (idx < 0) continue;
+                cit->second[idx] = prm.as_double();
+                pit->second->set_gains(cit->second[0], cit->second[1], cit->second[2]);
+                pit->second->reset();
+            }
+        });
 
     pos_sub = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
         "pos_setpoint", 10,
@@ -61,6 +95,12 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
     altitude_sub = this->create_subscription<std_msgs::msg::Float64>(
         "dvl_altitude", 10,
         std::bind(&ThrusterControl::altitude_callback, this, std::placeholders::_1));
+
+    rclcpp::QoS kill_qos(1);
+    kill_qos.transient_local();
+    kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+        "kill_switch", kill_qos,
+        std::bind(&ThrusterControl::kill_callback, this, std::placeholders::_1));
 
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(
@@ -83,9 +123,22 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
         std::bind(&ThrusterControl::pid_control_loop, this));
 
     RCLCPP_INFO(this->get_logger(),
-                "Thruster Control started. rate=%.1f Hz, max_force=%.1f N. "
+                "Thruster Control started. rate=%.1f Hz, max_force=%.1f N, power_level=%.2f, "
+                "kill switch %s. "
                 "Capacity [N,N*m] surge=%.0f sway=%.0f heave=%.0f roll=%.1f pitch=%.1f yaw=%.1f",
-                control_rate_hz, max_force_, cap_[0], cap_[1], cap_[2], cap_[3], cap_[4], cap_[5]);
+                control_rate_hz, max_force_, power_level_, killed_ ? "ON (killed)" : "off",
+                cap_[0], cap_[1], cap_[2], cap_[3], cap_[4], cap_[5]);
+}
+
+void ThrusterControl::init_pid(const std::string& key, PID& slot,
+                               double kp, double ki, double kd,
+                               double tau_d, double out_min, double out_max) {
+    const double p = this->declare_parameter(key + ".kp", kp);
+    const double i = this->declare_parameter(key + ".ki", ki);
+    const double d = this->declare_parameter(key + ".kd", kd);
+    slot = PID{p, i, d, tau_d, out_min, out_max};
+    pid_by_key_[key] = &slot;
+    gain_cache_[key] = {p, i, d};
 }
 
 void ThrusterControl::declare_gain_parameters() {
@@ -140,6 +193,33 @@ void ThrusterControl::odom_callback(const nav_msgs::msg::Odometry& odom) {
 void ThrusterControl::altitude_callback(const std_msgs::msg::Float64& msg) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     altitude_curr_ = msg.data;
+}
+
+void ThrusterControl::kill_callback(const std_msgs::msg::Bool& msg) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    const bool now_killed = msg.data;
+
+    if (killed_ && !now_killed) {
+        // Kill switch on -> off: adopt the current pose as the new origin so the
+        // sub holds station where it is. Clearing state_initialized_ makes the
+        // next TF update re-capture initial_pos_/initial_yaw_ (giving x=y=z=0 and
+        // yaw=0 relative to here); zero the setpoints and PIDs so it stays put.
+        state_initialized_ = false;
+        pos_setpoint = {0.0, 0.0, 0.0};
+        vel_setpoint = {0.0, 0.0, 0.0};
+        att_setpoint = {0.0, 0.0, 0.0};
+        ang_setpoint = {0.0, 0.0, 0.0};
+        for (auto& p : pos_pid) p.reset();
+        for (auto& p : vel_pid) p.reset();
+        for (auto& p : att_pid) p.reset();
+        for (auto& p : ang_pid) p.reset();
+        RCLCPP_INFO(this->get_logger(),
+                    "Kill switch released: current pose is now the (0,0) / yaw=0 origin");
+    } else if (!killed_ && now_killed) {
+        RCLCPP_WARN(this->get_logger(), "Kill switch engaged: thrusters silenced");
+    }
+
+    killed_ = now_killed;
 }
 
 bool ThrusterControl::update_pose_from_tf() {
@@ -216,6 +296,17 @@ void ThrusterControl::pid_control_loop() {
 
     state_mutex_.lock();
 
+    // Kill switch engaged: publish nothing and keep the integrators clear so the
+    // sub doesn't lurch when it is released.
+    if (killed_) {
+        for (auto& p : pos_pid) p.reset();
+        for (auto& p : vel_pid) p.reset();
+        for (auto& p : att_pid) p.reset();
+        for (auto& p : ang_pid) p.reset();
+        state_mutex_.unlock();
+        return;
+    }
+
     {
         const auto pos_ib = to_rotated_frame(pos_curr_[0], pos_curr_[1], initial_yaw_);
         const double err_x_ib = pos_setpoint[0] - pos_ib[0];
@@ -261,12 +352,16 @@ void ThrusterControl::pid_control_loop() {
         wrench[3 + dof] = ang_pid[dof].update(angvel_errors[dof], ang_curr_[dof], dt_s);
     }
 
+    const double power = power_level_;
+
     state_mutex_.unlock();
 
     const std::array<double, 8> thruster_forces = allocator_.allocate(wrench, max_force_);
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         std_msgs::msg::Float64 m;
-        m.data = force_to_norm(thruster_forces[i]);
+        // Limit each thruster to the configured power level: normalized command in
+        // [-power, +power] == PWM band 1500 +/- power*400 us.
+        m.data = std::clamp(force_to_norm(thruster_forces[i]), -power, power);
         thruster_pubs_[i]->publish(m);
     }
 
