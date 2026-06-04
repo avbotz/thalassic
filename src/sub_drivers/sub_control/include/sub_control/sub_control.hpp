@@ -2,11 +2,13 @@
 #define SUB_CONTROL_SUB_CONTROL_HPP_
 
 #include <array>
+#include <map>
 #include <mutex>
 #include <string>
 
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
 #include "sub_control/utils.hpp"
@@ -24,6 +26,7 @@ class ThrusterControl : public rclcpp::Node {
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr att_sub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr altitude_sub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub_;
 
     std::array<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr, NUM_THRUSTERS> thruster_pubs_;
 
@@ -43,6 +46,17 @@ class ThrusterControl : public rclcpp::Node {
 
     double control_rate_hz;
     double max_force_{25.0};   // per-thruster force cap [N] (T200 ~+/-40 N usable)
+
+    // Power level in [0, MAX_POWER_LEVEL]. Clamps every thruster's normalized
+    // command to [-power_level_, +power_level_], i.e. limits the usable PWM band
+    // to 1500 +/- power_level_*400 us (neutral 1500, +/-1 == +/-400 counts).
+    static constexpr double MAX_POWER_LEVEL = 0.6;
+    double power_level_{MAX_POWER_LEVEL};
+
+    // Kill switch (subscribed topic). While true, no thruster commands are
+    // published. On the true->false edge the sub adopts its current pose as the
+    // (0, 0) position / yaw=0 origin (see kill_callback).
+    bool killed_{true};
 
     std::mutex state_mutex_;
     std::array<double, 3> pos_curr_{};
@@ -72,6 +86,14 @@ class ThrusterControl : public rclcpp::Node {
     std::array<PID, 3> att_pid{};
     std::array<PID, 3> ang_pid{};
 
+    // Live gain reconfigure: every PID is declared as parameters
+    // "<key>.kp/.ki/.kd" (key e.g. "gains.vel.x"). pid_by_key_ maps the key to
+    // the controller; gain_cache_ holds its current [kp,ki,kd] so the post-set
+    // callback can rebuild gains from one changed parameter without re-reading.
+    std::map<std::string, PID*> pid_by_key_;
+    std::map<std::string, std::array<double, 3>> gain_cache_;
+    rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_handle_;
+
     double vel_tau_d_{0.05}, ang_tau_d_{0.05};
     double max_speed_{3.0};
     double max_ang_rate_{0.6};
@@ -81,10 +103,17 @@ class ThrusterControl : public rclcpp::Node {
     void update_att_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint);
     void odom_callback(const nav_msgs::msg::Odometry& odom);
     void altitude_callback(const std_msgs::msg::Float64& msg);
+    void kill_callback(const std_msgs::msg::Bool& msg);
     void pid_control_loop();
     bool update_pose_from_tf();
 
     void declare_gain_parameters();
+
+    // Declare "<key>.kp/.ki/.kd" parameters (defaults given), build the PID into
+    // `slot`, and register it for live reconfigure.
+    void init_pid(const std::string& key, PID& slot,
+                  double kp, double ki, double kd,
+                  double tau_d, double out_min, double out_max);
 };
 
 #endif  // SUB_CONTROL_SUB_CONTROL_HPP_

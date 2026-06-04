@@ -1,9 +1,0 @@
-/marlin_v2/cascade_auv_control:
-  ros__parameters:
-    generator_type: tf
-    controller_frequency: 10.0
-    enabled: true
-    odometry_source: odometry/filtered
-    child_link_initial: marlin_v2/base_link
-    world_link_initial: map
-    controller_no_setpoint_timeout: 30.0

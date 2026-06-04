@@ -3,12 +3,4 @@
 	url = https://github.com/patrykcieslak/stonefish_ros2.git
 [submodule "src/waterlinked_dvl"]
 	path = src/sub_drivers/waterlinked_dvl
-	url = https://github.com/Robotic-Decision-Making-Lab/waterlinked_dvl
-[submodule "src/sub_drivers/mvp_control"]
-	path = src/sub_drivers/mvp_control
-	url = https://github.com/uri-ocean-robotics/mvp_control
-	branch = jazzy-devel
-[submodule "src/sub_drivers/mvp_msgs"]
-	path = src/sub_drivers/mvp_msgs
-	url = https://github.com/uri-ocean-robotics/mvp_msgs
-	branch = jazzy-devel
+	url = https://github.com/waterlinked/waterlinked_dvl
