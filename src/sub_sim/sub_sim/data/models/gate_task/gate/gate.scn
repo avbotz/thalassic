@@ -4,8 +4,8 @@
     <look name="Gate_Red" rgb="0.671 0.047 0.047" roughness="0.1" />  <!-- 171, 12, 12 -->
     <look name="Gate_Black" rgb="0.051 0.047 0.047" roughness="0.1" />  <!-- 13, 12, 12 -->
     <look name="Gate_White" gray="1.0" roughness="0.1" />
-    <look name="Gate_Sawfish" gray="1.0" roughness="0.1" texture="models/gate_task/gate/sawfish.png" />
-    <look name="Gate_Shark" gray="1.0" roughness="0.1" texture="models/gate_task/gate/shark.png" />
+    <look name="Gate_Sawfish" gray="1.0" roughness="0.1" texture="models/gate_task/gate/search_rescue.png" />
+    <look name="Gate_Shark" gray="1.0" roughness="0.1" texture="models/gate_task/gate/survey_repair.png" />
   </looks>
 
   <static name="gate_red_part" type="model">

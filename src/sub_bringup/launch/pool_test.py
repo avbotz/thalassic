@@ -1,0 +1,186 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    EmitEvent,
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+)
+from launch.events import matches_action
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import LifecycleNode, Node
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
+from launch_ros.substitutions import FindPackageShare
+from lifecycle_msgs.msg import Transition
+
+
+def dvl_driver_entities():
+    dvl_driver_node = LifecycleNode(
+        package="waterlinked_dvl_driver",
+        executable="waterlinked_dvl_driver",
+        name="waterlinked_dvl_driver",
+        namespace=LaunchConfiguration("ns"),
+        output="screen",
+        parameters=[
+            os.path.join(get_package_share_directory("sub_bringup"), "config/dvl.yaml"),
+        ],
+    )
+
+    dvl_driver_configure_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(dvl_driver_node),
+            transition_id=Transition.TRANSITION_CONFIGURE,
+        )
+    )
+
+    dvl_driver_activate_event = RegisterEventHandler(
+        OnStateTransition(
+            target_lifecycle_node=dvl_driver_node,
+            start_state="configuring",
+            goal_state="inactive",
+            entities=[
+                EmitEvent(
+                    event=ChangeState(
+                        lifecycle_node_matcher=matches_action(dvl_driver_node),
+                        transition_id=Transition.TRANSITION_ACTIVATE,
+                    )
+                )
+            ],
+        )
+    )
+
+    return [
+        dvl_driver_node,
+        dvl_driver_configure_event,
+        dvl_driver_activate_event,
+    ]
+
+
+def imu_driver_entities():
+    naviguider_imu_driver_node = Node(
+        package="serial_drivers",
+        executable="naviguider_imu_driver",
+        name="naviguider_imu_driver",
+        namespace=LaunchConfiguration("ns"),
+        output="screen",
+        parameters=[
+            {
+                "device": "/dev/naviguider_imu"
+            }
+        ],
+    )
+
+    naviguider_imu_driver_configure_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(naviguider_imu_driver_node),
+            transition_id=Transition.TRANSITION_CONFIGURE,
+        )
+    )
+
+    naviguider_imu_driver_activate_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(naviguider_imu_driver_node),
+            transition_id=Transition.TRANSITION_ACTIVATE,
+        )
+    )
+
+    return [
+        naviguider_imu_driver_node,
+        naviguider_imu_driver_configure_event,
+        naviguider_imu_driver_activate_event,
+    ]
+
+
+def sub_low_entities():
+    sub_low_node = Node(
+        package="serial_drivers",
+        executable="sub_low",
+        name="sub_low",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "device": "/dev/arduino_mega"
+            }
+        ],
+    )
+
+    sub_low_node_configure_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(sub_low_node),
+            transition_id=Transition.TRANSITION_CONFIGURE,
+        )
+    )
+
+    sub_low_node_activate_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(sub_low_node),
+            transition_id=Transition.TRANSITION_ACTIVATE,
+        )
+    )
+
+    return [
+        sub_low_node,
+        sub_low_node_configure_event,
+        sub_low_node_activate_event,
+    ]
+
+
+def generate_launch_description():
+    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
+
+    include_transforms = IncludeLaunchDescription(
+        PathJoinSubstitution(
+            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
+        ),
+    )
+
+    dvl_odom_remapping = Node(
+        package="sub_drivers_mappings",
+        executable="dvl_odom_remapper",
+        name="dvl_odom_remapper",
+        namespace="marlin_v2",
+    )
+
+    robot_localization_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        output="screen",
+        namespace="marlin_v2",
+        parameters=[
+            os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
+        ],
+    )
+
+    sub_control_node = Node(
+        package="sub_control",
+        executable="sub_control",
+        name="sub_control",
+        output="screen",
+        namespace="marlin_v2",
+        parameters=[
+            os.path.join(
+                get_package_share_directory("sub_bringup"), "config/control_gains.yaml"
+            ),
+            {
+                "world_frame": "map",
+                "control_frame": "marlin_v2/base_link",
+            },
+        ],
+    )
+
+    return LaunchDescription(
+        [
+            declare_ns,
+            include_transforms,
+            *dvl_driver_entities(),
+            *imu_driver_entities(),
+            *sub_low_entities(),
+            dvl_odom_remapping,
+            robot_localization_node,
+            sub_control_node,
+        ]
+    )
