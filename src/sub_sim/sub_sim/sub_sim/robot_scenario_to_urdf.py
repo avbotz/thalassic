@@ -20,14 +20,13 @@ import tempfile
 from pathlib import Path
 from dataclasses import dataclass
 import typing
-from typing import Dict, List, Optional, Tuple
 
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 
-Vec3 = Tuple[float, float, float]
-Mat3 = List[List[float]]
+Vec3 = tuple[float, float, float]
+Mat3 = list[list[float]]
 
 
 @dataclass(frozen=True)
@@ -50,8 +49,8 @@ class Transform:
 
 
 def _parse_floats(
-    s: Optional[str], n: Optional[int] = None, default: Optional[List[float]] = None
-) -> List[float]:
+    s: str | None, n: int | None = None, default: list[float] | None = None
+) -> list[float]:
     if s is None:
         return default or []
 
@@ -127,7 +126,7 @@ def _mat_to_rpy(R: Mat3) -> Vec3:
     return (roll, pitch, yaw)
 
 
-def _read_transform(elem: Optional[ET.Element]) -> Transform:
+def _read_transform(elem: ET.Element | None) -> Transform:
     if elem is None:
         return Transform.identity()
     xyz = _parse_floats(elem.get("xyz"), n=3, default=[0.0, 0.0, 0.0])
@@ -143,8 +142,8 @@ def _pretty_xml(elem: ET.Element) -> str:
 
 def _parse_looks(
     scenario_root: ET.Element,
-) -> Dict[str, Tuple[float, float, float, float]]:
-    looks: Dict[str, Tuple[float, float, float, float]] = {}
+) -> dict[str, tuple[float, float, float, float]]:
+    looks: dict[str, tuple[float, float, float, float]] = {}
     looks_el = scenario_root.find("looks")
 
     if looks_el is None:
@@ -171,21 +170,21 @@ def _parse_looks(
 
 
 def _add_urdf_materials(
-    urdf_robot: ET.Element, looks: Dict[str, Tuple[float, float, float, float]]
+    urdf_robot: ET.Element, looks: dict[str, tuple[float, float, float, float]]
 ) -> None:
     for name, rgba in looks.items():
         mat = ET.SubElement(urdf_robot, "material", {"name": name})
         ET.SubElement(mat, "color", {"rgba": " ".join(_fmt(c) for c in rgba)})
 
 
-def _get_look_name(node: ET.Element) -> Optional[str]:
+def _get_look_name(node: ET.Element) -> str | None:
     look_el = node.find("look")
     if look_el is None:
         return None
     return look_el.get("name")
 
 
-def _ensure_scale_str(scale_attr: Optional[str]) -> Optional[str]:
+def _ensure_scale_str(scale_attr: str | None) -> str | None:
     if scale_attr is None:
         return None
     vals = _parse_floats(scale_attr, n=None)
@@ -210,10 +209,10 @@ def _add_visual_or_collision(
     urdf_link: ET.Element,
     kind: str,
     geom_type: str,
-    geom_kwargs: Dict[str, str],
+    geom_kwargs: dict[str, str],
     origin_T: Transform,
-    material_name: Optional[str] = None,
-    comment: Optional[str] = None,
+    material_name: str | None = None,
+    comment: str | None = None,
 ) -> None:
     assert kind in ("visual", "collision")
 
@@ -248,7 +247,7 @@ def _add_visual_or_collision(
 
 def _parse_model_geometry(
     node: ET.Element, which: str, mesh_prefix: Path | str
-) -> Optional[Tuple[str, Dict[str, str], Transform]]:
+) -> tuple[str, dict[str, str], Transform] | None:
     """
     Parse:
       <physical><mesh filename=... scale=.../><origin .../></physical>
@@ -264,7 +263,7 @@ def _parse_model_geometry(
 
     fname = mesh.get("filename", "")
     out_fname = _mesh_filename_out(fname, mesh_prefix)
-    kwargs: Dict[str, str] = {"filename": out_fname}
+    kwargs: dict[str, str] = {"filename": out_fname}
 
     scale_str = _ensure_scale_str(mesh.get("scale"))
     if scale_str:
@@ -276,7 +275,7 @@ def _parse_model_geometry(
 
 def _parse_primitive_geometry(
     node: ET.Element,
-) -> Optional[Tuple[str, Dict[str, str], Transform]]:
+) -> tuple[str, dict[str, str], Transform] | None:
     """
     Parse:
       type="box"      <dimensions xyz="..."/>      + optional <origin .../>
@@ -308,7 +307,7 @@ def _parse_primitive_geometry(
     return None
 
 
-def _get_mass_value(node: ET.Element) -> Optional[float]:
+def _get_mass_value(node: ET.Element) -> float | None:
     # TODO: Calculate mass using physical obj file like Stonefish does
 
     m = node.find("mass")
@@ -390,6 +389,8 @@ def _convert_compound_into_link_geometries(
         elif model_phys:
             # fallback: show physical mesh if visual is missing
             gtype, kwargs, local_T = model_phys
+        else:
+            continue
 
         _add_visual_or_collision(
             urdf_link,
@@ -462,28 +463,28 @@ def _convert_body_node_to_urdf_link(
 
     # Visual
     if model_vis:
-        gtype, kwargs, T = model_vis
+        gtype, kwargs, transform = model_vis
         _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, T, material_name=look
+            urdf_link, "visual", gtype, kwargs, transform, material_name=look
         )
     elif prim:
-        gtype, kwargs, T = prim
+        gtype, kwargs, transform = prim
         _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, T, material_name=look
+            urdf_link, "visual", gtype, kwargs, transform, material_name=look
         )
     elif model_phys:
-        gtype, kwargs, T = model_phys
+        gtype, kwargs, transform = model_phys
         _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, T, material_name=look
+            urdf_link, "visual", gtype, kwargs, transform, material_name=look
         )
 
     # Collision
     if model_phys:
-        gtype, kwargs, T = model_phys
-        _add_visual_or_collision(urdf_link, "collision", gtype, kwargs, T)
+        gtype, kwargs, transform = model_phys
+        _add_visual_or_collision(urdf_link, "collision", gtype, kwargs, transform)
     elif prim:
-        gtype, kwargs, T = prim
-        _add_visual_or_collision(urdf_link, "collision", gtype, kwargs, T)
+        gtype, kwargs, transform = prim
+        _add_visual_or_collision(urdf_link, "collision", gtype, kwargs, transform)
 
     if add_inertial:
         mv = _get_mass_value(body_node)
@@ -642,7 +643,7 @@ def _xml_scenario_to_urdf(
     if not robots:
         raise ValueError("No <robot> found in scenario")
 
-    robot_node: Optional[ET.Element] = None
+    robot_node: ET.Element | None = None
     if robot_name:
         for r in robots:
             if r.get("name") == robot_name:
@@ -709,7 +710,7 @@ def _xml_scenario_to_urdf(
 def robot_scenario_to_urdf(
     scenario_xml: Path,
     robot_name: str,
-    mesh_prefix: Path | str = Path(""),
+    mesh_prefix: Path | str = "",
     include_internal_parts_in_geometry: bool = False,
     add_inertial: bool = True,
     default_mass_if_missing: float = 0.0,

@@ -1,6 +1,7 @@
 {
     "build": {
         "symlink-install": true,
-        "merge-install": true
+        "merge-install": true,
+        "cmake-args": ["-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON"]
     }
 }
