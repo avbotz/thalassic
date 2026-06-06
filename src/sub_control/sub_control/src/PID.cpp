@@ -5,16 +5,28 @@
 #include <limits>
 
 PID::PID()
-    : kp_(0.0), ki_(0.0), kd_(0.0), tau_d_(0.0),
+    : kp_(0.0),
+      ki_(0.0),
+      kd_(0.0),
+      tau_d_(0.0),
       out_min_(-std::numeric_limits<double>::infinity()),
       out_max_(std::numeric_limits<double>::infinity()),
-      integral_(0.0), deriv_filt_(0.0), prev_meas_(0.0), have_prev_(false) {}
+      integral_(0.0),
+      deriv_filt_(0.0),
+      prev_meas_(0.0),
+      have_prev_(false) {}
 
-PID::PID(double kp, double ki, double kd, double tau_d,
-         double out_min, double out_max)
-    : kp_(kp), ki_(ki), kd_(kd), tau_d_(tau_d),
-      out_min_(out_min), out_max_(out_max),
-      integral_(0.0), deriv_filt_(0.0), prev_meas_(0.0), have_prev_(false) {}
+PID::PID(double kp, double ki, double kd, double tau_d, double out_min, double out_max)
+    : kp_(kp),
+      ki_(ki),
+      kd_(kd),
+      tau_d_(tau_d),
+      out_min_(out_min),
+      out_max_(out_max),
+      integral_(0.0),
+      deriv_filt_(0.0),
+      prev_meas_(0.0),
+      have_prev_(false) {}
 
 double PID::update(double error, double measurement, double dt) {
     if (dt <= 0.0) {
@@ -26,7 +38,7 @@ double PID::update(double error, double measurement, double dt) {
     integral_ += error * dt;
     const double i = ki_ * integral_;
 
-    // Derivative on measurement, low-pass filtered 
+    // Derivative on measurement, low-pass filtered
     double d = 0.0;
     if (have_prev_) {
         const double d_raw = -(measurement - prev_meas_) / dt;

@@ -61,16 +61,12 @@ def dvl_driver_entities():
 
 def imu_driver_entities():
     naviguider_imu_driver_node = Node(
-        package="serial_drivers",
+        package="sub_serial_drivers",
         executable="naviguider_imu_driver",
         name="naviguider_imu_driver",
         namespace=LaunchConfiguration("ns"),
         output="screen",
-        parameters=[
-            {
-                "device": "/dev/naviguider_imu"
-            }
-        ],
+        parameters=[{"device": "/dev/naviguider_imu"}],
     )
 
     naviguider_imu_driver_configure_event = EmitEvent(
@@ -96,15 +92,11 @@ def imu_driver_entities():
 
 def sub_low_entities():
     sub_low_node = Node(
-        package="serial_drivers",
+        package="sub_serial_drivers",
         executable="sub_low",
         name="sub_low",
         namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "device": "/dev/arduino_mega"
-            }
-        ],
+        parameters=[{"device": "/dev/arduino_mega"}],
     )
 
     sub_low_node_configure_event = EmitEvent(
@@ -126,6 +118,53 @@ def sub_low_entities():
         sub_low_node_configure_event,
         sub_low_node_activate_event,
     ]
+
+
+def spinnaker_camera_entities():
+    # Using blackfly camera
+    # Parameters from gige_node.launch.py sample file
+    parameters = {
+        "debug": False,
+        "dump_node_map": False,
+        "gain_auto": "Continuous",
+        "pixel_format": "BayerRG8",
+        "exposure_auto": "Continuous",
+        "frame_rate_auto": "Off",
+        "frame_rate": 40.0,
+        "frame_rate_enable": True,
+        "buffer_queue_size": 10,
+        "trigger_mode": "Off",
+        # 'stream_buffer_handling_mode': 'NewestFirst',
+        # 'multicast_monitor_mode': False
+    }
+    parameter_file = PathJoinSubstitution(
+        [
+            FindPackageShare("spinnaker_camera_driver"),
+            "config",
+            "blackfly.yaml",
+        ]
+    )
+
+    node = Node(
+        package="spinnaker_camera_driver",
+        executable="camera_driver_node",
+        namespace=LaunchConfiguration("ns"),
+        output="screen",
+        name=["blackfly"],
+        parameters=[
+            parameters,
+            {
+                "ffmpeg_image_transport.encoding": "hevc_nvenc",
+                "parameter_file": parameter_file,
+                "serial_number": ["''"],
+            },
+        ],
+        remappings=[
+            ("~/control", "exposure_control/control"),
+        ],
+    )
+
+    return [node]
 
 
 def generate_launch_description():

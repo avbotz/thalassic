@@ -1,5 +1,5 @@
-#ifndef SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
-#define SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
+#ifndef SUB_SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
+#define SUB_SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
 
 #include <memory>
 #include <string>
@@ -10,7 +10,7 @@
 #include "rclcpp_lifecycle/lifecycle_publisher.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
-#include "serial_drivers/serial_port.hpp"
+#include "sub_serial_drivers/serial_port.hpp"
 
 // configure  -> open the serial port, build the Imu template, create publisher
 // activate   -> configure the module (non-verbose output, ENU frame), start the
@@ -59,4 +59,4 @@ class NaviGuiderImu : public rclcpp_lifecycle::LifecycleNode {
     rclcpp::TimerBase::SharedPtr poll_timer_;
 };
 
-#endif  // SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
+#endif  // SUB_SERIAL_DRIVERS_NAVIGUIDER_IMU_HPP_
