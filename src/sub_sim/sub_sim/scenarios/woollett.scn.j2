@@ -121,7 +121,7 @@
     <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
   </include>
 
-  <include file="models/torpedoes_task/torpboard_sawfish/torpboard_sawfish.scn">
+  <include file="models/torpedoes_task/{{ ['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn'] | random }}">
     <arg name="x" value="{{ fuzz(16.3, DX) }}" />
     <arg name="y" value="{{ fuzz(5.0,  DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />
