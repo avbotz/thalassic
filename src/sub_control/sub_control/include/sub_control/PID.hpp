@@ -4,8 +4,7 @@
 class PID {
    public:
     PID();
-    PID(double kp, double ki, double kd, double tau_d,
-        double out_min, double out_max);
+    PID(double kp, double ki, double kd, double tau_d, double out_min, double out_max);
 
     double update(double error, double measurement, double dt);
     void reset();
@@ -19,7 +18,7 @@ class PID {
     double out_min_, out_max_;
 
     double integral_;
-    double deriv_filt_; 
+    double deriv_filt_;
     double prev_meas_;
     bool have_prev_;
 };

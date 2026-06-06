@@ -1,5 +1,5 @@
-#ifndef SUB_LOW_SUB_LOW_HPP_
-#define SUB_LOW_SUB_LOW_HPP_
+#ifndef SUB_SERIAL_DRIVERS_SUB_LOW_HPP_
+#define SUB_SERIAL_DRIVERS_SUB_LOW_HPP_
 
 #include <array>
 #include <atomic>
@@ -13,7 +13,7 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 
-#include "serial_drivers/serial_port.hpp"
+#include "sub_serial_drivers/serial_port.hpp"
 
 // configure  -> open the serial port, create the kill-switch publisher
 // activate   -> start forwarding thruster commands and polling the board
@@ -50,4 +50,4 @@ class SubLow : public rclcpp_lifecycle::LifecycleNode {
     rclcpp::TimerBase::SharedPtr poll_timer_;
 };
 
-#endif  // SUB_LOW_SUB_LOW_HPP_
+#endif  // SUB_SERIAL_DRIVERS_SUB_LOW_HPP_

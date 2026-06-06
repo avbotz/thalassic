@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <format>
 #include <mutex>
 #include <string>
 
@@ -12,9 +13,9 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.hpp"
 #include "tf2_ros/transform_listener.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 // All frame conversions (ENU<->NED, angle wrapping, planar rotation) and the
 // thruster allocator live in sub_control/utils so they can be unit tested.
@@ -31,8 +32,7 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
     world_frame_ = this->get_parameter("world_frame").as_string();
     control_rate_hz = this->get_parameter("control_rate_hz").as_double();
     max_force_ = this->get_parameter("thruster_max_force").as_double();
-    power_level_ = std::clamp(this->get_parameter("power_level").as_double(),
-                              0.0, MAX_POWER_LEVEL);
+    power_level_ = std::clamp(this->get_parameter("power_level").as_double(), 0.0, MAX_POWER_LEVEL);
 
     const std::string odom_topic = this->get_parameter("odom_topic").as_string();
 
@@ -59,52 +59,50 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
     // Update a PID's gains live whenever any of its .kp/.ki/.kd parameters change.
     // Runs in the executor thread (same as the control timer), so guarding with
     // state_mutex_ is enough to stay consistent with the control loop.
-    post_set_handle_ = this->add_post_set_parameters_callback(
-        [this](const std::vector<rclcpp::Parameter>& params) {
-            std::lock_guard<std::mutex> lk(state_mutex_);
-            for (const auto& prm : params) {
-                const std::string& full = prm.get_name();
-                if (full == "power_level") {
-                    power_level_ = std::clamp(prm.as_double(), 0.0, MAX_POWER_LEVEL);
-                    continue;
-                }
-                const auto dot = full.rfind('.');
-                if (dot == std::string::npos) continue;
-                const std::string key = full.substr(0, dot);
-                const std::string tok = full.substr(dot + 1);
-                auto cit = gain_cache_.find(key);
-                auto pit = pid_by_key_.find(key);
-                if (cit == gain_cache_.end() || pit == pid_by_key_.end()) continue;
-                const int idx = (tok == "kp") ? 0 : (tok == "ki") ? 1 : (tok == "kd") ? 2 : -1;
-                if (idx < 0) continue;
-                cit->second[idx] = prm.as_double();
-                pit->second->set_gains(cit->second[0], cit->second[1], cit->second[2]);
-                pit->second->reset();
+    post_set_handle_ = this->add_post_set_parameters_callback([this](const std::vector<rclcpp::Parameter>& params) {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        for (const auto& prm : params) {
+            const std::string& full = prm.get_name();
+            if (full == "power_level") {
+                power_level_ = std::clamp(prm.as_double(), 0.0, MAX_POWER_LEVEL);
+                continue;
             }
-        });
+            const auto dot = full.rfind('.');
+            if (dot == std::string::npos) {
+                continue;
+            }
+            const std::string key = full.substr(0, dot);
+            const std::string tok = full.substr(dot + 1);
+            auto cit = gain_cache_.find(key);
+            auto pit = pid_by_key_.find(key);
+            if (cit == gain_cache_.end() || pit == pid_by_key_.end()) {
+                continue;
+            }
+            const int idx = (tok == "kp") ? 0 : (tok == "ki") ? 1 : (tok == "kd") ? 2 : -1;
+            if (idx < 0) {
+                continue;
+            }
+            cit->second[idx] = prm.as_double();
+            pit->second->set_gains(cit->second[0], cit->second[1], cit->second[2]);
+            pit->second->reset();
+        }
+    });
 
     pos_sub = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
-        "pos_setpoint", 10,
-        std::bind(&ThrusterControl::update_pos_setpoint, this, std::placeholders::_1));
+        "pos_setpoint", 10, std::bind(&ThrusterControl::update_pos_setpoint, this, std::placeholders::_1));
     att_sub = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
-        "att_setpoint", 10,
-        std::bind(&ThrusterControl::update_att_setpoint, this, std::placeholders::_1));
+        "att_setpoint", 10, std::bind(&ThrusterControl::update_att_setpoint, this, std::placeholders::_1));
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
-        odom_topic, rclcpp::SensorDataQoS(),
-        std::bind(&ThrusterControl::odom_callback, this, std::placeholders::_1));
+        odom_topic, rclcpp::SensorDataQoS(), std::bind(&ThrusterControl::odom_callback, this, std::placeholders::_1));
     altitude_sub = this->create_subscription<std_msgs::msg::Float64>(
-        "dvl_altitude", 10,
-        std::bind(&ThrusterControl::altitude_callback, this, std::placeholders::_1));
+        "dvl_altitude", 10, std::bind(&ThrusterControl::altitude_callback, this, std::placeholders::_1));
 
-    rclcpp::QoS kill_qos(1);
-    kill_qos.transient_local();
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-        "kill_switch", kill_qos,
-        std::bind(&ThrusterControl::kill_callback, this, std::placeholders::_1));
+        "kill_switch", rclcpp::QoS(1).transient_local(),
+        [this](const std_msgs::msg::Bool::SharedPtr msg) { this->kill_callback(*msg); });
 
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
-        thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(
-            "control/thruster_" + std::to_string(i), 10);
+        thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(std::format("control/thruster_{}", i), 10);
     }
 
     const std::array<std::string, 3> axes{"x", "y", "z"};
@@ -118,21 +116,19 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
 
-    control_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(static_cast<int>(1000.0 / control_rate_hz)),
-        std::bind(&ThrusterControl::pid_control_loop, this));
+    control_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(1000.0 / control_rate_hz)),
+                                             std::bind(&ThrusterControl::pid_control_loop, this));
 
     RCLCPP_INFO(this->get_logger(),
                 "Thruster Control started. rate=%.1f Hz, max_force=%.1f N, power_level=%.2f, "
                 "kill switch %s. "
                 "Capacity [N,N*m] surge=%.0f sway=%.0f heave=%.0f roll=%.1f pitch=%.1f yaw=%.1f",
-                control_rate_hz, max_force_, power_level_, killed_ ? "ON (killed)" : "off",
-                cap_[0], cap_[1], cap_[2], cap_[3], cap_[4], cap_[5]);
+                control_rate_hz, max_force_, power_level_, killed_ ? "ON (killed)" : "off", cap_[0], cap_[1], cap_[2],
+                cap_[3], cap_[4], cap_[5]);
 }
 
-void ThrusterControl::init_pid(const std::string& key, PID& slot,
-                               double kp, double ki, double kd,
-                               double tau_d, double out_min, double out_max) {
+void ThrusterControl::init_pid(const std::string& key, PID& slot, double kp, double ki, double kd, double tau_d,
+                               double out_min, double out_max) {
     const double p = this->declare_parameter(key + ".kp", kp);
     const double i = this->declare_parameter(key + ".ki", ki);
     const double d = this->declare_parameter(key + ".kd", kd);
@@ -142,10 +138,10 @@ void ThrusterControl::init_pid(const std::string& key, PID& slot,
 }
 
 void ThrusterControl::declare_gain_parameters() {
-    max_speed_    = this->declare_parameter("max_speed", max_speed_);
+    max_speed_ = this->declare_parameter("max_speed", max_speed_);
     max_ang_rate_ = this->declare_parameter("max_ang_rate", max_ang_rate_);
-    vel_tau_d_    = this->declare_parameter("vel_tau_d", vel_tau_d_);
-    ang_tau_d_    = this->declare_parameter("ang_tau_d", ang_tau_d_);
+    vel_tau_d_ = this->declare_parameter("vel_tau_d", vel_tau_d_);
+    ang_tau_d_ = this->declare_parameter("ang_tau_d", ang_tau_d_);
 }
 
 void ThrusterControl::update_pos_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint) {
@@ -181,11 +177,11 @@ void ThrusterControl::odom_callback(const nav_msgs::msg::Odometry& odom) {
     // EKF publishes twist in base_link (FLU). Convert to FRD for the
     // NED-internal cascade: forward unchanged, y/z flipped.
     auto sanitize = [](double v) { return std::fabs(v) < 5.0 ? v : 0.0; };
-    vel_curr_[0] =  sanitize(odom.twist.twist.linear.x);
+    vel_curr_[0] = sanitize(odom.twist.twist.linear.x);
     vel_curr_[1] = -sanitize(odom.twist.twist.linear.y);
     vel_curr_[2] = -sanitize(odom.twist.twist.linear.z);
 
-    ang_curr_[0] =  odom.twist.twist.angular.x;
+    ang_curr_[0] = odom.twist.twist.angular.x;
     ang_curr_[1] = -odom.twist.twist.angular.y;
     ang_curr_[2] = -odom.twist.twist.angular.z;
 }
@@ -209,12 +205,19 @@ void ThrusterControl::kill_callback(const std_msgs::msg::Bool& msg) {
         vel_setpoint = {0.0, 0.0, 0.0};
         att_setpoint = {0.0, 0.0, 0.0};
         ang_setpoint = {0.0, 0.0, 0.0};
-        for (auto& p : pos_pid) p.reset();
-        for (auto& p : vel_pid) p.reset();
-        for (auto& p : att_pid) p.reset();
-        for (auto& p : ang_pid) p.reset();
-        RCLCPP_INFO(this->get_logger(),
-                    "Kill switch released: current pose is now the (0,0) / yaw=0 origin");
+        for (auto& p : pos_pid) {
+            p.reset();
+        }
+        for (auto& p : vel_pid) {
+            p.reset();
+        }
+        for (auto& p : att_pid) {
+            p.reset();
+        }
+        for (auto& p : ang_pid) {
+            p.reset();
+        }
+        RCLCPP_INFO(this->get_logger(), "Kill switch released: current pose is now the (0,0) / yaw=0 origin");
     } else if (!killed_ && now_killed) {
         RCLCPP_WARN(this->get_logger(), "Kill switch engaged: thrusters silenced");
     }
@@ -227,8 +230,7 @@ bool ThrusterControl::update_pose_from_tf() {
     try {
         tf = tf_buffer_->lookupTransform(world_frame_, control_frame_, tf2::TimePointZero);
     } catch (const tf2::TransformException& ex) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                             "Could not lookup transform %s -> %s: %s",
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Could not lookup transform %s -> %s: %s",
                              world_frame_.c_str(), control_frame_.c_str(), ex.what());
         return false;
     }
@@ -241,10 +243,8 @@ bool ThrusterControl::update_pose_from_tf() {
     tf2::Matrix3x3(tf2_quat).getRPY(roll_e, pitch_e, yaw_e);
 
     double north = 0.0, east = 0.0, down = 0.0;
-    enu_to_ned_position(tf.transform.translation.x,
-                        tf.transform.translation.y,
-                        tf.transform.translation.z,
-                        north, east, down);
+    enu_to_ned_position(tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z, north, east,
+                        down);
 
     double roll_n = 0.0, pitch_n = 0.0, yaw_n = 0.0;
     enu_to_ned_rpy(roll_e, pitch_e, yaw_e, roll_n, pitch_n, yaw_n);
@@ -260,8 +260,8 @@ bool ThrusterControl::update_pose_from_tf() {
     }
 
     pos_curr_[0] = north - initial_pos_[0];
-    pos_curr_[1] = east  - initial_pos_[1];
-    pos_curr_[2] = down  - initial_pos_[2];
+    pos_curr_[1] = east - initial_pos_[1];
+    pos_curr_[2] = down - initial_pos_[2];
 
     att_curr_[0] = normalize_angle(roll_n);
     att_curr_[1] = normalize_angle(pitch_n);
@@ -275,7 +275,7 @@ void ThrusterControl::pid_control_loop() {
         return;
     }
 
-    std::array<double, 6> wrench{};          // [Fx, Fy, Fz, Mx, My, Mz] in N / N*m
+    std::array<double, 6> wrench{};  // [Fx, Fy, Fz, Mx, My, Mz] in N / N*m
     std::array<double, 3> pos_errors{};
     std::array<double, 3> pos_meas{};
     std::array<double, 3> vel_errors{};
@@ -299,10 +299,18 @@ void ThrusterControl::pid_control_loop() {
     // Kill switch engaged: publish nothing and keep the integrators clear so the
     // sub doesn't lurch when it is released.
     if (killed_) {
-        for (auto& p : pos_pid) p.reset();
-        for (auto& p : vel_pid) p.reset();
-        for (auto& p : att_pid) p.reset();
-        for (auto& p : ang_pid) p.reset();
+        for (auto& p : pos_pid) {
+            p.reset();
+        }
+        for (auto& p : vel_pid) {
+            p.reset();
+        }
+        for (auto& p : att_pid) {
+            p.reset();
+        }
+        for (auto& p : ang_pid) {
+            p.reset();
+        }
         state_mutex_.unlock();
         return;
     }
@@ -322,26 +330,25 @@ void ThrusterControl::pid_control_loop() {
         pos_meas[1] = meas_body[1];
         pos_meas[2] = use_altitude_ ? altitude_curr_ : pos_curr_[2];
 
-        pos_errors[2] = use_altitude_ ? (altitude_curr_ - pos_setpoint[2])
-                                      : (pos_setpoint[2] - pos_curr_[2]);
+        pos_errors[2] = use_altitude_ ? (altitude_curr_ - pos_setpoint[2]) : (pos_setpoint[2] - pos_curr_[2]);
     }
 
     att_errors[0] = angle_difference(att_setpoint[0], att_curr_[0]);
     att_errors[1] = angle_difference(att_setpoint[1], att_curr_[1]);
     att_errors[2] = angle_difference(att_setpoint[2], att_curr_[2]);
 
-    RCLCPP_DEBUG(this->get_logger(),
-                 "Pos err body: [%.2f %.2f %.2f]  Att err: [%.2f %.2f %.2f]",
-                 pos_errors[0], pos_errors[1], pos_errors[2],
-                 att_errors[0], att_errors[1], att_errors[2]);
+    RCLCPP_DEBUG(this->get_logger(), "Pos err body: [%.2f %.2f %.2f]  Att err: [%.2f %.2f %.2f]", pos_errors[0],
+                 pos_errors[1], pos_errors[2], att_errors[0], att_errors[1], att_errors[2]);
 
     if (!vel_control) {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 3; ++i) {
             vel_setpoint[i] = pos_pid[i].update(pos_errors[i], pos_meas[i], dt_s);
+        }
     }
     if (!ang_control) {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 3; ++i) {
             ang_setpoint[i] = att_pid[i].update(att_errors[i], att_curr_[i], dt_s);
+        }
     }
 
     for (int dof = 0; dof < 3; ++dof) {
@@ -359,18 +366,20 @@ void ThrusterControl::pid_control_loop() {
     const std::array<double, 8> thruster_forces = allocator_.allocate(wrench, max_force_);
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         std_msgs::msg::Float64 m;
-        // Limit each thruster to the configured power level: normalized command in
-        // [-power, +power] == PWM band 1500 +/- power*400 us.
         m.data = std::clamp(force_to_norm(thruster_forces[i]), -power, power);
         thruster_pubs_[i]->publish(m);
     }
 
     for (int i = 0; i < 3; ++i) {
         std_msgs::msg::Float64 m;
-        m.data = pos_errors[i];   pos_error_pubs_[i]->publish(m);
-        m.data = vel_errors[i];   vel_error_pubs_[i]->publish(m);
-        m.data = att_errors[i];   att_error_pubs_[i]->publish(m);
-        m.data = angvel_errors[i]; angvel_error_pubs_[i]->publish(m);
+        m.data = pos_errors[i];
+        pos_error_pubs_[i]->publish(m);
+        m.data = vel_errors[i];
+        vel_error_pubs_[i]->publish(m);
+        m.data = att_errors[i];
+        att_error_pubs_[i]->publish(m);
+        m.data = angvel_errors[i];
+        angvel_error_pubs_[i]->publish(m);
     }
 }
 

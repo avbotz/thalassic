@@ -1,5 +1,5 @@
-#ifndef SUB_LOW_SERIAL_PORT_HPP_
-#define SUB_LOW_SERIAL_PORT_HPP_
+#ifndef SUB_SERIAL_DRIVERS_SERIAL_PORT_HPP_
+#define SUB_SERIAL_DRIVERS_SERIAL_PORT_HPP_
 
 #include <string>
 
@@ -30,4 +30,4 @@ class SerialPort {
     int fd_{-1};
 };
 
-#endif  // SUB_LOW_SERIAL_PORT_HPP_
+#endif  // SUB_SERIAL_DRIVERS_SERIAL_PORT_HPP_

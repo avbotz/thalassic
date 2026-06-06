@@ -12,10 +12,9 @@
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
 #include "sub_control/utils.hpp"
-#include "tf2_ros/transform_listener.hpp"
-#include "tf2_ros/buffer.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
-
+#include "tf2_ros/buffer.hpp"
+#include "tf2_ros/transform_listener.hpp"
 
 class ThrusterControl : public rclcpp::Node {
    public:
@@ -45,11 +44,10 @@ class ThrusterControl : public rclcpp::Node {
     bool have_last_control_time_{false};
 
     double control_rate_hz;
-    double max_force_{25.0};   // per-thruster force cap [N] (T200 ~+/-40 N usable)
+    double max_force_{25.0};  // per-thruster force cap [N] (T200 ~+/-40 N usable)
 
-    // Power level in [0, MAX_POWER_LEVEL]. Clamps every thruster's normalized
-    // command to [-power_level_, +power_level_], i.e. limits the usable PWM band
-    // to 1500 +/- power_level_*400 us (neutral 1500, +/-1 == +/-400 counts).
+    // Clamps every thruster's normalized command to [-power_level_, +power_level_].
+    // Limits the PWM band to 1500 +/- power_level_*400 us.
     static constexpr double MAX_POWER_LEVEL = 0.6;
     double power_level_{MAX_POWER_LEVEL};
 
@@ -79,7 +77,7 @@ class ThrusterControl : public rclcpp::Node {
     bool ang_control{false};
 
     ThrusterAllocator allocator_;
-    std::array<double, NUM_DOF> cap_{};   // per-axis wrench capacity at max_force_
+    std::array<double, NUM_DOF> cap_{};  // per-axis wrench capacity at max_force_
 
     std::array<PID, 3> pos_pid{};
     std::array<PID, 3> vel_pid{};
@@ -111,9 +109,8 @@ class ThrusterControl : public rclcpp::Node {
 
     // Declare "<key>.kp/.ki/.kd" parameters (defaults given), build the PID into
     // `slot`, and register it for live reconfigure.
-    void init_pid(const std::string& key, PID& slot,
-                  double kp, double ki, double kd,
-                  double tau_d, double out_min, double out_max);
+    void init_pid(const std::string& key, PID& slot, double kp, double ki, double kd, double tau_d, double out_min,
+                  double out_max);
 };
 
 #endif  // SUB_CONTROL_SUB_CONTROL_HPP_
