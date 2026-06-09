@@ -74,6 +74,7 @@ def generate_launch_description():
         DeclareLaunchArgument("DZ", default_value="0.10"),
         DeclareLaunchArgument("DYAW", default_value="0.10"),
     ]
+    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
 
     render = OpaqueFunction(function=_render_scn)
 
@@ -108,7 +109,7 @@ def generate_launch_description():
         package="robot_state_publisher",
         executable="robot_state_publisher",
         name="robot_state_publisher",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         parameters=[
             {
                 "robot_description": LaunchConfiguration("robot_description"),
@@ -120,7 +121,7 @@ def generate_launch_description():
         package="sub_sim_sensors",
         executable="sim_dvl_remapper",
         name="sim_dvl_remapper",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         parameters=[
             {
                 "robot_name": "marlin_v2",
@@ -132,7 +133,31 @@ def generate_launch_description():
         package="sub_drivers_mappings",
         executable="dvl_odom_remapper",
         name="dvl_odom_remapper",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
+    )
+
+    sim_imu_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_imu_remapper",
+        name="sim_imu_remapper",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
+    thruster_republisher = Node(
+        package="sub_sim_sensors",
+        executable="thruster_republishers",
+        name="thruster_republishers",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
     )
 
     robot_localization_node = Node(
@@ -140,7 +165,7 @@ def generate_launch_description():
         executable="ekf_node",
         name="ekf_filter_node",
         output="screen",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
         ],
@@ -167,19 +192,52 @@ def generate_launch_description():
             target_action=clear_port,
             on_exit=[foxglove_bridge_node],
         )
+    sub_control_node = Node(
+        package="sub_control",
+        executable="sub_control",
+        name="sub_control",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            os.path.join(
+                get_package_share_directory("sub_bringup"), "config/control_gains_sim.yaml"
+            ),
+            {
+                "world_frame": "map",
+                "control_frame": "marlin_v2/base_link",
+            },
+        ],
+    )
+
+    sim_kill_switch = Node(
+        package="sub_sim_sensors",
+        executable="sim_kill_switch",
+        name="sim_kill_switch",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "off_delay": 5.0,
+            }
+        ],
     )
 
     return LaunchDescription(
         args
         + [
+            declare_ns,
             render,
             include_stonefish,
             include_transforms,
             robot_state_publisher,
             sim_dvl_remapper,
             dvl_odom_remapping,
+            sim_imu_remapper,
+            thruster_republisher,
             robot_localization_node,
             clear_port,
             bridge_after_port_clear,
+            sub_control_node,
+            sim_kill_switch,
         ]
     )

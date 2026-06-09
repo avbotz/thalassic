@@ -29,12 +29,15 @@
   </materials>
 
   <include file="{{ ROBOT_SCENARIO_PATH }}">
-    <arg name="x" value="{{ fuzz(17.25, DX) }}" />
-    <arg name="y" value="{{ fuzz(-10.35,  DY) }}" />
-    <arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />
+    <arg name="x" value="17.25" />
+    <!--<arg name="y" value="{{ fuzz(-10.35,  DY) }}" />-->
+    <arg name="y" value="-10.35" />
+    <!--<arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />-->
+    <arg name="z" value="0.5" />
     <arg name="roll" value="0.0" />
     <arg name="pitch" value="0.0" />
-    <arg name="yaw" value="{{ fuzz(PI, DYAW) }}" />
+    <!--<arg name="yaw" value="{{ fuzz(PI, DYAW) }}" />-->
+    <arg name="yaw" value="{{ PI }}" />
   </include>
 
   <include file="models/pools/woollett/woollett.scn">
@@ -118,7 +121,7 @@
     <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
   </include>
 
-  <include file="models/torpedoes_task/torpboard_sawfish/torpboard_sawfish.scn">
+  <include file="models/torpedoes_task/{{ ['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn'] | random }}">
     <arg name="x" value="{{ fuzz(16.3, DX) }}" />
     <arg name="y" value="{{ fuzz(5.0,  DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />

@@ -3,9 +3,12 @@
   "privileged": true,
   "remoteUser": "ubuntu",
   "build": {
+    "context": "../docker",
     "dockerfile": "../docker/Dockerfile.sim",
     "args": {
-      "USERNAME": "ubuntu"
+      "USERNAME": "ubuntu",
+      "USER_UID": "1000",
+      "USER_GID": "1000"
     }
   },
   "workspaceFolder": "/home/ubuntu/thalassic",
@@ -23,18 +26,13 @@
   },
   "containerEnv": {
     "DISPLAY": "unix:0",
-    "ROS_LOCALHOST_ONLY": "1",
-    "ROS_DOMAIN_ID": "42"
   },
   "runArgs": [
     "--net=host",
     "--ipc=host",
     "--device=/dev/dri",
     "--device=/dev/kfd",
-    "-p",
-    "5000:5000",
-    "-e",
-    "DISPLAY=${env:DISPLAY}"
+    "-e", "DISPLAY=${env:DISPLAY}"
   ],
   "mounts": [
     "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",

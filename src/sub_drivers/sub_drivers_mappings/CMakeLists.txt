@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(marine_acoustic_msgs REQUIRED)
 
 if(BUILD_TESTING)
@@ -25,7 +26,7 @@ endif()
 
 add_executable(dvl_odom_remapper src/dvl_odom_remapper.cpp)
 include_directories(dvl_odom_remapper include)
-ament_target_dependencies(dvl_odom_remapper rclcpp nav_msgs marine_acoustic_msgs)
+ament_target_dependencies(dvl_odom_remapper rclcpp nav_msgs std_msgs marine_acoustic_msgs)
 
 install(TARGETS
   dvl_odom_remapper

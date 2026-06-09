@@ -10,6 +10,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(stonefish_ros2 REQUIRED)
 find_package(marine_acoustic_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -27,8 +30,23 @@ add_executable(sim_dvl_remapper src/sim_dvl_remapper.cpp)
 include_directories(sim_dvl_remapper include)
 ament_target_dependencies(sim_dvl_remapper rclcpp stonefish_ros2 marine_acoustic_msgs)
 
+add_executable(thruster_republishers src/thruster_republishers.cpp)
+include_directories(thruster_republishers include)
+ament_target_dependencies(thruster_republishers rclcpp std_msgs)
+
+add_executable(sim_imu_remapper src/sim_imu_remapper.cpp)
+include_directories(sim_imu_remapper include)
+ament_target_dependencies(sim_imu_remapper rclcpp sensor_msgs geometry_msgs)
+
+add_executable(sim_kill_switch src/sim_kill_switch.cpp)
+include_directories(sim_kill_switch include)
+ament_target_dependencies(sim_kill_switch rclcpp std_msgs)
+
 install(TARGETS
   sim_dvl_remapper
+  thruster_republishers
+  sim_imu_remapper
+  sim_kill_switch
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

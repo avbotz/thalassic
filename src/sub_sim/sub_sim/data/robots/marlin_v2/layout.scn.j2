@@ -14,7 +14,7 @@
 
       <!-- Frame -->
 
-      <external_part name="Frame_Top" type="model" physics="submerged" buoyant="false">
+      <external_part name="Frame_Top" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_top/frame_top_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -33,7 +33,7 @@
         <compound_transform xyz="0.0 0.0 -0.025" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Frame_Front" type="model" physics="submerged" buoyant="false">
+      <external_part name="Frame_Front" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_front/frame_front_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -52,7 +52,7 @@
         <compound_transform xyz="0.0 -0.314 0.08462" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Frame_Back" type="model" physics="submerged" buoyant="false">
+      <external_part name="Frame_Back" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_back/frame_back_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -71,7 +71,7 @@
         <compound_transform xyz="0.0 0.309 0.08462" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Frame_Left" type="model" physics="submerged" buoyant="false">
+      <external_part name="Frame_Left" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_left/frame_left_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -90,7 +90,7 @@
         <compound_transform xyz="0.3304 0.016419 0.083065" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Frame_Right" type="model" physics="submerged" buoyant="false">
+      <external_part name="Frame_Right" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/frame/frame_right/frame_right_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -122,7 +122,7 @@
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Meb_Mounting_Front" type="model" physics="submerged" buoyant="false">
+      <external_part name="Meb_Mounting_Front" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -132,6 +132,8 @@
           <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front.obj" scale="1.0" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
+
+        <mass value="0.700" />
 
         <material name="Plastic" />
         <look name="Marlin_Blue" />
@@ -156,7 +158,7 @@
         <compound_transform xyz="0.0 -0.348744 -0.166305" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="Meb_Mounting_Rear" type="model" physics="submerged" buoyant="false">
+      <external_part name="Meb_Mounting_Rear" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/meb_mounting_rear/meb_mounting_rear_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -167,6 +169,8 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
+        <mass value="0.700" />
+
         <material name="Plastic" />
         <look name="Marlin_Blue" />
 
@@ -176,7 +180,7 @@
 
       <!-- ESC Boxes -->
 
-      <external_part name="ESC_Box_Left" type="box" physics="submerged" buoyant="false">
+      <external_part name="ESC_Box_Left" type="box" physics="submerged" buoyant="true">
         <dimensions xyz="0.15 0.22 0.04"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
@@ -186,7 +190,7 @@
         <compound_transform xyz="-0.237215 0.0 -0.0475" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="ESC_Box_Right" type="box" physics="submerged" buoyant="false">
+      <external_part name="ESC_Box_Right" type="box" physics="submerged" buoyant="true">
         <dimensions xyz="0.15 0.22 0.04"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
@@ -315,7 +319,7 @@
         <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
 
         <!-- Rack consists of electrical components along with air -->
-        <mass value="5.0" />
+        <mass value="25" />
 
         <material name="Air"/>
         <look name="Gray"/>
@@ -323,8 +327,10 @@
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      <internal_part name="ESC_Box_Left_Internal" type="box" physics="submerged" buoyant="true">
+      <internal_part name="ESC_Box_Left_Internal" type="box" physics="submerged" buoyant="false">
         <dimensions xyz="0.13 0.2 0.03" />
+
+        <mass value="0.5" />
 
         <material name="Air"/>
         <look name="White"/>
@@ -333,8 +339,10 @@
         <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      <internal_part name="ESC_Box_Right_Internal" type="box" physics="submerged" buoyant="true">
+      <internal_part name="ESC_Box_Right_Internal" type="box" physics="submerged" buoyant="false">
         <dimensions xyz="0.13 0.2 0.03" />
+
+        <mass value="0.5" />
 
         <material name="Air"/>
         <look name="White"/>
@@ -447,9 +455,9 @@
       <link name="base_link_ned" />
 
       <specs beam_angle="30.0" beam_positive_z="false" />
-      <range velocity="3.75 3.75 3.75" altitude_min="0.05" altitude_max="50.0" />
+      <range velocity="3.75 3.75 3.75" altitude_min="0.00" altitude_max="50.0" />
       <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0" />
-      <noise velocity_percent="0.0101" velocity="0.01" altitude="0.03" water_velocity_percent="0.0" water_velocity="0.00" />
+      <noise velocity_percent="0.00" velocity="0.00" altitude="0.00" water_velocity_percent="0.0" water_velocity="0.00" />
       <history samples="1" />
 
       <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0" />
@@ -460,8 +468,8 @@
     <sensor name="imu_link" rate="30.0" type="imu">
       <link name="base_link_ned"/>
 
-      <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0"/>
-      <noise angle="0.05 0.05 1.0" angular_velocity="0.00" yaw_drift="0.00" linear_acceleration="0.00"/>
+      <range angular_velocity="100.0 100.0 50.0" linear_acceleration="30.0"/>
+      <noise angle="0.0 0.0 0.0" angular_velocity="0.0" yaw_drift="0.0" linear_acceleration="0.00"/>
       <history samples="1"/>
 
       <origin xyz="0.0 -0.15 -0.2" rpy="0.0 0.0 0.0"/>
@@ -479,7 +487,11 @@
     </sensor>
 
     <!-- Thrusters -->
-    <!-- Order of thrusters is VERT FL, VERT FR, VERT BL, VERT BR, SURGE FL, SURGE FR, SURGE BL, SURGE BR -->
+    <!-- Stonefish drives thrust along each actuator's local +X axis, so the rpy
+         below determines each thruster's role:
+           0-3 (yaw-only rpy)  = horizontal vectored -> surge / sway / yaw
+           4-7 (pitch 90 rpy)  = vertical            -> heave / roll / pitch
+         This 0..7 order must match sub_control's ALLOC_DATA and the real ESC channels. -->
     <!-- Cannot use include tag here because they can only be used at the top level -->
     {{ thruster_actuator(
       name="thuster_0",
