@@ -17,6 +17,8 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -46,6 +48,7 @@ add_executable(sim_kill_switch src/sim_kill_switch.cpp)
 include_directories(sim_kill_switch include)
 ament_target_dependencies(sim_kill_switch rclcpp std_msgs)
 
+<<<<<<< HEAD
 add_executable(sim_torpedo_launcher src/sim_torpedo_launcher.cpp)
 include_directories(sim_torpedo_launcher include)
 ament_target_dependencies(sim_torpedo_launcher rclcpp std_msgs std_srvs sub_driver_interfaces)
@@ -53,14 +56,23 @@ ament_target_dependencies(sim_torpedo_launcher rclcpp std_msgs std_srvs sub_driv
 add_executable(sim_dropper src/sim_dropper.cpp)
 include_directories(sim_dropper include)
 ament_target_dependencies(sim_dropper rclcpp sensor_msgs std_srvs sub_driver_interfaces)
+=======
+add_executable(sim_oak_camera_remapper src/sim_oak_camera_remapper.cpp)
+target_include_directories(sim_oak_camera_remapper PRIVATE include ${OpenCV_INCLUDE_DIRS})
+ament_target_dependencies(sim_oak_camera_remapper rclcpp sensor_msgs cv_bridge OpenCV)
+>>>>>>> 908c967 (feat: add preliminary vision code)
 
 install(TARGETS
   sim_dvl_remapper
   sim_thruster_republisher
   sim_imu_remapper
   sim_kill_switch
+<<<<<<< HEAD
   sim_torpedo_launcher
   sim_dropper
+=======
+  sim_oak_camera_remapper
+>>>>>>> 908c967 (feat: add preliminary vision code)
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

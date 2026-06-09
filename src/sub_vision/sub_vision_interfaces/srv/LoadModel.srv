@@ -1,0 +1,9 @@
+# Request the perception node load (and make active) the model for a task.
+# Resolves to <model_dir>/<task>.{engine|onnx|pt}. If the task is already the
+# active model this is a no-op that still returns success.
+string task
+---
+bool success
+string message        # human-readable status / error
+string active_model    # model now resident (path or name)
+float32 load_time_s    # wall-clock time spent loading/building, 0 on no-op

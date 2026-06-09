@@ -1,4 +1,4 @@
-src/json
+.venv
 
 **/.vscode/
 .cache/
