@@ -13,6 +13,8 @@ find_package(marine_acoustic_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -42,11 +44,16 @@ add_executable(sim_kill_switch src/sim_kill_switch.cpp)
 include_directories(sim_kill_switch include)
 ament_target_dependencies(sim_kill_switch rclcpp std_msgs)
 
+add_executable(sim_oak_camera_remapper src/sim_oak_camera_remapper.cpp)
+target_include_directories(sim_oak_camera_remapper PRIVATE include ${OpenCV_INCLUDE_DIRS})
+ament_target_dependencies(sim_oak_camera_remapper rclcpp sensor_msgs cv_bridge OpenCV)
+
 install(TARGETS
   sim_dvl_remapper
   thruster_republishers
   sim_imu_remapper
   sim_kill_switch
+  sim_oak_camera_remapper
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

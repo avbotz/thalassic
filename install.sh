@@ -14,7 +14,13 @@ sudo dpkg -i /tmp/ros2-apt-source.deb
 # Set versions to install
 DIST=jazzy
 
-sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop
+sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros2-testing-apt-source
+sudo apt-get update
+sudo apt-get -y install ros-${DIST}-depthai-ros-v3 ros-${DIST}-cv-bridge
+
+# sub_vision: YOLOv10 inference via the Ultralytics API. On a Jetson, install the
+# NVIDIA-provided torch/torchvision wheels first so CUDA is used.
+pip install --break-system-packages ultralytics
 
 git submodule update --init --recursive
 

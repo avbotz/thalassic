@@ -483,7 +483,19 @@
       <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" />
       <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
 
-      <ros_publisher topic="/marlin_v2/front_camera" />
+      <ros_publisher topic="/marlin_v2/sim/front_camera" />
+    </sensor>
+
+    <!-- OAK-D Pro stereo depth. Co-located with front_camera (same resolution,
+         FOV and origin) so depth aligns with the color image; the
+         sim_oak_camera_remapper converts this into OAK-D topic/format. -->
+    <sensor name="depth_camera" rate="20.0" type="depthcamera">
+      <link name="base_link_ned" />
+
+      <specs resolution_x="1280" resolution_y="720" horizontal_fov="60.0" depth_min="0.2" depth_max="20.0" />
+      <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
+
+      <ros_publisher topic="/marlin_v2/sim/depth_camera" />
     </sensor>
 
     <!-- Thrusters -->

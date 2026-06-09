@@ -7,5 +7,6 @@
   "exclude": [
     "log"
   ],
-  "reportUnusedCallResult": false
+  "reportUnusedCallResult": false,
+  "typeCheckingMode": "standard"
 }
