@@ -4,7 +4,7 @@ sudo add-apt-repository universe
 sudo apt-get update
 sudo apt-get upgrade -y
 sudo apt-get install -y software-properties-common
-sudo apt-get install -y build-essential cmake cppcheck curl git gnupg libeigen3-dev libgles2-mesa-dev lsb-release pkg-config protobuf-compiler python3-dbg python3-pip python3-venv qtbase5-dev ruby sudo wget
+sudo apt-get install -y build-essential cmake cppcheck curl git gnupg libeigen3-dev libgles2-mesa-dev lsb-release pkg-config protobuf-compiler python3-dbg python3-pip python3-venv python3-colcon-common-extensions qtbase5-dev ruby sudo wget
 
 # ROS2 apt Source
 export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F\" '{print $4}')
@@ -32,8 +32,9 @@ sudo make install
 cd $ROS_WS_DIR
 
 # Spinnaker SDK
-sudo apt-get update
 sudo apt-get install pipx unzip
+pipx ensurepath
+source ~/.bashrc
 pipx install gdown
 mkdir /tmp/spinnaker
 cd /tmp/spinnaker
@@ -43,7 +44,13 @@ unzip spinnaker-4.4.0.99-24.04.zip
 cd x64_noble
 tar -xzvf "spinnaker-4.4.0.99-noble-$(dpkg --print-architecture)-pkg.tar.gz"
 cd "spinnaker-4.4.0.99-noble-$(dpkg --print-architecture)"
-sudo sh install_spinnaker.sh
+if [[ $(dpkg --print-architecture) == "arm64" ]]; then
+    sudo sh install_spinnaker_arm.sh
+else
+    sudo sh install_spinnaker.sh
+fi
+
+source setup.sh
 
 sudo rosdep init
 rosdep update

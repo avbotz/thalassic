@@ -200,6 +200,7 @@ def generate_launch_description():
     return LaunchDescription(
         args
         + [
+            declare_ns,
             render,
             include_stonefish,
             include_transforms,

@@ -1,10 +1,10 @@
-waterlinked_dvl_driver_node:
+/**/waterlinked_dvl_driver:
   ros__parameters:
     # Descriptions for all DVL configurations can be found on the Water Linked
     # Documentation: https://docs.waterlinked.com/dvl/dvl-protocol/
 
     # Default IP address for the DVL-A50 and DVL-125
-    ip_address: "192.168.194.95"
+    ip_address: "192.168.0.203"
 
     # Default port for the DVL-A50 and DVL-125
     port: 16171

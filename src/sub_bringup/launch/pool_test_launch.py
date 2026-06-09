@@ -156,7 +156,7 @@ def spinnaker_camera_entities():
             {
                 "ffmpeg_image_transport.encoding": "hevc_nvenc",
                 "parameter_file": parameter_file,
-                "serial_number": ["''"],
+                "serial_number": ["'16359776'"],
             },
         ],
         remappings=[
