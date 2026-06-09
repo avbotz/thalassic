@@ -7,16 +7,12 @@ from launch.actions import (
     DeclareLaunchArgument,
     SetLaunchConfiguration,
     IncludeLaunchDescription,
-    ExecuteProcess,
-    RegisterEventHandler,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 from ament_index_python.packages import get_package_share_directory
-
-from launch.event_handlers import OnProcessExit
 
 from sub_sim.generate_robot import render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
@@ -171,27 +167,6 @@ def generate_launch_description():
         ],
     )
 
-    clear_port = ExecuteProcess(
-        cmd=['fuser', '-k', '8765/tcp'], #free port 8765 (automatic foxglove bridge)
-        output='screen' 
-    )
-
-    foxglove_bridge_node = Node(
-        package="foxglove_bridge",
-        executable="foxglove_bridge",
-        name="foxglove_bridge",
-        parameters=[{
-                'port': 8765,
-                'use_compression': True,
-                'use_sim_time': True,
-        }],
-    )
-
-    bridge_after_port_clear = RegisterEventHandler(
-        event_handler= OnProcessExit(
-            target_action=clear_port,
-            on_exit=[foxglove_bridge_node],
-        )
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
@@ -235,8 +210,6 @@ def generate_launch_description():
             sim_imu_remapper,
             thruster_republisher,
             robot_localization_node,
-            clear_port,
-            bridge_after_port_clear,
             sub_control_node,
             sim_kill_switch,
         ]
