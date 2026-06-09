@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -139,7 +138,12 @@ def generate_launch_description():
         output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
-            os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/ekf.yaml",
+                ]
+            ),
         ],
     )
 
@@ -163,9 +167,11 @@ def generate_launch_description():
         output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
-            os.path.join(
-                get_package_share_directory("sub_bringup"),
-                "config/control_gains_sim.yaml",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/control_gains_sim.yaml",
+                ]
             ),
             {
                 "world_frame": "map",
@@ -234,6 +240,30 @@ def generate_launch_description():
         ],
     )
 
+    sim_oak_camera_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_oak_camera_remapper",
+        name="sim_oak_camera_remapper",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+    )
+
+    sub_vision_node = Node(
+        package="sub_vision",
+        executable="sub_vision",
+        name="sub_vision",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_vision"),
+                    "config/sub_vision.yaml",
+                ]
+            ),
+        ],
+    )
+
     return LaunchDescription(
         args
         + [
@@ -252,5 +282,7 @@ def generate_launch_description():
             sim_torpedo_launcher,
             sim_dropper,
             sim_kill_switch,
+            sim_oak_camera_remapper,
+            sub_vision_node,
         ]
     )
