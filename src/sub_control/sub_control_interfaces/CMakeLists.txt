@@ -24,6 +24,7 @@ endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Setpoint.msg"
+  "msg/Error.msg"
   DEPENDENCIES geometry_msgs
 )
 

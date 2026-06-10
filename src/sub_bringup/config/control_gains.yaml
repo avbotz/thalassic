@@ -1,5 +1,3 @@
-# Cascade PID gains for sub_control. Written by tune_pid.py.
-# parameter name: gains.<loop>.<axis>.<k>
 /**:
   ros__parameters:
     gains:

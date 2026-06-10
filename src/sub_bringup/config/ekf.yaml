@@ -1,4 +1,4 @@
-/marlin_v2/ekf_filter_node:
+/**:
     ros__parameters:
         debug: false
 

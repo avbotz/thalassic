@@ -14,7 +14,7 @@ sudo dpkg -i /tmp/ros2-apt-source.deb
 # Set versions to install
 DIST=jazzy
 
-sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop
+sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros-jazzy-foxglove-bridge
 
 git submodule update --init --recursive
 
