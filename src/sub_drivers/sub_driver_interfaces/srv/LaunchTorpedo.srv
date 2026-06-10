@@ -1,0 +1,5 @@
+uint8 torpedo_id  # 0 or 1
+bool open         # true = open, false = close
+---
+bool success
+string message

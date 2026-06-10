@@ -15,10 +15,11 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sub_driver_interfaces REQUIRED)
 
 add_executable(sub_low src/sub_low.cpp src/serial_port.cpp)
 target_include_directories(sub_low PRIVATE include)
-ament_target_dependencies(sub_low rclcpp rclcpp_lifecycle std_msgs)
+ament_target_dependencies(sub_low rclcpp rclcpp_lifecycle std_msgs sub_driver_interfaces)
 
 add_executable(naviguider_imu_driver src/naviguider_imu.cpp src/serial_port.cpp)
 target_include_directories(naviguider_imu_driver PRIVATE include)

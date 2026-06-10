@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   {% from "thruster.j2" import thruster_actuator, thruster_visual %}
+  {% from "torpedo.j2" import torpedo_robot with context %}
 
   <looks>
     <look name="White" gray="0.9" roughness="0.5" />
@@ -10,10 +11,10 @@
   </looks>
 
   <solver>
-    <global_damping value="0.5"/>
+    <global_damping value="0.35"/>
   </solver>
 
-  <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
+  <robot name="marlin_v2" fixed="false" self_collisions="true" algorithm="featherstone">
     <base_link name="base_link_ned" type="compound" physics="submerged">
 
       <!-- Frame -->
@@ -572,6 +573,18 @@
     <ros_publisher servos="/marlin_v2/sim/joint_states" thrusters="/marlin_v2/sim/thruster_states" />
     <ros_subscriber servos="/marlin_v2/sim/joint_setpoints" thrusters="/marlin_v2/sim/thruster_setpoints" />
 
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+    <world_transform xyz="{{ x }} {{ y }} {{ z }}" rpy="{{ roll }} {{ pitch }} {{ yaw }}" />
   </robot>
+
+  {{ torpedo_robot(
+    name="torpedo_0",
+    mesh="robots/marlin_v2/torpedoes/torpedo_right_facing.obj",
+    xyz_offsets=[0.009676, 0.35, 0.05146],
+  ) }}
+
+  {{ torpedo_robot(
+    name="torpedo_1",
+    mesh="robots/marlin_v2/torpedoes/torpedo_left_facing.obj",
+    xyz_offsets=[-0.010095, 0.35, 0.05146],
+  ) }}
 </scenario>

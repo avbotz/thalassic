@@ -1,0 +1,46 @@
+{# Spring-launched torpedo. Glue's ros_service (std_srvs/SetBool, data=false) releases it and
+   the push actuator's ros_subscriber (std_msgs/Float64, newtons) provides the launch impulse. #}
+{% macro torpedo_robot(
+    name,
+    mesh,
+    xyz_offsets=[0.0, 0.0, 0.0],
+    mass="0.017",
+    parent_link="marlin_v2/base_link_ned",
+    look_name="White"
+) -%}
+  <robot name="{{ name }}" fixed="false" self_collisions="false" algorithm="featherstone">
+    <base_link name="base_link" type="model" physics="submerged" buoyant="true">
+      <physical>
+        <mesh filename="{{ mesh }}" scale="1.0" convex="true" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      </physical>
+
+      <mass value="{{ mass }}" />
+
+      <material name="Plastic" />
+      <look name="{{ look_name }}" />
+    </base_link>
+
+    <sensor name="{{ name }}_odometry" rate="10.0" type="odometry">
+      <link name="base_link" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <ros_publisher topic="/marlin_v2/sim/{{ name }}/odometry" />
+    </sensor>
+
+    <actuator name="{{ name }}_push" type="push">
+      <link name="base_link" />
+      <specs inverted="false" lower_limit="0.0" upper_limit="5.0" />
+      <origin xyz="0.0 0.0 0.0" rpy="{{ roll }} {{ pitch }} {{ yaw + PI / 2 }}" />
+      <ros_subscriber topic="/marlin_v2/sim/{{ name }}/force" />
+    </actuator>
+
+    {# Offset from the sub's spawn pose; only valid for the default yaw of PI. #}
+    <world_transform xyz="{{ x - xyz_offsets[0] }} {{ y + xyz_offsets[1] }} {{ z + xyz_offsets[2] }}" rpy="{{ roll }} {{ pitch }} {{ yaw }}" />
+  </robot>
+
+  <glue name="{{ name }}_glue" activated="true">
+    <first_body name="{{ name }}/base_link" />
+    <second_body name="{{ parent_link }}" />
+    <ros_service topic="/marlin_v2/sim/{{ name }}/glue" />
+  </glue>
+{%- endmacro %}
