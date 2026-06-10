@@ -1,23 +1,17 @@
 import os
 from pathlib import Path
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
-    OpaqueFunction,
     DeclareLaunchArgument,
-    SetLaunchConfiguration,
     IncludeLaunchDescription,
-    ExecuteProcess,
-    RegisterEventHandler,
+    OpaqueFunction,
+    SetLaunchConfiguration,
 )
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-
-from ament_index_python.packages import get_package_share_directory
-
-from launch.event_handlers import OnProcessExit
-
 from sub_sim.generate_robot import render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
@@ -44,7 +38,7 @@ def _render_scn(context, *_, **__):
     urdf_robot = robot_scenario_to_urdf(
         scenario_xml=robot_rendered_path,
         robot_name="marlin_v2",
-        mesh_prefix=f"file://{Path(sub_sim_share) / "data"}/",
+        mesh_prefix=f"file://{Path(sub_sim_share) / 'data'}/",
     )
 
     robot_description = urdf_robot.read_text()
@@ -164,43 +158,36 @@ def generate_launch_description():
         package="robot_localization",
         executable="ekf_node",
         name="ekf_filter_node",
-        output="screen",
+        output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
         ],
     )
 
-    clear_port = ExecuteProcess(
-        cmd=['fuser', '-k', '8765/tcp'], #free port 8765 (automatic foxglove bridge)
-        output='screen' 
-    )
-
     foxglove_bridge_node = Node(
         package="foxglove_bridge",
         executable="foxglove_bridge",
         name="foxglove_bridge",
-        parameters=[{
-                'port': 8765,
-                'use_compression': True,
-                'use_sim_time': True,
-        }],
+        parameters=[
+            {
+                "port": 8765,
+                "use_compression": True,
+                "use_sim_time": True,
+            }
+        ],
     )
 
-    bridge_after_port_clear = RegisterEventHandler(
-        event_handler= OnProcessExit(
-            target_action=clear_port,
-            on_exit=[foxglove_bridge_node],
-        )
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
         name="sub_control",
-        output="screen",
+        output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
             os.path.join(
-                get_package_share_directory("sub_bringup"), "config/control_gains_sim.yaml"
+                get_package_share_directory("sub_bringup"),
+                "config/control_gains_sim.yaml",
             ),
             {
                 "world_frame": "map",
@@ -213,7 +200,7 @@ def generate_launch_description():
         package="sub_sim_sensors",
         executable="sim_kill_switch",
         name="sim_kill_switch",
-        output="screen",
+        output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
             {
@@ -235,8 +222,7 @@ def generate_launch_description():
             sim_imu_remapper,
             thruster_republisher,
             robot_localization_node,
-            clear_port,
-            bridge_after_port_clear,
+            foxglove_bridge_node,
             sub_control_node,
             sim_kill_switch,
         ]

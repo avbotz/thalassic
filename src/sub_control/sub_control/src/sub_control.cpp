@@ -16,6 +16,8 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.hpp"
 #include "tf2_ros/transform_listener.hpp"
+#include "sub_control_interfaces/msg/setpoint.hpp"
+#include "sub_control_interfaces/msg/error.hpp"
 
 // All frame conversions (ENU<->NED, angle wrapping, planar rotation) and the
 // thruster allocator live in sub_control/utils so they can be unit tested.
@@ -38,23 +40,29 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
 
     cap_ = allocator_.max_wrench(max_force_);
 
+    // Read max_speed_/max_ang_rate_ (inner-loop setpoint limits) and the
+    // derivative filter time constants from parameters before building the PIDs.
+    declare_gain_parameters();
+
     // Gains default to the previously hardcoded values but are now parameters
-    // (see config/control_gains.yaml) so the auto-tuner can set them live.
-    init_pid("gains.pos.x", pos_pid[0], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
-    init_pid("gains.pos.y", pos_pid[1], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
-    init_pid("gains.pos.z", pos_pid[2], 0.8, 0.0, 0.0, 0.0, -max_speed_, max_speed_);
+    // (see config/control_gains.yaml) so the auto-tuner can set them live. The
+    // tau_d argument enables the PID's derivative low-pass; with kd != 0 it keeps
+    // the derivative term from chattering the thrusters on noisy measurements.
+    init_pid("gains.pos.x", pos_pid[0], 0.8, 0.0, 0.0, pos_tau_d_, -max_speed_, max_speed_);
+    init_pid("gains.pos.y", pos_pid[1], 0.8, 0.0, 0.0, pos_tau_d_, -max_speed_, max_speed_);
+    init_pid("gains.pos.z", pos_pid[2], 0.8, 0.0, 0.0, pos_tau_d_, -max_speed_, max_speed_);
 
-    init_pid("gains.att.x", att_pid[0], 1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
-    init_pid("gains.att.y", att_pid[1], 1.5, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
-    init_pid("gains.att.z", att_pid[2], 1.0, 0.0, 0.0, 0.0, -max_ang_rate_, max_ang_rate_);
+    init_pid("gains.att.x", att_pid[0], 1.5, 0.0, 0.0, att_tau_d_, -max_ang_rate_, max_ang_rate_);
+    init_pid("gains.att.y", att_pid[1], 1.5, 0.0, 0.0, att_tau_d_, -max_ang_rate_, max_ang_rate_);
+    init_pid("gains.att.z", att_pid[2], 1.0, 0.0, 0.0, att_tau_d_, -max_ang_rate_, max_ang_rate_);
 
-    init_pid("gains.vel.x", vel_pid[0], 40.0, 8.0, 2.0, 0.0, -cap_[0], cap_[0]);
-    init_pid("gains.vel.y", vel_pid[1], 40.0, 8.0, 2.0, 0.0, -cap_[1], cap_[1]);
-    init_pid("gains.vel.z", vel_pid[2], 60.0, 12.0, 3.0, 0.0, -cap_[2], cap_[2]);
+    init_pid("gains.vel.x", vel_pid[0], 40.0, 8.0, 2.0, vel_tau_d_, -cap_[0], cap_[0]);
+    init_pid("gains.vel.y", vel_pid[1], 40.0, 8.0, 2.0, vel_tau_d_, -cap_[1], cap_[1]);
+    init_pid("gains.vel.z", vel_pid[2], 60.0, 12.0, 3.0, vel_tau_d_, -cap_[2], cap_[2]);
 
-    init_pid("gains.ang.x", ang_pid[0], 6.0, 0.0, 1.0, 0.0, -cap_[3], cap_[3]);
-    init_pid("gains.ang.y", ang_pid[1], 6.0, 0.0, 1.0, 0.0, -cap_[4], cap_[4]);
-    init_pid("gains.ang.z", ang_pid[2], 8.0, 0.0, 1.5, 0.0, -cap_[5], cap_[5]);
+    init_pid("gains.ang.x", ang_pid[0], 6.0, 0.0, 1.0, ang_tau_d_, -cap_[3], cap_[3]);
+    init_pid("gains.ang.y", ang_pid[1], 6.0, 0.0, 1.0, ang_tau_d_, -cap_[4], cap_[4]);
+    init_pid("gains.ang.z", ang_pid[2], 8.0, 0.0, 1.5, ang_tau_d_, -cap_[5], cap_[5]);
 
     // Update a PID's gains live whenever any of its .kp/.ki/.kd parameters change.
     // Runs in the executor thread (same as the control timer), so guarding with
@@ -105,13 +113,7 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control") {
         thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(std::format("control/thruster_{}", i), 10);
     }
 
-    const std::array<std::string, 3> axes{"x", "y", "z"};
-    for (int i = 0; i < 3; ++i) {
-        pos_error_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>("/control/pos/" + axes[i], 10);
-        vel_error_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>("/control/vel/" + axes[i], 10);
-        att_error_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>("/control/ang/" + axes[i], 10);
-        angvel_error_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>("/control/angvel/" + axes[i], 10);
-    }
+    error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
@@ -140,6 +142,8 @@ void ThrusterControl::init_pid(const std::string& key, PID& slot, double kp, dou
 void ThrusterControl::declare_gain_parameters() {
     max_speed_ = this->declare_parameter("max_speed", max_speed_);
     max_ang_rate_ = this->declare_parameter("max_ang_rate", max_ang_rate_);
+    pos_tau_d_ = this->declare_parameter("pos_tau_d", pos_tau_d_);
+    att_tau_d_ = this->declare_parameter("att_tau_d", att_tau_d_);
     vel_tau_d_ = this->declare_parameter("vel_tau_d", vel_tau_d_);
     ang_tau_d_ = this->declare_parameter("ang_tau_d", ang_tau_d_);
 }
@@ -370,17 +374,13 @@ void ThrusterControl::pid_control_loop() {
         thruster_pubs_[i]->publish(m);
     }
 
-    for (int i = 0; i < 3; ++i) {
-        std_msgs::msg::Float64 m;
-        m.data = pos_errors[i];
-        pos_error_pubs_[i]->publish(m);
-        m.data = vel_errors[i];
-        vel_error_pubs_[i]->publish(m);
-        m.data = att_errors[i];
-        att_error_pubs_[i]->publish(m);
-        m.data = angvel_errors[i];
-        angvel_error_pubs_[i]->publish(m);
-    }
+    sub_control_interfaces::msg::Error error_msg;
+    error_msg.header.stamp = this->get_clock()->now();
+    error_msg.pos_error = pos_errors;
+    error_msg.vel_error = vel_errors;
+    error_msg.att_error = att_errors;
+    error_msg.angvel_error = angvel_errors;
+    error_pub_->publish(error_msg);
 }
 
 int main(int argc, char* argv[]) {

@@ -26,6 +26,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/odom",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_base_link_to_base_link_ned = Node(
@@ -49,6 +50,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/base_link_ned",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_front_cam = Node(
@@ -72,6 +74,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/front_camera",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     # tf_down_cam = Node(
@@ -101,6 +104,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/dvl_link",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_imu = Node(
@@ -124,6 +128,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/imu_link",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_dropper = Node(
@@ -147,6 +152,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/dropper_link",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_grabber_left = Node(
@@ -170,6 +176,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/left_grabber_link",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     tf_grabber_right = Node(
@@ -193,6 +200,7 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/right_grabber_link",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     thruster_transforms = [
@@ -217,6 +225,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_0_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -239,6 +248,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_1_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -261,6 +271,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_2_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -283,6 +294,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_3_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -305,6 +317,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_4_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -327,6 +340,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_5_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -349,6 +363,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_6_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
         Node(
             package="tf2_ros",
@@ -371,6 +386,7 @@ def generate_launch_description():
                 "--child-frame-id",
                 "marlin_v2/thruster_7_link",
             ],
+            ros_arguments=["--disable-stdout-logs"],
         ),
     ]
 

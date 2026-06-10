@@ -9,6 +9,10 @@
     <look name="Marlin_Blue" rgb="{{ 59 / 255 }} {{ 96 / 255 }} {{ 180 / 255 }}" roughness="0.5" />
   </looks>
 
+  <solver>
+    <global_damping value="0.5"/>
+  </solver>
+
   <robot name="marlin_v2" fixed="false" self_collisions="false" algorithm="featherstone">
     <base_link name="base_link_ned" type="compound" physics="submerged">
 
@@ -119,26 +123,9 @@
         <material name="Acrylic"/>
         <look name="White"/>
 
+        <hydrodynamics viscous_drag="5.0 5.0 5.0" quadratic_drag="1.2 1.2 1.2"/> 
+
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
-      </external_part>
-
-      <external_part name="Meb_Mounting_Front" type="model" physics="submerged" buoyant="true">
-        <physical>
-          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front_collision.obj" scale="1.0" convex="true" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </physical>
-
-        <visual>
-          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front.obj" scale="1.0" />
-          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-        </visual>
-
-        <mass value="0.700" />
-
-        <material name="Plastic" />
-        <look name="Marlin_Blue" />
-
-        <compound_transform xyz="0.0 -0.32 -0.2" rpy="0.0 0.0 0.0" />
       </external_part>
 
       <external_part name="Meb_Front_Camera_Dome" type="model" physics="surface">
@@ -158,6 +145,23 @@
         <compound_transform xyz="0.0 -0.348744 -0.166305" rpy="0.0 0.0 0.0" />
       </external_part>
 
+      <external_part name="Meb_Mounting_Front" type="model" physics="submerged" buoyant="true">
+        <physical>
+          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front_collision.obj" scale="1.0" convex="true" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </physical>
+
+        <visual>
+          <mesh filename="robots/marlin_v2/meb_mounting_front/meb_mounting_front.obj" scale="1.0" />
+          <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </visual>
+
+        <material name="Plastic" />
+        <look name="Marlin_Blue" />
+
+        <compound_transform xyz="0.0 -0.32 -0.2" rpy="0.0 0.0 0.0" />
+      </external_part>
+
       <external_part name="Meb_Mounting_Rear" type="model" physics="submerged" buoyant="true">
         <physical>
           <mesh filename="robots/marlin_v2/meb_mounting_rear/meb_mounting_rear_collision.obj" scale="1.0" convex="true" />
@@ -169,8 +173,6 @@
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
         </visual>
 
-        <mass value="0.700" />
-
         <material name="Plastic" />
         <look name="Marlin_Blue" />
 
@@ -181,7 +183,7 @@
       <!-- ESC Boxes -->
 
       <external_part name="ESC_Box_Left" type="box" physics="submerged" buoyant="true">
-        <dimensions xyz="0.15 0.22 0.04"/>
+        <dimensions xyz="0.15 0.22 0.04" thickness="0.01" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
         <material name="Aluminum"/>
@@ -191,7 +193,7 @@
       </external_part>
 
       <external_part name="ESC_Box_Right" type="box" physics="submerged" buoyant="true">
-        <dimensions xyz="0.15 0.22 0.04"/>
+        <dimensions xyz="0.15 0.22 0.04" thickness="0.01" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
         <material name="Aluminum"/>
@@ -315,11 +317,10 @@
       <!-- internal_part so it doesn't affect drag, mainly for buoyancy -->
 
       <internal_part name="Rack" type="cylinder" physics="submerged" buoyant="true">
-        <dimensions radius="0.1135" height="0.66" />
+        <dimensions radius="0.117" height="0.66" />
         <origin xyz="0.0 0.0 0.0" rpy="{{ PI / 2 }} 0.0 0.0"/>
 
-        <!-- Rack consists of electrical components along with air -->
-        <mass value="25" />
+        <mass value="10" />
 
         <material name="Air"/>
         <look name="Gray"/>
@@ -327,10 +328,22 @@
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      <internal_part name="ESC_Box_Left_Internal" type="box" physics="submerged" buoyant="false">
+      <internal_part name="Weights" type="box" physics="submerged" buoyant="false">
+        <dimensions xyz="0.23 0.23 0.06" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+
+        <mass value="12.5" />
+
+        <material name="Aluminum"/>
+        <look name="Black"/>
+
+        <compound_transform xyz="0.0 0.0 0.15" rpy="0.0 0.0 0.0" />
+      </internal_part>
+
+      <internal_part name="ESC_Box_Left_Internal" type="box" physics="submerged" buoyant="true">
         <dimensions xyz="0.13 0.2 0.03" />
 
-        <mass value="0.5" />
+        <mass value="0.85" />
 
         <material name="Air"/>
         <look name="White"/>
@@ -339,10 +352,10 @@
         <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      <internal_part name="ESC_Box_Right_Internal" type="box" physics="submerged" buoyant="false">
+      <internal_part name="ESC_Box_Right_Internal" type="box" physics="submerged" buoyant="true">
         <dimensions xyz="0.13 0.2 0.03" />
 
-        <mass value="0.5" />
+        <mass value="0.85" />
 
         <material name="Air"/>
         <look name="White"/>
@@ -487,11 +500,8 @@
     </sensor>
 
     <!-- Thrusters -->
-    <!-- Stonefish drives thrust along each actuator's local +X axis, so the rpy
-         below determines each thruster's role:
-           0-3 (yaw-only rpy)  = horizontal vectored -> surge / sway / yaw
-           4-7 (pitch 90 rpy)  = vertical            -> heave / roll / pitch
-         This 0..7 order must match sub_control's ALLOC_DATA and the real ESC channels. -->
+    <!--   0-3 (yaw-only rpy)  = horizontal vectored -> surge / sway / yaw
+           4-7 (pitch 90 rpy)  = vertical            -> heave / roll / pitch-->
     <!-- Cannot use include tag here because they can only be used at the top level -->
     {{ thruster_actuator(
       name="thuster_0",

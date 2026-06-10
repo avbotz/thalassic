@@ -23,7 +23,7 @@ def dvl_driver_entities():
         executable="waterlinked_dvl_driver",
         name="waterlinked_dvl_driver",
         namespace=LaunchConfiguration("ns"),
-        output="screen",
+        output="both",
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/dvl.yaml"),
         ],
@@ -65,7 +65,7 @@ def imu_driver_entities():
         executable="naviguider_imu_driver",
         name="naviguider_imu_driver",
         namespace=LaunchConfiguration("ns"),
-        output="screen",
+        output="both",
         parameters=[{"device": "/dev/naviguider_imu"}],
     )
 
@@ -149,7 +149,7 @@ def spinnaker_camera_entities():
         package="spinnaker_camera_driver",
         executable="camera_driver_node",
         namespace=LaunchConfiguration("ns"),
-        output="screen",
+        output="both",
         name=["blackfly"],
         parameters=[
             parameters,
@@ -187,7 +187,7 @@ def generate_launch_description():
         package="robot_localization",
         executable="ekf_node",
         name="ekf_filter_node",
-        output="screen",
+        output="both",
         namespace="marlin_v2",
         parameters=[
             os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
@@ -198,7 +198,7 @@ def generate_launch_description():
         package="sub_control",
         executable="sub_control",
         name="sub_control",
-        output="screen",
+        output="both",
         namespace="marlin_v2",
         parameters=[
             os.path.join(
