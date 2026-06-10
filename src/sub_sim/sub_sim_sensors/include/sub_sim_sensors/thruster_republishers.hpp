@@ -1,8 +1,8 @@
+#include <array>
+#include <string>
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
-#include <array>
-#include <string>
 
 class ThrusterRepublisher : public rclcpp::Node {
    public:

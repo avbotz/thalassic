@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <format>
+#include "sub_driver_interfaces/srv/launch_torpedo.hpp"
 
 using namespace std::chrono_literals;
 
@@ -39,6 +40,12 @@ SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
             });
     }
 
+    launch_torpedo_srv_ = this->create_service<sub_driver_interfaces::srv::LaunchTorpedo>(
+        "launch_torpedo", [this](const std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Request> request,
+                                 std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Response> response) {
+            this->launch_torpedo_callback(request, response);
+        });
+
     poll_timer_ = this->create_wall_timer(5ms, [this]() {
         if (is_active_) {
             poll_serial();
@@ -70,6 +77,7 @@ SubLow::CallbackReturn SubLow::on_deactivate(const rclcpp_lifecycle::State& stat
 SubLow::CallbackReturn SubLow::on_cleanup(const rclcpp_lifecycle::State&) {
     poll_timer_.reset();
     kill_pub_.reset();
+    launch_torpedo_srv_.reset();
 
     for (auto& sub : thruster_subs_) {
         sub.reset();
@@ -84,6 +92,7 @@ SubLow::CallbackReturn SubLow::on_cleanup(const rclcpp_lifecycle::State&) {
 SubLow::CallbackReturn SubLow::on_shutdown(const rclcpp_lifecycle::State&) {
     poll_timer_.reset();
     kill_pub_.reset();
+    launch_torpedo_srv_.reset();
 
     for (auto& sub : thruster_subs_) {
         sub.reset();
@@ -102,6 +111,31 @@ void SubLow::stop_thrusters() {
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         serial_->write(std::format("t {} 0.0\n", i));
     }
+}
+
+void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Request> request,
+                                     std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Response> response) {
+    if (!is_active_) {
+        response->success = false;
+        response->message = "sub_low is not active.";
+        return;
+    }
+
+    if (request->torpedo_id >= NUM_TORPEDO_THRUSTERS) {
+        response->success = false;
+        response->message = std::format("Invalid torpedo id {}.", request->torpedo_id);
+        return;
+    }
+
+    if (!serial_->write(std::format("t {} {}\n", request->torpedo_id, request->open ? 1 : 0))) {
+        response->success = false;
+        response->message = "serial write failed";
+        return;
+    }
+
+    response->success = true;
+    response->message = std::format("Torpedo thruster {} {}.", request->torpedo_id,
+                                    request->open ? "opened" : "closed");
 }
 
 void SubLow::set_thruster_power(int index, double normalized) {

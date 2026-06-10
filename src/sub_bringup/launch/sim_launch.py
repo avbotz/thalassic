@@ -33,15 +33,13 @@ def _render_scn(context, *_, **__):
         Path(sub_sim_share) / "data" / "robots" / "marlin_v2" / "layout.scn.j2"
     )
 
-    robot_rendered_path = render_robot_scenario(robot_scenario_file)
+    rendered_robot_path = None
 
-    urdf_robot = robot_scenario_to_urdf(
-        scenario_xml=robot_rendered_path,
-        robot_name="marlin_v2",
-        mesh_prefix=f"file://{Path(sub_sim_share) / 'data'}/",
-    )
-
-    robot_description = urdf_robot.read_text()
+    def render_robot(**pose):
+        nonlocal rendered_robot_path
+        path = render_robot_scenario(robot_scenario_file, **pose)
+        rendered_robot_path = path
+        return path.as_posix()
 
     temp_path = randomize_scenario_locations(
         scenario_template_file=scenario_file,
@@ -50,8 +48,19 @@ def _render_scn(context, *_, **__):
         DZ=DZ,
         DYAW=DYAW,
         seed=SEED,
-        ROBOT_SCENARIO_PATH=robot_rendered_path.as_posix(),
+        render_robot=render_robot,
     )
+
+    if rendered_robot_path is None:
+        raise RuntimeError("No robot rendered")
+
+    urdf_robot = robot_scenario_to_urdf(
+        scenario_xml=rendered_robot_path,
+        robot_name="marlin_v2",
+        mesh_prefix=f"file://{Path(sub_sim_share) / 'data'}/",
+    )
+
+    robot_description = urdf_robot.read_text()
 
     return [
         SetLaunchConfiguration("scenario_file", temp_path.as_posix()),
@@ -196,6 +205,14 @@ def generate_launch_description():
         ],
     )
 
+    torpedo_launcher = Node(
+        package="sub_sim_sensors",
+        executable="sim_torpedo_launcher",
+        name="sim_torpedo_launcher",
+        output="both",
+        namespace=LaunchConfiguration("ns"),
+    )
+
     sim_kill_switch = Node(
         package="sub_sim_sensors",
         executable="sim_kill_switch",
@@ -223,7 +240,8 @@ def generate_launch_description():
             thruster_republisher,
             robot_localization_node,
             foxglove_bridge_node,
-            sub_control_node,
+            # sub_control_node,
+            torpedo_launcher,
             sim_kill_switch,
         ]
     )

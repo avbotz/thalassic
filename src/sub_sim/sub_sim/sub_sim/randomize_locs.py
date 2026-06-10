@@ -3,10 +3,11 @@ import math
 import random
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 from jinja2 import Template
 
-def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, ROBOT_SCENARIO_PATH: str, seed: None | int=None) -> Path:
+def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, DY: float, DZ: float, DYAW: float, render_robot: Callable[..., str], seed: None | int=None) -> Path:
     scenario_template_file = Path(scenario_template_file)
 
     rng = random.Random()
@@ -29,7 +30,7 @@ def randomize_scenario_locations(scenario_template_file: Path | str, DX: float, 
         scenario_template = Template(f.read())
 
     rendered = scenario_template.render(
-        fuzz=fuzz, fuzz_z=fuzz_z, rand=rand, choose=choose, DX=DX, DY=DY, DZ=DZ, DYAW=DYAW, ROBOT_SCENARIO_PATH=ROBOT_SCENARIO_PATH, PI=math.pi
+        fuzz=fuzz, fuzz_z=fuzz_z, rand=rand, choose=choose, DX=DX, DY=DY, DZ=DZ, DYAW=DYAW, render_robot=render_robot, PI=math.pi
     )
 
     fd, temp_path = tempfile.mkstemp(prefix=scenario_template_file.stem, suffix=".scn")

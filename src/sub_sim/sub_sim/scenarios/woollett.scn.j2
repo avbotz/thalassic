@@ -28,17 +28,17 @@
     <material name="PVC" density="1450" restitution="0.2" />
   </materials>
 
-  <include file="{{ ROBOT_SCENARIO_PATH }}">
-    <arg name="x" value="17.25" />
-    <!--<arg name="y" value="{{ fuzz(-10.35,  DY) }}" />-->
-    <arg name="y" value="-10.35" />
-    <!--<arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />-->
-    <arg name="z" value="0.5" />
-    <arg name="roll" value="0.0" />
-    <arg name="pitch" value="0.0" />
-    <!--<arg name="yaw" value="{{ fuzz(PI, DYAW) }}" />-->
-    <arg name="yaw" value="{{ PI }}" />
-  </include>
+  <!-- render_robot() renders the robot scenario template with this pose via
+       Jinja and returns the rendered file's path. Use fuzz()/fuzz_z() to
+       randomize, e.g. y=fuzz(-10.35, DY), yaw=fuzz(PI, DYAW). -->
+  <include file="{{ render_robot(
+      x=17.25,
+      y=-10.35,
+      z=0.5,
+      roll=0.0,
+      pitch=0.0,
+      yaw=PI
+  ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
     <arg name="x" value="0" />
