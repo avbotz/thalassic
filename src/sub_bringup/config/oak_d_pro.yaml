@@ -1,0 +1,18 @@
+# Brings up an RGB + aligned stereo-depth pipeline (no on-device NN; detection
+# runs in sub_vision). Topics are published under the node name "oak":
+#   <ns>/oak/rgb/image_raw, <ns>/oak/rgb/camera_info
+#   <ns>/oak/stereo/image_raw (16UC1, mm), <ns>/oak/stereo/camera_info
+/**:
+  ros__parameters:
+    camera:
+      i_pipeline_type: RGBD
+      i_nn_type: none
+    pipeline_gen:
+      i_nn_type: none
+      i_enable_rgbd: true
+      i_pipeline_type: rgbd
+    stereo:
+      i_depth_preset: DEFAULT
+      i_align_depth: true
+    rgb:
+      i_fps: 20.0

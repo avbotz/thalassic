@@ -18,6 +18,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -55,6 +57,10 @@ add_executable(sim_dropper src/sim_dropper.cpp)
 include_directories(sim_dropper include)
 ament_target_dependencies(sim_dropper rclcpp sensor_msgs std_srvs sub_driver_interfaces)
 
+add_executable(sim_oak_camera_remapper src/sim_oak_camera_remapper.cpp)
+target_include_directories(sim_oak_camera_remapper PRIVATE include ${OpenCV_INCLUDE_DIRS})
+ament_target_dependencies(sim_oak_camera_remapper rclcpp sensor_msgs cv_bridge OpenCV)
+
 install(TARGETS
   sim_dvl_remapper
   sim_thruster_republisher
@@ -62,6 +68,7 @@ install(TARGETS
   sim_kill_switch
   sim_torpedo_launcher
   sim_dropper
+  sim_oak_camera_remapper
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

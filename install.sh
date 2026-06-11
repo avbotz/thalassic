@@ -15,12 +15,10 @@ sudo dpkg -i /tmp/ros2-apt-source.deb
 # Set versions to install
 DIST=jazzy
 
-sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros-${DIST}-foxglove-bridge ros-${DIST}-rtabmap-ros
+sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros-${DIST}-foxglove-bridge ros-${DIST}-rtabmap-ros ros-${DIST}-depthai-ros-v3 ros-${DIST}-cv-bridge
 
 # DeepSeeColor runtime dependencies. Kornia is used for the depth morphology
-# step; torch provides the model runtime. --break-system-packages is required
-# on newer Ubuntu releases that mark the system Python environment as managed.
-python3 -m pip install --break-system-packages --no-cache-dir torch kornia
+python3 -m pip install --break-system-packages torch kornia ultralytics
 
 git submodule update --init --recursive
 

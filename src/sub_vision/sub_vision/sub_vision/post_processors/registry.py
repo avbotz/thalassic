@@ -1,0 +1,49 @@
+"""Task-name -> post-processor registry and lookup."""
+
+from __future__ import annotations
+
+import importlib
+from typing import Dict, List, Optional, Type
+
+from sub_vision.post_processors.base import TaskPostProcessor
+
+# Concrete post-processor classes that ship with this package. Imported lazily
+# so that simply importing the registry does not drag in OpenCV / numpy.
+_BUILTIN_MODULES = (
+    "sub_vision.post_processors.gate",
+)
+
+_REGISTRY: Dict[str, Type[TaskPostProcessor]] = {}
+
+
+def register_post_processor(task: str):
+    """Class decorator registering a post-processor for ``task``."""
+
+    def decorator(cls: Type[TaskPostProcessor]) -> Type[TaskPostProcessor]:
+        if not issubclass(cls, TaskPostProcessor):
+            raise TypeError(f"{cls.__name__} must subclass TaskPostProcessor")
+        _REGISTRY[task] = cls
+        return cls
+
+    return decorator
+
+
+def load_builtin_post_processors() -> None:
+    """Import the shipped processor modules so their decorators run."""
+    for module in _BUILTIN_MODULES:
+        importlib.import_module(module)
+
+
+def get_post_processor(task: str) -> Optional[TaskPostProcessor]:
+    """Instantiate the processor registered for ``task``, or ``None``.
+
+    Returning ``None`` lets the caller fall back to a no-op (detections keep
+    their 2D + distance metadata but get no pose).
+    """
+    cls = _REGISTRY.get(task)
+    return cls() if cls is not None else None
+
+
+def registered_tasks() -> List[str]:
+    """Names of all currently registered tasks."""
+    return sorted(_REGISTRY)
