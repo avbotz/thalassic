@@ -20,6 +20,9 @@ weights/*
 .catkin_workspace
 *.log
 
+train_imgs/
+train_imgs_test/
+
 *~
 
 # Skills files

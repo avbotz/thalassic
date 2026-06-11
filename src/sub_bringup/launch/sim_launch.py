@@ -349,6 +349,19 @@ def generate_launch_description():
         ],
     )
 
+    sim_labeling_node = Node(
+        package="sim_labeling",
+        executable="labeling",
+        name="sim_labeling",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "scenario_file": LaunchConfiguration("scenario_file"),
+                "output_dir": "train_imgs",
+            }
+        ],
+    )
+
     return LaunchDescription(
         args
         + [
@@ -364,6 +377,7 @@ def generate_launch_description():
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,
+            sim_labeling_node,
             sim_dvl_remapper,
             sim_thruster_republisher,
             sim_imu_remapper,
