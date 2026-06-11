@@ -1,4 +1,4 @@
-#include "sub_serial_drivers/naviguider_imu.hpp"
+#include "sub_serial_drivers/naviguider_imu_driver.hpp"
 
 #include <charconv>
 #include <format>
@@ -39,7 +39,7 @@ static bool parse_double(std::string_view s, double& out) {
     return ec == std::errc() && ptr == s.data() + s.size();
 }
 
-NaviGuiderImu::NaviGuiderImu(const rclcpp::NodeOptions& options)
+NaviGuiderIMUDriver::NaviGuiderIMUDriver(const rclcpp::NodeOptions& options)
     : rclcpp_lifecycle::LifecycleNode("naviguider_imu", options) {
     this->declare_parameter<std::string>("device", "/dev/ttyUSB0");
     this->declare_parameter<int>("baud", 115200);
@@ -50,9 +50,9 @@ NaviGuiderImu::NaviGuiderImu(const rclcpp::NodeOptions& options)
     this->declare_parameter<int>("orientation_rate", 100);
 }
 
-NaviGuiderImu::~NaviGuiderImu() { stop_sensors(); }
+NaviGuiderIMUDriver::~NaviGuiderIMUDriver() { stop_sensors(); }
 
-NaviGuiderImu::CallbackReturn NaviGuiderImu::on_configure(const rclcpp_lifecycle::State&) {
+NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_configure(const rclcpp_lifecycle::State&) {
     const std::string device = this->get_parameter("device").as_string();
     const int baud = this->get_parameter("baud").as_int();
     frame_id_ = this->get_parameter("frame_id").as_string();
@@ -85,7 +85,7 @@ NaviGuiderImu::CallbackReturn NaviGuiderImu::on_configure(const rclcpp_lifecycle
     return CallbackReturn::SUCCESS;
 }
 
-NaviGuiderImu::CallbackReturn NaviGuiderImu::on_activate(const rclcpp_lifecycle::State& state) {
+NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_activate(const rclcpp_lifecycle::State& state) {
     LifecycleNode::on_activate(state);
 
     rx_buffer_.clear();
@@ -96,7 +96,7 @@ NaviGuiderImu::CallbackReturn NaviGuiderImu::on_activate(const rclcpp_lifecycle:
     return CallbackReturn::SUCCESS;
 }
 
-NaviGuiderImu::CallbackReturn NaviGuiderImu::on_deactivate(const rclcpp_lifecycle::State& state) {
+NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_deactivate(const rclcpp_lifecycle::State& state) {
     LifecycleNode::on_deactivate(state);
 
     is_active_ = false;
@@ -106,7 +106,7 @@ NaviGuiderImu::CallbackReturn NaviGuiderImu::on_deactivate(const rclcpp_lifecycl
     return CallbackReturn::SUCCESS;
 }
 
-NaviGuiderImu::CallbackReturn NaviGuiderImu::on_cleanup(const rclcpp_lifecycle::State&) {
+NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_cleanup(const rclcpp_lifecycle::State&) {
     poll_timer_.reset();
     imu_pub_.reset();
     serial_.reset();
@@ -114,7 +114,7 @@ NaviGuiderImu::CallbackReturn NaviGuiderImu::on_cleanup(const rclcpp_lifecycle::
     return CallbackReturn::SUCCESS;
 }
 
-NaviGuiderImu::CallbackReturn NaviGuiderImu::on_shutdown(const rclcpp_lifecycle::State&) {
+NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_shutdown(const rclcpp_lifecycle::State&) {
     is_active_ = false;
     stop_sensors();
 
@@ -125,7 +125,7 @@ NaviGuiderImu::CallbackReturn NaviGuiderImu::on_shutdown(const rclcpp_lifecycle:
     return CallbackReturn::SUCCESS;
 }
 
-void NaviGuiderImu::start_sensors() {
+void NaviGuiderIMUDriver::start_sensors() {
     if (!serial_) {
         return;
     }
@@ -144,7 +144,7 @@ void NaviGuiderImu::start_sensors() {
     }
 }
 
-void NaviGuiderImu::stop_sensors() {
+void NaviGuiderIMUDriver::stop_sensors() {
     if (!serial_) {
         return;
     }
@@ -154,10 +154,9 @@ void NaviGuiderImu::stop_sensors() {
     serial_->write(std::format("s {},0\r", SENSOR_GAME_ROTATION_VECTOR));
 }
 
-void NaviGuiderImu::poll_serial() {
+void NaviGuiderIMUDriver::poll_serial() {
     if (!serial_->read_available(rx_buffer_)) {
-        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                              "serial read error / device disconnected");
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "serial read error / device disconnected");
         return;
     }
 
@@ -175,7 +174,7 @@ void NaviGuiderImu::poll_serial() {
     }
 }
 
-void NaviGuiderImu::handle_line(std::string_view line) {
+void NaviGuiderIMUDriver::handle_line(std::string_view line) {
     const std::vector<std::string_view> fields = split_csv(line);
     if (fields.size() < 2) {
         return;
@@ -233,7 +232,7 @@ int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
     rclcpp::executors::SingleThreadedExecutor exec;
 
-    auto node = std::make_shared<NaviGuiderImu>();
+    auto node = std::make_shared<NaviGuiderIMUDriver>();
 
     exec.add_node(node->get_node_base_interface());
     exec.spin();

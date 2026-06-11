@@ -8,8 +8,9 @@
 // are best-effort.
 class SerialPort {
    public:
-    // Opens `device` at the specified `baud` rate. Throws std::runtime_error if the device cannot be opened or configured.
-    SerialPort(const std::string& device, int baud); 
+    // Opens `device` at the specified `baud` rate. Throws std::runtime_error if the device cannot be opened or
+    // configured.
+    SerialPort(const std::string& device, int baud);
     ~SerialPort();
 
     // Destructor defined so rule of 5 applies:

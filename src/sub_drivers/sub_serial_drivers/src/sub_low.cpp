@@ -143,8 +143,8 @@ void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces
     }
 
     response->success = true;
-    response->message = std::format("Torpedo thruster {} {}.", request->torpedo_id,
-                                    request->open ? "opened" : "closed");
+    response->message =
+        std::format("Torpedo thruster {} {}.", request->torpedo_id, request->open ? "opened" : "closed");
 }
 
 void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,

@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Table_White" gray="1.0" roughness="0.7"/>  <!-- 255, 255, 255 -->
-    <look name="Table_Yellow" rgb="1.0 1.0 0.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
-    <look name="Table_Red" rgb="1.0 0.008 0.008" roughness="0.7"/>  <!-- 255, 2, 2 -->
+    <look name="table_white" gray="1.0" roughness="0.7"/>  <!-- 255, 255, 255 -->
+    <look name="table_yellow" rgb="1.0 1.0 0.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
+    <look name="table_red" rgb="1.0 0.008 0.008" roughness="0.7"/>  <!-- 255, 2, 2 -->
   </looks>
 
   <static name="table_main_part" type="model">
@@ -16,8 +16,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Table_White" />
+    <material name="plastic" />
+    <look name="table_white" />
 
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
@@ -32,8 +32,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Table_Red" />
+    <material name="plastic" />
+    <look name="table_red" />
 
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
@@ -48,8 +48,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Table_Yellow" />
+    <material name="plastic" />
+    <look name="table_yellow" />
 
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>

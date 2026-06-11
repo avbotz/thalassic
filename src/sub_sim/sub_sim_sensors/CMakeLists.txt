@@ -34,9 +34,9 @@ add_executable(sim_dvl_remapper src/sim_dvl_remapper.cpp)
 include_directories(sim_dvl_remapper include)
 ament_target_dependencies(sim_dvl_remapper rclcpp stonefish_ros2 marine_acoustic_msgs)
 
-add_executable(thruster_republishers src/thruster_republishers.cpp)
-include_directories(thruster_republishers include)
-ament_target_dependencies(thruster_republishers rclcpp std_msgs)
+add_executable(sim_thruster_republisher src/sim_thruster_republisher.cpp)
+include_directories(sim_thruster_republisher include)
+ament_target_dependencies(sim_thruster_republisher rclcpp std_msgs)
 
 add_executable(sim_imu_remapper src/sim_imu_remapper.cpp)
 include_directories(sim_imu_remapper include)
@@ -56,7 +56,7 @@ ament_target_dependencies(sim_dropper rclcpp sensor_msgs std_srvs sub_driver_int
 
 install(TARGETS
   sim_dvl_remapper
-  thruster_republishers
+  sim_thruster_republisher
   sim_imu_remapper
   sim_kill_switch
   sim_torpedo_launcher

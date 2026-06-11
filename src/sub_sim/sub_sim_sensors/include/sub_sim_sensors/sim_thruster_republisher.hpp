@@ -4,12 +4,11 @@
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 
-class ThrusterRepublisher : public rclcpp::Node {
+class SimThrusterRepublisher : public rclcpp::Node {
    public:
-    ThrusterRepublisher();
+    SimThrusterRepublisher();
 
    private:
-    std::string robot_name_;
     std::array<double, 8> thruster_values_;
     std::array<rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr, 8> subscribers_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;

@@ -6,8 +6,8 @@
 
 #include <cerrno>
 #include <cstring>
-#include <stdexcept>
 #include <format>
+#include <stdexcept>
 
 static speed_t to_speed(int baud) {
     switch (baud) {
@@ -74,7 +74,9 @@ SerialPort::SerialPort(SerialPort&& o) noexcept : fd_(o.fd_) { o.fd_ = -1; }
 
 SerialPort& SerialPort::operator=(SerialPort&& o) noexcept {
     if (this != &o) {
-        if (fd_ >= 0) ::close(fd_);
+        if (fd_ >= 0) {
+            ::close(fd_);
+        }
         fd_ = o.fd_;
         o.fd_ = -1;
     }

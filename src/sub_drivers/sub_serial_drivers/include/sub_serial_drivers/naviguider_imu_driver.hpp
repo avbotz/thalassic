@@ -21,10 +21,10 @@
 // shutdown   -> stop the sensors and close the serial port
 //
 // Parses Timestamp,SensorID,Value1,Value2,...
-class NaviGuiderImu : public rclcpp_lifecycle::LifecycleNode {
+class NaviGuiderIMUDriver : public rclcpp_lifecycle::LifecycleNode {
    public:
-    explicit NaviGuiderImu(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
-    ~NaviGuiderImu();
+    explicit NaviGuiderIMUDriver(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+    ~NaviGuiderIMUDriver();
 
     using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
