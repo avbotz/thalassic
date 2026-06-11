@@ -168,7 +168,7 @@ def generate_launch_description():
                 "config/control_gains_sim.yaml",
             ),
             {
-                "world_frame": "map",
+                "world_frame": "marlin_v2/odom",
                 "control_frame": "marlin_v2/base_link",
             },
         ],
@@ -245,7 +245,7 @@ def generate_launch_description():
             dvl_odom_remapping,
             robot_localization_node,
             foxglove_bridge_node,
-            # sub_control_node,
+            sub_control_node,
             sim_dvl_remapper,
             sim_thruster_republisher,
             sim_imu_remapper,
