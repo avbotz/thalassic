@@ -50,12 +50,17 @@ add_executable(sim_torpedo_launcher src/sim_torpedo_launcher.cpp)
 include_directories(sim_torpedo_launcher include)
 ament_target_dependencies(sim_torpedo_launcher rclcpp std_msgs std_srvs sub_driver_interfaces)
 
+add_executable(sim_dropper src/sim_dropper.cpp)
+include_directories(sim_dropper include)
+ament_target_dependencies(sim_dropper rclcpp sensor_msgs std_srvs sub_driver_interfaces)
+
 install(TARGETS
   sim_dvl_remapper
   thruster_republishers
   sim_imu_remapper
   sim_kill_switch
   sim_torpedo_launcher
+  sim_dropper
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

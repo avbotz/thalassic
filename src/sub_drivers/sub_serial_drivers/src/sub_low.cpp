@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <format>
 #include "sub_driver_interfaces/srv/launch_torpedo.hpp"
+#include "sub_driver_interfaces/srv/set_dropper.hpp"
 
 using namespace std::chrono_literals;
 
@@ -46,6 +47,12 @@ SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
             this->launch_torpedo_callback(request, response);
         });
 
+    set_dropper_srv_ = this->create_service<sub_driver_interfaces::srv::SetDropper>(
+        "set_dropper", [this](const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
+                              std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
+            this->set_dropper_callback(request, response);
+        });
+
     poll_timer_ = this->create_wall_timer(5ms, [this]() {
         if (is_active_) {
             poll_serial();
@@ -78,6 +85,7 @@ SubLow::CallbackReturn SubLow::on_cleanup(const rclcpp_lifecycle::State&) {
     poll_timer_.reset();
     kill_pub_.reset();
     launch_torpedo_srv_.reset();
+    set_dropper_srv_.reset();
 
     for (auto& sub : thruster_subs_) {
         sub.reset();
@@ -93,6 +101,7 @@ SubLow::CallbackReturn SubLow::on_shutdown(const rclcpp_lifecycle::State&) {
     poll_timer_.reset();
     kill_pub_.reset();
     launch_torpedo_srv_.reset();
+    set_dropper_srv_.reset();
 
     for (auto& sub : thruster_subs_) {
         sub.reset();
@@ -136,6 +145,24 @@ void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces
     response->success = true;
     response->message = std::format("Torpedo thruster {} {}.", request->torpedo_id,
                                     request->open ? "opened" : "closed");
+}
+
+void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
+                                  std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
+    if (!is_active_) {
+        response->success = false;
+        response->message = "sub_low is not active.";
+        return;
+    }
+
+    if (!serial_->write(std::format("d {}\n", request->open ? 1 : 0))) {
+        response->success = false;
+        response->message = "serial write failed";
+        return;
+    }
+
+    response->success = true;
+    response->message = std::format("Dropper {}.", request->open ? "opened" : "closed");
 }
 
 void SubLow::set_thruster_power(int index, double normalized) {

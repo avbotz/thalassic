@@ -1,0 +1,4 @@
+bool open  # true = open (drop the ball), false = close
+---
+bool success
+string message
