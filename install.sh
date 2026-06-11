@@ -7,6 +7,7 @@ sudo apt-get install -y software-properties-common
 sudo apt-get install -y build-essential cmake cppcheck curl git gnupg libeigen3-dev libgles2-mesa-dev lsb-release pkg-config protobuf-compiler python3-dbg python3-pip python3-venv python3-colcon-common-extensions qtbase5-dev ruby sudo wget
 
 # ROS2 apt Source
+sudo apt update && sudo apt install curl -y
 export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F\" '{print $4}')
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo $UBUNTU_CODENAME)_all.deb" # If using Ubuntu derivates use $UBUNTU_CODENAME
 sudo dpkg -i /tmp/ros2-apt-source.deb
@@ -14,11 +15,10 @@ sudo dpkg -i /tmp/ros2-apt-source.deb
 # Set versions to install
 DIST=jazzy
 
-sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros-${DIST}-foxglove-bridge ros-${DIST}-depthai-ros-v3 ros-${DIST}-cv-bridge
+sudo apt-get install -y python3-rosdep python3-rosinstall-generator python3-vcstool ros-${DIST}-desktop ros-${DIST}-foxglove-bridge ros-${DIST}-rtabmap-ros ros-${DIST}-depthai-ros-v3 ros-${DIST}-cv-bridge
 
-# sub_vision: YOLOv10 inference via the Ultralytics API. On a Jetson, install the
-# NVIDIA-provided torch/torchvision wheels first so CUDA is used.
-pip install --break-system-packages ultralytics
+# DeepSeeColor runtime dependencies. Kornia is used for the depth morphology
+python3 -m pip install --break-system-packages torch kornia ultralytics
 
 git submodule update --init --recursive
 
