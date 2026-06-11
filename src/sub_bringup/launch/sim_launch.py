@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -10,6 +9,7 @@ from launch.actions import (
     SetLaunchConfiguration,
 )
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from sub_sim.generate_robot import render_robot_scenario
@@ -76,6 +76,16 @@ def generate_launch_description():
         DeclareLaunchArgument("DY", default_value="0.25"),
         DeclareLaunchArgument("DZ", default_value="0.10"),
         DeclareLaunchArgument("DYAW", default_value="0.10"),
+        DeclareLaunchArgument(
+            "enable_deepseecolor",
+            default_value="true",
+            description="Start the DeepSeeColor RGB-D color correction node.",
+        ),
+        DeclareLaunchArgument(
+            "deepseecolor_device",
+            default_value="cuda:0",
+            description="Torch device for DeepSeeColor, e.g. cuda:0 or cpu.",
+        ),
     ]
     declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
 
@@ -132,6 +142,80 @@ def generate_launch_description():
         ],
     )
 
+    # RTAB-Map RGBD sync to handle timestamp differences between cameras
+    rgbd_sync = Node(
+        package="rtabmap_sync",
+        executable="rgbd_sync",
+        name="rgbd_sync",
+        namespace="marlin_v2",
+        output="screen",
+        parameters=[
+            {
+                "approx_sync": True,
+                "approx_sync_max_interval": 1.0,  # Very permissive for sim
+                "qos": 1,
+                "qos_image": 1,
+                "qos_camera_info": 1,
+            }
+        ],
+        remappings=[
+            ("rgb/image", "/marlin_v2/front_camera/image_color"),
+            ("depth/image", "/marlin_v2/depth_camera/image_depth"),
+            ("rgb/camera_info", "/marlin_v2/front_camera/camera_info"),
+            ("rgbd_image", "/marlin_v2/rgbd_image"),
+        ],
+    )
+
+    # RTAB-Map visual odometry using synchronized RGBD
+    depth_camera_visual_odom = Node(
+        package="rtabmap_odom",
+        executable="rgbd_odometry",
+        name="rgbd_odometry",
+        namespace="marlin_v2",
+        output="screen",
+        parameters=[
+            {
+                "frame_id": "marlin_v2/base_link_ned",
+                "odom_frame_id": "marlin_v2/visual_odom",
+                "publish_tf": False,  # Let robot_localization handle TF
+                "subscribe_depth": False,
+                "subscribe_rgbd": True,  # Use synchronized RGBD topic
+                "wait_for_transform": 0.2,
+                "qos": 1,
+                # RTAB-Map internal parameters
+                "Odom/Strategy": "0",  # 0=Frame-to-Map, 1=Frame-to-Frame
+                "Odom/ResetCountdown": "1",
+                "Vis/MaxFeatures": "500",
+                "Vis/MinInliers": "10",
+            }
+        ],
+        remappings=[
+            ("rgbd_image", "/marlin_v2/rgbd_image"),
+            ("odom", "/marlin_v2/depth_camera_odom"),
+        ],
+    )
+
+    deepseecolor_node = Node(
+        package="sub_color_correction",
+        executable="deepseecolor_node",
+        name="deepseecolor",
+        namespace="marlin_v2",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
+        parameters=[
+            {
+                "rgb_topic": "/marlin_v2/front_camera/image_color",
+                "depth_topic": "/marlin_v2/depth_camera/image_depth",
+                "corrected_topic": "/marlin_v2/front_camera/image_color_corrected",
+                "device": LaunchConfiguration("deepseecolor_device"),
+                "init_iters": 10,
+                "iters": 2,
+                "max_inference_dimension": 640,
+                "sync_slop": 0.15,
+            }
+        ],
+    )
+
     robot_localization_node = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -139,7 +223,12 @@ def generate_launch_description():
         output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
-            os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/ekf.yaml",
+                ]
+            ),
         ],
     )
 
@@ -163,9 +252,11 @@ def generate_launch_description():
         output="both",
         namespace=LaunchConfiguration("ns"),
         parameters=[
-            os.path.join(
-                get_package_share_directory("sub_bringup"),
-                "config/control_gains_sim.yaml",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/control_gains_sim.yaml",
+                ]
             ),
             {
                 "world_frame": "map",
@@ -234,6 +325,43 @@ def generate_launch_description():
         ],
     )
 
+    sim_oak_camera_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_oak_camera_remapper",
+        name="sim_oak_camera_remapper",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+    )
+
+    sub_vision_node = Node(
+        package="sub_vision",
+        executable="sub_vision",
+        name="sub_vision",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_vision"),
+                    "config/sub_vision.yaml",
+                ]
+            ),
+        ],
+    )
+
+    sim_labeling_node = Node(
+        package="sim_labeling",
+        executable="labeling",
+        name="sim_labeling",
+        namespace="marlin_v2",
+        parameters=[
+            {
+                "scenario_file": LaunchConfiguration("scenario_file"),
+                "output_dir": "train_imgs",
+            }
+        ],
+    )
+
     return LaunchDescription(
         args
         + [
@@ -243,14 +371,20 @@ def generate_launch_description():
             include_transforms,
             robot_state_publisher,
             dvl_odom_remapping,
+            rgbd_sync,
+            depth_camera_visual_odom,
+            deepseecolor_node,
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,
+            sim_labeling_node,
             sim_dvl_remapper,
             sim_thruster_republisher,
             sim_imu_remapper,
             sim_torpedo_launcher,
             sim_dropper,
             sim_kill_switch,
+            sim_oak_camera_remapper,
+            sub_vision_node,
         ]
     )
