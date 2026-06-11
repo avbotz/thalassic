@@ -149,6 +149,8 @@ void ThrusterControl::declare_gain_parameters() {
 }
 
 void ThrusterControl::update_pos_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+
     if (setpoint.velocity) {
         vel_setpoint[0] = setpoint.setpoint.x;
         vel_setpoint[1] = setpoint.setpoint.y;
@@ -163,6 +165,8 @@ void ThrusterControl::update_pos_setpoint(const sub_control_interfaces::msg::Set
 }
 
 void ThrusterControl::update_att_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+
     if (setpoint.velocity) {
         ang_setpoint[0] = setpoint.setpoint.x;
         ang_setpoint[1] = setpoint.setpoint.y;
@@ -196,37 +200,36 @@ void ThrusterControl::altitude_callback(const std_msgs::msg::Float64& msg) {
 }
 
 void ThrusterControl::kill_callback(const std_msgs::msg::Bool& msg) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
     const bool now_killed = msg.data;
+    bool publish_zeros = false;
 
-    if (killed_ && !now_killed) {
-        // Kill switch on -> off: adopt the current pose as the new origin so the
-        // sub holds station where it is. Clearing state_initialized_ makes the
-        // next TF update re-capture initial_pos_/initial_yaw_ (giving x=y=z=0 and
-        // yaw=0 relative to here); zero the setpoints and PIDs so it stays put.
-        state_initialized_ = false;
-        pos_setpoint = {0.0, 0.0, 0.0};
-        vel_setpoint = {0.0, 0.0, 0.0};
-        att_setpoint = {0.0, 0.0, 0.0};
-        ang_setpoint = {0.0, 0.0, 0.0};
-        for (auto& p : pos_pid) {
-            p.reset();
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+
+        if (killed_ && !now_killed) {
+            // Kill switch on -> off: adopt the current pose as the new origin so the
+            // sub holds station where it is. Clearing state_initialized_ makes the
+            // next TF update re-capture initial_pos_/initial_yaw_ (giving x=y=z=0 and
+            // yaw=0 relative to here); zero the setpoints and PIDs so it stays put.
+            state_initialized_ = false;
+            pos_setpoint = {0.0, 0.0, 0.0};
+            vel_setpoint = {0.0, 0.0, 0.0};
+            att_setpoint = {0.0, 0.0, 0.0};
+            ang_setpoint = {0.0, 0.0, 0.0};
+            reset_controllers();
+            RCLCPP_INFO(this->get_logger(), "Kill switch released: current pose is now the (0,0) / yaw=0 origin");
+        } else if (!killed_ && now_killed) {
+            reset_controllers();
+            publish_zeros = true;
+            RCLCPP_WARN(this->get_logger(), "Kill switch engaged: thrusters stopped");
         }
-        for (auto& p : vel_pid) {
-            p.reset();
-        }
-        for (auto& p : att_pid) {
-            p.reset();
-        }
-        for (auto& p : ang_pid) {
-            p.reset();
-        }
-        RCLCPP_INFO(this->get_logger(), "Kill switch released: current pose is now the (0,0) / yaw=0 origin");
-    } else if (!killed_ && now_killed) {
-        RCLCPP_WARN(this->get_logger(), "Kill switch engaged: thrusters silenced");
+
+        killed_ = now_killed;
     }
 
-    killed_ = now_killed;
+    if (publish_zeros) {
+        publish_zero_thrusters();
+    }
 }
 
 bool ThrusterControl::update_pose_from_tf() {
@@ -275,7 +278,21 @@ bool ThrusterControl::update_pose_from_tf() {
 }
 
 void ThrusterControl::pid_control_loop() {
+    bool is_killed = false;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        is_killed = killed_;
+        if (is_killed) {
+            reset_controllers();
+        }
+    }
+    if (is_killed) {
+        publish_zero_thrusters();
+        return;
+    }
+
     if (!update_pose_from_tf()) {
+        publish_zero_thrusters();
         return;
     }
 
@@ -300,22 +317,11 @@ void ThrusterControl::pid_control_loop() {
 
     state_mutex_.lock();
 
-    // Kill switch engaged: publish nothing and keep the integrators clear so the
-    // sub doesn't lurch when it is released.
+    // The kill switch can change after the first check while TF is being read.
     if (killed_) {
-        for (auto& p : pos_pid) {
-            p.reset();
-        }
-        for (auto& p : vel_pid) {
-            p.reset();
-        }
-        for (auto& p : att_pid) {
-            p.reset();
-        }
-        for (auto& p : ang_pid) {
-            p.reset();
-        }
+        reset_controllers();
         state_mutex_.unlock();
+        publish_zero_thrusters();
         return;
     }
 
@@ -381,6 +387,29 @@ void ThrusterControl::pid_control_loop() {
     error_msg.att_error = att_errors;
     error_msg.angvel_error = angvel_errors;
     error_pub_->publish(error_msg);
+}
+
+void ThrusterControl::publish_zero_thrusters() {
+    std_msgs::msg::Float64 msg;
+    msg.data = 0.0;
+    for (const auto& publisher : thruster_pubs_) {
+        publisher->publish(msg);
+    }
+}
+
+void ThrusterControl::reset_controllers() {
+    for (auto& pid : pos_pid) {
+        pid.reset();
+    }
+    for (auto& pid : vel_pid) {
+        pid.reset();
+    }
+    for (auto& pid : att_pid) {
+        pid.reset();
+    }
+    for (auto& pid : ang_pid) {
+        pid.reset();
+    }
 }
 
 int main(int argc, char* argv[]) {

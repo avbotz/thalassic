@@ -49,9 +49,9 @@ class ThrusterControl : public rclcpp::Node {
     static constexpr double MAX_POWER_LEVEL = 0.6;
     double power_level_{MAX_POWER_LEVEL};
 
-    // Kill switch (subscribed topic). While true, no thruster commands are
-    // published. On the true->false edge the sub adopts its current pose as the
-    // (0, 0) position / yaw=0 origin (see kill_callback).
+    // Kill switch (subscribed topic). While true, zero commands are published.
+    // On the true->false edge the sub adopts its current pose as the (0, 0)
+    // position / yaw=0 origin (see kill_callback).
     bool killed_{true};
 
     std::mutex state_mutex_;
@@ -106,6 +106,8 @@ class ThrusterControl : public rclcpp::Node {
     void kill_callback(const std_msgs::msg::Bool& msg);
     void pid_control_loop();
     bool update_pose_from_tf();
+    void publish_zero_thrusters();
+    void reset_controllers();
 
     void declare_gain_parameters();
 
