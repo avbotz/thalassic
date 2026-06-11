@@ -12,8 +12,8 @@
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
 #include "sub_control/utils.hpp"
-#include "sub_control_interfaces/msg/setpoint.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
+#include "sub_control_interfaces/msg/setpoint.hpp"
 #include "tf2_ros/buffer.hpp"
 #include "tf2_ros/transform_listener.hpp"
 

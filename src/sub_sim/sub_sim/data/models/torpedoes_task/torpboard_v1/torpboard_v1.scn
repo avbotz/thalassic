@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Torpboard_v1_Board" gray="1.0" roughness="0.1" texture="models/torpedoes_task/torpboard_v1/torpboard_v1_image.png" />
-    <look name="Torpboard_v1_PVC" rgb="0.95 0.95 0.95" roughness="0.1" />
+    <look name="torpboard_v1_board" gray="1.0" roughness="0.1" texture="models/torpedoes_task/torpboard_v1/torpboard_v1_image.png" />
+    <look name="torpboard_v1_pvc" rgb="0.95 0.95 0.95" roughness="0.1" />
   </looks>
 
   <static name="torpboard_v1_pvc" type="model">
@@ -15,8 +15,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Torpboard_v1_PVC" />
+    <material name="plastic" />
+    <look name="torpboard_v1_pvc" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -30,8 +30,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Torpboard_v1_Board" />
+    <material name="plastic" />
+    <look name="torpboard_v1_board" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

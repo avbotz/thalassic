@@ -14,8 +14,7 @@ SimDropper::SimDropper() : Node("sim_dropper") {
     joint_setpoint_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("sim/joint_setpoints", 10);
 
     joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
-        "sim/joint_states", 10,
-        [this](const sensor_msgs::msg::JointState& msg) { this->joint_state_callback(msg); });
+        "sim/joint_states", 10, [this](const sensor_msgs::msg::JointState& msg) { this->joint_state_callback(msg); });
 
     set_dropper_srv_ = this->create_service<sub_driver_interfaces::srv::SetDropper>(
         "set_dropper", [this](const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
@@ -24,9 +23,8 @@ SimDropper::SimDropper() : Node("sim_dropper") {
         });
 }
 
-void SimDropper::set_dropper_callback(
-    const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
-    std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
+void SimDropper::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
+                                      std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
     const double position = request->open ? this->get_parameter("open_position").as_double() : 0.0;
 
     sensor_msgs::msg::JointState setpoint;
@@ -67,17 +65,16 @@ void SimDropper::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
         request->data = false;
         request_in_flight_ = true;
 
-        glue_client_->async_send_request(
-            request, [this](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
-                request_in_flight_ = false;
-                const auto result = future.get();
-                if (result->success) {
-                    released_ = true;
-                    RCLCPP_INFO(this->get_logger(), "Dropper ball released.");
-                } else {
-                    RCLCPP_ERROR(this->get_logger(), "Glue release failed: %s", result->message.c_str());
-                }
-            });
+        glue_client_->async_send_request(request, [this](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
+            request_in_flight_ = false;
+            const auto result = future.get();
+            if (result->success) {
+                released_ = true;
+                RCLCPP_INFO(this->get_logger(), "Dropper ball released.");
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Glue release failed: %s", result->message.c_str());
+            }
+        });
         return;
     }
 }

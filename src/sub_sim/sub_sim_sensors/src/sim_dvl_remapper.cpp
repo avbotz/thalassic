@@ -14,7 +14,8 @@ SimDVLRemapper::SimDVLRemapper() : Node("sim_dvl_remapper") {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
-    subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>("sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
+    subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>(
+        "sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
 
     vel_publisher_ = this->create_publisher<marine_acoustic_msgs::msg::Dvl>("dvl", 10);
 }

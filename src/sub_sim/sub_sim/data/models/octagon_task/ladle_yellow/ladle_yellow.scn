@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Ladle_Yellow" rgb="1.0 0.8588 0" roughness="0.3"/>  <!-- 255, 219, 0 -->
+    <look name="ladle_yellow" rgb="1.0 0.8588 0" roughness="0.3"/>  <!-- 255, 219, 0 -->
   </looks>
 
   <dynamic name="ladle_yellow" type="model" physics="submerged" buoyant="false">
@@ -10,8 +10,8 @@
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </physical>
 
-    <material name="Plastic"/>
-    <look name="Ladle_Yellow"/>
+    <material name="plastic"/>
+    <look name="ladle_yellow"/>
 
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </dynamic>

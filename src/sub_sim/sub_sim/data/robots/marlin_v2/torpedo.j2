@@ -6,7 +6,7 @@
     xyz_offsets=[0.0, 0.0, 0.0],
     mass="0.017",
     parent_link="marlin_v2/base_link_ned",
-    look_name="White"
+    look_name="white"
 ) -%}
   <robot name="{{ name }}" fixed="false" self_collisions="false" algorithm="featherstone">
     <base_link name="base_link" type="model" physics="submerged" buoyant="true">
@@ -17,7 +17,7 @@
 
       <mass value="{{ mass }}" />
 
-      <material name="Plastic" />
+      <material name="plastic" />
       <look name="{{ look_name }}" />
     </base_link>
 

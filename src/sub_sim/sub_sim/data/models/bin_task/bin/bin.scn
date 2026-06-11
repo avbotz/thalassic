@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Bin_Black" gray="0.0" roughness="0.1" />
-    <look name="Bin_White" gray="1.0" roughness="0.1" />
-    <look name="Bin_Images" gray="1.0" roughness="0.1" texture="models/bin_task/bin/bin.png" />
+    <look name="bin_black" gray="0.0" roughness="0.1" />
+    <look name="bin_white" gray="1.0" roughness="0.1" />
+    <look name="bin_images" gray="1.0" roughness="0.1" texture="models/bin_task/bin/bin.png" />
   </looks>
 
   <static name="bin_screws" type="model">
@@ -12,8 +12,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
 
-    <material name="Plastic" />
-    <look name="Bin_Black" />
+    <material name="plastic" />
+    <look name="bin_black" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -23,8 +23,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
 
-    <material name="Plastic" />
-    <look name="Bin_Black" />
+    <material name="plastic" />
+    <look name="bin_black" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -34,8 +34,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
 
-    <material name="Plastic" />
-    <look name="Bin_White" />
+    <material name="plastic" />
+    <look name="bin_white" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -45,8 +45,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
 
-    <material name="Plastic" />
-    <look name="Bin_Images" />
+    <material name="plastic" />
+    <look name="bin_images" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

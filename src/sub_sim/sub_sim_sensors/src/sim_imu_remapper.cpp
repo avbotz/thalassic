@@ -48,7 +48,8 @@ SimIMURemapper::SimIMURemapper() : Node("sim_imu_remapper") {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
-    subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>("imu", 10, std::bind(&SimIMURemapper::imu_callback, this, _1));
+    subscriber_ =
+        this->create_subscription<sensor_msgs::msg::Imu>("imu", 10, std::bind(&SimIMURemapper::imu_callback, this, _1));
 
     publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_enu", 10);
 }

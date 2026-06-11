@@ -120,41 +120,10 @@ def generate_launch_description():
         ],
     )
 
-    sim_dvl_remapper = Node(
-        package="sub_sim_sensors",
-        executable="sim_dvl_remapper",
-        name="sim_dvl_remapper",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "robot_name": "marlin_v2",
-            }
-        ],
-    )
-
     dvl_odom_remapping = Node(
         package="sub_drivers_mappings",
         executable="dvl_odom_remapper",
         name="dvl_odom_remapper",
-        namespace=LaunchConfiguration("ns"),
-    )
-
-    sim_imu_remapper = Node(
-        package="sub_sim_sensors",
-        executable="sim_imu_remapper",
-        name="sim_imu_remapper",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "robot_name": "marlin_v2",
-            }
-        ],
-    )
-
-    thruster_republisher = Node(
-        package="sub_sim_sensors",
-        executable="thruster_republishers",
-        name="thruster_republishers",
         namespace=LaunchConfiguration("ns"),
         parameters=[
             {
@@ -205,7 +174,38 @@ def generate_launch_description():
         ],
     )
 
-    torpedo_launcher = Node(
+    sim_dvl_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_dvl_remapper",
+        name="sim_dvl_remapper",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
+    sim_imu_remapper = Node(
+        package="sub_sim_sensors",
+        executable="sim_imu_remapper",
+        name="sim_imu_remapper",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            {
+                "robot_name": "marlin_v2",
+            }
+        ],
+    )
+
+    sim_thruster_republisher = Node(
+        package="sub_sim_sensors",
+        executable="sim_thruster_republisher",
+        name="sim_thruster_republisher",
+        namespace=LaunchConfiguration("ns"),
+    )
+
+    sim_torpedo_launcher = Node(
         package="sub_sim_sensors",
         executable="sim_torpedo_launcher",
         name="sim_torpedo_launcher",
@@ -242,14 +242,14 @@ def generate_launch_description():
             include_stonefish,
             include_transforms,
             robot_state_publisher,
-            sim_dvl_remapper,
             dvl_odom_remapping,
-            sim_imu_remapper,
-            thruster_republisher,
             robot_localization_node,
             foxglove_bridge_node,
             # sub_control_node,
-            torpedo_launcher,
+            sim_dvl_remapper,
+            sim_thruster_republisher,
+            sim_imu_remapper,
+            sim_torpedo_launcher,
             sim_dropper,
             sim_kill_switch,
         ]

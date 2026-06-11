@@ -21,7 +21,7 @@ add_executable(sub_low src/sub_low.cpp src/serial_port.cpp)
 target_include_directories(sub_low PRIVATE include)
 ament_target_dependencies(sub_low rclcpp rclcpp_lifecycle std_msgs sub_driver_interfaces)
 
-add_executable(naviguider_imu_driver src/naviguider_imu.cpp src/serial_port.cpp)
+add_executable(naviguider_imu_driver src/naviguider_imu_driver.cpp src/serial_port.cpp)
 target_include_directories(naviguider_imu_driver PRIVATE include)
 ament_target_dependencies(naviguider_imu_driver rclcpp rclcpp_lifecycle sensor_msgs std_msgs)
 

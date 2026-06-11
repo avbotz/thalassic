@@ -11,6 +11,7 @@ class DVLOdomRemapper : public rclcpp::Node {
     void dvl_callback(const marine_acoustic_msgs::msg::Dvl::SharedPtr msg);
 
    private:
+    std::string robot_name_;
     rclcpp::Subscription<marine_acoustic_msgs::msg::Dvl>::SharedPtr subscriber_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr altitude_publisher_;

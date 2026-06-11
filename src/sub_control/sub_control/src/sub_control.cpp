@@ -13,11 +13,11 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sub_control/PID.hpp"
+#include "sub_control_interfaces/msg/error.hpp"
+#include "sub_control_interfaces/msg/setpoint.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.hpp"
 #include "tf2_ros/transform_listener.hpp"
-#include "sub_control_interfaces/msg/setpoint.hpp"
-#include "sub_control_interfaces/msg/error.hpp"
 
 // All frame conversions (ENU<->NED, angle wrapping, planar rotation) and the
 // thruster allocator live in sub_control/utils so they can be unit tested.
