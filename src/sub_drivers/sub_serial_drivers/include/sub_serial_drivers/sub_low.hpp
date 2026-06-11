@@ -13,6 +13,7 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sub_driver_interfaces/srv/launch_torpedo.hpp"
+#include "sub_driver_interfaces/srv/set_dropper.hpp"
 
 #include "sub_serial_drivers/serial_port.hpp"
 
@@ -41,6 +42,8 @@ class SubLow : public rclcpp_lifecycle::LifecycleNode {
     void set_thruster_power(int index, double normalized);
     void launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Request> request,
                                  std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Response> response);
+    void set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
+                              std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response);
     void poll_serial();
     void handle_line(const std::string_view line);
     void stop_thrusters();
@@ -52,6 +55,7 @@ class SubLow : public rclcpp_lifecycle::LifecycleNode {
     std::array<rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr, NUM_THRUSTERS> thruster_subs_;
     rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Bool>::SharedPtr kill_pub_;
     rclcpp::Service<sub_driver_interfaces::srv::LaunchTorpedo>::SharedPtr launch_torpedo_srv_;
+    rclcpp::Service<sub_driver_interfaces::srv::SetDropper>::SharedPtr set_dropper_srv_;
     rclcpp::TimerBase::SharedPtr poll_timer_;
 };
 

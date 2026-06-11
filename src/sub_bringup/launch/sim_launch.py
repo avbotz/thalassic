@@ -213,6 +213,14 @@ def generate_launch_description():
         namespace=LaunchConfiguration("ns"),
     )
 
+    sim_dropper = Node(
+        package="sub_sim_sensors",
+        executable="sim_dropper",
+        name="sim_dropper",
+        output="both",
+        namespace=LaunchConfiguration("ns"),
+    )
+
     sim_kill_switch = Node(
         package="sub_sim_sensors",
         executable="sim_kill_switch",
@@ -242,6 +250,7 @@ def generate_launch_description():
             foxglove_bridge_node,
             # sub_control_node,
             torpedo_launcher,
+            sim_dropper,
             sim_kill_switch,
         ]
     )
