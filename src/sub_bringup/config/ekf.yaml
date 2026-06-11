@@ -23,3 +23,12 @@
                       true, true, true,
                       false, false, false,
                       false, false, false]
+
+        # RTAB-Map visual odometry - provides full 6-DOF odometry from depth camera
+        # Uses feature tracking and ICP for robust motion estimation
+        odom1: depth_camera_odom
+        odom1_config: [true, true, true,
+                      true, true, true,
+                      true, true, true,
+                      false, false, false,
+                      false, false, false]
