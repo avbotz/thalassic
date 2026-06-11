@@ -1,0 +1,12 @@
+{
+  "extraPaths": [
+    "build/sub_sim",
+    "install/lib/python3.12/site-packages",
+    "/opt/ros/jazzy/lib/python3.12/site-packages",
+  ],
+  "exclude": [
+    "log"
+  ],
+  "reportUnusedCallResult": false,
+  "typeCheckingMode": "standard"
+}

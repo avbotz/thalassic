@@ -1,33 +1,35 @@
 FROM osrf/ros:jazzy-desktop-full
-ARG USERNAME=ubuntu
 
-# Create the user
-RUN usermod -aG dialout $USERNAME \
-    && usermod -aG video $USERNAME \
-    && mkdir /home/$USERNAME/.config && chown $USER_UID:$USER_GID /home/$USERNAME/.config \
-    #
-    # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
+ARG USERNAME=ubuntu
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# Add user to groups and configure sudo
+RUN usermod -aG dialout,video ${USERNAME} \
+    && mkdir -p /home/${USERNAME}/.config \
+    && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.config \
     && apt-get update \
-    && apt-get install -y sudo \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME \
+    && apt-get install -y --no-install-recommends sudo curl wget \
+    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Install stonefish
 RUN apt-get update \
-    && apt-get install -y libglm-dev libsdl2-dev libfreetype6-dev \
-    && git clone https://github.com/kethan1/stonefish \
-    && cd stonefish \
-    && git switch fix-transparent-surface \
+    && apt-get install -y --no-install-recommends libglm-dev libsdl2-dev libfreetype6-dev git cmake build-essential \
+    && git clone --depth 1 --single-branch -b fixes-merged https://github.com/kethan1/stonefish /tmp/stonefish \
+    && cd /tmp/stonefish \
     && mkdir build && cd build \
-    && cmake .. \
-    && make -j4 \
-    && sudo make install \
+    && cmake .. -DCMAKE_BUILD_TYPE=Release \
+    && make -j$(nproc) \
+    && make install \
+    && rm -rf /tmp/stonefish \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y python3-pip \
+    && apt-get install -y --no-install-recommends python3-pip python3-numpy python3-opencv ros-jazzy-rtabmap-ros \
+    && python3 -m pip install --break-system-packages --no-cache-dir kornia torch \
     && rm -rf /var/lib/apt/lists/*
 
 # Install updated mesa drivers
@@ -35,15 +37,14 @@ RUN apt-get update \
 # Shouldn't affect other systems and shouldn't change install size too much
 # TODO: Run these commands only when host system has AMD gpu / when needed, might need to move out of Dockerfile?
 RUN apt-get update \
-    && apt-get install -y software-properties-common \
-    && add-apt-repository ppa:kisak/turtle \
-    && apt-get install -y libgl1-mesa-dri libglx-mesa0 libegl1 libgbm1 mesa-vulkan-drivers mesa-utils \
+    && apt-get install -y --no-install-recommends software-properties-common \
+    && add-apt-repository ppa:kisak/turtle -y \
+    && apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 libegl1 libgbm1 mesa-vulkan-drivers mesa-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY bashrc /home/${USERNAME}/.bashrc
+COPY --chown=${USERNAME}:${USERNAME} bashrc /home/${USERNAME}/.bashrc
 
-ENV SHELL /bin/bash
+ENV SHELL=/bin/bash
 
-# [Optional] Set the default user. Omit if you want to keep the default as root.
 USER $USERNAME
 CMD ["/bin/bash"]

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Slalom_Orange_Red" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/orange_red.png" />
-    <look name="Slalom_White" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/white.png" />
+    <look name="slalom_orange_red" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/orange_red.png" />
+    <look name="slalom_white" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/white.png" />
   </looks>
 
   <static name="slalom_white_poles" type="model">
@@ -15,8 +15,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Plastic" />
-    <look name="Slalom_White" />
+    <material name="plastic" />
+    <look name="slalom_white" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -30,8 +30,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="PVC" />
-    <look name="Slalom_Orange_Red" />
+    <material name="pvc" />
+    <look name="slalom_orange_red" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

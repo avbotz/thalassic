@@ -1,6 +1,7 @@
-src/json
+.venv
 
 **/.vscode/
+.cache/
 
 **/build/
 **/install/
@@ -23,3 +24,9 @@ train_imgs/
 train_imgs_test/
 
 *~
+
+# Skills files
+.agents/
+.claude
+.pi
+skills-lock.json

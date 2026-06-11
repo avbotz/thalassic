@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="torpboard_v1_board" gray="1.0" roughness="0.1" texture="models/torpedoes_task/torpboard_v1/torpboard_v1_image.png" />
+    <look name="torpboard_v1_pvc" rgb="0.95 0.95 0.95" roughness="0.1" />
+  </looks>
+
+  <static name="torpboard_v1_pvc" type="model">
+    <physical>
+      <mesh filename="models/torpedoes_task/torpboard_v1/pvc/pvc_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/torpedoes_task/torpboard_v1/pvc/pvc.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="plastic" />
+    <look name="torpboard_v1_pvc" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="torpboard_v1_board" type="model">
+    <physical>
+      <mesh filename="models/torpedoes_task/torpboard_v1/board/board_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="models/torpedoes_task/torpboard_v1/board/board.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="plastic" />
+    <look name="torpboard_v1_board" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

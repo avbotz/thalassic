@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="Woollett_White_Floor" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_floor.jpg" />
-    <look name="Woollett_White_Texture" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_texture.jpg" />
-    <look name="Woollett_Black" gray="0.0" roughness="0.1" />
-    <look name="Woollett_Blue" rgb="0.043 0.322 0.553" roughness="0.1" />  <!-- 11, 82, 141 -->
+    <look name="woollett_white_floor" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_floor.jpg" />
+    <look name="woollett_white_texture" gray="1.0" roughness="0.1" texture="models/pools/woollett/white_texture.jpg" />
+    <look name="woollett_black" gray="0.0" roughness="0.1" />
+    <look name="woollett_blue" rgb="0.043 0.322 0.553" roughness="0.1" />  <!-- 11, 82, 141 -->
   </looks>
 
   <static name="woollett_black_trim" type="model">
@@ -17,8 +17,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Concrete" />
-    <look name="Woollett_Black" />
+    <material name="concrete" />
+    <look name="woollett_black" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -32,8 +32,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Concrete" />
-    <look name="Woollett_Blue" />
+    <material name="concrete" />
+    <look name="woollett_blue" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -47,8 +47,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Concrete" />
-    <look name="Woollett_White_Texture" />
+    <material name="concrete" />
+    <look name="woollett_white_texture" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -62,8 +62,8 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
-    <material name="Concrete" />
-    <look name="Woollett_White_Texture" />
+    <material name="concrete" />
+    <look name="woollett_white_texture" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

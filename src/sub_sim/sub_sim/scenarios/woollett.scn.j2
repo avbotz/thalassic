@@ -20,22 +20,25 @@
 
   <!-- densities in kg/m^3  -->
   <materials>
-    <material name="Air" density="1.2" restitution="0.0"/>
-    <material name="Aluminum" density="1500.0" restitution="0.7"/>
-    <material name="Acrylic" density="1000.0" restitution="0.5"/>
-    <material name="Plastic" density="800.0" restitution="0.2" />
-    <material name="Concrete" density="2400" restitution="0.8" />
-    <material name="PVC" density="1450" restitution="0.2" />
+    <material name="air" density="1.2" restitution="0.0"/>
+    <material name="aluminum" density="1500.0" restitution="0.7"/>
+    <material name="acrylic" density="1000.0" restitution="0.5"/>
+    <material name="plastic" density="800.0" restitution="0.2" />
+    <material name="concrete" density="2400" restitution="0.8" />
+    <material name="pvc" density="1450" restitution="0.2" />
   </materials>
 
-  <include file="{{ ROBOT_SCENARIO_PATH }}">
-    <arg name="x" value="{{ fuzz(17.25, DX) }}" />
-    <arg name="y" value="{{ fuzz(-10.35,  DY) }}" />
-    <arg name="z" value="{{ fuzz_z(0.5, DZ) }}" />
-    <arg name="roll" value="0.0" />
-    <arg name="pitch" value="0.0" />
-    <arg name="yaw" value="{{ fuzz(PI, DYAW) }}" />
-  </include>
+  <!-- render_robot() renders the robot scenario template with this pose via
+       Jinja and returns the rendered file's path. Use fuzz()/fuzz_z() to
+       randomize, e.g. y=fuzz(-10.35, DY), yaw=fuzz(PI, DYAW). -->
+  <include file="{{ render_robot(
+      x=17.25,
+      y=-10.35,
+      z=0.5,
+      roll=0.0,
+      pitch=0.0,
+      yaw=PI
+  ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
     <arg name="x" value="0" />
@@ -118,7 +121,7 @@
     <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
   </include>
 
-  <include file="models/torpedoes_task/torpboard_sawfish/torpboard_sawfish.scn">
+  <include file="models/torpedoes_task/{{ ['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn'] | random }}">
     <arg name="x" value="{{ fuzz(16.3, DX) }}" />
     <arg name="y" value="{{ fuzz(5.0,  DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />

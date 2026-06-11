@@ -1,0 +1,55 @@
+/**:
+  ros__parameters:
+    gains:
+      ang:
+        x:
+          kp: 4.0
+          ki: 0.9
+          kd: 1.0
+        y:
+          kp: 4.0
+          ki: 0.0
+          kd: 3.0
+        z:
+          kp: 6.0
+          ki: 0.0
+          kd: 1.0
+      att:
+        x:
+          kp: 1.5
+          ki: 0.12
+          kd: 0.15
+        y:
+          kp: 0.31
+          ki: 0.16
+          kd: 0.0
+        z:
+          kp: 1.0
+          ki: 0.09
+          kd: 0.0
+      pos:
+        x:
+          kp: 0.8
+          ki: 0.064
+          kd: 0.08
+        y:
+          kp: 0.8
+          ki: 0.064
+          kd: 0.08
+        z:
+          kp: 0.8
+          ki: 0.064
+          kd: 0.08
+      vel:
+        x:
+          kp: 32.6
+          ki: 4.4
+          kd: 5.0
+        y:
+          kp: 20.0
+          ki: 0.0
+          kd: 0.0
+        z:
+          kp: 10.0
+          ki: 0.0
+          kd: 0.0
