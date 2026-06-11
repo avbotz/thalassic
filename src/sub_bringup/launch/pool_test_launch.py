@@ -167,15 +167,47 @@ def spinnaker_camera_entities():
     return [node]
 
 
-def generate_launch_description():
-    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
-
-    include_transforms = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
-        ),
+def oak_camera_entities():
+    oak_driver_node = Node(
+        package="depthai_ros_driver_v3",
+        executable="driver_node",
+        name="oak",
+        namespace=LaunchConfiguration("ns"),
+        output="screen",
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/oak_d_pro.yaml",
+                ]
+            ),
+        ],
     )
 
+    return [oak_driver_node]
+
+
+def vision_entities():
+    sub_vision_node = Node(
+        package="sub_vision",
+        executable="sub_vision",
+        name="sub_vision",
+        namespace=LaunchConfiguration("ns"),
+        output="screen",
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_vision"),
+                    "config/sub_vision.yaml",
+                ]
+            ),
+        ],
+    )
+
+    return [sub_vision_node]
+
+
+def control_and_state_entities():
     dvl_odom_remapping = Node(
         package="sub_drivers_mappings",
         executable="dvl_odom_remapper",
@@ -190,7 +222,12 @@ def generate_launch_description():
         output="both",
         namespace="marlin_v2",
         parameters=[
-            os.path.join(get_package_share_directory("sub_bringup"), "config/ekf.yaml"),
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/ekf.yaml",
+                ]
+            ),
         ],
     )
 
@@ -201,14 +238,29 @@ def generate_launch_description():
         output="both",
         namespace="marlin_v2",
         parameters=[
-            os.path.join(
-                get_package_share_directory("sub_bringup"), "config/control_gains.yaml"
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/control_gains.yaml",
+                ]
             ),
             {
                 "world_frame": "map",
                 "control_frame": "marlin_v2/base_link",
             },
         ],
+    )
+
+    return [dvl_odom_remapping, robot_localization_node, sub_control_node]
+
+
+def generate_launch_description():
+    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
+
+    include_transforms = IncludeLaunchDescription(
+        PathJoinSubstitution(
+            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
+        ),
     )
 
     return LaunchDescription(
@@ -218,8 +270,8 @@ def generate_launch_description():
             *dvl_driver_entities(),
             *imu_driver_entities(),
             *sub_low_entities(),
-            dvl_odom_remapping,
-            robot_localization_node,
-            sub_control_node,
+            *control_and_state_entities(),
+            *oak_camera_entities(),
+            *vision_entities(),
         ]
     )
