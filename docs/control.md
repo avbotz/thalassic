@@ -1,104 +1,145 @@
 # Control System
 
-## Cascade PID
+## State-Feedback Controller
 
-The `sub_control` node runs a two-layer (cascade) PID loop at 50 Hz (`control_rate_hz`).
-
-```
-pos_setpoint ──► pos_pid ──► vel_setpoint ──► vel_pid ──► wrench[0:3] (Fx,Fy,Fz)
-                                                                       ├──► allocate ──► force_to_norm ──► control/thruster_i
-att_setpoint ──► att_pid ──► ang_setpoint ──► ang_pid ──► wrench[3:6] (Mx,My,Mz)
-```
-
-The outer loops convert position/attitude error into velocity/angular-rate setpoints for the inner loops; the inner loops produce the body wrench. Either layer can be bypassed by sending a `Setpoint` with `velocity=true`, which writes directly into the inner-loop setpoint.
-
-**Default hold mode:** an un-commanded sub damps to rest and holds its attitude. The translation loops default to **velocity-hold** (zero body velocity) rather than absolute position hold, because horizontal/vertical position is dead-reckoned from DVL velocity (no absolute fix) — actively holding an absolute position would chase that drift and slowly drive the sub around. Attitude is absolute (IMU), so the attitude loop holds level + startup heading by default. Send a position `Setpoint` (`velocity=false`) to switch the translation loops into absolute position hold on demand.
-
-### PID implementation
-
-Each axis is a parallel-form PID (`src/sub_drivers/sub_control/src/PID.cpp`):
+`sub_control` runs a fault-aware cascaded state-feedback controller at 50 Hz.
+The ROS topics and `Setpoint` message are unchanged.
 
 ```
-u = kp*error + ki*∫error dt + kd * d(measurement)/dt   (clamped to [out_min, out_max])
+position error ──► nonlinear guidance ──► velocity setpoint ──► PI force control
+attitude error ──► nonlinear guidance ──► rate setpoint ─────► PI torque control
+                                                                  │
+                                                                  ▼
+                                      bounded weighted thruster allocation
+                                                                  │
+                                                                  ▼
+                                                     control/thruster_0..7
 ```
 
-- **Derivative on measurement**, low-pass filtered (`tau_d`) — no derivative kick on setpoint steps, and thruster/DVL/IMU noise is not amplified.
-- **Back-calculation anti-windup** — when the output saturates, the part of the integrator that pushed past the limit is removed.
-- Inner-loop (`vel_pid`/`ang_pid`) output limits are derived at startup from the **allocator's real per-axis force/torque capacity** (`ThrusterAllocator::max_wrench`), not hand-picked.
+The outer position guidance law combines proportional and bounded integral
+position feedback, then applies `limit * tanh(command / limit)`. This removes
+steady position offsets caused by velocity bias or drag while approaching the
+configured speed limit smoothly. Velocity and angular-rate setpoints are
+slew-limited to prevent current spikes and abrupt vehicle motion.
 
-### Gains (ROS parameters — live-tunable)
+The inner loops are PI state-feedback controllers. Measured DVL velocity and
+IMU angular rate already provide the damping term, so numerical derivatives are
+not used. Conditional integration prevents windup while force or torque output
+is saturated.
 
-All gains are ROS parameters with an `on_set_parameters` callback, so they can be tuned on a **running** node (no rebuild). Outer loops are P-only; inner loops are full PID. Defaults:
+Default translation mode is zero-velocity hold. Default attitude mode holds
+level and the heading captured when the kill switch is released.
 
-```
-pos_kp = [0.8, 0.8, 0.8]                          -> vel setpoint [m/s], limit ±max_speed (1.0)
-vel_kp = [40, 40, 60]  vel_ki = [8, 8, 12]  vel_kd = [2, 2, 3]   (vel_tau_d 0.05)  -> body force [N]
-att_kp = [1.5, 1.5, 1.0]                          -> ang-rate setpoint [rad/s], limit ±max_ang_rate (0.6)
-ang_kp = [6, 6, 8]     ang_ki = [0, 0, 0]   ang_kd = [1, 1, 1.5] (ang_tau_d 0.05)  -> body torque [N·m]
-```
+## Attitude Control
 
-Arrays are `[roll/x, pitch/y, yaw/z]`. Example live tune:
+Attitude error is not calculated by independently subtracting Euler angles.
+Current and desired RPY values are converted to rotation matrices, and the
+relative rotation is converted to a body-frame rotation vector. This avoids
+axis coupling and angle-wrap errors during combined roll, pitch, and yaw motion.
 
-```
-ros2 param set /marlin_v2/sub_control ang_kp "[8.0, 8.0, 10.0]"
-ros2 param set /marlin_v2/sub_control max_ang_rate 0.8
-```
+## Safety
 
-**Why the attitude loop starts gentle:** the horizontal layout has ~20× weaker yaw authority than surge/sway, so `cap[yaw]` ≈ 4.9 N·m. The attitude loops were never exercised before (the inner torque loop used to be commented out), so the defaults are deliberately conservative — low `max_ang_rate`, modest `ang_kp`, and **no integrator** (`ang_ki = 0`) to avoid windup/limit-cycling. Recommended tuning order: raise `ang_kp` until the rate response is crisp, add a little `ang_kd` for damping, then raise `att_kp`, and only add `ang_ki` last to trim steady-state offset.
+The node publishes zero to every thruster when:
+
+- the kill switch is active;
+- filtered odometry is older than `feedback_timeout`;
+- altitude mode is active and DVL altitude is stale.
+
+Controller integrators and command ramps reset on every safety stop. Releasing
+the kill switch captures the current position and heading as the new origin.
 
 ## Coordinate Frames
 
-ROS2 uses REP-103: **ENU world** (x=East, y=North, z=Up) and **FLU body** (x=Forward, y=Left, z=Up). The Arduino firmware the PID gains were originally tuned for uses **NED world / FRD body**. `sub_control` converts at its boundaries so the PID math stays in NED/FRD internally.
+ROS uses ENU world and FLU body coordinates. Control calculations use NED world
+and FRD body coordinates.
 
 | Conversion | Formula |
 |---|---|
-| ENU position → NED | north=y, east=x, down=−z |
-| ENU RPY → NED RPY | roll_n=roll_e, pitch_n=−pitch_e, yaw_n=π/2−yaw_e |
-| FLU twist → FRD | forward same, y→−y, z→−z |
+| ENU position to NED | north=y, east=x, down=-z |
+| ENU RPY to NED RPY | roll=roll, pitch=-pitch, yaw=pi/2-yaw |
+| FLU twist to FRD | x=x, y=-y, z=-z |
 
-## Setpoint Interpretation
+Position setpoints are expressed in the initial-heading frame. A position
+command of `x=5` means five metres forward from the heading captured when the
+controller was armed. Direct velocity and angular-rate commands are body-frame
+FRD commands.
 
-Position setpoints are in the **initial-body-aligned frame**: axes are aligned with the heading the sub had when `sub_control` first received a valid TF. This matches embedded dead-reckoning behavior. `pos_setpoint.x=5` means "5 m forward from the startup heading," not "5 m East."
-
-For depth control, set `use_altitude=true` in the position `Setpoint` to control altitude above the seafloor instead of absolute depth. The depth error becomes `altitude_current − altitude_setpoint` (positive = sink, consistent with the NED down axis).
-
-## Setpoint Message
-
-```
-# sub_control_interfaces/Setpoint
-bool velocity       # true = setpoint is for the inner loop (velocity/angular-rate)
-bool use_altitude   # true = z is altitude above bottom, not depth (pos only)
-geometry_msgs/Vector3 setpoint  # x, y, z in NED/FRD units (m or m/s or rad/s)
-```
-
-Topics:
-- `pos_setpoint` — position (m) or linear velocity (m/s) in initial-body frame
-- `att_setpoint` — attitude (rad) or angular rate (rad/s) in body frame
+For altitude control, set `use_altitude=true` on a position command. Positive
+vertical error commands downward force, consistent with NED.
 
 ## Thruster Allocation
 
-The inner loops produce a desired body wrench `[Fx, Fy, Fz, Mx, My, Mz]` in the FRD control frame. `ThrusterAllocator` (`src/sub_drivers/sub_control/src/utils.cpp`) maps it to a force [N] for each of the 8 thrusters, which `force_to_norm()` then converts to the normalized `[−1, 1]` command published on `control/thruster_i`.
+The allocator builds the 6x8 actuation matrix from the vehicle's thruster
+positions and orientations. Unsaturated commands use its exact pseudoinverse.
 
-- **Thrusters 0–3** are the horizontal vectored units (45°) → **surge / sway / yaw**.
-- **Thrusters 4–7** are the vertical units → **heave / roll / pitch**.
+When a command exceeds a thruster force limit, allocation becomes a bounded
+weighted least-squares problem:
 
-The allocation matrix is **built at startup from the thruster geometry**, not hand-derived. For each thruster the actuation column is `[ axis ; r × axis ]` (unit thrust direction and its moment), giving the actuation matrix `B (6×8)`; the allocator is `A = pinv(B)` (Eigen `completeOrthogonalDecomposition`). The geometry constants in `utils.cpp` are copied 1:1 from the `base_link_ned → thruster_i_link` static transforms in `sub_bringup/launch/marlin_v2_launch.py`, so the allocator stays consistent with the frames and the simulator by construction.
+```
+minimize ||W(Bf - requested_wrench)||^2 + epsilon||f||^2
+subject to -max_force <= f_i <= max_force
+```
 
-> Why this matters: the previous hand-derived matrix baked in a stale 90° rotation (it assumed `base_link_ned` was yaw=π/2, but the launch file defines it as pure roll=π). That turned every **surge** command into **sway**, so the world-frame position loop never converged and the sub circled away from its target. The geometry-driven build removes that whole class of error; `test/test_utils.cpp` asserts `B·allocate(w) == w` and that surge produces pure forward thrust.
+Projected-gradient refinement enforces every thruster bound. Axis weights are
+configurable; the supplied profiles prioritize heave, roll, and pitch so depth
+and leveling remain controlled when simultaneous surge or yaw commands
+saturate the vehicle.
 
-This layout has **weak yaw authority** — a unit of yaw demand costs ~7× the thrust of a unit of surge — so yaw saturates first and is given a high gain / low torque limit.
+## Configuration
 
-If any thruster force exceeds `thruster_max_force` (default 35 N), the whole vector is scaled down uniformly, preserving the wrench **direction** so combined-axis commands don't veer off course at saturation.
+Hardware and simulation profiles are in:
 
-## Diagnostic Topics
+- `src/sub_bringup/config/control_gains.yaml`
+- `src/sub_bringup/config/control_gains_sim.yaml`
 
-The control node publishes per-axis errors for tuning/debugging:
+Important parameter groups:
 
-| Topic | Content |
+| Parameter | Meaning |
 |---|---|
-| `/control/pos/x|y|z` | Position error (m) in body frame |
-| `/control/vel/x|y|z` | Velocity error (m/s) |
-| `/control/ang/x|y|z` | Attitude error (rad) |
-| `/control/angvel/x|y|z` | Angular-velocity error (rad/s) |
+| `controller.position_gain` | Position-error to velocity guidance gain |
+| `controller.position_integral_gain` | Removes persistent absolute-position error |
+| `controller.attitude_gain` | Rotation-error to angular-rate guidance gain |
+| `controller.velocity_kp/ki` | Linear velocity PI gains |
+| `controller.angular_rate_kp/ki` | Angular-rate PI gains |
+| `limits.velocity` | Maximum body velocity command |
+| `limits.angular_rate` | Maximum body angular-rate command |
+| `limits.linear_acceleration` | Velocity setpoint slew rate |
+| `limits.angular_acceleration` | Rate setpoint slew rate |
+| `limits.position_integral` | Position-guidance integral bound |
+| `allocator.axis_weights` | Surge, sway, heave, roll, pitch, yaw priorities |
+| `feedback_timeout` | Maximum feedback age before zero thrust |
 
-Use `rqt_plot /control/pos/x /control/pos/y /control/pos/z` to monitor convergence.
+## Diagnostics
+
+`control/error` publishes `sub_control_interfaces/Error` with position,
+velocity, geometric attitude, and angular-rate errors.
+
+## Automated Tuning
+
+The installed `tune_sub_control` executable performs a conservative staged
+coordinate search on one axis. It tunes inner velocity/rate gains first with a
+direct command, then tunes outer position/attitude guidance. For each gain array
+it scores error, overshoot, steady-state error, and thruster effort.
+
+By default it is a dry run: all original parameters are restored after printing
+the recommendation. The command always sends a zero setpoint on exit or abort.
+
+```bash
+# Dry-run tune of a 0.5 m surge position step
+ros2 run sub_control tune_sub_control \
+  --namespace /marlin_v2 --loop position --axis x --amplitude 0.5
+
+# Keep the selected live parameters
+ros2 run sub_control tune_sub_control \
+  --namespace /marlin_v2 --loop position --axis x --amplitude 0.5 --apply
+
+# Tune yaw attitude with a 0.35 rad step
+ros2 run sub_control tune_sub_control \
+  --namespace /marlin_v2 --loop attitude --axis z --amplitude 0.35
+```
+
+Run one axis at a time in an obstacle-free test area. Start with the supplied
+`0.75,1.0,1.25` search scales. Use `--scales` only after reviewing the first
+report. `--inner-amplitude` controls the direct velocity or angular-rate step.
+`--apply` changes the running node but does not edit the YAML profile; copy the
+printed arrays into the hardware or simulation profile after testing.

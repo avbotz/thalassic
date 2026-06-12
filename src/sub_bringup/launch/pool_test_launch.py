@@ -204,10 +204,6 @@ def generate_launch_description():
             os.path.join(
                 get_package_share_directory("sub_bringup"), "config/control_gains.yaml"
             ),
-            {
-                "world_frame": "marlin_v2/odom",
-                "control_frame": "marlin_v2/base_link",
-            },
         ],
     )
 

@@ -43,6 +43,12 @@ To rebuild a single package:
 colcon build --packages-select sub_control
 ```
 
+The control tuner is installed with the package:
+
+```bash
+ros2 run sub_control tune_sub_control --help
+```
+
 ## Run the Simulation
 
 ```bash
@@ -76,7 +82,7 @@ ros2 topic pub /marlin_v2/pos_setpoint sub_control_interfaces/msg/Setpoint \
 ros2 topic pub /marlin_v2/att_setpoint sub_control_interfaces/msg/Setpoint \
   '{velocity: false, use_altitude: false, setpoint: {x: 0.0, y: 0.0, z: 0.5}}'
 
-# Command forward velocity of 0.3 m/s directly (bypass outer PID loop)
+# Command forward velocity of 0.3 m/s directly (bypass position guidance)
 ros2 topic pub /marlin_v2/pos_setpoint sub_control_interfaces/msg/Setpoint \
   '{velocity: true, use_altitude: false, setpoint: {x: 0.3, y: 0.0, z: 0.0}}'
 ```
@@ -90,8 +96,8 @@ ros2 topic list
 # Monitor filtered odometry
 ros2 topic echo /marlin_v2/odometry/filtered
 
-# Plot control errors
-rqt_plot /control/pos/x /control/pos/y /control/pos/z
+# Monitor control errors
+ros2 topic echo /marlin_v2/control/error
 
 # View TF tree
 ros2 run tf2_tools view_frames
