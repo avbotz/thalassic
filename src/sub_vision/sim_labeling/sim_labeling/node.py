@@ -42,7 +42,7 @@ class LabelNode(Node):
         self.declare_parameter('seg_topic',
                                '/marlin_v2/sim/segment/image_raw')
         self.declare_parameter('front_cam_topic',
-                               '/marlin_v2/front_camera/image_color')
+                               '/marlin_v2/oak/rgb/image_raw')
 
         scenario_file = self.get_parameter('scenario_file') \
                             .get_parameter_value().string_value

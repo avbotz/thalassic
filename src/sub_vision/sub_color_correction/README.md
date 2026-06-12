@@ -36,12 +36,12 @@ ros2 launch sub_bringup sim_launch.py enable_deepseecolor:=true deepseecolor_dev
 
 The node subscribes to:
 
-- `/marlin_v2/front_camera/image_color`
-- `/marlin_v2/depth_camera/image_depth`
+- `/marlin_v2/oak/rgb/image_raw`
+- `/marlin_v2/oak/stereo/image_raw`
 
 It publishes:
 
-- `/marlin_v2/front_camera/image_color_corrected`
+- `/marlin_v2/oak/rgb/image_color_corrected`
 
 ## Smoke Test
 

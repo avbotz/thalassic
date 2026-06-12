@@ -18,8 +18,8 @@ SimOakCameraRemapper::SimOakCameraRemapper() : Node("sim_oak_camera_remapper") {
     // OAK-D-style outputs.
     const std::string rgb_out = this->declare_parameter("rgb_out_topic", "oak/rgb/image_raw");
     const std::string rgb_info_out = this->declare_parameter("rgb_info_out_topic", "oak/rgb/camera_info");
-    const std::string depth_out = this->declare_parameter("depth_out_topic", "oak/depth/image_raw");
-    const std::string depth_info_out = this->declare_parameter("depth_info_out_topic", "oak/depth/camera_info");
+    const std::string depth_out = this->declare_parameter("depth_out_topic", "oak/stereo/image_raw");
+    const std::string depth_info_out = this->declare_parameter("depth_info_out_topic", "oak/stereo/camera_info");
 
     rgb_pub_ = this->create_publisher<sensor_msgs::msg::Image>(rgb_out, 10);
     rgb_info_pub_ = this->create_publisher<sensor_msgs::msg::CameraInfo>(rgb_info_out, 10);

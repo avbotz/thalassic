@@ -159,9 +159,9 @@ def generate_launch_description():
             }
         ],
         remappings=[
-            ("rgb/image", "/marlin_v2/front_camera/image_color"),
-            ("depth/image", "/marlin_v2/depth_camera/image_depth"),
-            ("rgb/camera_info", "/marlin_v2/front_camera/camera_info"),
+            ("rgb/image", "/marlin_v2/oak/rgb/image_raw"),
+            ("depth/image", "/marlin_v2/oak/stereo/image_raw"),
+            ("rgb/camera_info", "/marlin_v2/oak/rgb/camera_info"),
             ("rgbd_image", "/marlin_v2/rgbd_image"),
         ],
     )
@@ -204,9 +204,9 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
         parameters=[
             {
-                "rgb_topic": "/marlin_v2/front_camera/image_color",
-                "depth_topic": "/marlin_v2/depth_camera/image_depth",
-                "corrected_topic": "/marlin_v2/front_camera/image_color_corrected",
+                "rgb_topic": "/marlin_v2/oak/rgb/image_raw",
+                "depth_topic": "/marlin_v2/oak/stereo/image_raw",
+                "corrected_topic": "/marlin_v2/oak/rgb/image_color_corrected",
                 "device": LaunchConfiguration("deepseecolor_device"),
                 "init_iters": 10,
                 "iters": 2,

@@ -136,9 +136,9 @@ def _validate(node: DeepSeeColorSmokeTest):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Smoke test the DeepSeeColor ROS integration.")
-    parser.add_argument("--rgb-topic", default="/marlin_v2/front_camera/image_color")
-    parser.add_argument("--depth-topic", default="/marlin_v2/depth_camera/image_depth")
-    parser.add_argument("--corrected-topic", default="/marlin_v2/front_camera/image_color_corrected")
+    parser.add_argument("--rgb-topic", default="/marlin_v2/oak/rgb/image_raw")
+    parser.add_argument("--depth-topic", default="/marlin_v2/oak/stereo/image_raw")
+    parser.add_argument("--corrected-topic", default="/marlin_v2/oak/rgb/image_color_corrected")
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args(argv)
 
