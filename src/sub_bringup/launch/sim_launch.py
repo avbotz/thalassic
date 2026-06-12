@@ -258,10 +258,6 @@ def generate_launch_description():
                     "config/control_gains_sim.yaml",
                 ]
             ),
-            {
-                "world_frame": "map",
-                "control_frame": "marlin_v2/base_link",
-            },
         ],
     )
 
@@ -376,7 +372,7 @@ def generate_launch_description():
             deepseecolor_node,
             robot_localization_node,
             foxglove_bridge_node,
-            # sub_control_node,
+            sub_control_node,
             sim_labeling_node,
             sim_dvl_remapper,
             sim_thruster_republisher,

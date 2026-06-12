@@ -51,9 +51,10 @@ Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` conver
 
 ### Thrusters
 
-`sub_control` publishes `sim/thruster_setpoints` as a `Float64MultiArray` with 8 values (each ×400). Stonefish reads this topic directly.
-
-The `thruster_republishers` node is a legacy bridge for when thruster commands are published as 8 individual `Float64` topics at `/marlin_v2/control/thruster_i`. It is still launched but sub_control no longer uses that path.
+`sub_control` publishes 8 normalized `Float64` commands on
+`control/thruster_0` through `control/thruster_7`. The
+`sim_thruster_republisher` combines them into `sim/thruster_setpoints`, scales
+each command by 400, and publishes the array consumed by Stonefish.
 
 ## Simulation Settings
 

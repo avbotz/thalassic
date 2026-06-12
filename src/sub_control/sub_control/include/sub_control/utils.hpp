@@ -12,6 +12,11 @@ double normalize_angle(double angle);
 // Smallest signed rotation from `current` to `target`, wrapped to [-pi, pi].
 double angle_difference(double target, double current);
 
+// Body-frame rotation vector from current RPY to target RPY. Unlike independent
+// Euler subtraction, this remains coupled and well behaved through large turns.
+std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
+                                     const std::array<double, 3>& current_rpy);
+
 //   World position: north = enu.y, east = enu.x, down = -enu.z
 void enu_to_ned_position(double ex, double ey, double ez, double& n, double& e, double& d);
 
@@ -31,11 +36,11 @@ class ThrusterAllocator {
    public:
     ThrusterAllocator();
 
-    // Map a desired body wrench to per-thruster force [N]. If any thruster would
-    // exceed max_force, the whole vector is uniformly scaled so the wrench
-    // DIRECTION is preserved and only its magnitude is reduced (this is what
-    // keeps combined-axis commands from veering off-course at saturation).
-    std::array<double, NUM_THRUSTERS> allocate(const std::array<double, NUM_DOF>& wrench, double max_force) const;
+    // Bounded weighted least-squares allocation. Higher axis weights preserve
+    // those wrench components when the requested wrench is not fully achievable.
+    std::array<double, NUM_THRUSTERS> allocate(
+        const std::array<double, NUM_DOF>& wrench, double max_force,
+        const std::array<double, NUM_DOF>& axis_weights = {1.0, 1.0, 2.0, 2.0, 2.0, 1.5}) const;
 
     // Largest single-axis wrench magnitude reachable before any thruster hits
     // max_force, per DOF: max_force / max_t |A[t][dof]|. Used to size the inner
@@ -62,5 +67,8 @@ class ThrusterAllocator {
 // round trip (command -> sim thrust) is faithful, and the same normalized value
 // drives the real ESCs.
 double force_to_norm(double force_n);
+
+// Forward BlueRobotics T200 curve: normalized command to force [N].
+double norm_to_force(double normalized);
 
 #endif  // SUB_CONTROL_UTILS_HPP_
