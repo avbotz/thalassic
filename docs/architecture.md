@@ -5,9 +5,10 @@
 ```
 src/
 ├── sub_bringup/            # Launch files and config
+├── sub_control/
+│   ├── sub_control/        # State feedback + constrained allocation
+│   └── sub_control_interfaces/  # Custom ROS2 messages
 ├── sub_drivers/
-│   ├── sub_control/        # Cascade PID + thruster mixing
-│   ├── sub_control_interfaces/  # Custom ROS2 messages
 │   ├── sub_drivers_mappings/    # DVL → odometry bridge
 │   └── waterlinked_dvl/    # WaterLinked DVL driver (submodule)
 ├── sub_sim/
@@ -18,9 +19,11 @@ src/
 
 ## Nodes
 
-### `sub_control` (`sub_drivers/sub_control`)
+### `sub_control` (`sub_control/sub_control`)
 
-The main control node. Runs a cascade PID loop at 50 Hz and publishes one normalized command per thruster. See [control.md](control.md) for the loop and allocation details.
+The main control node. Runs nonlinear guidance, PI state feedback, watchdogs,
+and bounded weighted thruster allocation at 50 Hz. See
+[control.md](control.md) for details.
 
 | | Topic | Type |
 |---|---|---|
@@ -28,23 +31,21 @@ The main control node. Runs a cascade PID loop at 50 Hz and publishes one normal
 | Sub | `att_setpoint` | `sub_control_interfaces/Setpoint` |
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `dvl_altitude` | `std_msgs/Float64` |
+| Sub | `kill_switch` | `std_msgs/Bool` |
 | Pub | `control/thruster_0` … `thruster_7` | `std_msgs/Float64` (normalized −1…1) |
-| Pub | `/control/pos/x`, `/y`, `/z` | `std_msgs/Float64` |
-| Pub | `/control/vel/x`, `/y`, `/z` | `std_msgs/Float64` |
-| Pub | `/control/ang/x`, `/y`, `/z` | `std_msgs/Float64` |
-| Pub | `/control/angvel/x`, `/y`, `/z` | `std_msgs/Float64` |
+| Pub | `control/error` | `sub_control_interfaces/Error` |
 
 **Parameters:**
 
 | Parameter | Default | Description |
 |---|---|---|
-| `control_frame` | `base_link` | Body frame for TF lookups (sim sets `marlin_v2/base_link`) |
-| `world_frame` | `odom` | World frame for TF lookups (sim sets `map`) |
-| `odom_topic` | `odometry/filtered` | Source of velocity feedback |
+| `odom_topic` | `odometry/filtered` | Synchronized pose and twist feedback |
 | `control_rate_hz` | `50.0` | Control loop frequency |
 | `thruster_max_force` | `35.0` | Per-thruster force cap [N] for allocation saturation |
+| `feedback_timeout` | `0.5` | Maximum odometry/altitude age before zero thrust |
 
-The cascade gains (`pos_kp`, `vel_kp/ki/kd`, `att_kp`, `ang_kp/ki/kd`) and rate limits (`max_speed`, `max_ang_rate`) are also parameters and are **live-tunable** on a running node — see [control.md](control.md#gains-ros-parameters--live-tunable).
+Controller, slew-limit, integral-limit, and allocator-weight arrays are loaded
+from the hardware or simulation control profile at startup.
 
 ### `dvl_odom_remapper` (`sub_drivers_mappings`)
 
