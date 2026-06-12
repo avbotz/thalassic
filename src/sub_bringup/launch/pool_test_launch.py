@@ -244,10 +244,6 @@ def control_and_state_entities():
                     "config/control_gains.yaml",
                 ]
             ),
-            {
-                "world_frame": "map",
-                "control_frame": "marlin_v2/base_link",
-            },
         ],
     )
 

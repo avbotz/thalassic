@@ -5,7 +5,7 @@ Thalassic is the ROS2 software stack for AVBotz's **Marlin V2** AUV (Autonomous 
 ## Docs
 
 - [Architecture](architecture.md) — packages, nodes, topics, TF tree
-- [Control System](control.md) — cascade PID, coordinate frames, thruster mixing
+- [Control System](control.md) — state feedback, safety, coordinate frames, constrained allocation
 - [Setup & Build](setup.md) — installation, building, running
 
 ## Quick Start

@@ -19,6 +19,21 @@ double normalize_angle(double angle) {
 
 double angle_difference(double target, double current) { return normalize_angle(target - current); }
 
+std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
+                                     const std::array<double, 3>& current_rpy) {
+    const auto rotation = [](const std::array<double, 3>& rpy) {
+        return (Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX()))
+            .toRotationMatrix();
+    };
+
+    const Eigen::Matrix3d error_rotation = rotation(current_rpy).transpose() * rotation(target_rpy);
+    const Eigen::AngleAxisd error(error_rotation);
+    const Eigen::Vector3d rotation_vector = error.axis() * error.angle();
+    return {rotation_vector.x(), rotation_vector.y(), rotation_vector.z()};
+}
+
 void enu_to_ned_position(double ex, double ey, double ez, double& n, double& e, double& d) {
     n = ey;
     e = ex;
@@ -312,29 +327,64 @@ std::array<double, NUM_DOF> ThrusterAllocator::wrench_from_forces(
     return wrench;
 }
 
-std::array<double, NUM_THRUSTERS> ThrusterAllocator::allocate(const std::array<double, NUM_DOF>& wrench,
-                                                              double max_force) const {
-    std::array<double, NUM_THRUSTERS> forces{};
-    double peak = 0.0;
+std::array<double, NUM_THRUSTERS> ThrusterAllocator::allocate(
+    const std::array<double, NUM_DOF>& wrench, double max_force,
+    const std::array<double, NUM_DOF>& axis_weights) const {
+    std::array<double, NUM_THRUSTERS> unconstrained{};
+    double peak_force = 0.0;
+    for (int thruster = 0; thruster < NUM_THRUSTERS; ++thruster) {
+        for (int axis = 0; axis < NUM_DOF; ++axis) {
+            unconstrained[thruster] += alloc_[thruster][axis] * wrench[axis];
+        }
+        peak_force = std::max(peak_force, std::fabs(unconstrained[thruster]));
+    }
+    if (max_force > 0.0 && peak_force <= max_force) {
+        return unconstrained;
+    }
 
+    Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> B;
+    Eigen::Matrix<double, NUM_DOF, 1> desired;
+    Eigen::DiagonalMatrix<double, NUM_DOF> weights;
+    for (int d = 0; d < NUM_DOF; ++d) {
+        desired(d) = wrench[d];
+        weights.diagonal()(d) = std::max(axis_weights[d], 1e-3);
+        for (int t = 0; t < NUM_THRUSTERS; ++t) {
+            B(d, t) = act_[d][t];
+        }
+    }
+
+    const Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> weighted_b = weights * B;
+    const Eigen::Matrix<double, NUM_DOF, 1> weighted_desired = weights * desired;
+    constexpr double regularization = 1e-8;
+    const Eigen::Matrix<double, NUM_THRUSTERS, NUM_THRUSTERS> hessian =
+        weighted_b.transpose() * weighted_b +
+        regularization * Eigen::Matrix<double, NUM_THRUSTERS, NUM_THRUSTERS>::Identity();
+    const Eigen::Matrix<double, NUM_THRUSTERS, 1> gradient_offset = weighted_b.transpose() * weighted_desired;
+
+    Eigen::Matrix<double, NUM_THRUSTERS, 1> forces = hessian.ldlt().solve(gradient_offset);
+    if (max_force <= 0.0) {
+        forces.setZero();
+    } else {
+        forces = forces.cwiseMax(-max_force).cwiseMin(max_force);
+
+        // Projected gradient refinement solves the box-constrained problem. The
+        // row-sum bound is a cheap upper bound on the largest eigenvalue.
+        double lipschitz = 0.0;
+        for (int row = 0; row < NUM_THRUSTERS; ++row) {
+            lipschitz = std::max(lipschitz, hessian.row(row).cwiseAbs().sum());
+        }
+        const double step = 1.0 / std::max(lipschitz, 1e-6);
+        for (int iteration = 0; iteration < 256; ++iteration) {
+            const auto gradient = hessian * forces - gradient_offset;
+            forces = (forces - step * gradient).cwiseMax(-max_force).cwiseMin(max_force);
+        }
+    }
+
+    std::array<double, NUM_THRUSTERS> result{};
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        double v = 0.0;
-        for (int d = 0; d < NUM_DOF; ++d) {
-            v += alloc_[t][d] * wrench[d];
-        }
-        forces[t] = v;
-        peak = std::max(peak, std::fabs(v));
+        result[t] = forces(t);
     }
-
-    // Uniform down-scaling: preserve the wrench direction when saturated.
-    if (max_force > 0.0 && peak > max_force) {
-        const double scale = max_force / peak;
-        for (double& v : forces) {
-            v *= scale;
-        }
-    }
-
-    return forces;
+    return result;
 }
 
 std::array<double, NUM_DOF> ThrusterAllocator::max_wrench(double max_force) const {
@@ -371,4 +421,25 @@ double force_to_norm(double force_n) {
         }
     }
     return 1.0;
+}
+
+double norm_to_force(double normalized) {
+    normalized = std::clamp(normalized, -1.0, 1.0);
+    if (normalized <= THRUSTER_LOOKUP_TABLE.front().pwm) {
+        return THRUSTER_LOOKUP_TABLE.front().force;
+    }
+    if (normalized >= THRUSTER_LOOKUP_TABLE.back().pwm) {
+        return THRUSTER_LOOKUP_TABLE.back().force;
+    }
+
+    for (size_t i = 1; i < THRUSTER_LOOKUP_TABLE.size(); ++i) {
+        if (THRUSTER_LOOKUP_TABLE[i].pwm >= normalized) {
+            const double x0 = THRUSTER_LOOKUP_TABLE[i - 1].pwm;
+            const double x1 = THRUSTER_LOOKUP_TABLE[i].pwm;
+            const double fraction = (normalized - x0) / (x1 - x0);
+            return THRUSTER_LOOKUP_TABLE[i - 1].force +
+                   fraction * (THRUSTER_LOOKUP_TABLE[i].force - THRUSTER_LOOKUP_TABLE[i - 1].force);
+        }
+    }
+    return THRUSTER_LOOKUP_TABLE.back().force;
 }
