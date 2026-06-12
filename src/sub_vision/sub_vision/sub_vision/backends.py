@@ -1,8 +1,9 @@
 import os
 
 import numpy as np
+import numpy.typing as npt
 
-MatLike = np.typing.NDArray[np.uint8]
+MatLike = npt.NDArray[np.uint8]
 
 # Network input is square; YOLOv10 default. Exposed via param on the node.
 DEFAULT_INPUT_SIZE = 640

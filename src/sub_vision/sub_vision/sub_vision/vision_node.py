@@ -1,14 +1,3 @@
-"""sub_vision node: camera -> YOLOv10 detection -> 3D metadata -> post-process.
-
-Subscribes to the OAK-D Pro topic contract (identical in sim and on hardware,
-thanks to the Stonefish bridge), runs the resident detector, enriches each
-detection with a depth-derived distance and a task-specific pose, and publishes
-a ``sub_vision_interfaces/DetectionArray``. Models are swapped live through the
-``~/load_model`` service.
-"""
-
-from __future__ import annotations
-
 import os
 
 import numpy as np

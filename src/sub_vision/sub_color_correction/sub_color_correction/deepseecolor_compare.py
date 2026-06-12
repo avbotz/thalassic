@@ -87,8 +87,8 @@ def _stamp_nanoseconds(msg: Image):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="View or save raw RGB vs DeepSeeColor corrected images.")
-    parser.add_argument("--rgb-topic", default="/marlin_v2/front_camera/image_color")
-    parser.add_argument("--corrected-topic", default="/marlin_v2/front_camera/image_color_corrected")
+    parser.add_argument("--rgb-topic", default="/marlin_v2/oak/rgb/image_raw")
+    parser.add_argument("--corrected-topic", default="/marlin_v2/oak/rgb/image_color_corrected")
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--max-width", type=int, default=1600)
     parser.add_argument("--crop-top", type=int, default=0)

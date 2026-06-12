@@ -22,9 +22,9 @@ class DeepSeeColorNode(Node):
     def __init__(self):
         super().__init__("deepseecolor")
 
-        self.declare_parameter("rgb_topic", "/marlin_v2/front_camera/image_color")
-        self.declare_parameter("depth_topic", "/marlin_v2/depth_camera/image_depth")
-        self.declare_parameter("corrected_topic", "/marlin_v2/front_camera/image_color_corrected")
+        self.declare_parameter("rgb_topic", "/marlin_v2/oak/rgb/image_raw")
+        self.declare_parameter("depth_topic", "/marlin_v2/oak/stereo/image_raw")
+        self.declare_parameter("corrected_topic", "/marlin_v2/oak/rgb/image_color_corrected")
         self.declare_parameter("device", "cuda:0")
         self.declare_parameter("init_iters", 10)
         self.declare_parameter("iters", 2)
