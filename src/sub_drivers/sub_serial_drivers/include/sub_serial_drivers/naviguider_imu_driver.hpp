@@ -36,7 +36,7 @@ class NaviGuiderIMUDriver : public rclcpp_lifecycle::LifecycleNode {
 
    private:
     static constexpr int SENSOR_ACCELEROMETER = 1;          // payload: X, Y, Z, accuracy  (m/s^2)
-    static constexpr int SENSOR_GYROSCOPE = 4;              // payload: X, Y, Z, accuracy  (rad/s)
+    static constexpr int SENSOR_GYROSCOPE = 4;              // payload: X, Y, Z, accuracy (rad/s)
     static constexpr int SENSOR_GAME_ROTATION_VECTOR = 15;  // 6-DOF accel+gyro: QX, QY, QZ, QW, accuracy
 
     void start_sensors();

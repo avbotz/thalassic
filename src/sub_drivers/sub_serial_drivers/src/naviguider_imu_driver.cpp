@@ -7,6 +7,7 @@
 using namespace std::chrono_literals;
 
 static constexpr size_t MAX_RX_BUFFER = 4096;
+static constexpr double GYRO_SCALE_TO_RAD_PER_SEC = 1.0;
 
 static std::vector<std::string_view> split_csv(std::string_view line) {
     std::vector<std::string_view> out;
@@ -69,9 +70,12 @@ NaviGuiderIMUDriver::CallbackReturn NaviGuiderIMUDriver::on_configure(const rclc
 
     RCLCPP_INFO(this->get_logger(), "naviguider_imu connected to %s @ %d baud", device.c_str(), baud);
 
-    imu_msg_.orientation_covariance = {6.801009e-04, -2.957911e-04, -4.988638e-05, -2.957911e-04, 6.518145e-04,
-                                       1.541138e-05, -4.988638e-05, 1.541138e-05,  1.107581e-05};
-    imu_msg_.angular_velocity_covariance = {1e-4, 0.0, 0.0, 0.0, 1e-4, 0.0, 0.0, 0.0, 1e-4};
+    imu_msg_.orientation_covariance = {6.801009e-04, -2.957911e-04, -4.988638e-05,
+                                       -2.957911e-04, 6.518145e-04, 1.541138e-05,
+                                       -4.988638e-05, 1.541138e-05,  1.107581e-05};
+    imu_msg_.angular_velocity_covariance = {2.234328e-06, 3.029158e-07, -2.190460e-08,
+                                            3.029158e-07, 1.560898e-05, 2.350362e-06,
+                                            -2.190460e-08, 2.350362e-06, 2.446427e-06};
     imu_msg_.linear_acceleration_covariance = {1e-2, 0.0, 0.0, 0.0, 1e-2, 0.0, 0.0, 0.0, 1e-2};
 
     imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data", rclcpp::SensorDataQoS());
@@ -207,9 +211,11 @@ void NaviGuiderIMUDriver::handle_line(std::string_view line) {
         case SENSOR_GYROSCOPE: {
             double x, y, z;
             if (value(2, x) && value(3, y) && value(4, z)) {
-                imu_msg_.angular_velocity.x = x;
-                imu_msg_.angular_velocity.y = y;
-                imu_msg_.angular_velocity.z = z;
+                // The NaviGuider gyro stream is already expressed in rad/s, which
+                // matches sensor_msgs/Imu, so publish the values directly.
+                imu_msg_.angular_velocity.x = x * GYRO_SCALE_TO_RAD_PER_SEC;
+                imu_msg_.angular_velocity.y = y * GYRO_SCALE_TO_RAD_PER_SEC;
+                imu_msg_.angular_velocity.z = z * GYRO_SCALE_TO_RAD_PER_SEC;
             }
             break;
         }
