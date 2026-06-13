@@ -4,8 +4,7 @@
   <name>sub_vision</name>
   <version>0.0.0</version>
   <description>YOLOv10 perception pipeline for the Marlin V2 AUV: ONNX Runtime /
-    TensorRT inference, per-task OpenCV post-processing, and depth-based 3D
-    metadata.</description>
+    TensorRT inference and per-task OpenCV post-processing.</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
@@ -17,7 +16,6 @@
   <depend>diagnostic_msgs</depend>
   <depend>sub_vision_interfaces</depend>
   <depend>cv_bridge</depend>
-  <depend>message_filters</depend>
   <depend>python3-opencv</depend>
   <depend>python3-numpy</depend>
 

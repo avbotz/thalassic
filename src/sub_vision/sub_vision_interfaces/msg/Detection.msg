@@ -8,8 +8,9 @@
 vision_msgs/Detection2D detection
 
 # Estimated distance from the camera optical frame to the object, in meters.
-# Derived from the aligned depth image + CameraInfo (see sub_vision metadata).
-# NaN if no valid depth was available inside the bounding box.
+# Default proxy = (bbox_height / image_height) * CAMERA_HEIGHT_M (see
+# sub_vision/constants.py); a task post-processor may overwrite it with a
+# better estimate (e.g. via cv2.solvePnP on known geometry).
 float32 distance_m
 
 # Full 6-DOF pose of the object in the camera optical frame, when the task's

@@ -13,6 +13,7 @@
   <exec_depend>rtabmap_ros</exec_depend>
   <exec_depend>rtabmap_sync</exec_depend>
   <exec_depend>foxglove_bridge</exec_depend>
+  <exec_depend>usb_cam</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -24,6 +24,8 @@ endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Error.msg"
+  "msg/Setpoint.msg"
+  "msg/SetpointAxes.msg"
   DEPENDENCIES std_msgs
 )
 

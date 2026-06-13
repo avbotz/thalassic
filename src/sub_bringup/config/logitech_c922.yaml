@@ -1,0 +1,21 @@
+/**:
+  ros__parameters:
+    video_device: "/dev/video0"
+    image_width: 1280
+    image_height: 720
+    framerate: 60.0
+    pixel_format: "mjpeg" # Required to achieve 60fps
+    output_encoding: "rgb8"
+    io_method: "mmap"
+    frame_id: "camera_link"
+    camera_name: "c922_webcam"
+
+    # Camera Control Parameters
+    brightness: -1
+    contrast: -1
+    saturation: -1
+    sharpness: -1
+    gain: -1
+    auto_white_balance: true
+    autoexposure: true
+    autofocus: false

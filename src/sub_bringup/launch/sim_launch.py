@@ -266,8 +266,9 @@ def control_and_state_entities() -> list[Node]:
     return [
         robot_state_publisher,
         dvl_odom_remapping,
-        rgbd_sync,
-        depth_camera_visual_odom,
+        # Depth camera not on marlin
+        # rgbd_sync,
+        # depth_camera_visual_odom,
         robot_localization_node,
         sub_control_node,
     ]
@@ -302,26 +303,27 @@ def generate_launch_description():
         ),
     )
 
-    deepseecolor_node = Node(
-        package="sub_color_correction",
-        executable="deepseecolor_node",
-        name="deepseecolor",
-        namespace=LaunchConfiguration("ns"),
-        output="screen",
-        condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
-        parameters=[
-            {
-                "rgb_topic": f"/{ROBOT_NAME}/oak/rgb/image_raw",
-                "depth_topic": f"/{ROBOT_NAME}/oak/stereo/image_raw",
-                "corrected_topic": f"/{ROBOT_NAME}/oak/rgb/image_color_corrected",
-                "device": LaunchConfiguration("deepseecolor_device"),
-                "init_iters": 10,
-                "iters": 2,
-                "max_inference_dimension": 640,
-                "sync_slop": 0.15,
-            }
-        ],
-    )
+    # Depth camera not on marlin
+    # deepseecolor_node = Node(
+    #     package="sub_color_correction",
+    #     executable="deepseecolor_node",
+    #     name="deepseecolor",
+    #     namespace=LaunchConfiguration("ns"),
+    #     output="screen",
+    #     condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
+    #     parameters=[
+    #         {
+    #             "rgb_topic": f"/{ROBOT_NAME}/oak/rgb/image_raw",
+    #             "depth_topic": f"/{ROBOT_NAME}/oak/stereo/image_raw",
+    #             "corrected_topic": f"/{ROBOT_NAME}/oak/rgb/image_color_corrected",
+    #             "device": LaunchConfiguration("deepseecolor_device"),
+    #             "init_iters": 10,
+    #             "iters": 2,
+    #             "max_inference_dimension": 640,
+    #             "sync_slop": 0.15,
+    #         }
+    #     ],
+    # )
 
     foxglove_bridge_node = Node(
         package="foxglove_bridge",

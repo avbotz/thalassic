@@ -12,12 +12,11 @@ import time
 from dataclasses import dataclass
 
 import rclpy
-from geometry_msgs.msg import PointStamped, QuaternionStamped, Vector3Stamped
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.parameter_client import AsyncParameterClient
 from std_msgs.msg import Float64
-from sub_control_interfaces.msg import Error
+from sub_control_interfaces.msg import Error, Setpoint
 
 
 AXES = {"x": 0, "y": 1, "z": 2}
@@ -66,16 +65,8 @@ class ControlTuner(Node):
         prefix = f"/{namespace}" if namespace else ""
         self.target_node = f"{prefix}/sub_control"
         self.parameter_client = AsyncParameterClient(self, self.target_node)
-        self.position_publisher = self.create_publisher(PointStamped, "cmd_position", 10)
-        self.attitude_publisher = self.create_publisher(
-            QuaternionStamped, "cmd_attitude", 10
-        )
-        self.linear_velocity_publisher = self.create_publisher(
-            Vector3Stamped, "cmd_linear_velocity", 10
-        )
-        self.angular_velocity_publisher = self.create_publisher(
-            Vector3Stamped, "cmd_angular_velocity", 10
-        )
+        self.position_publisher = self.create_publisher(Setpoint, "pos_setpoint", 10)
+        self.attitude_publisher = self.create_publisher(Setpoint, "att_setpoint", 10)
         self.create_subscription(Error, "control/error", self._error_callback, 20)
         for thruster in range(8):
             self.create_subscription(
@@ -123,27 +114,15 @@ class ControlTuner(Node):
 
     def publish_command(self, amplitude: float, direct: bool) -> None:
         # Commands follow REP-103 (body FLU, z up): a positive z amplitude
-        # moves the sub up; pass a negative amplitude to step down.
-        stamp = self.get_clock().now().to_msg()
-        if direct:
-            message = Vector3Stamped()
-            message.header.stamp = stamp
-            setattr(message.vector, "xyz"[self.axis], amplitude)
-            publisher = (
-                self.linear_velocity_publisher
-                if self.args.loop == "position"
-                else self.angular_velocity_publisher
-            )
-        elif self.args.loop == "position":
-            message = PointStamped()
-            message.header.stamp = stamp
-            setattr(message.point, "xyz"[self.axis], amplitude)
+        # moves the sub up; pass a negative amplitude to step down. direct
+        # selects the inner (velocity / angular-rate) loop via Setpoint.velocity.
+        message = Setpoint()
+        message.velocity = direct
+        if self.args.loop == "position":
+            setattr(message.setpoint, "xyz"[self.axis], amplitude)
             publisher = self.position_publisher
         else:
-            message = QuaternionStamped()
-            message.header.stamp = stamp
-            setattr(message.quaternion, "xyz"[self.axis], math.sin(amplitude / 2.0))
-            message.quaternion.w = math.cos(amplitude / 2.0)
+            setattr(message.setpoint, ("roll", "pitch", "yaw")[self.axis], amplitude)
             publisher = self.attitude_publisher
         publisher.publish(message)
 
