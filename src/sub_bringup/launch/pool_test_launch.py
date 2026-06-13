@@ -120,10 +120,9 @@ def sub_low_entities():
     ]
 
 
-def spinnaker_camera_entities():
-    # Using blackfly camera
+def camera_entities():
     # Parameters from gige_node.launch.py sample file
-    parameters = {
+    blackfly_parameters = {
         "debug": False,
         "dump_node_map": False,
         "gain_auto": "Continuous",
@@ -137,7 +136,7 @@ def spinnaker_camera_entities():
         # 'stream_buffer_handling_mode': 'NewestFirst',
         # 'multicast_monitor_mode': False
     }
-    parameter_file = PathJoinSubstitution(
+    blackfly_parameter_file = PathJoinSubstitution(
         [
             FindPackageShare("spinnaker_camera_driver"),
             "config",
@@ -145,17 +144,17 @@ def spinnaker_camera_entities():
         ]
     )
 
-    node = Node(
+    blackfly_camera_driver = Node(
         package="spinnaker_camera_driver",
         executable="camera_driver_node",
         namespace=LaunchConfiguration("ns"),
         output="both",
         name=["blackfly"],
         parameters=[
-            parameters,
+            blackfly_parameters,
             {
                 "ffmpeg_image_transport.encoding": "hevc_nvenc",
-                "parameter_file": parameter_file,
+                "parameter_file": blackfly_parameter_file,
                 "serial_number": ["'16359776'"],
             },
         ],
@@ -164,10 +163,6 @@ def spinnaker_camera_entities():
         ],
     )
 
-    return [node]
-
-
-def oak_camera_entities():
     oak_driver_node = Node(
         package="depthai_ros_driver_v3",
         executable="driver_node",
@@ -184,7 +179,29 @@ def oak_camera_entities():
         ],
     )
 
-    return [oak_driver_node]
+    logitech_c922_driver = Node(
+        package="usb_cam",
+        executable="usb_cam_node_exe",
+        output="screen",
+        name="logitech_c922_driver",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/params.yaml",
+                ]
+            ),
+        ],
+        remappings=camera.remappings,
+    )
+
+    return [
+        blackfly_camera_driver,
+        # Depth camera not on marlin
+        # oak_driver_node,
+        logitech_c922_driver,
+    ]
 
 
 def vision_entities():
@@ -281,7 +298,7 @@ def generate_launch_description():
             *imu_driver_entities(),
             *sub_low_entities(),
             *control_and_state_entities(),
-            *oak_camera_entities(),
+            *camera_entities(),
             *vision_entities(),
             foxglove_bridge_node,
         ]

@@ -12,7 +12,7 @@ setup(
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/launch", glob(os.path.join("launch", "*launch.[pxy][yma]*"))),
-        (f"share/{package_name}/config", glob(os.path.join("config", "*"))),
+        (f"share/{package_name}/config", [str(file) for file in glob(os.path.join("config", "**/*"), recursive=True) if os.path.isfile(file)]),
         (f"share/{package_name}/rviz", glob(os.path.join("rviz", "*.rviz*"))),
     ],
     install_requires=["setuptools"],
