@@ -53,6 +53,9 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control"), controlle
         "pos_setpoint", 10, std::bind(&ThrusterControl::pos_setpoint_callback, this, std::placeholders::_1));
     att_setpoint_sub_ = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
         "att_setpoint", 10, std::bind(&ThrusterControl::att_setpoint_callback, this, std::placeholders::_1));
+    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+        "cmd_vel", 10, std::bind(&ThrusterControl::cmd_vel_callback, this, std::placeholders::_1));
+
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         odom_topic, rclcpp::SensorDataQoS(), std::bind(&ThrusterControl::odom_callback, this, std::placeholders::_1));
     altitude_sub_ = this->create_subscription<std_msgs::msg::Float64>(
@@ -115,10 +118,8 @@ void ThrusterControl::load_controller_config() {
         declare_array(*this, "limits.position_integral", controller_config_.position_integral_limit);
     allocation_weights_ = declare_array(*this, "allocator.axis_weights", allocation_weights_);
 
-    {
-        std::lock_guard<std::mutex> lock(controller_mutex_);
-        controller_.set_config(controller_config_);
-    }
+    std::lock_guard<std::mutex> lock(controller_mutex_);
+    controller_.set_config(controller_config_);
 }
 
 rcl_interfaces::msg::SetParametersResult ThrusterControl::update_parameters(
@@ -246,6 +247,29 @@ void ThrusterControl::att_setpoint_callback(const sub_control_interfaces::msg::S
         attitude_setpoint_ = {normalize_angle(roll), normalize_angle(pitch), normalize_angle(yaw)};
     }
     attitude_control_ = !msg.velocity;
+}
+
+void ThrusterControl::cmd_vel_callback(const geometry_msgs::msg::Twist& msg) {
+    set_linear_velocity_command(msg.linear.x, msg.linear.y, msg.linear.z);
+    set_angular_velocity_command(msg.angular.x, msg.angular.y, msg.angular.z);
+}
+
+void ThrusterControl::set_linear_velocity_command(double x_flu, double y_flu, double z_flu) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Body FLU -> FRD.
+    velocity_setpoint_ = {finite_or_zero(x_flu), -finite_or_zero(y_flu), -finite_or_zero(z_flu)};
+    if (position_control_) {
+        reset_control_state();
+    }
+    position_control_ = false;
+    use_altitude_ = false;
+}
+
+void ThrusterControl::set_angular_velocity_command(double x_flu, double y_flu, double z_flu) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Body FLU -> FRD.
+    angular_rate_setpoint_ = {finite_or_zero(x_flu), -finite_or_zero(y_flu), -finite_or_zero(z_flu)};
+    attitude_control_ = false;
 }
 
 void ThrusterControl::odom_callback(const nav_msgs::msg::Odometry& odom) {
