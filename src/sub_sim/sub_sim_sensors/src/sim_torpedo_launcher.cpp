@@ -6,9 +6,11 @@
 #include <string>
 #include <sub_driver_interfaces/srv/launch_torpedo.hpp>
 
+#include "rclcpp_components/register_node_macro.hpp"
+
 using namespace std::chrono_literals;
 
-SimTorpedoLauncher::SimTorpedoLauncher() : Node("torpedo_launcher") {
+SimTorpedoLauncher::SimTorpedoLauncher(const rclcpp::NodeOptions& options) : Node("torpedo_launcher", options) {
     this->declare_parameter<double>("launch_force", 2.5);    // N
     this->declare_parameter<double>("burst_duration", 0.1);  // s
 
@@ -104,15 +106,6 @@ void SimTorpedoLauncher::launch_callback(
     response->message = "Torpedo launched.";
 }
 
-int main(int argc, char** argv) {
-    rclcpp::init(argc, argv);
-
-    auto node = std::make_shared<SimTorpedoLauncher>();
-
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(node);
-    executor.spin();
-
-    rclcpp::shutdown();
-    return 0;
-}
+// Blocks on the glue service inside the launch callback, so it must run under a
+// multithreaded executor (component_container_mt) with its reentrant callback group.
+RCLCPP_COMPONENTS_REGISTER_NODE(SimTorpedoLauncher)

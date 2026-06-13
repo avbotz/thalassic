@@ -49,10 +49,17 @@ ThrusterControl::ThrusterControl() : rclcpp::Node("thruster_control"), controlle
     parameter_callback_ = this->add_on_set_parameters_callback(
         [this](const std::vector<rclcpp::Parameter>& parameters) { return update_parameters(parameters); });
 
-    pos_sub_ = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
-        "pos_setpoint", 10, std::bind(&ThrusterControl::update_pos_setpoint, this, std::placeholders::_1));
-    att_sub_ = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
-        "att_setpoint", 10, std::bind(&ThrusterControl::update_att_setpoint, this, std::placeholders::_1));
+    position_cmd_sub_ = this->create_subscription<geometry_msgs::msg::PointStamped>(
+        "cmd_position", 10, std::bind(&ThrusterControl::position_cmd_callback, this, std::placeholders::_1));
+    attitude_cmd_sub_ = this->create_subscription<geometry_msgs::msg::QuaternionStamped>(
+        "cmd_attitude", 10, std::bind(&ThrusterControl::attitude_cmd_callback, this, std::placeholders::_1));
+    linear_vel_cmd_sub_ = this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+        "cmd_linear_velocity", 10, std::bind(&ThrusterControl::linear_vel_cmd_callback, this, std::placeholders::_1));
+    angular_vel_cmd_sub_ = this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+        "cmd_angular_velocity", 10,
+        std::bind(&ThrusterControl::angular_vel_cmd_callback, this, std::placeholders::_1));
+    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+        "cmd_vel", 10, std::bind(&ThrusterControl::cmd_vel_callback, this, std::placeholders::_1));
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         odom_topic, rclcpp::SensorDataQoS(), std::bind(&ThrusterControl::odom_callback, this, std::placeholders::_1));
     altitude_sub_ = this->create_subscription<std_msgs::msg::Float64>(
@@ -209,39 +216,70 @@ rcl_interfaces::msg::SetParametersResult ThrusterControl::update_parameters(
     return result;
 }
 
-void ThrusterControl::update_pos_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint) {
+void ThrusterControl::position_cmd_callback(const geometry_msgs::msg::PointStamped& msg) {
     std::lock_guard<std::mutex> lock(state_mutex_);
-    const std::array<double, CONTROL_AXES> command{
-        finite_or_zero(setpoint.setpoint.x),
-        finite_or_zero(setpoint.setpoint.y),
-        finite_or_zero(setpoint.setpoint.z),
+    const bool altitude_frame = msg.header.frame_id == ALTITUDE_FRAME;
+    // Mission FLU -> internal NED-style axes (x forward, y right, z down). In
+    // the altitude frame z is already a positive height above the bottom.
+    position_setpoint_ = {
+        finite_or_zero(msg.point.x),
+        -finite_or_zero(msg.point.y),
+        altitude_frame ? finite_or_zero(msg.point.z) : -finite_or_zero(msg.point.z),
     };
-    const bool new_position_control = !setpoint.velocity;
-    if (setpoint.velocity) {
-        velocity_setpoint_ = command;
-    } else {
-        position_setpoint_ = command;
-    }
-    if (position_control_ != new_position_control) {
+    if (!position_control_) {
         reset_control_state();
     }
-    position_control_ = new_position_control;
-    use_altitude_ = setpoint.use_altitude && position_control_;
+    position_control_ = true;
+    use_altitude_ = altitude_frame;
 }
 
-void ThrusterControl::update_att_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint) {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    const std::array<double, CONTROL_AXES> command{
-        finite_or_zero(setpoint.setpoint.x),
-        finite_or_zero(setpoint.setpoint.y),
-        finite_or_zero(setpoint.setpoint.z),
-    };
-    if (setpoint.velocity) {
-        angular_rate_setpoint_ = command;
-    } else {
-        attitude_setpoint_ = command;
+void ThrusterControl::attitude_cmd_callback(const geometry_msgs::msg::QuaternionStamped& msg) {
+    tf2::Quaternion quaternion;
+    tf2::fromMsg(msg.quaternion, quaternion);
+    if (!std::isfinite(quaternion.length2()) || quaternion.length2() < 1e-12) {
+        return;
     }
-    attitude_control_ = !setpoint.velocity;
+    quaternion.normalize();
+    double roll = 0.0;
+    double pitch = 0.0;
+    double yaw = 0.0;
+    tf2::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
+
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Mission FLU -> internal NED-relative RPY: pitch and yaw flip sign.
+    attitude_setpoint_ = {normalize_angle(roll), normalize_angle(-pitch), normalize_angle(-yaw)};
+    attitude_control_ = true;
+}
+
+void ThrusterControl::linear_vel_cmd_callback(const geometry_msgs::msg::Vector3Stamped& msg) {
+    set_linear_velocity_command(msg.vector.x, msg.vector.y, msg.vector.z);
+}
+
+void ThrusterControl::angular_vel_cmd_callback(const geometry_msgs::msg::Vector3Stamped& msg) {
+    set_angular_velocity_command(msg.vector.x, msg.vector.y, msg.vector.z);
+}
+
+void ThrusterControl::cmd_vel_callback(const geometry_msgs::msg::Twist& msg) {
+    set_linear_velocity_command(msg.linear.x, msg.linear.y, msg.linear.z);
+    set_angular_velocity_command(msg.angular.x, msg.angular.y, msg.angular.z);
+}
+
+void ThrusterControl::set_linear_velocity_command(double x_flu, double y_flu, double z_flu) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Body FLU -> FRD.
+    velocity_setpoint_ = {finite_or_zero(x_flu), -finite_or_zero(y_flu), -finite_or_zero(z_flu)};
+    if (position_control_) {
+        reset_control_state();
+    }
+    position_control_ = false;
+    use_altitude_ = false;
+}
+
+void ThrusterControl::set_angular_velocity_command(double x_flu, double y_flu, double z_flu) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Body FLU -> FRD.
+    angular_rate_setpoint_ = {finite_or_zero(x_flu), -finite_or_zero(y_flu), -finite_or_zero(z_flu)};
+    attitude_control_ = false;
 }
 
 void ThrusterControl::odom_callback(const nav_msgs::msg::Odometry& odom) {
@@ -409,13 +447,24 @@ void ThrusterControl::control_loop() {
     }
     const auto forces = allocator_.allocate(output.wrench, max_force_, allocation_weights_);
     publish_thrusters(forces, power);
+    publish_errors(position_error, attitude_error, output);
+}
 
+void ThrusterControl::publish_errors(const std::array<double, CONTROL_AXES>& position_error,
+                                     const std::array<double, CONTROL_AXES>& attitude_error,
+                                     const ControlOutput& output) {
+    // Internal FRD errors -> REP-103 FLU to match the cmd_* topics: x keeps
+    // its sign, y and z flip.
+    const auto to_flu = [](const std::array<double, CONTROL_AXES>& frd) {
+        return std::array<double, CONTROL_AXES>{frd[0], -frd[1], -frd[2]};
+    };
     sub_control_interfaces::msg::Error error;
     error.header.stamp = this->get_clock()->now();
-    error.pos_error = position_error;
-    error.vel_error = output.velocity_error;
-    error.att_error = attitude_error;
-    error.angvel_error = output.angular_rate_error;
+    error.header.frame_id = "base_link";
+    error.pos_error = to_flu(position_error);
+    error.vel_error = to_flu(output.velocity_error);
+    error.att_error = to_flu(attitude_error);
+    error.angvel_error = to_flu(output.angular_rate_error);
     error_pub_->publish(error);
 }
 

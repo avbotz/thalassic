@@ -10,6 +10,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(stonefish_ros2 REQUIRED)
 find_package(marine_acoustic_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -33,42 +34,50 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_executable(sim_dvl_remapper src/sim_dvl_remapper.cpp)
-include_directories(sim_dvl_remapper include)
-ament_target_dependencies(sim_dvl_remapper rclcpp stonefish_ros2 marine_acoustic_msgs)
+add_library(${PROJECT_NAME}_components SHARED
+  src/sim_dvl_remapper.cpp
+  src/sim_thruster_republisher.cpp
+  src/sim_imu_remapper.cpp
+  src/sim_kill_switch.cpp
+  src/sim_torpedo_launcher.cpp
+  src/sim_dropper.cpp
+  src/sim_oak_camera_remapper.cpp
+)
+target_include_directories(${PROJECT_NAME}_components PRIVATE include ${OpenCV_INCLUDE_DIRS})
+ament_target_dependencies(${PROJECT_NAME}_components
+  rclcpp
+  rclcpp_components
+  stonefish_ros2
+  marine_acoustic_msgs
+  std_msgs
+  std_srvs
+  sensor_msgs
+  geometry_msgs
+  sub_driver_interfaces
+  cv_bridge
+  OpenCV
+)
 
-add_executable(sim_thruster_republisher src/sim_thruster_republisher.cpp)
-include_directories(sim_thruster_republisher include)
-ament_target_dependencies(sim_thruster_republisher rclcpp std_msgs)
+# Each registration also generates a standalone executable of the same name, so
+# the components can still be run individually (ros2 run sub_sim_sensors <name>).
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimDVLRemapper" EXECUTABLE sim_dvl_remapper)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimThrusterRepublisher" EXECUTABLE sim_thruster_republisher)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimIMURemapper" EXECUTABLE sim_imu_remapper)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimKillSwitch" EXECUTABLE sim_kill_switch)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimTorpedoLauncher" EXECUTABLE sim_torpedo_launcher)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimDropper" EXECUTABLE sim_dropper)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimOakCameraRemapper" EXECUTABLE sim_oak_camera_remapper)
 
-add_executable(sim_imu_remapper src/sim_imu_remapper.cpp)
-include_directories(sim_imu_remapper include)
-ament_target_dependencies(sim_imu_remapper rclcpp sensor_msgs geometry_msgs)
-
-add_executable(sim_kill_switch src/sim_kill_switch.cpp)
-include_directories(sim_kill_switch include)
-ament_target_dependencies(sim_kill_switch rclcpp std_msgs)
-
-add_executable(sim_torpedo_launcher src/sim_torpedo_launcher.cpp)
-include_directories(sim_torpedo_launcher include)
-ament_target_dependencies(sim_torpedo_launcher rclcpp std_msgs std_srvs sub_driver_interfaces)
-
-add_executable(sim_dropper src/sim_dropper.cpp)
-include_directories(sim_dropper include)
-ament_target_dependencies(sim_dropper rclcpp sensor_msgs std_srvs sub_driver_interfaces)
-
-add_executable(sim_oak_camera_remapper src/sim_oak_camera_remapper.cpp)
-target_include_directories(sim_oak_camera_remapper PRIVATE include ${OpenCV_INCLUDE_DIRS})
-ament_target_dependencies(sim_oak_camera_remapper rclcpp sensor_msgs cv_bridge OpenCV)
-
-install(TARGETS
-  sim_dvl_remapper
-  sim_thruster_republisher
-  sim_imu_remapper
-  sim_kill_switch
-  sim_torpedo_launcher
-  sim_dropper
-  sim_oak_camera_remapper
-  DESTINATION lib/${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME}_components
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
 
 ament_package()

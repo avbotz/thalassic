@@ -12,7 +12,7 @@
 
 class SimTorpedoLauncher : public rclcpp::Node {
    public:
-    SimTorpedoLauncher();
+    explicit SimTorpedoLauncher(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
     static constexpr size_t NUM_TORPEDOES = 2;

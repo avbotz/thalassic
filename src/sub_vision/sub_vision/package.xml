@@ -3,8 +3,9 @@
 <package format="3">
   <name>sub_vision</name>
   <version>0.0.0</version>
-  <description>YOLOv10 perception pipeline for the Marlin V2 AUV: model manager,
-    per-task OpenCV post-processing, and depth-based 3D metadata.</description>
+  <description>YOLOv10 perception pipeline for the Marlin V2 AUV: ONNX Runtime /
+    TensorRT inference, per-task OpenCV post-processing, and depth-based 3D
+    metadata.</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 

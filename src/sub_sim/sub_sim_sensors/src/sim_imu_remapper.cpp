@@ -5,6 +5,7 @@
 
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
 using std::placeholders::_1;
@@ -44,7 +45,7 @@ const geometry_msgs::msg::Quaternion kFrdFlu = make_quat(1.0, 0.0, 0.0, 0.0);
 
 }  // namespace
 
-SimIMURemapper::SimIMURemapper() : Node("sim_imu_remapper") {
+SimIMURemapper::SimIMURemapper(const rclcpp::NodeOptions& options) : Node("sim_imu_remapper", options) {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
@@ -85,9 +86,4 @@ void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned
     publisher_->publish(msg_enu);
 }
 
-int main(int argc, char* argv[]) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimIMURemapper>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimIMURemapper)

@@ -259,6 +259,20 @@ def generate_launch_description():
         ),
     )
 
+    foxglove_bridge_node = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        name="foxglove_bridge",
+        parameters=[
+            {
+                "port": 8765,
+                "use_compression": True,
+                # Real hardware: no /clock publisher, so wall clock (unlike sim).
+                "use_sim_time": False,
+            }
+        ],
+    )
+
     return LaunchDescription(
         [
             declare_ns,
@@ -269,5 +283,6 @@ def generate_launch_description():
             *control_and_state_entities(),
             *oak_camera_entities(),
             *vision_entities(),
+            foxglove_bridge_node,
         ]
     )

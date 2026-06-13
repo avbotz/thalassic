@@ -99,12 +99,13 @@ def generate_launch_description():
             "--child-frame-id",
             "marlin_v2/depth_camera",
         ],
+        ros_arguments=["--disable-stdout-logs"],
     )
 
     # tf_down_cam = Node(
     #     package="tf2_ros",
     #     executable="static_transform_publisher",
-    #     arguments=["0.16", "0.0725", "0.15", "1.571", "0", "1.571", "base_link", "bluerov2/camera_right"],
+    #     arguments=["0.16", "0.0725", "0.15", "1.571", "0", "1.571", "marlin_v2/base_link_ned", "marlin_v2/depth_camera"],
     # )
 
     tf_dvl = Node(

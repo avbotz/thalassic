@@ -4,7 +4,9 @@
 #include <memory>
 #include <string>
 
-SimDropper::SimDropper() : Node("sim_dropper") {
+#include "rclcpp_components/register_node_macro.hpp"
+
+SimDropper::SimDropper(const rclcpp::NodeOptions& options) : Node("sim_dropper", options) {
     this->declare_parameter<std::string>("joint_name", "marlin_v2/dropper_joint");
     this->declare_parameter<double>("open_position", 1.5);  // rad
     this->declare_parameter<double>("release_angle", 1.0);  // rad
@@ -79,9 +81,4 @@ void SimDropper::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
     }
 }
 
-int main(int argc, char** argv) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimDropper>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimDropper)

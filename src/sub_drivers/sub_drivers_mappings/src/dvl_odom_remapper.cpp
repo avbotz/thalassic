@@ -15,14 +15,13 @@ DVLOdomRemapper::DVLOdomRemapper() : Node("dvl_odom_remapper") {
 
     subscriber_ = this->create_subscription<marine_acoustic_msgs::msg::Dvl>(
         "dvl", 10, std::bind(&DVLOdomRemapper::dvl_callback, this, _1));
-    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("dvl_odom", 10);
+    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("odom/dvl", 10);
     altitude_publisher_ = this->create_publisher<std_msgs::msg::Float64>("dvl_altitude", 10);
 }
 
 void DVLOdomRemapper::dvl_callback(const marine_acoustic_msgs::msg::Dvl::SharedPtr msg) {
-    nav_msgs::msg::Odometry odom_msg{};
     odom_msg.header = msg->header;
-    odom_msg.header.frame_id = robot_name_ + "/odom";
+    odom_msg.header.frame_id = robot_name_ + "/base_link";
     odom_msg.child_frame_id = robot_name_ + "/dvl_link";
 
     odom_msg.twist.twist.linear.x = msg->velocity.x;
@@ -34,7 +33,6 @@ void DVLOdomRemapper::dvl_callback(const marine_acoustic_msgs::msg::Dvl::SharedP
 
     odom_publisher_->publish(odom_msg);
 
-    std_msgs::msg::Float64 alt_msg;
     alt_msg.data = msg->altitude;
     altitude_publisher_->publish(alt_msg);
 }

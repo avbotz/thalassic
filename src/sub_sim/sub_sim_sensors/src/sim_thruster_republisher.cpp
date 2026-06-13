@@ -4,8 +4,10 @@
 #include <memory>
 #include <string>
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 
-SimThrusterRepublisher::SimThrusterRepublisher() : Node("sim_thruster_republisher") {
+SimThrusterRepublisher::SimThrusterRepublisher(const rclcpp::NodeOptions& options)
+    : Node("sim_thruster_republisher", options) {
     publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("sim/thruster_setpoints", 10);
 
     for (int i = 0; i < 8; i++) {
@@ -20,9 +22,4 @@ SimThrusterRepublisher::SimThrusterRepublisher() : Node("sim_thruster_republishe
     }
 }
 
-int main(int argc, char* argv[]) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimThrusterRepublisher>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimThrusterRepublisher)

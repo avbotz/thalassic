@@ -4,11 +4,12 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 using std::placeholders::_1;
 
-SimKillSwitch::SimKillSwitch() : Node("sim_kill_switch") {
+SimKillSwitch::SimKillSwitch(const rclcpp::NodeOptions& options) : Node("sim_kill_switch", options) {
     const double off_delay = this->declare_parameter("off_delay", 5.0);
 
     // Latched (transient_local) so sub_control picks up the current state even if
@@ -49,9 +50,4 @@ void SimKillSwitch::publish(bool killed) {
     pub_->publish(m);
 }
 
-int main(int argc, char* argv[]) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimKillSwitch>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimKillSwitch)

@@ -4,13 +4,14 @@
 
 #include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
 
 using std::placeholders::_1;
 
 using namespace std::chrono_literals;
 
-SimDVLRemapper::SimDVLRemapper() : Node("sim_dvl_remapper") {
+SimDVLRemapper::SimDVLRemapper(const rclcpp::NodeOptions& options) : Node("sim_dvl_remapper", options) {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
@@ -53,9 +54,4 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
     vel_publisher_->publish(msg_marine);
 }
 
-int main(int argc, char* argv[]) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimDVLRemapper>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimDVLRemapper)

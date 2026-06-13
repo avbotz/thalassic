@@ -1,10 +1,12 @@
 # sub_vision
 
 Perception for the Marlin V2 AUV: YOLOv10 detection with per-task OpenCV
-post-processing and depth-based 3D metadata. Inference runs through the
-**Ultralytics API**. Targets the Jetson AGX Orin (CUDA) in production and any
-x86 box (GPU or CPU-only) for dev — the **same code** runs on both; only the
-resolved compute device differs.
+post-processing and depth-based 3D metadata. Inference runs through
+**TensorRT** (serialized engine) or **ONNX Runtime**; pre-processing
+(letterbox) and post-processing (decode + box rescaling) live in
+`backends.py`. Targets the Jetson AGX Orin (TensorRT, CUDA) in production and
+any x86 box (GPU or CPU-only ONNX Runtime) for dev — the **same code** runs on
+both; only the selected backend/device differs.
 
 This directory holds two ROS 2 (Jazzy) packages:
 
@@ -13,9 +15,10 @@ This directory holds two ROS 2 (Jazzy) packages:
 | `sub_vision_interfaces` | `ament_cmake` | `Detection.msg`, `DetectionArray.msg`, `LoadModel.srv` |
 | `sub_vision` | `ament_python` | model manager, post-processors, depth metadata, node |
 
-> The detector is **YOLOv10 (NMS-free / end-to-end)**: the model head already
-> contains the TopK post-processing, so the pipeline runs **no** separate NMS
-> step.
+> The detector is **YOLOv10 (NMS-free / end-to-end)**: the exported head emits
+> `(1, N, 6)` boxes directly, so the pipeline runs **no** separate NMS step.
+> Raw YOLOv8-style exports (`(1, 4+nc, M)`) are also decoded, with NMS applied
+> in the backend.
 
 ---
 
@@ -76,22 +79,32 @@ ros2 service call /marlin_v2/sub_vision/load_model \
 
 ---
 
-## Model loading & device selection
+## Model loading & backend/device selection
 
-The **source of truth is `<model_dir>/<task>.pt`** (a trained YOLOv10
-checkpoint), loaded directly via the Ultralytics API (`ultralytics.YOLO`):
+Models live in `model_dir` as exported graphs:
 
-1. The compute device is resolved from the `device` param: `auto` picks `cuda`
-   when a GPU build of torch sees a device, else `cpu` (override with `cpu` /
-   `cuda`). Ultralytics uses CUDA automatically on GPU.
-2. The same `.pt` runs on a CPU-only dev box and a CUDA Jetson with no source
-   changes — only the resolved device differs.
-3. After load, a few **warmup** inferences run; mean/last timings are reported on
-   `/diagnostics`.
+* `<task>.engine` — serialized **TensorRT** engine (device-specific; built on
+  the Jetson it runs on).
+* `<task>.onnx` — exported **ONNX** graph for ONNX Runtime.
 
-The inference stack (`ultralytics`, `torch`) is installed via pip / `install.sh`,
-**not** rosdep. The `ultralytics` import is lazy, so the package builds, lints,
-and unit-tests on a machine without it.
+Selection, per the `backend` param:
+
+1. `auto` (default) prefers `<task>.engine` (TensorRT) and falls back to
+   `<task>.onnx` (ONNX Runtime). `tensorrt` / `onnxruntime` force one and fail
+   if the file is missing.
+2. The `device` param applies to ONNX Runtime only: `auto` picks `cuda` when
+   the CUDA execution provider is available, else `cpu`. TensorRT is always
+   CUDA.
+3. The backend owns all pre/post processing: letterbox to the square network
+   input (gray padding), BGR→RGB CHW float normalization, decode of the
+   NMS-free YOLOv10 head (or raw YOLOv8 head + NMS), and rescaling boxes back
+   to original-image pixels.
+4. After load, a few **warmup** inferences run; mean/last timings are reported
+   on `/diagnostics`.
+
+The inference stack (`onnxruntime` / `tensorrt` + `cuda-python`) is installed
+via pip / JetPack, **not** rosdep. Both imports are lazy, so the package
+builds, lints, and unit-tests on a machine without them.
 
 ---
 
@@ -99,8 +112,9 @@ and unit-tests on a machine without it.
 
 No core edits — add a model and a post-processor:
 
-1. **Model:** drop `<model_dir>/<task>.pt` (a trained YOLOv10 checkpoint).
-   Optionally add `<model_dir>/<task>.names` for human-readable class labels.
+1. **Model:** drop `<model_dir>/<task>.onnx` (exported YOLOv10 graph) and/or a
+   Jetson-built `<model_dir>/<task>.engine`. Optionally add
+   `<model_dir>/<task>.names` for human-readable class labels.
 2. **Post-processor:** add `sub_vision/post_processors/<task>.py`:
 
    ```python

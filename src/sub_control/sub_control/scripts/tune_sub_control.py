@@ -12,11 +12,12 @@ import time
 from dataclasses import dataclass
 
 import rclpy
+from geometry_msgs.msg import PointStamped, QuaternionStamped, Vector3Stamped
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.parameter_client import AsyncParameterClient
 from std_msgs.msg import Float64
-from sub_control_interfaces.msg import Error, Setpoint
+from sub_control_interfaces.msg import Error
 
 
 AXES = {"x": 0, "y": 1, "z": 2}
@@ -65,8 +66,16 @@ class ControlTuner(Node):
         prefix = f"/{namespace}" if namespace else ""
         self.target_node = f"{prefix}/sub_control"
         self.parameter_client = AsyncParameterClient(self, self.target_node)
-        self.position_publisher = self.create_publisher(Setpoint, "pos_setpoint", 10)
-        self.attitude_publisher = self.create_publisher(Setpoint, "att_setpoint", 10)
+        self.position_publisher = self.create_publisher(PointStamped, "cmd_position", 10)
+        self.attitude_publisher = self.create_publisher(
+            QuaternionStamped, "cmd_attitude", 10
+        )
+        self.linear_velocity_publisher = self.create_publisher(
+            Vector3Stamped, "cmd_linear_velocity", 10
+        )
+        self.angular_velocity_publisher = self.create_publisher(
+            Vector3Stamped, "cmd_angular_velocity", 10
+        )
         self.create_subscription(Error, "control/error", self._error_callback, 20)
         for thruster in range(8):
             self.create_subscription(
@@ -77,6 +86,7 @@ class ControlTuner(Node):
             )
 
     def _error_callback(self, message: Error) -> None:
+        # Error fields are REP-103 body FLU, matching the cmd_* topics.
         if self.args.loop == "position":
             errors = message.vel_error if self.direct_mode else message.pos_error
         else:
@@ -112,21 +122,29 @@ class ControlTuner(Node):
             raise RuntimeError(f"could not set {name}: {reason}")
 
     def publish_command(self, amplitude: float, direct: bool) -> None:
-        message = Setpoint()
-        message.velocity = direct
-        message.use_altitude = False
-        if self.axis == 0:
-            message.setpoint.x = amplitude
-        elif self.axis == 1:
-            message.setpoint.y = amplitude
+        # Commands follow REP-103 (body FLU, z up): a positive z amplitude
+        # moves the sub up; pass a negative amplitude to step down.
+        stamp = self.get_clock().now().to_msg()
+        if direct:
+            message = Vector3Stamped()
+            message.header.stamp = stamp
+            setattr(message.vector, "xyz"[self.axis], amplitude)
+            publisher = (
+                self.linear_velocity_publisher
+                if self.args.loop == "position"
+                else self.angular_velocity_publisher
+            )
+        elif self.args.loop == "position":
+            message = PointStamped()
+            message.header.stamp = stamp
+            setattr(message.point, "xyz"[self.axis], amplitude)
+            publisher = self.position_publisher
         else:
-            message.setpoint.z = amplitude
-
-        publisher = (
-            self.position_publisher
-            if self.args.loop == "position"
-            else self.attitude_publisher
-        )
+            message = QuaternionStamped()
+            message.header.stamp = stamp
+            setattr(message.quaternion, "xyz"[self.axis], math.sin(amplitude / 2.0))
+            message.quaternion.w = math.cos(amplitude / 2.0)
+            publisher = self.attitude_publisher
         publisher.publish(message)
 
     def spin_for(self, duration: float) -> None:
@@ -197,7 +215,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace", default="/marlin_v2")
     parser.add_argument("--loop", choices=("position", "attitude"), default="position")
     parser.add_argument("--axis", choices=tuple(AXES), default="x")
-    parser.add_argument("--amplitude", type=float, default=0.5)
+    parser.add_argument(
+        "--amplitude",
+        type=float,
+        default=0.5,
+        help="Outer-loop step in REP-103 body FLU (z is up: use a negative "
+        "z-axis amplitude to step deeper).",
+    )
     parser.add_argument(
         "--inner-amplitude",
         type=float,

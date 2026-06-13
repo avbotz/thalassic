@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="avbotzco@gmail.com",
-    description="YOLOv10 perception pipeline for the Marlin V2 AUV.",
+    description="YOLOv10 perception pipeline (ONNX Runtime / TensorRT) for the Marlin V2 AUV.",
     license="Proprietary",
     tests_require=["pytest"],
     entry_points={

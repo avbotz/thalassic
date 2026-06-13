@@ -30,7 +30,8 @@ class VisionNode(Node):
         default_model_dir = os.path.join(os.path.expanduser("~"), ".sub_vision", "models")
         self.declare_parameter("model_dir", default_model_dir)
         self.declare_parameter("default_task", "")
-        self.declare_parameter("device", "auto")   # auto|cpu|cuda
+        self.declare_parameter("backend", "auto")  # auto|tensorrt|onnxruntime
+        self.declare_parameter("device", "auto")   # auto|cpu|cuda (onnxruntime only)
         self.declare_parameter("input_size", 640)
         self.declare_parameter("conf_threshold", 0.25)
         self.declare_parameter("warmup_iterations", 3)
@@ -49,6 +50,7 @@ class VisionNode(Node):
 
         self._manager = ModelManager(
             model_dir=self._model_dir,
+            backend_pref=p("backend").value,
             device_pref=p("device").value,
             input_size=int(p("input_size").value),
             conf_threshold=float(p("conf_threshold").value),

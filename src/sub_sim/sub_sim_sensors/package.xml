@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>marine_acoustic_msgs</depend>
   <depend>stonefish_ros2</depend>
   <depend>std_msgs</depend>

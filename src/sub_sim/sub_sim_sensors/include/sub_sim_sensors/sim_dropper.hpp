@@ -8,7 +8,7 @@
 
 class SimDropper : public rclcpp::Node {
    public:
-    SimDropper();
+    explicit SimDropper(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
     void set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
