@@ -2,32 +2,33 @@
 
 #include <cstdio>
 #include <format>
-#include "sub_driver_interfaces/srv/launch_torpedo.hpp"
-#include "sub_driver_interfaces/srv/set_dropper.hpp"
+#include <sstream>
 
 using namespace std::chrono_literals;
 
 static constexpr size_t MAX_RX_BUFFER = 4096;
 
 SubLow::SubLow(const rclcpp::NodeOptions& options) : rclcpp_lifecycle::LifecycleNode("sub_low", options) {
-    this->declare_parameter<std::string>("device", "/dev/ttyACM0");
-    this->declare_parameter<int>("baud", 115200);
+    this->declare_parameter<std::string>("ecm_host", "192.168.7.2");
+    this->declare_parameter<int>("ecm_port", 7777);
+    this->declare_parameter<int>("ecm_connect_timeout_ms", 1000);
 }
 
 SubLow::~SubLow() { stop_thrusters(); }
 
 SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
-    const std::string device = this->get_parameter("device").as_string();
-    const int baud = this->get_parameter("baud").as_int();
+    const std::string host = this->get_parameter("ecm_host").as_string();
+    const int port = this->get_parameter("ecm_port").as_int();
+    const int timeout_ms = this->get_parameter("ecm_connect_timeout_ms").as_int();
 
     try {
-        serial_ = std::make_unique<SerialPort>(device, baud);
+        board_ = std::make_unique<TcpClient>(host, port, timeout_ms);
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "could not open serial: %s", e.what());
+        RCLCPP_ERROR(this->get_logger(), "could not connect to USB CDC ECM board: %s", e.what());
         return CallbackReturn::FAILURE;
     }
 
-    RCLCPP_INFO(this->get_logger(), "sub_low connected to %s @ %d baud", device.c_str(), baud);
+    RCLCPP_INFO(this->get_logger(), "sub_low connected to USB CDC ECM board at %s", board_->description().c_str());
 
     kill_pub_ = this->create_publisher<std_msgs::msg::Bool>("kill_switch", rclcpp::QoS(1).transient_local());
 
@@ -55,7 +56,7 @@ SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
 
     poll_timer_ = this->create_wall_timer(5ms, [this]() {
         if (is_active_) {
-            poll_serial();
+            poll_board();
         }
     });
 
@@ -91,7 +92,7 @@ SubLow::CallbackReturn SubLow::on_cleanup(const rclcpp_lifecycle::State&) {
         sub.reset();
     }
 
-    serial_.reset();
+    board_.reset();
     rx_buffer_.clear();
 
     return CallbackReturn::SUCCESS;
@@ -107,18 +108,18 @@ SubLow::CallbackReturn SubLow::on_shutdown(const rclcpp_lifecycle::State&) {
         sub.reset();
     }
 
-    serial_.reset();
+    board_.reset();
     rx_buffer_.clear();
 
     return CallbackReturn::SUCCESS;
 }
 
 void SubLow::stop_thrusters() {
-    if (!serial_) {
+    if (!board_) {
         return;
     }
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
-        serial_->write(std::format("t {} 0.0\n", i));
+        board_->write(std::format("t {} 0.0\n", i));
     }
 }
 
@@ -136,9 +137,9 @@ void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces
         return;
     }
 
-    if (!serial_->write(std::format("t {} {}\n", request->torpedo_id, request->open ? 1 : 0))) {
+    if (!board_->write(std::format("t {} {}\n", request->torpedo_id, request->open ? 1 : 0))) {
         response->success = false;
-        response->message = "serial write failed";
+        response->message = "USB CDC ECM board write failed.";
         return;
     }
 
@@ -155,9 +156,9 @@ void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::s
         return;
     }
 
-    if (!serial_->write(std::format("d {}\n", request->open ? 1 : 0))) {
+    if (!board_->write(std::format("d {}\n", request->open ? 1 : 0))) {
         response->success = false;
-        response->message = "serial write failed";
+        response->message = "USB CDC ECM board write failed.";
         return;
     }
 
@@ -166,14 +167,15 @@ void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::s
 }
 
 void SubLow::set_thruster_power(int index, double normalized) {
-    if (!serial_->write(std::format("t {} {}\n", index, normalized))) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "serial write failed");
+    if (!board_->write(std::format("t {} {}\n", index, normalized))) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "USB CDC ECM board write failed");
     }
 }
 
-void SubLow::poll_serial() {
-    if (!serial_->read_available(rx_buffer_)) {
-        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "serial read error / device disconnected");
+void SubLow::poll_board() {
+    if (!board_->read_available(rx_buffer_)) {
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                              "USB CDC ECM board read error / device disconnected");
         return;
     }
 

@@ -15,13 +15,13 @@
 #include "sub_driver_interfaces/srv/launch_torpedo.hpp"
 #include "sub_driver_interfaces/srv/set_dropper.hpp"
 
-#include "sub_serial_drivers/serial_port.hpp"
+#include "sub_serial_drivers/tcp_client.hpp"
 
-// configure  -> open the serial port, create the kill-switch publisher
+// configure  -> connect to the low-level board over USB CDC ECM, create the kill-switch publisher
 // activate   -> start forwarding thruster commands and polling the board
 // deactivate -> stop the thrusters and stop forwarding/polling
-// cleanup    -> close the serial port
-// shutdown   -> stop the thrusters and close the serial port
+// cleanup    -> close the board connection
+// shutdown   -> stop the thrusters and close the board connection
 class SubLow : public rclcpp_lifecycle::LifecycleNode {
    public:
     explicit SubLow(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
@@ -44,11 +44,11 @@ class SubLow : public rclcpp_lifecycle::LifecycleNode {
                                  std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Response> response);
     void set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
                               std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response);
-    void poll_serial();
-    void handle_line(const std::string_view line);
+    void poll_board();
+    void handle_line(std::string_view line);
     void stop_thrusters();
 
-    std::unique_ptr<SerialPort> serial_;
+    std::unique_ptr<TcpClient> board_;
     std::string rx_buffer_;
     std::atomic<bool> is_active_;
 
