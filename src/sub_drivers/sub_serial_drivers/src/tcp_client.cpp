@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 
@@ -128,6 +129,10 @@ TcpClient::~TcpClient() {
 }
 
 bool TcpClient::write(const std::string& data) {
+    if (trace_callback_) {
+        trace_callback_("tx", data);
+    }
+
     const char* p = data.data();
     size_t left = data.size();
     while (left > 0) {
@@ -147,6 +152,9 @@ bool TcpClient::read_available(std::string& out) {
     while (true) {
         const ssize_t n = recv(fd_, buf, sizeof(buf), 0);
         if (n > 0) {
+            if (trace_callback_) {
+                trace_callback_("rx", std::string_view(buf, static_cast<size_t>(n)));
+            }
             out.append(buf, static_cast<size_t>(n));
         } else if (n == 0) {
             return false;
@@ -159,3 +167,8 @@ bool TcpClient::read_available(std::string& out) {
 }
 
 std::string TcpClient::description() const { return host_ + ":" + std::to_string(port_) + " over TCP"; }
+
+void TcpClient::set_trace_callback(
+    std::function<void(std::string_view direction, std::string_view data)> callback) {
+    trace_callback_ = std::move(callback);
+}

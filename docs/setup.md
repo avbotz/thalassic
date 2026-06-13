@@ -17,6 +17,8 @@ Run once on a new machine. This installs all apt dependencies, builds Stonefish 
 
 The script clones Stonefish from `https://github.com/kethan1/stonefish` (branch `fixes-merged`) and builds it into `/usr/local`. If Stonefish is already installed, skip the relevant section manually.
 
+Install foxglove from `https://get.foxglove.dev/desktop/latest/foxglove-studio-latest-linux-amd64.deb`.
+
 ## Every New Shell
 
 ```bash

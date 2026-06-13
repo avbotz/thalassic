@@ -1,5 +1,6 @@
 #include "sub_serial_drivers/sub_low.hpp"
 
+#include <cctype>
 #include <cstdio>
 #include <format>
 #include <sstream>
@@ -7,6 +8,38 @@
 using namespace std::chrono_literals;
 
 static constexpr size_t MAX_RX_BUFFER = 4096;
+
+namespace {
+
+std::string escaped_payload(std::string_view payload) {
+    std::string out;
+    out.reserve(payload.size());
+
+    for (const unsigned char ch : payload) {
+        switch (ch) {
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (std::isprint(ch)) {
+                    out.push_back(static_cast<char>(ch));
+                } else {
+                    out += std::format("\\x{:02x}", ch);
+                }
+                break;
+        }
+    }
+
+    return out;
+}
+
+}
 
 SubLow::SubLow(const rclcpp::NodeOptions& options) : rclcpp_lifecycle::LifecycleNode("sub_low", options) {
     this->declare_parameter<std::string>("ecm_host", "192.168.7.2");
@@ -28,6 +61,12 @@ SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
         return CallbackReturn::FAILURE;
     }
 
+    board_->set_trace_callback([this](std::string_view direction, std::string_view data) {
+        const std::string payload = escaped_payload(data);
+        RCLCPP_DEBUG(this->get_logger(), "tcp %.*s %zu bytes: %s", static_cast<int>(direction.size()),
+                     direction.data(), data.size(), payload.c_str());
+    });
+
     RCLCPP_INFO(this->get_logger(), "sub_low connected to USB CDC ECM board at %s", board_->description().c_str());
 
     kill_pub_ = this->create_publisher<std_msgs::msg::Bool>("kill_switch", rclcpp::QoS(1).transient_local());
@@ -36,8 +75,12 @@ SubLow::CallbackReturn SubLow::on_configure(const rclcpp_lifecycle::State&) {
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         thruster_subs_[i] = this->create_subscription<std_msgs::msg::Float64>(
             std::format("control/thruster_{}", i), thruster_qos, [this, i](const std_msgs::msg::Float64& msg) {
+                RCLCPP_DEBUG(this->get_logger(), "thruster request: index=%d power=%f active=%s", i, msg.data,
+                             is_active_ ? "true" : "false");
                 if (is_active_) {
                     set_thruster_power(i, msg.data);
+                } else {
+                    RCLCPP_DEBUG(this->get_logger(), "thruster request ignored: index=%d inactive node", i);
                 }
             });
     }
@@ -119,54 +162,75 @@ void SubLow::stop_thrusters() {
         return;
     }
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
+        RCLCPP_DEBUG(this->get_logger(), "stop thruster request: index=%d power=0.000000", i);
         board_->write(std::format("t {} 0.0\n", i));
     }
 }
 
 void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Request> request,
                                      std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Response> response) {
+    RCLCPP_DEBUG(this->get_logger(), "launch_torpedo request: torpedo_id=%u open=%s active=%s", request->torpedo_id,
+                 request->open ? "true" : "false", is_active_ ? "true" : "false");
+
     if (!is_active_) {
         response->success = false;
         response->message = "sub_low is not active.";
+        RCLCPP_DEBUG(this->get_logger(), "launch_torpedo response: success=false message=\"%s\"",
+                     response->message.c_str());
         return;
     }
 
     if (request->torpedo_id >= NUM_TORPEDO_THRUSTERS) {
         response->success = false;
         response->message = std::format("Invalid torpedo id {}.", request->torpedo_id);
+        RCLCPP_DEBUG(this->get_logger(), "launch_torpedo response: success=false message=\"%s\"",
+                     response->message.c_str());
         return;
     }
 
     if (!board_->write(std::format("t {} {}\n", request->torpedo_id, request->open ? 1 : 0))) {
         response->success = false;
         response->message = "USB CDC ECM board write failed.";
+        RCLCPP_DEBUG(this->get_logger(), "launch_torpedo response: success=false message=\"%s\"",
+                     response->message.c_str());
         return;
     }
 
     response->success = true;
     response->message =
         std::format("Torpedo thruster {} {}.", request->torpedo_id, request->open ? "opened" : "closed");
+    RCLCPP_DEBUG(this->get_logger(), "launch_torpedo response: success=true message=\"%s\"",
+                 response->message.c_str());
 }
 
 void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
                                   std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
+    RCLCPP_DEBUG(this->get_logger(), "set_dropper request: open=%s active=%s", request->open ? "true" : "false",
+                 is_active_ ? "true" : "false");
+
     if (!is_active_) {
         response->success = false;
         response->message = "sub_low is not active.";
+        RCLCPP_DEBUG(this->get_logger(), "set_dropper response: success=false message=\"%s\"",
+                     response->message.c_str());
         return;
     }
 
     if (!board_->write(std::format("d {}\n", request->open ? 1 : 0))) {
         response->success = false;
         response->message = "USB CDC ECM board write failed.";
+        RCLCPP_DEBUG(this->get_logger(), "set_dropper response: success=false message=\"%s\"",
+                     response->message.c_str());
         return;
     }
 
     response->success = true;
     response->message = std::format("Dropper {}.", request->open ? "opened" : "closed");
+    RCLCPP_DEBUG(this->get_logger(), "set_dropper response: success=true message=\"%s\"", response->message.c_str());
 }
 
 void SubLow::set_thruster_power(int index, double normalized) {
+    RCLCPP_DEBUG(this->get_logger(), "thruster command: index=%d power=%f", index, normalized);
     if (!board_->write(std::format("t {} {}\n", index, normalized))) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "USB CDC ECM board write failed");
     }
@@ -208,11 +272,13 @@ void SubLow::handle_line(const std::string_view line) {
         if (ss >> value) {
             std_msgs::msg::Bool msg;
             msg.data = value;
+            RCLCPP_DEBUG(this->get_logger(), "kill_switch publish: data=%s", msg.data ? "true" : "false");
             kill_pub_->publish(msg);
         }
     } else if (tag == 'd') {
         float value;
         if (ss >> value) {
+            RCLCPP_DEBUG(this->get_logger(), "depth feedback: value=%f", value);
         }
     }
 }
