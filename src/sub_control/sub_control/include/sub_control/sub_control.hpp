@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 
+#include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -31,6 +32,7 @@ class ThrusterControl : public rclcpp::Node {
    private:
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr pos_setpoint_sub_;
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr att_setpoint_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr altitude_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub_;
@@ -80,6 +82,9 @@ class ThrusterControl : public rclcpp::Node {
 
     void pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint& msg);
     void att_setpoint_callback(const sub_control_interfaces::msg::Setpoint& msg);
+    void cmd_vel_callback(const geometry_msgs::msg::Twist& msg);
+    void set_linear_velocity_command(double x_flu, double y_flu, double z_flu);
+    void set_angular_velocity_command(double x_flu, double y_flu, double z_flu);
     void odom_callback(const nav_msgs::msg::Odometry& odom);
     void altitude_callback(const std_msgs::msg::Float64& msg);
     void kill_callback(const std_msgs::msg::Bool& msg);

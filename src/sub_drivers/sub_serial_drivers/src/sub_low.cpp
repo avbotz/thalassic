@@ -117,9 +117,7 @@ void SubLow::stop_thrusters() {
     if (!serial_) {
         return;
     }
-    for (int i = 0; i < NUM_THRUSTERS; ++i) {
-        serial_->write(std::format("t {} 0.0\n", i));
-    }
+    serial_->write(std::format("a {}\n", 0.0));
 }
 
 void SubLow::launch_torpedo_callback(const std::shared_ptr<sub_driver_interfaces::srv::LaunchTorpedo::Request> request,
@@ -166,7 +164,7 @@ void SubLow::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::s
 }
 
 void SubLow::set_thruster_power(int index, double normalized) {
-    if (!serial_->write(std::format("t {} {}\n", index, normalized))) {
+    if (!serial_->write(std::format("p {} {}\n", index, normalized))) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "serial write failed");
     }
 }

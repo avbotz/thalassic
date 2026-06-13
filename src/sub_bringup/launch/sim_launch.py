@@ -7,10 +7,11 @@ from launch.actions import (
     IncludeLaunchDescription,
     OpaqueFunction,
     SetLaunchConfiguration,
+    GroupAction
 )
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import ComposableNodeContainer, Node
+from launch_ros.actions import ComposableNodeContainer, Node, SetRemap
 from launch_ros.descriptions import ComposableNode
 from launch_ros.substitutions import FindPackageShare
 from sub_sim.generate_robot import render_robot_scenario
@@ -70,25 +71,41 @@ def _render_scn(context, *_, **__):
 
 
 def sim_entities() -> list[Node]:
-    include_stonefish = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [
-                FindPackageShare("stonefish_ros2"),
-                "launch",
-                "stonefish_simulator.launch.py",
-            ]
-        ),
-        launch_arguments={
-            "simulation_data": PathJoinSubstitution(
-                [FindPackageShare("sub_sim"), "data"]
+    include_stonefish = GroupAction(
+        [
+            SetRemap(
+                src="/marlin_v2/sim/front_camera/camera_info",
+                dst="/marlin_v2/front_camera/camera_info",
             ),
-            "scenario_desc": LaunchConfiguration("scenario_file"),
-            "simulation_rate": "300.0",
-            "window_res_x": "1900",
-            "window_res_y": "1000",
-            "rendering_quality": "medium",
-            "use_sim_time": "false",
-        }.items(),
+            SetRemap(
+                src="/marlin_v2/sim/front_camera/image_color",
+                dst="/marlin_v2/front_camera/image_color",
+            ),
+            SetRemap(
+                src="/marlin_v2/sim/front_camera/image_depth",
+                dst="/marlin_v2/front_camera/image_depth",
+            ),
+            IncludeLaunchDescription(
+                PathJoinSubstitution(
+                    [
+                        FindPackageShare("stonefish_ros2"),
+                        "launch",
+                        "stonefish_simulator.launch.py",
+                    ]
+                ),
+                launch_arguments={
+                    "simulation_data": PathJoinSubstitution(
+                        [FindPackageShare("sub_sim"), "data"]
+                    ),
+                    "scenario_desc": LaunchConfiguration("scenario_file"),
+                    "simulation_rate": "300.0",
+                    "window_res_x": "1900",
+                    "window_res_y": "1000",
+                    "rendering_quality": "medium",
+                    "use_sim_time": "false",
+                }.items(),
+            )
+        ]
     )
 
     def sim_component(executable, plugin, **kwargs):
@@ -129,7 +146,7 @@ def sim_entities() -> list[Node]:
                 "SimKillSwitch",
                 parameters=[{"off_delay": 5.0}],
             ),
-            sim_component("sim_oak_camera_remapper", "SimOakCameraRemapper"),
+            # sim_component("sim_oak_camera_remapper", "SimOakCameraRemapper"),
         ],
     )
 
@@ -360,7 +377,7 @@ def generate_launch_description():
             declare_ns,
             render,
             include_transforms,
-            deepseecolor_node,
+            # deepseecolor_node,
             foxglove_bridge_node,
             sub_vision_node,
             *sim_entities(),

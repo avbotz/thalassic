@@ -8,5 +8,5 @@
     "log"
   ],
   "reportUnusedCallResult": false,
-  "typeCheckingMode": "standard"
+  "typeCheckingMode": "standard",
 }
