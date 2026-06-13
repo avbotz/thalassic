@@ -1,3 +1,6 @@
+#ifndef SIM_KILL_SWITCH_HPP_
+#define SIM_KILL_SWITCH_HPP_
+
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/bool.hpp"
 
@@ -5,7 +8,7 @@
 // After, what is published on /sim/kill_switch is transparently forwarded to /kill_switch.
 class SimKillSwitch : public rclcpp::Node {
    public:
-    SimKillSwitch();
+    explicit SimKillSwitch(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
     void sim_callback(const std_msgs::msg::Bool& msg);
@@ -19,4 +22,4 @@ class SimKillSwitch : public rclcpp::Node {
     bool startup_done_{false};
 };
 
-int main(int argc, char* argv[]);
+#endif  // SIM_KILL_SWITCH_HPP_

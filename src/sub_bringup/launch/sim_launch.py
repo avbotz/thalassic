@@ -8,30 +8,30 @@ from launch.actions import (
     OpaqueFunction,
     SetLaunchConfiguration,
 )
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition
-from launch_ros.actions import Node
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import ComposableNodeContainer, Node
+from launch_ros.descriptions import ComposableNode
 from launch_ros.substitutions import FindPackageShare
 from sub_sim.generate_robot import render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
 
+ROBOT_NAME = "marlin_v2"
+
+
 def _render_scn(context, *_, **__):
-    lc = lambda k: LaunchConfiguration(k).perform(context)
+    DX = float(LaunchConfiguration("DX").perform(context))
+    DY = float(LaunchConfiguration("DY").perform(context))
+    DZ = float(LaunchConfiguration("DZ").perform(context))
+    DYAW = float(LaunchConfiguration("DYAW").perform(context))
+    SEED = int(LaunchConfiguration("seed").perform(context)) if LaunchConfiguration("seed").perform(context).isdigit() else None
 
-    DX = float(lc("DX"))
-    DY = float(lc("DY"))
-    DZ = float(lc("DZ"))
-    DYAW = float(lc("DYAW"))
-    SEED = int(lc("seed")) if lc("seed") != "" and lc("seed").isdigit() else None
+    sub_sim_share = Path(get_package_share_directory("sub_sim"))
 
-    sub_sim_share = get_package_share_directory("sub_sim")
-
-    scenario_file = Path(sub_sim_share) / "scenarios" / "woollett.scn.j2"
-    robot_scenario_file = (
-        Path(sub_sim_share) / "data" / "robots" / "marlin_v2" / "layout.scn.j2"
-    )
+    scenario_file = sub_sim_share / "scenarios" / "woollett.scn.j2"
+    robot_scenario_file = sub_sim_share / "data" / "robots" / ROBOT_NAME / "layout.scn.j2"
 
     rendered_robot_path = None
 
@@ -56,8 +56,8 @@ def _render_scn(context, *_, **__):
 
     urdf_robot = robot_scenario_to_urdf(
         scenario_xml=rendered_robot_path,
-        robot_name="marlin_v2",
-        mesh_prefix=f"file://{Path(sub_sim_share) / 'data'}/",
+        robot_name=ROBOT_NAME,
+        mesh_prefix=f"file://{sub_sim_share / 'data'}/",
     )
 
     robot_description = urdf_robot.read_text()
@@ -69,34 +69,7 @@ def _render_scn(context, *_, **__):
     ]
 
 
-def generate_launch_description():
-    args = [
-        DeclareLaunchArgument("seed", default_value=""),
-        DeclareLaunchArgument("DX", default_value="0.25"),
-        DeclareLaunchArgument("DY", default_value="0.25"),
-        DeclareLaunchArgument("DZ", default_value="0.10"),
-        DeclareLaunchArgument("DYAW", default_value="0.10"),
-        DeclareLaunchArgument(
-            "enable_deepseecolor",
-            default_value="true",
-            description="Start the DeepSeeColor RGB-D color correction node.",
-        ),
-        DeclareLaunchArgument(
-            "deepseecolor_device",
-            default_value="cuda:0",
-            description="Torch device for DeepSeeColor, e.g. cuda:0 or cpu.",
-        ),
-    ]
-    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
-
-    render = OpaqueFunction(function=_render_scn)
-
-    include_transforms = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
-        ),
-    )
-
+def sim_entities() -> list[Node]:
     include_stonefish = IncludeLaunchDescription(
         PathJoinSubstitution(
             [
@@ -118,6 +91,69 @@ def generate_launch_description():
         }.items(),
     )
 
+    def sim_component(executable, plugin, **kwargs):
+        return ComposableNode(
+            package="sub_sim_sensors",
+            plugin=plugin,
+            name=executable,
+            namespace=LaunchConfiguration("ns"),
+            extra_arguments=[{"use_intra_process_comms": True}],
+            **kwargs,
+        )
+
+    # All sim sensor/actuator shims share one process. The container is
+    # multithreaded because sim_torpedo_launcher blocks on the glue service
+    # inside its service callback.
+    sim_sensors_container = ComposableNodeContainer(
+        package="rclcpp_components",
+        executable="component_container_mt",
+        name="sim_sensors_container",
+        namespace=LaunchConfiguration("ns"),
+        output="both",
+        composable_node_descriptions=[
+            sim_component(
+                "sim_dvl_remapper",
+                "SimDVLRemapper",
+                parameters=[{"robot_name": ROBOT_NAME}],
+            ),
+            sim_component(
+                "sim_imu_remapper",
+                "SimIMURemapper",
+                parameters=[{"robot_name": ROBOT_NAME}],
+            ),
+            sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
+            sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
+            sim_component("sim_dropper", "SimDropper"),
+            sim_component(
+                "sim_kill_switch",
+                "SimKillSwitch",
+                parameters=[{"off_delay": 5.0}],
+            ),
+            sim_component("sim_oak_camera_remapper", "SimOakCameraRemapper"),
+        ],
+    )
+
+    sim_labeling_node = Node(
+        package="sim_labeling",
+        executable="labeling",
+        name="sim_labeling",
+        namespace=ROBOT_NAME,
+        parameters=[
+            {
+                "scenario_file": LaunchConfiguration("scenario_file"),
+                "output_dir": "train_imgs",
+            }
+        ],
+    )
+
+    return [
+        include_stonefish,
+        sim_sensors_container,
+        sim_labeling_node,
+    ]
+
+
+def control_and_state_entities() -> list[Node]:
     robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -137,7 +173,7 @@ def generate_launch_description():
         namespace=LaunchConfiguration("ns"),
         parameters=[
             {
-                "robot_name": "marlin_v2",
+                "robot_name": LaunchConfiguration("ns"),
             }
         ],
     )
@@ -147,7 +183,7 @@ def generate_launch_description():
         package="rtabmap_sync",
         executable="rgbd_sync",
         name="rgbd_sync",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         output="screen",
         parameters=[
             {
@@ -159,10 +195,10 @@ def generate_launch_description():
             }
         ],
         remappings=[
-            ("rgb/image", "/marlin_v2/oak/rgb/image_raw"),
-            ("depth/image", "/marlin_v2/oak/stereo/image_raw"),
-            ("rgb/camera_info", "/marlin_v2/oak/rgb/camera_info"),
-            ("rgbd_image", "/marlin_v2/rgbd_image"),
+            ("rgb/image", f"/{ROBOT_NAME}/oak/rgb/image_raw"),
+            ("depth/image", f"/{ROBOT_NAME}/oak/stereo/image_raw"),
+            ("rgb/camera_info", f"/{ROBOT_NAME}/oak/rgb/camera_info"),
+            ("rgbd_image", f"/{ROBOT_NAME}/rgbd_image"),
         ],
     )
 
@@ -171,12 +207,12 @@ def generate_launch_description():
         package="rtabmap_odom",
         executable="rgbd_odometry",
         name="rgbd_odometry",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         output="screen",
         parameters=[
             {
-                "frame_id": "marlin_v2/base_link_ned",
-                "odom_frame_id": "marlin_v2/visual_odom",
+                "frame_id": f"{ROBOT_NAME}/base_link",
+                "odom_frame_id": f"{ROBOT_NAME}/front_camera",
                 "publish_tf": False,  # Let robot_localization handle TF
                 "subscribe_depth": False,
                 "subscribe_rgbd": True,  # Use synchronized RGBD topic
@@ -190,29 +226,8 @@ def generate_launch_description():
             }
         ],
         remappings=[
-            ("rgbd_image", "/marlin_v2/rgbd_image"),
-            ("odom", "/marlin_v2/depth_camera_odom"),
-        ],
-    )
-
-    deepseecolor_node = Node(
-        package="sub_color_correction",
-        executable="deepseecolor_node",
-        name="deepseecolor",
-        namespace="marlin_v2",
-        output="screen",
-        condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
-        parameters=[
-            {
-                "rgb_topic": "/marlin_v2/oak/rgb/image_raw",
-                "depth_topic": "/marlin_v2/oak/stereo/image_raw",
-                "corrected_topic": "/marlin_v2/oak/rgb/image_color_corrected",
-                "device": LaunchConfiguration("deepseecolor_device"),
-                "init_iters": 10,
-                "iters": 2,
-                "max_inference_dimension": 640,
-                "sync_slop": 0.15,
-            }
+            ("rgbd_image", f"/{ROBOT_NAME}/rgbd_image"),
+            ("odom", f"/{ROBOT_NAME}/odom/depth_camera"),
         ],
     )
 
@@ -232,19 +247,6 @@ def generate_launch_description():
         ],
     )
 
-    foxglove_bridge_node = Node(
-        package="foxglove_bridge",
-        executable="foxglove_bridge",
-        name="foxglove_bridge",
-        parameters=[
-            {
-                "port": 8765,
-                "use_compression": True,
-                "use_sim_time": True,
-            }
-        ],
-    )
-
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
@@ -261,72 +263,77 @@ def generate_launch_description():
         ],
     )
 
-    sim_dvl_remapper = Node(
-        package="sub_sim_sensors",
-        executable="sim_dvl_remapper",
-        name="sim_dvl_remapper",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "robot_name": "marlin_v2",
-            }
-        ],
+    return [
+        robot_state_publisher,
+        dvl_odom_remapping,
+        rgbd_sync,
+        depth_camera_visual_odom,
+        robot_localization_node,
+        sub_control_node,
+    ]
+
+
+def generate_launch_description():
+    args = [
+        DeclareLaunchArgument("seed", default_value=""),
+        DeclareLaunchArgument("DX", default_value="0.25"),
+        DeclareLaunchArgument("DY", default_value="0.25"),
+        DeclareLaunchArgument("DZ", default_value="0.10"),
+        DeclareLaunchArgument("DYAW", default_value="0.10"),
+        DeclareLaunchArgument(
+            "enable_deepseecolor",
+            default_value="true",
+            description="Start the DeepSeeColor RGB-D color correction node.",
+        ),
+        DeclareLaunchArgument(
+            "deepseecolor_device",
+            default_value="cuda:0",
+            description="Torch device for DeepSeeColor, e.g. cuda:0 or cpu.",
+        ),
+    ]
+
+    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
+
+    render = OpaqueFunction(function=_render_scn)
+
+    include_transforms = IncludeLaunchDescription(
+        PathJoinSubstitution(
+            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
+        ),
     )
 
-    sim_imu_remapper = Node(
-        package="sub_sim_sensors",
-        executable="sim_imu_remapper",
-        name="sim_imu_remapper",
+    deepseecolor_node = Node(
+        package="sub_color_correction",
+        executable="deepseecolor_node",
+        name="deepseecolor",
         namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "robot_name": "marlin_v2",
-            }
-        ],
-    )
-
-    sim_thruster_republisher = Node(
-        package="sub_sim_sensors",
-        executable="sim_thruster_republisher",
-        name="sim_thruster_republisher",
-        namespace=LaunchConfiguration("ns"),
-    )
-
-    sim_torpedo_launcher = Node(
-        package="sub_sim_sensors",
-        executable="sim_torpedo_launcher",
-        name="sim_torpedo_launcher",
-        output="both",
-        namespace=LaunchConfiguration("ns"),
-    )
-
-    sim_dropper = Node(
-        package="sub_sim_sensors",
-        executable="sim_dropper",
-        name="sim_dropper",
-        output="both",
-        namespace=LaunchConfiguration("ns"),
-    )
-
-    sim_kill_switch = Node(
-        package="sub_sim_sensors",
-        executable="sim_kill_switch",
-        name="sim_kill_switch",
-        output="both",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[
-            {
-                "off_delay": 5.0,
-            }
-        ],
-    )
-
-    sim_oak_camera_remapper = Node(
-        package="sub_sim_sensors",
-        executable="sim_oak_camera_remapper",
-        name="sim_oak_camera_remapper",
         output="screen",
-        namespace=LaunchConfiguration("ns"),
+        condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
+        parameters=[
+            {
+                "rgb_topic": f"/{ROBOT_NAME}/oak/rgb/image_raw",
+                "depth_topic": f"/{ROBOT_NAME}/oak/stereo/image_raw",
+                "corrected_topic": f"/{ROBOT_NAME}/oak/rgb/image_color_corrected",
+                "device": LaunchConfiguration("deepseecolor_device"),
+                "init_iters": 10,
+                "iters": 2,
+                "max_inference_dimension": 640,
+                "sync_slop": 0.15,
+            }
+        ],
+    )
+
+    foxglove_bridge_node = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        name="foxglove_bridge",
+        parameters=[
+            {
+                "port": 8765,
+                "use_compression": True,
+                "use_sim_time": True,
+            }
+        ],
     )
 
     sub_vision_node = Node(
@@ -345,42 +352,16 @@ def generate_launch_description():
         ],
     )
 
-    sim_labeling_node = Node(
-        package="sim_labeling",
-        executable="labeling",
-        name="sim_labeling",
-        namespace="marlin_v2",
-        parameters=[
-            {
-                "scenario_file": LaunchConfiguration("scenario_file"),
-                "output_dir": "train_imgs",
-            }
-        ],
-    )
-
     return LaunchDescription(
         args
         + [
             declare_ns,
             render,
-            include_stonefish,
             include_transforms,
-            robot_state_publisher,
-            dvl_odom_remapping,
-            rgbd_sync,
-            depth_camera_visual_odom,
             deepseecolor_node,
-            robot_localization_node,
             foxglove_bridge_node,
-            sub_control_node,
-            sim_labeling_node,
-            sim_dvl_remapper,
-            sim_thruster_republisher,
-            sim_imu_remapper,
-            sim_torpedo_launcher,
-            sim_dropper,
-            sim_kill_switch,
-            sim_oak_camera_remapper,
             sub_vision_node,
+            *sim_entities(),
+            *control_and_state_entities(),
         ]
     )

@@ -492,18 +492,18 @@
       <ros_publisher topic="/marlin_v2/imu"/>
     </sensor>
 
-    <sensor name="front_camera" rate="60.0" type="camera">
+    <sensor name="front_camera" rate="30.0" type="camera">
       <link name="base_link_ned" />
 
-      <specs resolution_x="4056" resolution_y="3040" horizontal_fov="69.0" />
+      <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" />
       <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
       <ros_publisher topic="/marlin_v2/sim/front_camera" />
     </sensor>
 
-    <sensor name="depth_camera" rate="60.0" type="depthcamera">
+    <sensor name="depth_camera" rate="30.0" type="depthcamera">
       <link name="base_link_ned" />
 
-      <specs resolution_x="4056" resolution_y="3040" horizontal_fov="69.0" depth_min="0.2" depth_max="20.0" />
+      <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" depth_min="0.2" depth_max="20.0" />
       <noise depth="0.0" />
       <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
 
@@ -513,7 +513,7 @@
     <sensor name="seg_cam" rate="10.0" type="segmentation">
       <link name="base_link_ned" />
 
-      <specs resolution_x="4056" resolution_y="3040" horizontal_fov="69.0" />
+      <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" />
       <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
 
       <ros_publisher topic="/marlin_v2/sim/segment" />

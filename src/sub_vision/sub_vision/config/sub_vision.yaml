@@ -3,14 +3,16 @@
 # the OAK-D Pro contract that the Stonefish bridge reproduces in sim.
 /**:
   ros__parameters:
-    # Where <task>.pt source models (and optional <task>.names) live.
+    # Where <task>.onnx / <task>.engine models (and optional <task>.names) live.
     model_dir: "/home/avbotz/sub_vision/models"
 
     # Pre-load this task on startup ("" = wait for a load_model service call).
     default_task: ""
 
-    # Inference runs through the Ultralytics API. device: auto picks cuda when
-    # available (GPU torch build) else cpu.
+    # backend: auto prefers a serialized <task>.engine (TensorRT, Jetson) and
+    # falls back to <task>.onnx (ONNX Runtime). device only applies to
+    # onnxruntime: auto picks cuda when the CUDA provider is available, else cpu.
+    backend: "auto"
     device: "auto"
     input_size: 640
     conf_threshold: 0.25

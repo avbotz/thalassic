@@ -1,3 +1,6 @@
+#ifndef SIM_THRUSTER_REPUBLISHER_HPP_
+#define SIM_THRUSTER_REPUBLISHER_HPP_
+
 #include <array>
 #include <string>
 #include "rclcpp/rclcpp.hpp"
@@ -6,7 +9,7 @@
 
 class SimThrusterRepublisher : public rclcpp::Node {
    public:
-    SimThrusterRepublisher();
+    explicit SimThrusterRepublisher(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
     std::array<double, 8> thruster_values_;
@@ -16,4 +19,4 @@ class SimThrusterRepublisher : public rclcpp::Node {
     double thrust_to_pwm(double thrust);
 };
 
-int main(int argc, char* argv[]);
+#endif  // SIM_THRUSTER_REPUBLISHER_HPP_

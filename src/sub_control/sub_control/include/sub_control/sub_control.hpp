@@ -7,6 +7,10 @@
 #include <mutex>
 #include <string>
 
+#include "geometry_msgs/msg/point_stamped.hpp"
+#include "geometry_msgs/msg/quaternion_stamped.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -15,15 +19,21 @@
 #include "sub_control/controller.hpp"
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
-#include "sub_control_interfaces/msg/setpoint.hpp"
 
+// Command and feedback topics follow REP-103: body frame is FLU (x forward,
+// y left, z up), positions are relative to the control origin captured at
+// kill-switch release, with x along the initial heading. All NED/FRD math is
+// internal; conversions happen at the subscription/publication boundary.
 class ThrusterControl : public rclcpp::Node {
    public:
     ThrusterControl();
 
    private:
-    rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr pos_sub_;
-    rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr att_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr position_cmd_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::QuaternionStamped>::SharedPtr attitude_cmd_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr linear_vel_cmd_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr angular_vel_cmd_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr altitude_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub_;
@@ -37,6 +47,9 @@ class ThrusterControl : public rclcpp::Node {
     double max_force_{35.0};
     double power_level_{0.6};
     static constexpr double MAX_POWER_LEVEL = 1.0;
+    // cmd_position messages with this frame_id command altitude above the
+    // bottom (DVL) instead of depth relative to the control origin.
+    static constexpr const char* ALTITUDE_FRAME = "altitude";
 
     std::mutex state_mutex_;
     std::mutex controller_mutex_;
@@ -71,8 +84,13 @@ class ThrusterControl : public rclcpp::Node {
     std::array<double, NUM_DOF> allocation_weights_{1.0, 1.0, 2.0, 2.0, 2.0, 1.5};
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_;
 
-    void update_pos_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint);
-    void update_att_setpoint(const sub_control_interfaces::msg::Setpoint& setpoint);
+    void position_cmd_callback(const geometry_msgs::msg::PointStamped& msg);
+    void attitude_cmd_callback(const geometry_msgs::msg::QuaternionStamped& msg);
+    void linear_vel_cmd_callback(const geometry_msgs::msg::Vector3Stamped& msg);
+    void angular_vel_cmd_callback(const geometry_msgs::msg::Vector3Stamped& msg);
+    void cmd_vel_callback(const geometry_msgs::msg::Twist& msg);
+    void set_linear_velocity_command(double x_flu, double y_flu, double z_flu);
+    void set_angular_velocity_command(double x_flu, double y_flu, double z_flu);
     void odom_callback(const nav_msgs::msg::Odometry& odom);
     void altitude_callback(const std_msgs::msg::Float64& msg);
     void kill_callback(const std_msgs::msg::Bool& msg);
@@ -80,6 +98,8 @@ class ThrusterControl : public rclcpp::Node {
     bool feedback_is_fresh(bool require_altitude) const;
     void publish_thrusters(const std::array<double, NUM_THRUSTERS>& forces, double power);
     void publish_zero_thrusters();
+    void publish_errors(const std::array<double, CONTROL_AXES>& position_error,
+                        const std::array<double, CONTROL_AXES>& attitude_error, const ControlOutput& output);
     void reset_control_state();
     void load_controller_config();
     rcl_interfaces::msg::SetParametersResult update_parameters(const std::vector<rclcpp::Parameter>& parameters);

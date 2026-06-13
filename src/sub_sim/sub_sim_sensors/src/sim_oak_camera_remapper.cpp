@@ -4,11 +4,13 @@
 #include <cstdint>
 
 #include "cv_bridge/cv_bridge.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "sensor_msgs/image_encodings.hpp"
 
 using std::placeholders::_1;
 
-SimOakCameraRemapper::SimOakCameraRemapper() : Node("sim_oak_camera_remapper") {
+SimOakCameraRemapper::SimOakCameraRemapper(const rclcpp::NodeOptions& options)
+    : Node("sim_oak_camera_remapper", options) {
     // Stonefish-side inputs (relative to this node's namespace).
     const std::string color_in = this->declare_parameter("color_in_topic", "sim/front_camera/image_color");
     const std::string color_info_in = this->declare_parameter("color_info_in_topic", "sim/front_camera/camera_info");
@@ -70,9 +72,4 @@ void SimOakCameraRemapper::depth_info_callback(const sensor_msgs::msg::CameraInf
     depth_info_pub_->publish(*msg);
 }
 
-int main(int argc, char* argv[]) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<SimOakCameraRemapper>());
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(SimOakCameraRemapper)

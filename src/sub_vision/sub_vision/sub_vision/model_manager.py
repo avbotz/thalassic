@@ -41,6 +41,7 @@ class ModelManager:
     def __init__(
         self,
         model_dir: str,
+        backend_pref: str,
         device_pref: str,
         input_size: int,
         conf_threshold: float,
@@ -48,6 +49,7 @@ class ModelManager:
         log: Callable[[str], None],
     ):
         self._model_dir = model_dir
+        self._backend_pref = backend_pref
         self._device_pref = device_pref
         self._input_size = input_size
         self._conf_threshold = conf_threshold
@@ -56,7 +58,7 @@ class ModelManager:
 
         # Guards the active backend reference and serializes inference vs. swap.
         self._lock = threading.Lock()
-        self._backend: backends.UltralyticsBackend | None = None
+        self._backend: backends.DetectionBackend | None = None
         self._active_task: str | None = None
         self._last_warmup: WarmupStats | None = None
 
@@ -91,6 +93,7 @@ class ModelManager:
             backend = backends.build_backend(
                 task=task,
                 model_dir=self._model_dir,
+                backend_pref=self._backend_pref,
                 device_pref=self._device_pref,
                 input_size=self._input_size,
                 conf_threshold=self._conf_threshold,
@@ -124,7 +127,7 @@ class ModelManager:
                 return None
             return self._backend.infer(image_bgr)
 
-    def _warmup(self, backend: backends.UltralyticsBackend) -> WarmupStats | None:
+    def _warmup(self, backend: backends.DetectionBackend) -> WarmupStats | None:
         """Run a few inferences so the first real frame isn't penalized."""
         if self._warmup_iterations <= 0:
             return None

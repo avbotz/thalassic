@@ -38,5 +38,5 @@
     "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
     "source=/dev/dri,target=/dev/dri,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "sudo apt update && rosdep update --rosdistro=jazzy && rosdep -i install --from-paths src --rosdistro jazzy -y --skip-keys=\"pcl nlohmann_json\""
+  "postCreateCommand": "sudo apt update && rosdep update --rosdistro=jazzy && rosdep -i install --from-paths src --rosdistro jazzy -y --skip-keys=\"pcl\""
 }

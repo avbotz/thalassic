@@ -1,3 +1,6 @@
+#ifndef SIM_OAK_CAMERA_REMAPPER_HPP_
+#define SIM_OAK_CAMERA_REMAPPER_HPP_
+
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
@@ -12,7 +15,7 @@
 //   * depth : Stonefish 32FC1 meters -> oak/stereo/image_raw (16UC1 millimeters)
 class SimOakCameraRemapper : public rclcpp::Node {
    public:
-    SimOakCameraRemapper();
+    explicit SimOakCameraRemapper(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
     void color_callback(const sensor_msgs::msg::Image::SharedPtr msg);
@@ -31,4 +34,4 @@ class SimOakCameraRemapper : public rclcpp::Node {
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr depth_info_pub_;
 };
 
-int main(int argc, char* argv[]);
+#endif  // SIM_OAK_CAMERA_REMAPPER_HPP_

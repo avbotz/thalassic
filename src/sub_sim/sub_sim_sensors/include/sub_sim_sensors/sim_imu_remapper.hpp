@@ -1,3 +1,6 @@
+#ifndef SIM_IMU_REMAPPER_HPP_
+#define SIM_IMU_REMAPPER_HPP_
+
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
@@ -5,7 +8,7 @@ using namespace std::chrono_literals;
 
 class SimIMURemapper : public rclcpp::Node {
    public:
-    SimIMURemapper();
+    explicit SimIMURemapper(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
 
    private:
@@ -14,4 +17,4 @@ class SimIMURemapper : public rclcpp::Node {
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr publisher_;
 };
 
-int main(int argc, char* argv[]);
+#endif  // SIM_IMU_REMAPPER_HPP_
