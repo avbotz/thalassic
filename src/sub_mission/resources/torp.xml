@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="TorpMission">
+  <BehaviorTree ID="TorpMission">
+    <Sequence name="torp_mission">
+      <PosSetpoint z="1.0" use_altitude="true"/>
+      <Fallback name="torp_search_heading">
+        <Sequence name="pool_a_or_d_torp_search">
+          <PoolAOrD/>
+          <AttSetpoint yaw="2.35619449"/>
+        </Sequence>
+        <AttSetpoint yaw="-2.35619449"/>
+      </Fallback>
+      <Fallback name="find_torp_board">
+        <SearchTorpBoard/>
+        <RecoverTorpBoardSearch/>
+      </Fallback>
+      <VerifyTorpBoard/>
+      <ApproachTorpBoard/>
+      <OrientToTorpBoard/>
+      <ShootOpenTorpHole/>
+      <PosSetpoint x="-1.5" velocity="true"/>
+      <ShootClosedTorpHole/>
+      <PosSetpoint x="-1.5" velocity="true"/>
+      <PosSetpoint z="1.0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

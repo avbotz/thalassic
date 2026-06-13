@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="PoolTestMission">
+  <BehaviorTree ID="PoolTestMission">
+    <Sequence name="pool_test_mission">
+      <PosSetpoint z="1.0"/>
+      <AlignWithGate/>
+      <PosSetpoint x="0.25" velocity="true"/>
+      <Sleep msec="10000"/>
+      <Spin yaw="12.56637061"/>
+      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

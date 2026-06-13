@@ -352,6 +352,15 @@ def generate_launch_description():
         ],
     )
 
+    sub_mission_node = Node(
+        package="sub_mission",
+        executable="sub_mission",
+        name="sub_mission",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[{"PID_TUNING_SEQUENCE": True}],
+    )
+
     return LaunchDescription(
         args
         + [
@@ -363,5 +372,6 @@ def generate_launch_description():
             sub_vision_node,
             *sim_entities(),
             *control_and_state_entities(),
+            sub_mission_node,
         ]
     )
