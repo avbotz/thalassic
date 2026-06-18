@@ -266,52 +266,52 @@
 
 
       <!-- Thrusters, excluding propeller which is added below -->
+       {{ thruster_visual(
+         name="thruster_0",
+         xyz="-0.23 -0.22 0.000",
+         rpy="0 " ~ PI / 2 ~ " 0"
+       ) }}
+
       {{ thruster_visual(
-        name="thruster_0",
+        name="thruster_1",
         xyz="0.23 -0.22 0.000",
         rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
-        name="thruster_1",
-        xyz="-0.23 -0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
-      ) }}
-
-      {{ thruster_visual(
         name="thruster_2",
-        xyz="0.23 0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
-      ) }}
-
-      {{ thruster_visual(
-        name="thruster_3",
         xyz="-0.23 0.22 0.000",
         rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
-        name="thruster_4",
-        xyz="-0.29 0.34 -0.08",
-        rpy="0 0 " ~ -3 * PI / 4
+        name="thruster_3",
+        xyz="0.23 0.22 0.000",
+        rpy="0 " ~ PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
-        name="thruster_5",
+        name="thruster_4",
         xyz="-0.29 -0.34 -0.08",
         rpy="0 0 " ~ -PI / 4
       ) }}
 
       {{ thruster_visual(
+        name="thruster_5",
+        xyz="0.29 -0.34 -0.08",
+        rpy="0 0 " ~ -3 * PI / 4
+      ) }}
+
+      {{ thruster_visual(
         name="thruster_6",
-        xyz="0.29 0.34 -0.08",
-        rpy="0 0 " ~ -PI / 4
+        xyz="-0.29 0.34 -0.08",
+        rpy="0 0 " ~ -3 * PI / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_7",
-        xyz="0.29 -0.34 -0.08",
-        rpy="0 0 " ~ -3 * PI / 4
+        xyz="0.29 0.34 -0.08",
+        rpy="0 0 " ~ -PI / 4
       ) }}
 
 
@@ -561,7 +561,7 @@
     {{ thruster_actuator(
       name="thruster_0",
       link_name="base_link_ned",
-      xyz="0.23 -0.22 0.000",
+      xyz="-0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
     ) }}
@@ -569,7 +569,7 @@
     {{ thruster_actuator(
       name="thruster_1",
       link_name="base_link_ned",
-      xyz="-0.23 -0.22 0.000",
+      xyz="0.23 -0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
     ) }}
@@ -577,7 +577,7 @@
     {{ thruster_actuator(
       name="thruster_2",
       link_name="base_link_ned",
-      xyz="0.23 0.22 0.000",
+      xyz="-0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
     ) }}
@@ -585,21 +585,13 @@
     {{ thruster_actuator(
       name="thruster_3",
       link_name="base_link_ned",
-      xyz="-0.23 0.22 0.000",
+      xyz="0.23 0.22 0.000",
       rpy="0 " ~ PI / 2 ~ " 0",
       right="true"
     ) }}
 
     {{ thruster_actuator(
-      name="thuster_4",
-      link_name="base_link_ned",
-      xyz="-0.29 0.34 -0.08",
-      rpy="0 0 " ~ -3 * PI / 4,
-      right="true"
-    ) }}
-
-    {{ thruster_actuator(
-      name="thruster_5",
+      name="thruster_4",
       link_name="base_link_ned",
       xyz="-0.29 -0.34 -0.08",
       rpy="0 0 " ~ -PI / 4,
@@ -607,18 +599,26 @@
     ) }}
 
     {{ thruster_actuator(
-      name="thruster_6",
+      name="thruster_5",
       link_name="base_link_ned",
-      xyz="0.29 0.34 -0.08",
-      rpy="0 0 " ~ -PI / 4,
+      xyz="0.29 -0.34 -0.08",
+      rpy="0 0 " ~ -3 * PI / 4,
+      right="true"
+    ) }}
+
+    {{ thruster_actuator(
+      name="thuster_6",
+      link_name="base_link_ned",
+      xyz="-0.29 0.34 -0.08",
+      rpy="0 0 " ~ -3 * PI / 4,
       right="true"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_7",
       link_name="base_link_ned",
-      xyz="0.29 -0.34 -0.08",
-      rpy="0 0 " ~ -3 * PI / 4,
+      xyz="0.29 0.34 -0.08",
+      rpy="0 0 " ~ -PI / 4,
       right="true"
     ) }}
 
