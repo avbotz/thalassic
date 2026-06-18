@@ -1,6 +1,3 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -17,133 +14,36 @@ from launch_ros.substitutions import FindPackageShare
 from lifecycle_msgs.msg import Transition
 
 
-def dvl_driver_entities():
-    dvl_driver_node = LifecycleNode(
-        package="waterlinked_dvl_driver",
-        executable="waterlinked_dvl_driver",
-        name="waterlinked_dvl_driver",
-        namespace=LaunchConfiguration("ns"),
-        output="both",
-        parameters=[
-            os.path.join(get_package_share_directory("sub_bringup"), "config/dvl.yaml"),
-        ],
-    )
+ROBOT_NAME = "marlin_v2"
 
-    dvl_driver_configure_event = EmitEvent(
+
+def lifecycle_startup(node):
+    """Configures and activates a lifecycle node."""
+    configure = EmitEvent(
         event=ChangeState(
-            lifecycle_node_matcher=matches_action(dvl_driver_node),
+            lifecycle_node_matcher=matches_action(node),
             transition_id=Transition.TRANSITION_CONFIGURE,
         )
     )
-
-    dvl_driver_activate_event = RegisterEventHandler(
+    activate = RegisterEventHandler(
         OnStateTransition(
-            target_lifecycle_node=dvl_driver_node,
+            target_lifecycle_node=node,
             start_state="configuring",
             goal_state="inactive",
             entities=[
                 EmitEvent(
                     event=ChangeState(
-                        lifecycle_node_matcher=matches_action(dvl_driver_node),
+                        lifecycle_node_matcher=matches_action(node),
                         transition_id=Transition.TRANSITION_ACTIVATE,
                     )
                 )
             ],
         )
     )
-
-    return [
-        dvl_driver_node,
-        dvl_driver_configure_event,
-        dvl_driver_activate_event,
-    ]
-
-
-def imu_driver_entities():
-    naviguider_imu_driver_node = Node(
-        package="sub_serial_drivers",
-        executable="naviguider_imu_driver",
-        name="naviguider_imu_driver",
-        namespace=LaunchConfiguration("ns"),
-        output="both",
-        parameters=[{"device": "/dev/naviguider_imu"}],
-    )
-
-    naviguider_imu_driver_configure_event = EmitEvent(
-        event=ChangeState(
-            lifecycle_node_matcher=matches_action(naviguider_imu_driver_node),
-            transition_id=Transition.TRANSITION_CONFIGURE,
-        )
-    )
-
-    naviguider_imu_driver_activate_event = EmitEvent(
-        event=ChangeState(
-            lifecycle_node_matcher=matches_action(naviguider_imu_driver_node),
-            transition_id=Transition.TRANSITION_ACTIVATE,
-        )
-    )
-
-    return [
-        naviguider_imu_driver_node,
-        naviguider_imu_driver_configure_event,
-        naviguider_imu_driver_activate_event,
-    ]
-
-
-def sub_low_entities():
-    sub_low_node = Node(
-        package="sub_serial_drivers",
-        executable="sub_low",
-        name="sub_low",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[{"device": "/dev/arduino_mega"}],
-    )
-
-    sub_low_node_configure_event = EmitEvent(
-        event=ChangeState(
-            lifecycle_node_matcher=matches_action(sub_low_node),
-            transition_id=Transition.TRANSITION_CONFIGURE,
-        )
-    )
-
-    sub_low_node_activate_event = EmitEvent(
-        event=ChangeState(
-            lifecycle_node_matcher=matches_action(sub_low_node),
-            transition_id=Transition.TRANSITION_ACTIVATE,
-        )
-    )
-
-    return [
-        sub_low_node,
-        sub_low_node_configure_event,
-        sub_low_node_activate_event,
-    ]
+    return [node, configure, activate]
 
 
 def camera_entities():
-    # Parameters from gige_node.launch.py sample file
-    blackfly_parameters = {
-        "debug": False,
-        "dump_node_map": False,
-        "gain_auto": "Continuous",
-        "pixel_format": "BayerRG8",
-        "exposure_auto": "Continuous",
-        "frame_rate_auto": "Off",
-        "frame_rate": 40.0,
-        "frame_rate_enable": True,
-        "buffer_queue_size": 10,
-        "trigger_mode": "Off",
-        # 'stream_buffer_handling_mode': 'NewestFirst',
-        # 'multicast_monitor_mode': False
-    }
-    blackfly_parameter_file = PathJoinSubstitution(
-        [
-            FindPackageShare("spinnaker_camera_driver"),
-            "config",
-            "blackfly.yaml",
-        ]
-    )
-
     blackfly_camera_driver = Node(
         package="spinnaker_camera_driver",
         executable="camera_driver_node",
@@ -151,33 +51,41 @@ def camera_entities():
         output="both",
         name=["blackfly"],
         parameters=[
-            blackfly_parameters,
-            {
-                "ffmpeg_image_transport.encoding": "hevc_nvenc",
-                "parameter_file": blackfly_parameter_file,
-                "serial_number": ["'16359776'"],
-            },
-        ],
-        remappings=[
-            ("~/control", "exposure_control/control"),
-        ],
-    )
-
-    oak_driver_node = Node(
-        package="depthai_ros_driver_v3",
-        executable="driver_node",
-        name="oak",
-        namespace=LaunchConfiguration("ns"),
-        output="screen",
-        parameters=[
             PathJoinSubstitution(
                 [
                     FindPackageShare("sub_bringup"),
-                    "config/oak_d_pro.yaml",
+                    "config",
+                    "spinnaker_blackfly.yaml",
                 ]
             ),
+            {
+                "frame_id": f"{ROBOT_NAME}/front_camera",
+                "parameter_file": PathJoinSubstitution(
+                    [
+                        FindPackageShare("spinnaker_camera_driver"),
+                        "config",
+                        "blackfly.yaml",
+                    ]
+                ),
+            },
         ],
     )
+
+    # oak_driver_node = Node(
+    #     package="depthai_ros_driver_v3",
+    #     executable="driver_node",
+    #     name="oak",
+    #     namespace=LaunchConfiguration("ns"),
+    #     output="screen",
+    #     parameters=[
+    #         PathJoinSubstitution(
+    #             [
+    #                 FindPackageShare("sub_bringup"),
+    #                 "config/oak_d_pro.yaml",
+    #             ]
+    #         ),
+    #     ],
+    # )
 
     logitech_c922_driver = Node(
         package="usb_cam",
@@ -193,7 +101,6 @@ def camera_entities():
                 ]
             ),
         ],
-        remappings=camera.remappings,
     )
 
     return [
@@ -225,11 +132,40 @@ def vision_entities():
 
 
 def control_and_state_entities():
-    dvl_odom_remapping = Node(
-        package="sub_drivers_mappings",
-        executable="dvl_odom_remapper",
-        name="dvl_odom_remapper",
-        namespace="marlin_v2",
+    waterlinked_dvl_driver_node = LifecycleNode(
+        package="waterlinked_dvl_driver",
+        executable="waterlinked_dvl_driver",
+        name="waterlinked_dvl_driver",
+        namespace=LaunchConfiguration("ns"),
+        output="both",
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/dvl.yaml",
+                ]
+            ),
+        ],
+        remappings=[
+            ("~/odom/dvl", "odometry/dvl"),
+        ],
+    )
+
+    sub_low_node = LifecycleNode(
+        package="sub_serial_drivers",
+        executable="sub_low",
+        name="sub_low",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[{"device": "/dev/arduino_mega"}],
+    )
+
+    naviguider_imu_driver_node = LifecycleNode(
+        package="sub_serial_drivers",
+        executable="naviguider_imu_driver",
+        name="naviguider_imu_driver",
+        namespace=LaunchConfiguration("ns"),
+        output="both",
+        parameters=[{"device": "/dev/naviguider_imu"}],
     )
 
     robot_localization_node = Node(
@@ -237,7 +173,7 @@ def control_and_state_entities():
         executable="ekf_node",
         name="ekf_filter_node",
         output="both",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -253,7 +189,7 @@ def control_and_state_entities():
         executable="sub_control",
         name="sub_control",
         output="both",
-        namespace="marlin_v2",
+        namespace=LaunchConfiguration("ns"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -264,15 +200,21 @@ def control_and_state_entities():
         ],
     )
 
-    return [dvl_odom_remapping, robot_localization_node, sub_control_node]
+    return [
+        robot_localization_node,
+        sub_control_node,
+        lifecycle_startup(waterlinked_dvl_driver_node),
+        lifecycle_startup(naviguider_imu_driver_node),
+        lifecycle_startup(sub_low_node),
+    ]
 
 
 def generate_launch_description():
-    declare_ns = DeclareLaunchArgument("ns", default_value="marlin_v2")
+    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", "marlin_v2_launch.py"]
+            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
         ),
     )
 
@@ -284,7 +226,6 @@ def generate_launch_description():
             {
                 "port": 8765,
                 "use_compression": True,
-                # Real hardware: no /clock publisher, so wall clock (unlike sim).
                 "use_sim_time": False,
             }
         ],
@@ -294,9 +235,6 @@ def generate_launch_description():
         [
             declare_ns,
             include_transforms,
-            *dvl_driver_entities(),
-            *imu_driver_entities(),
-            *sub_low_entities(),
             *control_and_state_entities(),
             *camera_entities(),
             *vision_entities(),

@@ -1,15 +1,6 @@
-"""Thin wrapper around a pyserial port in raw, non-blocking mode.
-
-Reads never block (they return whatever is currently buffered); writes are
-best-effort. Mirrors the old C++ SerialPort RAII wrapper.
-"""
-
 import serial
 
-
 class SerialPort:
-    """Non-blocking serial (tty) device wrapper backed by pyserial."""
-
     def __init__(self, device: str, baud: int):
         """Open ``device`` at ``baud``. Raises serial.SerialException on failure."""
         # timeout=0 makes read() return immediately with whatever is buffered;

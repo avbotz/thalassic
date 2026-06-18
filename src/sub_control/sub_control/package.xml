@@ -3,26 +3,22 @@
 <package format="3">
   <name>sub_control</name>
   <version>0.0.0</version>
-  <description>Fault-aware state-feedback control and constrained thruster allocation for Marlin.</description>
+  <description>Publishes thruster commands (-1 to 1) in response to current state and desired state.</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <depend>rclcpp</depend>
-  <depend>rcl_interfaces</depend>
-  <exec_depend>rclpy</exec_depend>
-  <depend>nav_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>geometry_msgs</depend>
+  <depend>sub_control_interfaces</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
-  <depend>sub_control_interfaces</depend>
-  <depend>eigen</depend>
+  <depend>nav_msgs</depend>
+  <depend>robot_localization</depend>
+  <depend>angles</depend>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
