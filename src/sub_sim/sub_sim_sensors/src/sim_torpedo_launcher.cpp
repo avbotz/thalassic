@@ -90,7 +90,7 @@ void SimTorpedoLauncher::launch_callback(
 
     const auto period = std::chrono::duration<double>(burst);
 
-    torpedo.burst_timer = this->create_wall_timer(
+    torpedo.burst_timer = this->create_timer(
         period,
         [this, &torpedo, torpedo_id = request->torpedo_id]() {
             torpedo.burst_timer->cancel();

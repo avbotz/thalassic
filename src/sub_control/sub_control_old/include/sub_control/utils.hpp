@@ -6,14 +6,32 @@
 static const int NUM_THRUSTERS = 8;
 static const int NUM_DOF = 6;
 
-// Channel order matches the sim scene (layout.scn.j2) and the ESC wiring. A
-// positive command drives thrust along the thruster's mounted +X; the allocator
-// derives each thruster's body-frame (FLU) push direction from its rpy in
-// THRUSTER_GEOMETRY (axis = R(rpy) * X, then NED->FLU), so a positive wrench is
-// realized with the correct sign on every axis -- verified by round-tripping a
-// unit wrench through allocate() -> wrench_from_forces() with no cross-axis leak:
-//   thrusters 0-3 : vertical units       (+cmd -> +Z up)  -> heave / roll / pitch
-//   thrusters 4-7 : horizontal vectored  (+cmd -> +X fwd) -> surge / sway / yaw
+// Wrap an angle to [-pi, pi].
+double normalize_angle(double angle);
+
+// Smallest signed rotation from `current` to `target`, wrapped to [-pi, pi].
+double angle_difference(double target, double current);
+
+// Body-frame rotation vector from current RPY to target RPY. Unlike independent
+// Euler subtraction, this remains coupled and well behaved through large turns.
+std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
+                                     const std::array<double, 3>& current_rpy);
+
+//   World position: north = enu.y, east = enu.x, down = -enu.z
+void enu_to_ned_position(double ex, double ey, double ez, double& n, double& e, double& d);
+
+//   roll_ned  =  roll_enu
+//   pitch_ned = -pitch_enu
+//   yaw_ned   =  pi/2 - yaw_enu   (ENU yaw=0 -> east; NED yaw=0 -> north)
+void enu_to_ned_rpy(double roll_e, double pitch_e, double yaw_e, double& roll_n, double& pitch_n, double& yaw_n);
+
+// Express a planar vector (vx, vy) in a frame rotated by +yaw about its z axis,
+// i.e. multiply by R(-yaw). Used to rotate world-NED position/error into the
+// body (or initial-body) frame. Returns {x_in_frame, y_in_frame}.
+std::array<double, 2> to_rotated_frame(double vx, double vy, double yaw);
+
+//   thrusters 0-3 : horizontal vectored units (45-deg) -> surge / sway / yaw
+//   thrusters 4-7 : vertical units                     -> heave / roll / pitch
 class ThrusterAllocator {
    public:
     ThrusterAllocator();
@@ -52,13 +70,5 @@ double force_to_norm(double force_n);
 
 // Forward BlueRobotics T200 curve: normalized command to force [N].
 double norm_to_force(double normalized);
-
-// Geodesic attitude error: the body-frame rotation vector (axis * angle) that
-// carries the current orientation to the target. Both inputs are [roll, pitch,
-// yaw] for R = Rz(yaw) * Ry(pitch) * Rx(roll). Unlike per-axis Euler differences
-// this stays in the same frame as the body angular-rate loop and has no gimbal
-// singularity, so it does not leak roll/pitch torque during large yaw moves.
-std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
-                                     const std::array<double, 3>& current_rpy);
 
 #endif  // SUB_CONTROL_UTILS_HPP_

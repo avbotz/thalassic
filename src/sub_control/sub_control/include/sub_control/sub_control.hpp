@@ -1,102 +1,81 @@
-#ifndef SUB_CONTROL_SUB_CONTROL_HPP_
-#define SUB_CONTROL_SUB_CONTROL_HPP_
-
-#include <array>
-#include <chrono>
-#include <memory>
-#include <mutex>
-#include <string>
-
-#include "geometry_msgs/msg/twist.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "rcl_interfaces/msg/set_parameters_result.hpp"
-#include "std_msgs/msg/bool.hpp"
-#include "std_msgs/msg/float64.hpp"
-#include "sub_control/controller.hpp"
+#include "sub_control/pid_controller.hpp"
+#include "sub_control_interfaces/msg/setpoint.hpp"
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
-#include "sub_control_interfaces/msg/setpoint.hpp"
 
-// Command and feedback topics follow REP-103: body frame is FLU (x forward,
-// y left, z up), positions are relative to the control origin captured at
-// kill-switch release, with x along the initial heading. Commands arrive as
-// sub_control_interfaces/Setpoint on pos_setpoint (x/y/z) and att_setpoint
-// (yaw/pitch/roll); the velocity flag selects rate control instead of
-// absolute targets. All NED/FRD math is internal; conversions happen at the
-// subscription/publication boundary.
-class ThrusterControl : public rclcpp::Node {
+#include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/twist.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <robot_localization/srv/set_pose.hpp>
+
+#include <array>
+#include <string>
+
+class SubControl : public rclcpp::Node {
    public:
-    ThrusterControl();
+    SubControl();
+    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
+    void altitude_callback(const std_msgs::msg::Float64::SharedPtr msg);
+    void kill_callback(const std_msgs::msg::Bool::SharedPtr msg);
+
+    void pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg);
+    void att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg);
+    void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+
+    void run();
 
    private:
+    static constexpr size_t NUM_THRUSTERS = 8;
+
+    void publish_zero_thrusters();
+
+    double control_rate_hz_{100.0};
+    double power_limit_{0.6};
+    std::string robot_name_{""};
+
+    std::array<PID_Controller, 3> position_pid_controllers_;
+    std::array<PID_Controller, 3> velocity_pid_controllers_;
+
+    std::array<PID_Controller, 3> attitude_pid_controllers_;
+    std::array<PID_Controller, 3> angvel_pid_controllers_;
+
+    std::array<double, 3> position_{0.0, 0.0, 0.0};
+    std::array<double, 3> velocity_{0.0, 0.0, 0.0};
+    std::array<double, 3> attitude_{0.0, 0.0, 0.0};
+    std::array<double, 3> angvel_{0.0, 0.0, 0.0};
+    double altitude_{0.0};
+
+    std::array<double, 3> position_setpoint_{0.0, 0.0, 0.0};
+    std::array<double, 3> velocity_setpoint_{0.0, 0.0, 0.0};
+    bool velocity_control_enabled_{false};
+    bool altitude_control_enabled_{false};
+
+    std::array<double, 3> attitude_setpoint_{0.0, 0.0, 0.0};
+    std::array<double, 3> angvel_setpoint_{0.0, 0.0, 0.0};
+    bool angvel_control_enabled_{false};
+
+    bool killed_{true};
+
+    // State subscribers
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr pos_setpoint_sub_;
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr att_setpoint_sub_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+
+    // Setpoint subscribers
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr altitude_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub_;
+
+    // Publishers
     std::array<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr, NUM_THRUSTERS> thruster_pubs_;
     rclcpp::Publisher<sub_control_interfaces::msg::Error>::SharedPtr error_pub_;
 
+    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr set_pose_client_;
+
     rclcpp::TimerBase::SharedPtr control_timer_;
+    rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};
 
-    double control_rate_hz_{50.0};
-    double feedback_timeout_s_{0.5};
-    double max_force_{35.0};
-    double power_level_{0.6};
-    static constexpr double MAX_POWER_LEVEL = 1.0;
-
-    std::mutex state_mutex_;
-    std::mutex controller_mutex_;
-    bool killed_{true};
-    bool state_initialized_{false};
-    bool have_odom_{false};
-    bool have_altitude_{false};
-    std::chrono::steady_clock::time_point last_odom_time_{};
-    std::chrono::steady_clock::time_point last_altitude_time_{};
-    std::chrono::steady_clock::time_point last_control_time_{};
-    bool have_control_time_{false};
-
-    std::array<double, CONTROL_AXES> position_ned_{};
-    std::array<double, CONTROL_AXES> velocity_frd_{};
-    std::array<double, CONTROL_AXES> attitude_ned_{};
-    std::array<double, CONTROL_AXES> angular_rate_frd_{};
-    std::array<double, CONTROL_AXES> initial_position_ned_{};
-    double initial_yaw_{0.0};
-    double altitude_{0.0};
-
-    std::array<double, CONTROL_AXES> position_setpoint_{};
-    std::array<double, CONTROL_AXES> velocity_setpoint_{};
-    std::array<double, CONTROL_AXES> attitude_setpoint_{};
-    std::array<double, CONTROL_AXES> angular_rate_setpoint_{};
-    bool position_control_{false};
-    bool attitude_control_{true};
-    bool use_altitude_{false};
-
-    ControllerConfig controller_config_;
-    StateFeedbackController controller_;
-    ThrusterAllocator allocator_;
-    std::array<double, NUM_DOF> allocation_weights_{1.0, 1.0, 2.0, 2.0, 2.0, 1.5};
-    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_;
-
-    void pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint& msg);
-    void att_setpoint_callback(const sub_control_interfaces::msg::Setpoint& msg);
-    void cmd_vel_callback(const geometry_msgs::msg::Twist& msg);
-    void set_linear_velocity_command(double x_flu, double y_flu, double z_flu);
-    void set_angular_velocity_command(double x_flu, double y_flu, double z_flu);
-    void odom_callback(const nav_msgs::msg::Odometry& odom);
-    void altitude_callback(const std_msgs::msg::Float64& msg);
-    void kill_callback(const std_msgs::msg::Bool& msg);
-    void control_loop();
-    bool feedback_is_fresh(bool require_altitude) const;
-    void publish_thrusters(const std::array<double, NUM_THRUSTERS>& forces, double power);
-    void publish_zero_thrusters();
-    void publish_errors(const std::array<double, CONTROL_AXES>& position_error,
-                        const std::array<double, CONTROL_AXES>& attitude_error, const ControlOutput& output);
-    void reset_control_state();
-    void load_controller_config();
-    rcl_interfaces::msg::SetParametersResult update_parameters(const std::vector<rclcpp::Parameter>& parameters);
+    ThrusterAllocator thruster_allocator_;
 };
-
-#endif  // SUB_CONTROL_SUB_CONTROL_HPP_

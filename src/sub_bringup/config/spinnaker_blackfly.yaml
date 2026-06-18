@@ -1,0 +1,16 @@
+/**:
+   ros_parameters:
+        # Generic Parameters
+        buffer_queue_size: 1
+        serial_number: "16359776"
+
+        # Blackfly Specific Parameters
+        gain_auto: "Continuous"
+        pixel_format: "BayerRG8"
+        exposure_auto: "Off"
+        exposure_time: 10e3  # in microseconds, 10 milliseconds
+        frame_rate_enable: True
+        frame_rate: 20.0
+        trigger_mode: "Off"
+        stream_buffer_handling_mode: "NewestOnly"
+        gev_scps_packet_size: 9000
