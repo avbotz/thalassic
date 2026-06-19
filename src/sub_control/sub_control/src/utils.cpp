@@ -32,14 +32,14 @@ struct ThrusterMap {
 //   thrusters 4-7 : horizontal vectored units (45-deg) -> surge / sway / yaw
 const std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
     //   x      y      z    roll  pitch        yaw
-    {0.23, -0.22, 0.000, 0.0, M_PI / 2.0, 0.0},          // thr 0  vertical
-    {-0.23, -0.22, 0.000, 0.0, M_PI / 2.0, 0.0},         // thr 1  vertical
-    {0.23, 0.22, 0.000, 0.0, M_PI / 2.0, 0.0},           // thr 2  vertical
-    {-0.23, 0.22, 0.000, 0.0, M_PI / 2.0, 0.0},          // thr 3  vertical
-    {-0.29, 0.34, -0.08, 0.0, 0.0, -3.0 * M_PI / 4.0},   // thr 4  horizontal
-    {-0.29, -0.34, -0.08, 0.0, 0.0, -1.0 * M_PI / 4.0},  // thr 5  horizontal
-    {0.29, 0.34, -0.08, 0.0, 0.0, -1.0 * M_PI / 4.0},    // thr 6  horizontal
-    {0.29, -0.34, -0.08, 0.0, 0.0, -3.0 * M_PI / 4.0},   // thr 7  horizontal
+    {-0.23, -0.22, 0.000, 0.0, M_PI / 2.0, 0.0},         // thr 0  vertical
+    {0.23, -0.22, 0.000, 0.0, M_PI / 2.0, 0.0},          // thr 1  vertical
+    {-0.23, 0.22, 0.000, 0.0, M_PI / 2.0, 0.0},          // thr 2  vertical
+    {0.23, 0.22, 0.000, 0.0, M_PI / 2.0, 0.0},           // thr 3  vertical
+    {-0.29, -0.34, -0.08, 0.0, 0.0, -1.0 * M_PI / 4.0},  // thr 4  horizontal
+    {0.29, -0.34, -0.08, 0.0, 0.0, -3.0 * M_PI / 4.0},   // thr 5  horizontal
+    {-0.29, 0.34, -0.08, 0.0, 0.0, -3.0 * M_PI / 4.0},   // thr 6  horizontal
+    {0.29, 0.34, -0.08, 0.0, 0.0, -1.0 * M_PI / 4.0},    // thr 7  horizontal
 }};
 
 auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
