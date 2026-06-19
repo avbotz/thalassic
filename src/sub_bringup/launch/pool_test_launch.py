@@ -1,3 +1,5 @@
+import os
+
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -11,6 +13,7 @@ from launch_ros.actions import LifecycleNode, Node
 from launch_ros.event_handlers import OnStateTransition
 from launch_ros.events.lifecycle import ChangeState
 from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
 from lifecycle_msgs.msg import Transition
 
 
@@ -49,16 +52,21 @@ def camera_entities():
         executable="camera_driver_node",
         namespace=LaunchConfiguration("ns"),
         output="both",
-        name=["blackfly"],
+        name="blackfly",
         parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config",
-                    "spinnaker_blackfly.yaml",
-                ]
-            ),
             {
+                "buffer_queue_size": 1,
+                "serial_number": "16359776",
+                "gain_auto": "Continuous",
+                "pixel_format": "BayerRG8",
+                "exposure_auto": "Off",
+                "exposure_time": 8e3,
+                "frame_rate_enable": True,
+                "frame_rate": 10.0,
+                "trigger_mode": "Off",
+                "stream_buffer_handling_mode": "NewestOnly",
+                "gev_scps_packet_size": 1500,
+
                 "frame_id": f"{ROBOT_NAME}/front_camera",
                 "parameter_file": PathJoinSubstitution(
                     [
@@ -92,7 +100,7 @@ def camera_entities():
         executable="usb_cam_node_exe",
         output="screen",
         name="logitech_c922_driver",
-        namespace=LaunchConfiguration("ns"),
+        namespace=f"{ROBOT_NAME}/front_camera",
         parameters=[
             PathJoinSubstitution(
                 [
@@ -203,9 +211,9 @@ def control_and_state_entities():
     return [
         robot_localization_node,
         sub_control_node,
-        lifecycle_startup(waterlinked_dvl_driver_node),
-        lifecycle_startup(naviguider_imu_driver_node),
-        lifecycle_startup(sub_low_node),
+        *lifecycle_startup(waterlinked_dvl_driver_node),
+        *lifecycle_startup(naviguider_imu_driver_node),
+        *lifecycle_startup(sub_low_node),
     ]
 
 
