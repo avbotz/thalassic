@@ -24,7 +24,6 @@ class VisionNode(Node):
     def __init__(self):
         super().__init__("sub_vision")
 
-        # --- Parameters ------------------------------------------------------ #
         default_model_dir = os.path.join(os.path.expanduser("~"), ".sub_vision", "models")
         self.declare_parameter("model_dir", default_model_dir)
         self.declare_parameter("default_task", "")
@@ -33,8 +32,8 @@ class VisionNode(Node):
         self.declare_parameter("input_size", 640)
         self.declare_parameter("conf_threshold", 0.25)
         self.declare_parameter("warmup_iterations", 3)
-        self.declare_parameter("rgb_topic", "oak/rgb/image_raw")
-        self.declare_parameter("camera_info_topic", "oak/rgb/camera_info")
+        self.declare_parameter("rgb_topic", "front_camera/image_raw")
+        self.declare_parameter("camera_info_topic", "front_camera/camera_info")
         self.declare_parameter("detections_topic", "vision/detections")
 
         self._model_dir = self.get_parameter("model_dir").value

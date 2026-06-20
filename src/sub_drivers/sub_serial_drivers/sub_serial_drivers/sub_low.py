@@ -1,15 +1,8 @@
-"""Lifecycle driver bridging the sub_low control board over a serial port.
-
-configure  -> open the serial port, create the kill-switch publisher
-activate   -> start forwarding thruster commands and polling the board
-deactivate -> stop the thrusters and stop forwarding/polling
-cleanup    -> close the serial port
-shutdown   -> stop the thrusters and close the serial port
-"""
+import threading
 
 import rclpy
-from rclpy.executors import SingleThreadedExecutor
-from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from rclpy.executors import ExternalShutdownException
+from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import (
     QoSDurabilityPolicy,
     QoSHistoryPolicy,
@@ -19,44 +12,41 @@ from rclpy.qos import (
 from std_msgs.msg import Bool, Float64
 from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
-from sub_serial_drivers.serial_port import SerialPort
+import serial
 
 NUM_THRUSTERS = 8
 NUM_TORPEDO_THRUSTERS = 2
-MAX_RX_BUFFER = 4096
+
+DEFAULT_DEVICE = "/dev/ttyACM0"
+DEFAULT_BAUD = 115200
+DEFAULT_SERIAL_TIMEOUT = 1.0
+READER_JOIN_TIMEOUT = 2.0
 
 
 class SubLow(LifecycleNode):
-    """Forwards thruster / actuator commands to the board and publishes the kill switch."""
-
     def __init__(self, **kwargs):
         super().__init__("sub_low", **kwargs)
-        self.declare_parameter("device", "/dev/ttyACM0")
-        self.declare_parameter("baud", 115200)
 
-        self._serial: SerialPort | None = None
-        self._rx_buffer = bytearray()
+        self.declare_parameter("device", DEFAULT_DEVICE)
+        self.declare_parameter("baud", DEFAULT_BAUD)
+        self.declare_parameter("serial_timeout", DEFAULT_SERIAL_TIMEOUT)
+
+        self._serial: serial.Serial | None = None
+        self._write_lock = threading.Lock()
+
+        self._reader_thread: threading.Thread | None = None
+        self._reader_stop = threading.Event()
+
         self._is_active = False
 
-        self._thruster_subs = []
         self._kill_pub = None
+        self._thruster_subs = []
         self._launch_torpedo_srv = None
         self._set_dropper_srv = None
-        self._poll_timer = None
 
-    # --- lifecycle transitions -------------------------------------------------
-
-    def on_configure(self, state) -> TransitionCallbackReturn:
-        device = self.get_parameter("device").get_parameter_value().string_value
-        baud = self.get_parameter("baud").get_parameter_value().integer_value
-
-        try:
-            self._serial = SerialPort(device, baud)
-        except Exception as exc:  # noqa: BLE001 - report any open/config failure
-            self.get_logger().error(f"could not open serial: {exc}")
+    def on_configure(self, state: State) -> TransitionCallbackReturn:
+        if not self._open_serial():
             return TransitionCallbackReturn.FAILURE
-
-        self.get_logger().info(f"sub_low connected to {device} @ {baud} baud")
 
         kill_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self._kill_pub = self.create_lifecycle_publisher(Bool, "kill_switch", kill_qos)
@@ -84,37 +74,135 @@ class SubLow(LifecycleNode):
             SetDropper, "set_dropper", self._set_dropper_callback
         )
 
-        self._poll_timer = self.create_timer(0.005, self._poll_timer_callback)
+        self._reader_stop.clear()
+        self._reader_thread = threading.Thread(
+            target=self._reader_loop, name="sub_low_serial_reader", daemon=True
+        )
+        self._reader_thread.start()
 
         return TransitionCallbackReturn.SUCCESS
 
-    def on_activate(self, state) -> TransitionCallbackReturn:
+    def on_activate(self, state: State) -> TransitionCallbackReturn:
         self._is_active = True
-        self.get_logger().info("sub_low active")
         return super().on_activate(state)
 
-    def on_deactivate(self, state) -> TransitionCallbackReturn:
+    def on_deactivate(self, state: State) -> TransitionCallbackReturn:
         self._is_active = False
-        self._stop_thrusters()
-        self.get_logger().info("sub_low deactivated")
+        # Stop all thrusters before going idle.
+        self._write("a 0\n")
         return super().on_deactivate(state)
 
-    def on_cleanup(self, state) -> TransitionCallbackReturn:
+    def on_cleanup(self, state: State) -> TransitionCallbackReturn:
         self._teardown()
         return TransitionCallbackReturn.SUCCESS
 
-    def on_shutdown(self, state) -> TransitionCallbackReturn:
+    def on_shutdown(self, state: State) -> TransitionCallbackReturn:
         self._is_active = False
-        self._stop_thrusters()
+        self._write("a 0\n")
         self._teardown()
         return TransitionCallbackReturn.SUCCESS
+
+    def _open_serial(self) -> bool:
+        device = self.get_parameter("device").get_parameter_value().string_value
+        baud = self.get_parameter("baud").get_parameter_value().integer_value
+        timeout = self.get_parameter("serial_timeout").get_parameter_value().double_value
+
+        try:
+            ser = serial.Serial()
+            ser.port = device
+            ser.baudrate = baud
+            ser.timeout = timeout
+            ser.dtr = False
+            ser.rts = False
+            try:
+                ser.exclusive = True
+            except (AttributeError, ValueError):
+                pass
+
+            ser.open()
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+        except (serial.SerialException, ValueError) as exc:
+            self.get_logger().error(f"failed to open serial port '{device}': {exc}")
+            return False
+
+        self._serial = ser
+        self.get_logger().info(f"opened serial port '{device}' @ {baud} baud")
+        return True
+
+    def _write(self, command: str) -> bool:
+        if self._serial is None:
+            return False
+
+        try:
+            with self._write_lock:
+                self._serial.write(command.encode("ascii"))
+            return True
+        except (serial.SerialException, UnicodeEncodeError) as exc:
+            self.get_logger().warning(
+                f"serial write failed: {exc}", throttle_duration_sec=1.0
+            )
+            return False
+
+    def _reader_loop(self) -> None:
+        while not self._reader_stop.is_set():
+            if self._serial is None:
+                break
+
+            try:
+                line = self._serial.readline()
+            except serial.SerialException as exc:
+                self.get_logger().error(f"serial read failed: {exc}")
+                break
+
+            if not line:
+                continue  # readline() timed out; re-check the stop flag.
+
+            try:
+                self._handle_line(line)
+            except Exception:  # noqa: BLE001 - never let the reader thread die silently
+                self.get_logger().warn("error while handling serial line")
+
+    def _handle_line(self, line: bytes) -> None:
+        fields = line.split()
+        if not fields:
+            return
+
+        if fields[0] == b"x":
+            try:
+                value = int(fields[1])
+            except (IndexError, ValueError):
+                return
+
+            if self._kill_pub is not None:
+                self._kill_pub.publish(Bool(data=bool(value)))
+        elif fields[0] == b"d":
+            pass
 
     def _teardown(self) -> None:
-        if self._poll_timer is not None:
-            self.destroy_timer(self._poll_timer)
-            self._poll_timer = None
+        self._stop_reader()
+        self._close_serial()
+        self._destroy_entities()
+
+    def _stop_reader(self) -> None:
+        self._reader_stop.set()
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=READER_JOIN_TIMEOUT)
+            if self._reader_thread.is_alive():
+                self.get_logger().warning("serial reader thread did not stop cleanly")
+            self._reader_thread = None
+
+    def _close_serial(self) -> None:
+        if self._serial is not None:
+            try:
+                self._serial.close()
+            except serial.SerialException as exc:
+                self.get_logger().warning(f"error closing serial port: {exc}")
+            self._serial = None
+
+    def _destroy_entities(self) -> None:
         if self._kill_pub is not None:
-            self.destroy_publisher(self._kill_pub)
+            self.destroy_lifecycle_publisher(self._kill_pub)
             self._kill_pub = None
         if self._launch_torpedo_srv is not None:
             self.destroy_service(self._launch_torpedo_srv)
@@ -125,52 +213,43 @@ class SubLow(LifecycleNode):
         for sub in self._thruster_subs:
             self.destroy_subscription(sub)
         self._thruster_subs = []
-        if self._serial is not None:
-            self._serial.close()
-            self._serial = None
-        self._rx_buffer.clear()
-
-    # --- command handling ------------------------------------------------------
 
     def _make_thruster_callback(self, index: int):
         def callback(msg: Float64) -> None:
-            if self._is_active:
-                self._set_thruster_power(index, msg.data)
+            if not self._is_active:
+                return
+            self._write(f"p {index} {round(msg.data, 3)}\n")
 
         return callback
 
-    def _set_thruster_power(self, index: int, normalized: float) -> None:
-        if not self._serial.write(f"p {index} {normalized}\n"):
-            self.get_logger().warn("serial write failed", throttle_duration_sec=1.0)
-
     def _launch_torpedo_callback(self, request, response):
-        if not self._is_active:
+        if not self._is_active or self._serial is None:
             response.success = False
             response.message = "sub_low is not active."
             return response
 
-        if request.torpedo_id >= NUM_TORPEDO_THRUSTERS:
+        if not 0 <= request.torpedo_id < NUM_TORPEDO_THRUSTERS:
             response.success = False
             response.message = f"Invalid torpedo id {request.torpedo_id}."
             return response
 
-        if not self._serial.write(f"t {request.torpedo_id} {1 if request.open else 0}\n"):
+        if not self._write(f"t {request.torpedo_id} {int(request.open)}\n"):
             response.success = False
             response.message = "serial write failed"
             return response
 
-        response.success = True
         state = "opened" if request.open else "closed"
+        response.success = True
         response.message = f"Torpedo thruster {request.torpedo_id} {state}."
         return response
 
     def _set_dropper_callback(self, request, response):
-        if not self._is_active:
+        if not self._is_active or self._serial is None:
             response.success = False
             response.message = "sub_low is not active."
             return response
 
-        if not self._serial.write(f"d {1 if request.open else 0}\n"):
+        if not self._write(f"d {int(request.open)}\n"):
             response.success = False
             response.message = "serial write failed"
             return response
@@ -179,66 +258,13 @@ class SubLow(LifecycleNode):
         response.message = f"Dropper {'opened' if request.open else 'closed'}."
         return response
 
-    def _stop_thrusters(self) -> None:
-        if self._serial is None:
-            return
-        self._serial.write("a 0\n")
-
-    # --- serial polling --------------------------------------------------------
-
-    def _poll_timer_callback(self) -> None:
-        if self._is_active:
-            self._poll_serial()
-
-    def _poll_serial(self) -> None:
-        chunk = self._serial.read_available()
-        if chunk is None:
-            self.get_logger().error(
-                f"serial read error: {self._serial.last_error}",
-                throttle_duration_sec=1.0,
-            )
-            return
-
-        self._rx_buffer.extend(chunk)
-
-        start = 0
-        newline = self._rx_buffer.find(b"\n", start)
-        while newline != -1:
-            self._handle_line(bytes(self._rx_buffer[start:newline]))
-            start = newline + 1
-            newline = self._rx_buffer.find(b"\n", start)
-        del self._rx_buffer[:start]
-
-        if len(self._rx_buffer) > MAX_RX_BUFFER:
-            self._rx_buffer.clear()
-
-    def _handle_line(self, line: bytes) -> None:
-        fields = line.split()
-        if not fields:
-            return
-
-        tag = fields[0]
-        if tag == b"x":
-            try:
-                value = int(fields[1])
-            except (IndexError, ValueError):
-                return
-            msg = Bool()
-            msg.data = bool(value)
-            self._kill_pub.publish(msg)
-        elif tag == b"d":
-            # Dropper acknowledgement (float), currently ignored.
-            return
-
 
 def main(args=None):
     rclpy.init(args=args)
     node = SubLow()
-    executor = SingleThreadedExecutor()
-    executor.add_node(node)
     try:
-        executor.spin()
-    except KeyboardInterrupt:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

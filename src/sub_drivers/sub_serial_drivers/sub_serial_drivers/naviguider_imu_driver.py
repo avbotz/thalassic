@@ -1,23 +1,9 @@
-"""Lifecycle driver for the NaviGuider IMU over a serial port.
-
-configure  -> open the serial port, build the Imu template, create publisher
-activate   -> configure the module (non-verbose output, ENU frame), start the
-              accelerometer / gyroscope / rotation-vector virtual sensors and
-              begin polling the port
-deactivate -> stop the virtual sensors and stop polling
-cleanup    -> close the serial port
-shutdown   -> stop the sensors and close the serial port
-
-Parses lines of the form ``Timestamp,SensorID,Value1,Value2,...``.
-"""
-
 import rclpy
-from rclpy.executors import SingleThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
 
-from sub_serial_drivers.serial_port import SerialPort
+import serial
 
 MAX_RX_BUFFER = 4096
 GYRO_SCALE_TO_RAD_PER_SEC = 1.0
@@ -42,7 +28,7 @@ class NaviGuiderIMUDriver(LifecycleNode):
         self.declare_parameter("gyro_rate", 100)
         self.declare_parameter("orientation_rate", 100)
 
-        self._serial: SerialPort | None = None
+        self._serial: serial.Serial | None = None
         self._rx_buffer = bytearray()
         self._frame_id = "imu_link"
         self._is_active = False
@@ -55,8 +41,6 @@ class NaviGuiderIMUDriver(LifecycleNode):
         self._imu_pub = None
         self._poll_timer = None
 
-    # --- lifecycle transitions -------------------------------------------------
-
     def on_configure(self, state) -> TransitionCallbackReturn:
         device = self.get_parameter("device").get_parameter_value().string_value
         baud = self.get_parameter("baud").get_parameter_value().integer_value
@@ -68,7 +52,9 @@ class NaviGuiderIMUDriver(LifecycleNode):
         )
 
         try:
-            self._serial = SerialPort(device, baud)
+            # timeout=0 -> non-blocking reads, so read() returns immediately
+            # with whatever bytes are currently buffered.
+            self._serial = serial.Serial(port=device, baudrate=baud, timeout=0)
         except Exception as exc:  # noqa: BLE001 - report any open/config failure
             self.get_logger().error(f"could not open serial: {exc}")
             return TransitionCallbackReturn.FAILURE
@@ -134,38 +120,48 @@ class NaviGuiderIMUDriver(LifecycleNode):
             self._serial = None
         self._rx_buffer.clear()
 
-    # --- sensor control --------------------------------------------------------
+    def _write(self, command: str) -> None:
+        """Send an ASCII command string to the module."""
+        if self._serial is None:
+            return
+        self._serial.write(command.encode("ascii"))
 
     def _start_sensors(self) -> None:
         if self._serial is None:
             return
         # Commands are case-sensitive and terminated by a carriage return (0x0D).
-        self._serial.write("V0\r")  # non-verbose: emit numeric sensor IDs in the stream
-        self._serial.write("J4\r")  # ENU orientation frame (ROS convention)
+        self._write("V0\r")  # non-verbose: emit numeric sensor IDs in the stream
+        self._write("J4\r")  # ENU orientation frame (ROS convention)
 
         if self._accel_rate > 0:
-            self._serial.write(f"s {SENSOR_ACCELEROMETER},{self._accel_rate}\r")
+            self._write(f"s {SENSOR_ACCELEROMETER},{self._accel_rate}\r")
         if self._gyro_rate > 0:
-            self._serial.write(f"s {SENSOR_GYROSCOPE},{self._gyro_rate}\r")
+            self._write(f"s {SENSOR_GYROSCOPE},{self._gyro_rate}\r")
         if self._orientation_rate > 0:
-            self._serial.write(f"s {SENSOR_GAME_ROTATION_VECTOR},{self._orientation_rate}\r")
+            self._write(f"s {SENSOR_GAME_ROTATION_VECTOR},{self._orientation_rate}\r")
 
     def _stop_sensors(self) -> None:
         if self._serial is None:
             return
         # A zero sample rate disables the virtual sensor (manual, "Sample_Rate" key).
-        self._serial.write(f"s {SENSOR_ACCELEROMETER},0\r")
-        self._serial.write(f"s {SENSOR_GYROSCOPE},0\r")
-        self._serial.write(f"s {SENSOR_GAME_ROTATION_VECTOR},0\r")
-
-    # --- serial polling --------------------------------------------------------
+        self._write(f"s {SENSOR_ACCELEROMETER},0\r")
+        self._write(f"s {SENSOR_GYROSCOPE},0\r")
+        self._write(f"s {SENSOR_GAME_ROTATION_VECTOR},0\r")
 
     def _poll_timer_callback(self) -> None:
         if self._is_active:
             self._poll_serial()
 
     def _poll_serial(self) -> None:
-        chunk = self._serial.read_available()
+        if self._serial is None:
+            return
+
+        try:
+            waiting = self._serial.in_waiting
+            chunk = self._serial.read(waiting) if waiting else b""
+        except (serial.SerialException, OSError):
+            chunk = None
+
         if chunk is None:
             self.get_logger().error(
                 "serial read error / device disconnected",
@@ -209,7 +205,7 @@ class NaviGuiderIMUDriver(LifecycleNode):
 
         if sensor_id == SENSOR_ACCELEROMETER:
             x, y, z = value(2), value(3), value(4)
-            if None not in (x, y, z):
+            if x is not None and y is not None and z is not None:
                 self._imu_msg.linear_acceleration.x = x
                 self._imu_msg.linear_acceleration.y = y
                 self._imu_msg.linear_acceleration.z = z
@@ -219,7 +215,7 @@ class NaviGuiderIMUDriver(LifecycleNode):
                 self._imu_pub.publish(self._imu_msg)
         elif sensor_id == SENSOR_GYROSCOPE:
             x, y, z = value(2), value(3), value(4)
-            if None not in (x, y, z):
+            if x is not None and y is not None and z is not None:
                 # The NaviGuider gyro stream is already expressed in rad/s, which
                 # matches sensor_msgs/Imu, so publish the values directly.
                 self._imu_msg.angular_velocity.x = x * GYRO_SCALE_TO_RAD_PER_SEC
@@ -237,10 +233,8 @@ class NaviGuiderIMUDriver(LifecycleNode):
 def main(args=None):
     rclpy.init(args=args)
     node = NaviGuiderIMUDriver()
-    executor = SingleThreadedExecutor()
-    executor.add_node(node)
     try:
-        executor.spin()
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:

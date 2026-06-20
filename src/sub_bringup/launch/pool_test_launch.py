@@ -1,5 +1,3 @@
-import os
-
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -8,12 +6,13 @@ from launch.actions import (
     RegisterEventHandler,
 )
 from launch.events import matches_action
+from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import LifecycleNode, Node
+from launch_ros.actions.node import ExecuteProcess
 from launch_ros.event_handlers import OnStateTransition
 from launch_ros.events.lifecycle import ChangeState
 from launch_ros.substitutions import FindPackageShare
-from ament_index_python.packages import get_package_share_directory
 from lifecycle_msgs.msg import Transition
 
 
@@ -98,7 +97,7 @@ def camera_entities():
     logitech_c922_driver = Node(
         package="usb_cam",
         executable="usb_cam_node_exe",
-        output="screen",
+        output="log",
         name="logitech_c922_driver",
         namespace=f"{ROBOT_NAME}/front_camera",
         parameters=[
@@ -155,7 +154,7 @@ def control_and_state_entities():
             ),
         ],
         remappings=[
-            ("~/odom/dvl", "odometry/dvl"),
+            ("~/odom", "odometry/dvl"),
         ],
     )
 
@@ -217,13 +216,10 @@ def control_and_state_entities():
     ]
 
 
-def generate_launch_description():
-    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
-
-    include_transforms = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
-        ),
+def foxglove_entities() -> list:
+    clear_port = ExecuteProcess(
+        cmd=["fuser", "-k", "8765/tcp"],  # free port 8765
+        output="screen",
     )
 
     foxglove_bridge_node = Node(
@@ -234,9 +230,28 @@ def generate_launch_description():
             {
                 "port": 8765,
                 "use_compression": True,
-                "use_sim_time": False,
             }
         ],
+        ros_arguments=["--disable-stdout-logs"],
+    )
+
+    bridge_after_port_clear = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=clear_port,
+            on_exit=[foxglove_bridge_node],
+        )
+    )
+
+    return [clear_port, bridge_after_port_clear]
+
+
+def generate_launch_description():
+    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
+
+    include_transforms = IncludeLaunchDescription(
+        PathJoinSubstitution(
+            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
+        ),
     )
 
     return LaunchDescription(
@@ -246,6 +261,6 @@ def generate_launch_description():
             *control_and_state_entities(),
             *camera_entities(),
             *vision_entities(),
-            foxglove_bridge_node,
+            *foxglove_entities(),
         ]
     )

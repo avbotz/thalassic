@@ -140,7 +140,6 @@ def sim_entities() -> list:
                 "SimKillSwitch",
                 parameters=[{"off_delay": 8.0}],
             ),
-            # sim_component("sim_oak_camera_remapper", "SimOakCameraRemapper"),
         ],
         ros_arguments=["--disable-stdout-logs"],
     )
