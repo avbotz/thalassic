@@ -117,13 +117,13 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         velocity_setpoint_[1] = msg->setpoint.y;
         velocity_setpoint_[2] = msg->setpoint.z;
 
-        RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", position_setpoint_[0], position_setpoint_[1], position_setpoint_[2]);
+        RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", velocity_setpoint_[0], velocity_setpoint_[1], velocity_setpoint_[2]);
     } else {
         position_setpoint_[0] = msg->setpoint.x;
         position_setpoint_[1] = msg->setpoint.y;
         position_setpoint_[2] = msg->setpoint.z;
 
-        RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", velocity_setpoint_[0], velocity_setpoint_[1], velocity_setpoint_[2]);
+        RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", position_setpoint_[0], position_setpoint_[1], position_setpoint_[2]);
     }
 
 }
