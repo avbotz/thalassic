@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from sensor_msgs.msg import Imu
 
 import serial
@@ -78,7 +78,11 @@ class NaviGuiderIMUDriver(LifecycleNode):
         ]
 
         self._imu_pub = self.create_lifecycle_publisher(
-            Imu, "imu/data", qos_profile_sensor_data
+            Imu, "imu/data", QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=10
+            )
         )
 
         self._poll_timer = self.create_timer(0.005, self._poll_timer_callback)
