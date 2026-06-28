@@ -22,11 +22,6 @@ SubControl::SubControl() : Node("sub_control") {
     this->declare_parameter("power_limit", 0.6);
     this->declare_parameter("robot_name", "");
 
-    // kp, ki, kd, max_output. The outer loops (pos/att) emit a setpoint for the
-    // inner loops (vel/ang rate), so their max_output is a velocity / angular-rate
-    // cap; the inner loops' max_output is a body force / torque cap. Attitude is
-    // deliberately near pure-P with a low rate cap: roll/pitch are hydrostatically
-    // stable (CG below CB), so a high integral term just winds up and oscillates.
     this->declare_parameter("pos_pid.x", std::vector<float>{0.8, 0.1, 0.0, 1.0});
     this->declare_parameter("pos_pid.y", std::vector<float>{0.8, 0.1, 0.0, 1.0});
     this->declare_parameter("pos_pid.z", std::vector<float>{0.7, 0.1, 0.0, 0.7});
@@ -51,8 +46,6 @@ SubControl::SubControl() : Node("sub_control") {
     const std::array<std::string, 3> axes = {"x", "y", "z"};
 
     for (size_t i = 0; i < axes.size(); ++i) {
-        // Outer loops (pos/att) soft-saturate to their velocity/rate caps so the
-        // inner loops see a continuous setpoint; inner loops (vel/ang) hard clamp.
         position_pid_controllers_[i] = PID_Controller(this->get_parameter("pos_pid." + axes[i]).as_double_array(), true);
         velocity_pid_controllers_[i] = PID_Controller(this->get_parameter("vel_pid." + axes[i]).as_double_array());
         attitude_pid_controllers_[i] = PID_Controller(this->get_parameter("att_pid." + axes[i]).as_double_array(), true);
@@ -270,15 +263,6 @@ void SubControl::run() {
 
     error_pub_->publish(error_msg);
 
-    // Allocate against the force the thrusters can actually deliver inside the
-    // active power limit, not the raw mechanical max. Every command below is
-    // clamped to +/-power_limit; if the allocator were free to use the full
-    // max_force_ it would return a balanced wrench that this clamp then chops
-    // asymmetrically, leaking uncommanded roll/pitch whenever the sub drives hard
-    // (the horizontal thrusters sit above the CG, so sway/surge needs the
-    // verticals to cancel a roll moment -- saturating that cancellation rolls the
-    // sub). The T200 curve is weaker in reverse, so bound by the smaller side to
-    // keep the clamp a no-op and the realized wrench faithful to the request.
     const double alloc_max_force = std::min(std::abs(norm_to_force(power_limit_)), std::abs(norm_to_force(-power_limit_)));
 
     std::array<double, NUM_THRUSTERS> thruster_forces = thruster_allocator_.allocate(body_force_, alloc_max_force);

@@ -1,45 +1,15 @@
 import math
 
 from launch import LaunchDescription
-from launch_ros.actions import Node
+
+from sub_bringup.launch_utils import static_tf
 
 ROBOT = "marlin_v2"
 BASE_NED = f"{ROBOT}/base_link_ned"
 
-
-def static_tf(parent, child, x=0.0, y=0.0, z=0.0, roll=0.0, pitch=0.0, yaw=0.0):
-    return Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        arguments=[
-            "--x",
-            str(x),
-            "--y",
-            str(y),
-            "--z",
-            str(z),
-            "--roll",
-            str(roll),
-            "--pitch",
-            str(pitch),
-            "--yaw",
-            str(yaw),
-            "--frame-id",
-            parent,
-            "--child-frame-id",
-            child,
-        ],
-        ros_arguments=["--disable-stdout-logs"],
-    )
-
-
 def generate_launch_description():
     transforms = [
         static_tf("map", f"{ROBOT}/odom"),
-        # base_link is REP-103 FLU (X-fwd, Y-left, Z-up). The Stonefish body
-        # frame ("base_link_ned") is X-right, Y-back, Z-down, so the FLU->that
-        # rotation is roll=pi (flip Z), yaw=-pi/2. All children below are
-        # expressed in this frame, matching the sim's layout.scn.j2 exactly.
         static_tf(f"{ROBOT}/base_link", BASE_NED, roll=math.pi, yaw=-math.pi / 2),
         static_tf(
             BASE_NED, f"{ROBOT}/front_camera", y=-0.33, z=-0.16631, roll=math.pi / 2

@@ -19,26 +19,24 @@ from sub_sim.generate_robot import render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
-ROBOT_NAME = "marlin_v2"
-
 
 def _render_scn(context, *_, **__):
     DX = float(LaunchConfiguration("DX").perform(context))
     DY = float(LaunchConfiguration("DY").perform(context))
     DZ = float(LaunchConfiguration("DZ").perform(context))
     DYAW = float(LaunchConfiguration("DYAW").perform(context))
-    SEED = (
-        int(LaunchConfiguration("seed").perform(context))
-        if LaunchConfiguration("seed").perform(context).isdigit()
-        else None
-    )
+
+    try:
+        SEED = int(LaunchConfiguration("seed").perform(context))
+    except ValueError:
+        SEED = None
+
+    robot_name = LaunchConfiguration("robot_name").perform(context)
 
     sub_sim_share = Path(get_package_share_directory("sub_sim"))
 
     scenario_file = sub_sim_share / "scenarios" / "woollett.scn.j2"
-    robot_scenario_file = (
-        sub_sim_share / "data" / "robots" / ROBOT_NAME / "layout.scn.j2"
-    )
+    robot_scenario_file = sub_sim_share / "data" / "robots" / robot_name / "layout.scn.j2"
 
     rendered_robot_path = None
 
@@ -62,7 +60,7 @@ def _render_scn(context, *_, **__):
 
     urdf_robot = robot_scenario_to_urdf(
         scenario_xml=rendered_robot_path,
-        robot_name=ROBOT_NAME,
+        robot_name=robot_name,
         mesh_prefix=f"file://{sub_sim_share / 'data'}/",
     )
 
@@ -110,7 +108,7 @@ def sim_entities() -> list:
             package="sub_sim_sensors",
             plugin=plugin,
             name=executable,
-            namespace=LaunchConfiguration("ns"),
+            namespace=LaunchConfiguration("robot_name"),
             extra_arguments=[{"use_intra_process_comms": True}],
             **kwargs,
         )
@@ -119,18 +117,18 @@ def sim_entities() -> list:
         package="rclcpp_components",
         executable="component_container_mt",
         name="sim_sensors_container",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         output="both",
         composable_node_descriptions=[
             sim_component(
                 "sim_dvl_remapper",
                 "SimDVLRemapper",
-                parameters=[{"robot_name": ROBOT_NAME}],
+                parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
             ),
             sim_component(
                 "sim_imu_remapper",
                 "SimIMURemapper",
-                parameters=[{"robot_name": ROBOT_NAME}],
+                parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
             ),
             sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
             sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
@@ -148,7 +146,7 @@ def sim_entities() -> list:
         package="sim_labeling",
         executable="labeling",
         name="sim_labeling",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             {
                 "scenario_file": LaunchConfiguration("scenario_file"),
@@ -171,7 +169,7 @@ def control_and_state_entities() -> list[Node]:
         package="robot_state_publisher",
         executable="robot_state_publisher",
         name="robot_state_publisher",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             {
                 "robot_description": LaunchConfiguration("robot_description"),
@@ -184,7 +182,7 @@ def control_and_state_entities() -> list[Node]:
     #     package="rtabmap_sync",
     #     executable="rgbd_sync",
     #     name="rgbd_sync",
-    #     namespace=LaunchConfiguration("ns"),
+    #     namespace=LaunchConfiguration("robot_name"),
     #     output="screen",
     #     parameters=[
     #         {
@@ -196,10 +194,10 @@ def control_and_state_entities() -> list[Node]:
     #         }
     #     ],
     #     remappings=[
-    #         ("rgb/image", f"/{ROBOT_NAME}/oak/rgb/image_raw"),
-    #         ("depth/image", f"/{ROBOT_NAME}/oak/stereo/image_raw"),
-    #         ("rgb/camera_info", f"/{ROBOT_NAME}/oak/rgb/camera_info"),
-    #         ("rgbd_image", f"/{ROBOT_NAME}/rgbd_image"),
+    #         ("rgb/image", ["/", LaunchConfiguration("robot_name"), "/oak/rgb/image_raw"]),
+    #         ("depth/image", ["/", LaunchConfiguration("robot_name"), "/oak/stereo/image_raw"]),
+    #         ("rgb/camera_info", ["/", LaunchConfiguration("robot_name"), "/oak/rgb/camera_info"]),
+    #         ("rgbd_image", ["/", LaunchConfiguration("robot_name"), "/rgbd_image"]),
     #     ],
     # )
 
@@ -208,12 +206,12 @@ def control_and_state_entities() -> list[Node]:
     #     package="rtabmap_odom",
     #     executable="rgbd_odometry",
     #     name="rgbd_odometry",
-    #     namespace=LaunchConfiguration("ns"),
+    #     namespace=LaunchConfiguration("robot_name"),
     #     output="screen",
     #     parameters=[
     #         {
-    #             "frame_id": f"{ROBOT_NAME}/base_link",
-    #             "odom_frame_id": f"{ROBOT_NAME}/front_camera",
+    #             "frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+    #             "odom_frame_id": [LaunchConfiguration("robot_name"), "/front_camera"],
     #             "publish_tf": False,  # Let robot_localization handle TF
     #             "subscribe_depth": False,
     #             "subscribe_rgbd": True,  # Use synchronized RGBD topic
@@ -227,8 +225,8 @@ def control_and_state_entities() -> list[Node]:
     #         }
     #     ],
     #     remappings=[
-    #         ("rgbd_image", f"/{ROBOT_NAME}/rgbd_image"),
-    #         ("odom", f"/{ROBOT_NAME}/odom/depth_camera"),
+    #         ("rgbd_image", ["/", LaunchConfiguration("robot_name"), "/rgbd_image"]),
+    #         ("odom", ["/", LaunchConfiguration("robot_name"), "/odom/depth_camera"]),
     #     ],
     # )
 
@@ -237,7 +235,7 @@ def control_and_state_entities() -> list[Node]:
         executable="ekf_node",
         name="ekf_filter_node",
         output="both",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -253,7 +251,7 @@ def control_and_state_entities() -> list[Node]:
         executable="sub_control",
         name="sub_control",
         output="both",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -261,7 +259,7 @@ def control_and_state_entities() -> list[Node]:
                     "config/control_gains_sim.yaml",
                 ]
             ),
-            {"robot_name": ROBOT_NAME},
+            {"robot_name": LaunchConfiguration("robot_name")},
         ],
     )
 
@@ -311,14 +309,14 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
     #     package="sub_color_correction",
     #     executable="deepseecolor_node",
     #     name="deepseecolor",
-    #     namespace=LaunchConfiguration("ns"),
+    #     namespace=LaunchConfiguration("robot_name"),
     #     output="screen",
     #     condition=IfCondition(LaunchConfiguration("enable_deepseecolor")),
     #     parameters=[
     #         {
-    #             "rgb_topic": f"/{ROBOT_NAME}/oak/rgb/image_raw",
-    #             "depth_topic": f"/{ROBOT_NAME}/oak/stereo/image_raw",
-    #             "corrected_topic": f"/{ROBOT_NAME}/oak/rgb/image_color_corrected",
+    #             "rgb_topic": ["/", LaunchConfiguration("robot_name"), "/oak/rgb/image_raw"],
+    #             "depth_topic": ["/", LaunchConfiguration("robot_name"), "/oak/stereo/image_raw"],
+    #             "corrected_topic": ["/", LaunchConfiguration("robot_name"), "/oak/rgb/image_color_corrected"],
     #             "device": LaunchConfiguration("deepseecolor_device"),
     #             "init_iters": 10,
     #             "iters": 2,
@@ -333,7 +331,7 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         executable="sub_vision",
         name="sub_vision",
         output="screen",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -351,17 +349,21 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
 
 
 def generate_launch_description():
-    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
+    declare_robot_name = DeclareLaunchArgument("robot_name", default_value="marlin_v2")
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
+            [
+                FindPackageShare("sub_bringup"),
+                "launch",
+                [LaunchConfiguration("robot_name"), "_launch.py"],
+            ]
         ),
     )
 
     return LaunchDescription(
         [
-            declare_ns,
+            declare_robot_name,
             include_transforms,
             *sim_entities(),
             *control_and_state_entities(),
