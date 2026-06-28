@@ -1,55 +1,23 @@
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
-    EmitEvent,
     IncludeLaunchDescription,
     RegisterEventHandler,
 )
-from launch.events import matches_action
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import LifecycleNode, Node
 from launch_ros.actions.node import ExecuteProcess
-from launch_ros.event_handlers import OnStateTransition
-from launch_ros.events.lifecycle import ChangeState
 from launch_ros.substitutions import FindPackageShare
-from lifecycle_msgs.msg import Transition
 
-
-ROBOT_NAME = "marlin_v2"
-
-
-def lifecycle_startup(node):
-    """Configures and activates a lifecycle node."""
-    configure = EmitEvent(
-        event=ChangeState(
-            lifecycle_node_matcher=matches_action(node),
-            transition_id=Transition.TRANSITION_CONFIGURE,
-        )
-    )
-    activate = RegisterEventHandler(
-        OnStateTransition(
-            target_lifecycle_node=node,
-            start_state="configuring",
-            goal_state="inactive",
-            entities=[
-                EmitEvent(
-                    event=ChangeState(
-                        lifecycle_node_matcher=matches_action(node),
-                        transition_id=Transition.TRANSITION_ACTIVATE,
-                    )
-                )
-            ],
-        )
-    )
-    return [node, configure, activate]
+from sub_bringup.launch_utils import lifecycle_startup
 
 
 def camera_entities():
     blackfly_camera_driver = Node(
         package="spinnaker_camera_driver",
         executable="camera_driver_node",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         output="both",
         name="blackfly",
         parameters=[
@@ -66,7 +34,7 @@ def camera_entities():
                 "stream_buffer_handling_mode": "NewestOnly",
                 "gev_scps_packet_size": 1500,
 
-                "frame_id": f"{ROBOT_NAME}/front_camera",
+                "frame_id": [LaunchConfiguration("robot_name"), "/front_camera"],
                 "parameter_file": PathJoinSubstitution(
                     [
                         FindPackageShare("spinnaker_camera_driver"),
@@ -82,7 +50,7 @@ def camera_entities():
     #     package="depthai_ros_driver_v3",
     #     executable="driver_node",
     #     name="oak",
-    #     namespace=LaunchConfiguration("ns"),
+    #     namespace=LaunchConfiguration("robot_name"),
     #     output="screen",
     #     parameters=[
     #         PathJoinSubstitution(
@@ -99,7 +67,7 @@ def camera_entities():
         executable="usb_cam_node_exe",
         output="log",
         name="logitech_c922_driver",
-        namespace=f"{ROBOT_NAME}/front_camera",
+        namespace=[LaunchConfiguration("robot_name"), "/front_camera"],
         parameters=[
             PathJoinSubstitution(
                 [
@@ -123,7 +91,7 @@ def vision_entities():
         package="sub_vision",
         executable="sub_vision",
         name="sub_vision",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         output="screen",
         parameters=[
             PathJoinSubstitution(
@@ -143,7 +111,7 @@ def control_and_state_entities():
         package="waterlinked_dvl_driver",
         executable="waterlinked_dvl_driver",
         name="waterlinked_dvl_driver",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         output="both",
         parameters=[
             PathJoinSubstitution(
@@ -162,7 +130,7 @@ def control_and_state_entities():
         package="sub_serial_drivers",
         executable="sub_low",
         name="sub_low",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[{"device": "/dev/arduino_mega"}],
     )
 
@@ -170,7 +138,7 @@ def control_and_state_entities():
         package="sub_serial_drivers",
         executable="naviguider_imu_driver",
         name="naviguider_imu_driver",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         output="both",
         parameters=[{"device": "/dev/naviguider_imu"}],
     )
@@ -180,7 +148,7 @@ def control_and_state_entities():
         executable="ekf_node",
         name="ekf_filter_node",
         output="both",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -196,7 +164,7 @@ def control_and_state_entities():
         executable="sub_control",
         name="sub_control",
         output="both",
-        namespace=LaunchConfiguration("ns"),
+        namespace=LaunchConfiguration("robot_name"),
         parameters=[
             PathJoinSubstitution(
                 [
@@ -246,17 +214,21 @@ def foxglove_entities() -> list:
 
 
 def generate_launch_description():
-    declare_ns = DeclareLaunchArgument("ns", default_value=ROBOT_NAME)
+    declare_robot_name = DeclareLaunchArgument("robot_name", default_value="marlin_v2")
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
-            [FindPackageShare("sub_bringup"), "launch", f"{ROBOT_NAME}_launch.py"]
-        ),
+            [
+                FindPackageShare("sub_bringup"),
+                "launch",
+                [LaunchConfiguration("robot_name"), "_launch.py"],
+            ]
+        )
     )
 
     return LaunchDescription(
         [
-            declare_ns,
+            declare_robot_name,
             include_transforms,
             *control_and_state_entities(),
             *camera_entities(),
