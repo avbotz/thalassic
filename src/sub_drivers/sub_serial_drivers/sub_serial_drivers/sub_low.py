@@ -8,6 +8,7 @@ from rclpy.qos import (
     QoSHistoryPolicy,
     QoSProfile,
     QoSReliabilityPolicy,
+    qos_profile_sensor_data,
 )
 from std_msgs.msg import Bool, Float64
 from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
@@ -40,6 +41,7 @@ class SubLow(LifecycleNode):
         self._is_active = False
 
         self._kill_pub = None
+        self._depth_pub = None
         self._thruster_subs = []
         self._launch_torpedo_srv = None
         self._set_dropper_srv = None
@@ -50,6 +52,9 @@ class SubLow(LifecycleNode):
 
         kill_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self._kill_pub = self.create_lifecycle_publisher(Bool, "kill_switch", kill_qos)
+        self._depth_pub = self.create_lifecycle_publisher(
+            Float64, "depth", qos_profile_sensor_data
+        )
 
         thruster_qos = QoSProfile(
             depth=1,
@@ -177,7 +182,13 @@ class SubLow(LifecycleNode):
             if self._kill_pub is not None:
                 self._kill_pub.publish(Bool(data=bool(value)))
         elif fields[0] == b"d":
-            pass
+            try:
+                depth = float(fields[1])
+            except (IndexError, ValueError):
+                return
+
+            if self._depth_pub is not None:
+                self._depth_pub.publish(Float64(data=depth))
 
     def _teardown(self) -> None:
         self._stop_reader()
@@ -204,6 +215,9 @@ class SubLow(LifecycleNode):
         if self._kill_pub is not None:
             self.destroy_lifecycle_publisher(self._kill_pub)
             self._kill_pub = None
+        if self._depth_pub is not None:
+            self.destroy_lifecycle_publisher(self._depth_pub)
+            self._depth_pub = None
         if self._launch_torpedo_srv is not None:
             self.destroy_service(self._launch_torpedo_srv)
             self._launch_torpedo_srv = None

@@ -8,6 +8,7 @@
   <license>Proprietary</license>
 
   <depend>rclpy</depend>
+  <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>sub_driver_interfaces</depend>

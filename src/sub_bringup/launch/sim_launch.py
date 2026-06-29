@@ -130,6 +130,7 @@ def sim_entities() -> list:
                 "SimIMURemapper",
                 parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
             ),
+            sim_component("sim_pressure_to_depth", "SimPressureToDepth"),
             sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
             sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
             sim_component("sim_dropper", "SimDropper"),
@@ -246,6 +247,20 @@ def control_and_state_entities() -> list[Node]:
         ],
     )
 
+    depth_odometry_driver_node = Node(
+        package="sub_serial_drivers",
+        executable="depth_odometry_driver",
+        name="depth_odometry_driver",
+        output="both",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            {
+                "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+            }
+        ],
+    )
+
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
@@ -268,6 +283,7 @@ def control_and_state_entities() -> list[Node]:
         # Depth camera not on marlin
         # rgbd_sync,
         # depth_camera_visual_odom,
+        depth_odometry_driver_node,
         robot_localization_node,
         sub_control_node,
     ]

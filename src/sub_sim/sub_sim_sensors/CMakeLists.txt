@@ -39,6 +39,7 @@ add_library(${PROJECT_NAME}_components SHARED
   src/sim_dvl_remapper.cpp
   src/sim_thruster_republisher.cpp
   src/sim_imu_remapper.cpp
+  src/sim_pressure_to_depth.cpp
   src/sim_kill_switch.cpp
   src/sim_torpedo_launcher.cpp
   src/sim_dropper.cpp
@@ -68,6 +69,8 @@ rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimThrusterRepublisher" EXECUTABLE sim_thruster_republisher)
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimIMURemapper" EXECUTABLE sim_imu_remapper)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimPressureToDepth" EXECUTABLE sim_pressure_to_depth)
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimKillSwitch" EXECUTABLE sim_kill_switch)
 rclcpp_components_register_node(${PROJECT_NAME}_components
