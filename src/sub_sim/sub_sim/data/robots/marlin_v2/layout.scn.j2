@@ -527,6 +527,16 @@
       <ros_publisher topic="/marlin_v2/sim/imu"/>
     </sensor>
 
+    <sensor name="pressure_link" rate="30.0" type="pressure">
+      <link name="base_link_ned" />
+
+      <range pressure="10000000.0" />
+      <noise pressure="0.0" />
+      <origin xyz="0.0 0.0 -0.2" rpy="0.0 0.0 0.0" />
+
+      <ros_publisher topic="/marlin_v2/sim/pressure" />
+    </sensor>
+
     <sensor name="front_camera" rate="30.0" type="camera">
       <link name="base_link_ned" />
 
