@@ -4,25 +4,27 @@
 
 ```
 src/
-├── sub_bringup/            # Launch files and config
+├── sub_bringup/                 # Launch files and config
 ├── sub_control/
-│   ├── sub_control/        # State feedback + constrained allocation
-│   └── sub_control_interfaces/  # Custom ROS2 messages
+│   ├── sub_control/             # Control algorithm
+│   └── sub_control_interfaces/  # ROS2 messages for control
 ├── sub_drivers/
-│   ├── sub_drivers_mappings/    # DVL → odometry bridge
-│   └── waterlinked_dvl/    # WaterLinked DVL driver (submodule)
+│   ├── flir_camera_driver/      # FLIR camera driver (submodule)
+│   ├── sub_drivers_mappings/    # Various driver / topic mapping nodes
+│   ├── sub_serial_drivers/      # Nodes to interfaces with serial devices
+│   └── waterlinked_dvl/         # WaterLinked DVL driver (submodule)
 ├── sub_sim/
-│   ├── sub_sim/            # Scenario generation, robot description
-│   └── sub_sim_sensors/    # Sim sensor bridges (DVL, thrusters)
-└── stonefish_ros2/         # Stonefish simulator ROS2 bridge
+│   ├── sub_sim/                 # Scenario generation, robot description
+│   └── sub_sim_sensors/         # Sim sensor bridges (DVL, thrusters)
+├── sub_vision/                  # Vision processing nodes, WIP
+└── stonefish_ros2/              # Stonefish simulator ROS2 bridge (submodule)
 ```
 
 ## Nodes
 
 ### `sub_control` (`sub_control/sub_control`)
 
-The main control node. Runs nonlinear guidance, PI state feedback, watchdogs,
-and bounded weighted thruster allocation at 50 Hz. See
+Runs control algorithm. Uses cascade PID with pseudo-inverse thruster allocation.
 [control.md](control.md) for details.
 
 | | Topic | Type |

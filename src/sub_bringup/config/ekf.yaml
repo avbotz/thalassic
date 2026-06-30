@@ -4,7 +4,7 @@
 
         frequency: 20.0
         # Waterlinked a50 DVL can output measurements at 4 Hz - 15 Hz
-        sensor_timeout: 0.2
+        sensor_timeout: 0.65
 
         map_frame: map
         odom_frame: marlin_v2/odom
