@@ -9,8 +9,7 @@ PID_Controller::PID_Controller(double kp, double ki, double kd)
 PID_Controller::PID_Controller(double kp, double ki, double kd, double output_limit)
     : kp_{kp}, ki_{ki}, kd_{kd}, output_limit_{output_limit} {}
 
-PID_Controller::PID_Controller(std::span<const double> params, bool smooth_saturation)
-    : smooth_saturation_{smooth_saturation} {
+PID_Controller::PID_Controller(std::span<const double> params) {
     if (params.size() == 3) {
         kp_ = params[0];
         ki_ = params[1];
@@ -71,18 +70,12 @@ double PID_Controller::update(double measurement, double error, double dt) {
     }
     prev_measurement_ = measurement;
 
-    // Independent PID (kp_ does not affect other two terms)
     const double raw = kp_ * error + ki_ * integral_ + kd_ * smoothed_derivative_;
     if (output_limit_ <= 0.0) {
         return raw;
     }
 
-    // Soft (tanh) saturation eases the output up to output_limit_ so the inner
-    // loop chases a continuous setpoint instead of a hard corner; the inner loops
-    // keep the hard clamp. Either way back-calculation below bleeds (raw - output)
-    // off the integral to stop windup.
-    const double clamped = smooth_saturation_ ? output_limit_ * std::tanh(raw / output_limit_)
-                                              : std::clamp(raw, -output_limit_, output_limit_);
+    const double clamped = std::clamp(raw, -output_limit_, output_limit_);
 
     if (raw != clamped) {
         integral_ -= raw - clamped;

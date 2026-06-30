@@ -8,10 +8,7 @@ class PID_Controller {
     PID_Controller() = default;
     PID_Controller(double kp, double ki, double kd);
     PID_Controller(double kp, double ki, double kd, double output_limit);
-    // smooth_saturation: ease the output up to output_limit with tanh instead of
-    // a hard clamp. Used by the outer (pos/att) loops so the inner loops chase a
-    // continuous setpoint rather than a clipped corner.
-    PID_Controller(std::span<const double> gains, bool smooth_saturation = false);
+    PID_Controller(std::span<const double> gains);
 
     void configure(double kp, double ki, double kd);
     void configure(double kp, double ki, double kd, double output_limit);
@@ -28,7 +25,6 @@ class PID_Controller {
     double ki_{0.0};
     double kd_{0.0};
     double output_limit_{0.0};
-    bool smooth_saturation_{false};
 
     double integral_{0.0};
     double prev_measurement_{0.0};

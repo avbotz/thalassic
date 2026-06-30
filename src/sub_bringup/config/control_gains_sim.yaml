@@ -1,16 +1,8 @@
 /**:
   ros__parameters:
     control_rate_hz: 50.0
-    # Per-thruster command cap in [0, 1]. The allocator is bounded by the force
-    # this maps to on the T200 curve, so this is the real authority limit.
     power_limit: 0.6
 
-    # Cascade gains, one [kp, ki, kd, max_output] list per axis (x, y, z).
-    #   pos -> velocity setpoint (m/s)      | vel -> body force (N)
-    #   att -> angular-rate setpoint (rad/s) | ang -> body torque (N*m)
-    # Attitude is near pure-P with a low rate cap on purpose: roll/pitch are
-    # hydrostatically stable, so a strong integral term only winds up and rolls
-    # the sub when it starts moving.
     pos_pid:
       x: [0.8, 0.1, 0.0, 1.0]
       y: [0.8, 0.1, 0.0, 1.0]
@@ -22,11 +14,11 @@
       z: [38.0, 5.0, 0.0, 60.0]
 
     att_pid:
-      x: [0.3, 8.0, 0.0, 0.50]
-      y: [0.3, 8.0, 0.0, 0.50]
-      z: [0.4, 0.05, 0.0, 0.50]
+      x: [3.0, 0.5, 0.0, 4.0]
+      y: [3.0, 0.5, 0.0, 4.0]
+      z: [1.5, 0.1, 0.0, 4.0]
 
     ang_pid:
-      x: [3.5, 0.05, 0.0, 8.0]
-      y: [3.5, 0.05, 0.0, 8.0]
-      z: [4.5, 0.08, 0.0, 8.0]
+      x: [3.5, 0.1, 0.0, 20.0]
+      y: [3.5, 0.1, 0.0, 20.0]
+      z: [4.5, 0.1, 0.0, 20.0]

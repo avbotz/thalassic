@@ -22,8 +22,8 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
     nav_msgs::msg::Odometry odom_msg{};
 
     odom_msg.header = msg_stonefish->header;
-    odom_msg.header.frame_id = robot_name_ + "/dvl_link";
-    odom_msg.child_frame_id = robot_name_ + "/dvl_link";
+    odom_msg.header.frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
+    odom_msg.child_frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
 
     odom_msg.pose.pose.position.x = 0.0;
     odom_msg.pose.pose.position.y = 0.0;

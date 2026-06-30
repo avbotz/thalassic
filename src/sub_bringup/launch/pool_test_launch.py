@@ -131,7 +131,7 @@ def control_and_state_entities():
         executable="sub_low",
         name="sub_low",
         namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"device": "/dev/arduino_mega"}],
+        parameters=[{"device": "/dev/pico"}],
     )
 
     naviguider_imu_driver_node = LifecycleNode(
@@ -140,7 +140,7 @@ def control_and_state_entities():
         name="naviguider_imu_driver",
         namespace=LaunchConfiguration("robot_name"),
         output="both",
-        parameters=[{"device": "/dev/naviguider_imu"}],
+        parameters=[{"device": "/dev/naviguider_imu", "frame_id": "marlin_v2/imu_link"}],
     )
 
     robot_localization_node = Node(

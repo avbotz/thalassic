@@ -57,7 +57,7 @@ void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned
     sensor_msgs::msg::Imu msg_enu{};
 
     msg_enu.header = msg_ned->header;
-    msg_enu.header.frame_id = robot_name_ + "/imu_link";
+    msg_enu.header.frame_id = robot_name_.empty() ? "imu_link" : robot_name_ + "/imu_link";
 
     // T_world: Transforms World Frame from NED to ENU (E=N_old, N=E_old, U=-D)
     static const tf2::Matrix3x3 T_world(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0);

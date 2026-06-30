@@ -22,21 +22,21 @@ SubControl::SubControl() : Node("sub_control") {
     this->declare_parameter("power_limit", 0.6);
     this->declare_parameter("robot_name", "");
 
-    this->declare_parameter("pos_pid.x", std::vector<float>{0.8, 0.1, 0.0, 1.0});
-    this->declare_parameter("pos_pid.y", std::vector<float>{0.8, 0.1, 0.0, 1.0});
-    this->declare_parameter("pos_pid.z", std::vector<float>{0.7, 0.1, 0.0, 0.7});
+    this->declare_parameter("pos_pid.x", std::vector<float>{0.8, 0.0, 0.0, 1.0});
+    this->declare_parameter("pos_pid.y", std::vector<float>{0.8, 0.0, 0.0, 1.0});
+    this->declare_parameter("pos_pid.z", std::vector<float>{0.8, 0.0, 0.0, 1.0});
 
     this->declare_parameter("vel_pid.x", std::vector<float>{30.0, 3.0, 0.0, 50.0});
     this->declare_parameter("vel_pid.y", std::vector<float>{30.0, 3.0, 0.0, 50.0});
-    this->declare_parameter("vel_pid.z", std::vector<float>{38.0, 5.0, 0.0, 60.0});
+    this->declare_parameter("vel_pid.z", std::vector<float>{30.0, 3.0, 0.0, 50.0});
 
-    this->declare_parameter("att_pid.x", std::vector<float>{0.8, 0.05, 0.0, 0.35});
-    this->declare_parameter("att_pid.y", std::vector<float>{0.8, 0.05, 0.0, 0.35});
-    this->declare_parameter("att_pid.z", std::vector<float>{0.7, 0.05, 0.0, 0.30});
+    this->declare_parameter("att_pid.x", std::vector<float>{0.8, 0.3, 0.0, 5.0});
+    this->declare_parameter("att_pid.y", std::vector<float>{0.8, 0.3, 0.0, 5.0});
+    this->declare_parameter("att_pid.z", std::vector<float>{0.8, 0.3, 0.0, 5.0});
 
-    this->declare_parameter("ang_pid.x", std::vector<float>{3.5, 0.05, 0.0, 8.0});
-    this->declare_parameter("ang_pid.y", std::vector<float>{3.5, 0.05, 0.0, 8.0});
-    this->declare_parameter("ang_pid.z", std::vector<float>{4.5, 0.08, 0.0, 8.0});
+    this->declare_parameter("ang_pid.x", std::vector<float>{3.5, 0.05, 0.0, 20.0});
+    this->declare_parameter("ang_pid.y", std::vector<float>{3.5, 0.05, 0.0, 20.0});
+    this->declare_parameter("ang_pid.z", std::vector<float>{3.5, 0.05, 0.0, 20.0});
 
     this->get_parameter("control_rate_hz", control_rate_hz_);
     this->get_parameter("power_limit", power_limit_);
@@ -46,9 +46,9 @@ SubControl::SubControl() : Node("sub_control") {
     const std::array<std::string, 3> axes = {"x", "y", "z"};
 
     for (size_t i = 0; i < axes.size(); ++i) {
-        position_pid_controllers_[i] = PID_Controller(this->get_parameter("pos_pid." + axes[i]).as_double_array(), true);
+        position_pid_controllers_[i] = PID_Controller(this->get_parameter("pos_pid." + axes[i]).as_double_array());
         velocity_pid_controllers_[i] = PID_Controller(this->get_parameter("vel_pid." + axes[i]).as_double_array());
-        attitude_pid_controllers_[i] = PID_Controller(this->get_parameter("att_pid." + axes[i]).as_double_array(), true);
+        attitude_pid_controllers_[i] = PID_Controller(this->get_parameter("att_pid." + axes[i]).as_double_array());
         angvel_pid_controllers_[i] = PID_Controller(this->get_parameter("ang_pid." + axes[i]).as_double_array());
     }
 
@@ -155,7 +155,7 @@ void SubControl::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
 
     if (killed_ && !msg->data) {
         auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
-        request->pose.header.frame_id = robot_name_ + "/odom";
+        request->pose.header.frame_id = robot_name_.empty() ? "odom" : robot_name_ + "/odom";
         request->pose.header.stamp = this->now();
         request->pose.pose.pose.position.x = 0.0;
         request->pose.pose.pose.position.y = 0.0;
