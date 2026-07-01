@@ -1,6 +1,9 @@
 import threading
 
+import serial
+import usb.core
 import rclpy
+from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import (
@@ -10,16 +13,12 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from std_msgs.msg import Bool, Float64
-from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
-import serial
+from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
 NUM_THRUSTERS = 8
 NUM_TORPEDO_THRUSTERS = 2
 
-DEFAULT_DEVICE = "/dev/ttyACM0"
-DEFAULT_BAUD = 115200
-DEFAULT_SERIAL_TIMEOUT = 1.0
 READER_JOIN_TIMEOUT = 2.0
 
 
@@ -27,9 +26,12 @@ class SubLow(LifecycleNode):
     def __init__(self, **kwargs):
         super().__init__("sub_low", **kwargs)
 
-        self.declare_parameter("device", DEFAULT_DEVICE)
-        self.declare_parameter("baud", DEFAULT_BAUD)
-        self.declare_parameter("serial_timeout", DEFAULT_SERIAL_TIMEOUT)
+        self.declare_parameter("device", "/dev/ttyACM0")
+        # default values for usb VID/PID are those of maritime
+        self.declare_parameter("device_vid", 0x2fe3)
+        self.declare_parameter("device_pid", 0x0004)
+        self.declare_parameter("baud", 115200)
+        self.declare_parameter("serial_timeout", 1.0)
 
         self._serial: serial.Serial | None = None
         self._write_lock = threading.Lock()
@@ -39,10 +41,19 @@ class SubLow(LifecycleNode):
 
         self._is_active = False
 
+        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self._last_read = None
+
         self._kill_pub = None
         self._thruster_subs = []
         self._launch_torpedo_srv = None
         self._set_dropper_srv = None
+
+        self.create_timer(
+            0.8,
+            self._ensure_connected,
+            clock=self.steady_clock
+        )
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         if not self._open_serial():
@@ -101,6 +112,25 @@ class SubLow(LifecycleNode):
         self._write("a 0\n")
         self._teardown()
         return TransitionCallbackReturn.SUCCESS
+
+    # This method ensures that the MCU is continually sending data by periodically checking the last read time.
+    # The MCU should always be sending kill switch data at 10 Hz (100 ms interval).
+    # This check is required due to a weird issue where the MCU stops communicating with the Jetson when the kill
+    # switch is flipped from killed to unkilled.
+    # TODO: This is a very hacky fix and should be resolved in a better manner in the future.
+    def _ensure_connected(self):
+        if not self._is_active or self._serial is None or self._last_read is None:
+            return
+
+        if self.steady_clock.now() - self._last_read > 1.0:
+            vid = self.get_parameter("vendor_id").get_parameter_value().integer_value
+            pid = self.get_parameter("product_id").get_parameter_value().integer_value
+            dev = usb.core.find(idVendor=vid, idProduct=pid)
+            if dev is None:
+                self.get_logger().warn("microcontroller disconnected")
+                self._teardown()
+            else:
+                dev.reset()
 
     def _open_serial(self) -> bool:
         device = self.get_parameter("device").get_parameter_value().string_value
@@ -164,6 +194,8 @@ class SubLow(LifecycleNode):
                 self.get_logger().warn("error while handling serial line")
 
     def _handle_line(self, line: bytes) -> None:
+        self._last_read = self.steady_clock.now()
+
         fields = line.split()
         if not fields:
             return
@@ -199,6 +231,8 @@ class SubLow(LifecycleNode):
             except serial.SerialException as exc:
                 self.get_logger().warning(f"error closing serial port: {exc}")
             self._serial = None
+            self._is_active = False
+            self._last_read = None
 
     def _destroy_entities(self) -> None:
         if self._kill_pub is not None:
