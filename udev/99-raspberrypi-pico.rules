@@ -1,4 +1,5 @@
 # avbotz user owns device so usb can be reset without root
 # need to reset usb to circumvent weird issue where pico stops communicating with jetson after kill switch is flipped from killed to unkilled
 # very hacky and should be fixed in a better way in the future
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2fe3", ATTRS{idProduct}=="0004", MODE="0666", OWNER="avbotz"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="2fe3", ATTRS{idProduct}=="0004", SYMLINK+="pico", MODE="0666", OWNER="avbotz"
