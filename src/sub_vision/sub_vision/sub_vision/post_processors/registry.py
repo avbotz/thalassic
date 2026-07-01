@@ -10,7 +10,12 @@ from sub_vision.post_processors.base import TaskPostProcessor
 # Concrete post-processor classes that ship with this package. Imported lazily
 # so that simply importing the registry does not drag in OpenCV / numpy.
 _BUILTIN_MODULES = (
+    "sub_vision.post_processors.bin",
     "sub_vision.post_processors.gate",
+    "sub_vision.post_processors.slalom",
+    "sub_vision.post_processors.symbol",
+    "sub_vision.post_processors.torpedo",
+    "sub_vision.post_processors.trash_table",
 )
 
 _REGISTRY: Dict[str, Type[TaskPostProcessor]] = {}

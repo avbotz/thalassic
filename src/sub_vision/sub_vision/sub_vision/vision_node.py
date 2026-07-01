@@ -136,15 +136,19 @@ class VisionNode(Node):
 
         for x1, y1, x2, y2, score, cls in raw:
             det = Detection()
-            det.detection = self._make_detection2d(header, x1, y1, x2, y2, score, cls)
-
-            # TODO: Calculate depth based on bbox size
+            class_id = int(cls)
+            class_label = self._manager.class_name(class_id)
+            det.detection = self._make_detection2d(
+                header, x1, y1, x2, y2, score, class_label
+            )
+            det.distance_m = float(((y2 - y1) / image_height) * constants.CAMERA_HEIGHT_M)
+            det.pose.orientation.w = 1.0
 
             out.detections.append(det)
         return out
 
     @staticmethod
-    def _make_detection2d(header, x1, y1, x2, y2, score, cls) -> Detection2D:
+    def _make_detection2d(header, x1, y1, x2, y2, score, class_label) -> Detection2D:
         det2d = Detection2D()
         det2d.header = header
 
@@ -156,7 +160,7 @@ class VisionNode(Node):
         det2d.bbox = bbox
 
         hyp = ObjectHypothesisWithPose()
-        hyp.hypothesis.class_id = str(int(cls))
+        hyp.hypothesis.class_id = str(class_label)
         hyp.hypothesis.score = float(score)
         det2d.results.append(hyp)
         return det2d

@@ -2,6 +2,7 @@
 
 import time
 import threading
+import os
 from dataclasses import dataclass
 from collections.abc import Callable
 
@@ -60,6 +61,7 @@ class ModelManager:
         self._lock = threading.Lock()
         self._backend: backends.DetectionBackend | None = None
         self._active_task: str | None = None
+        self._class_names: list[str] = []
         self._last_warmup: WarmupStats | None = None
 
     @property
@@ -75,6 +77,12 @@ class ModelManager:
     @property
     def last_warmup(self) -> WarmupStats | None:
         return self._last_warmup
+
+    def class_name(self, class_id: int) -> str:
+        """Resolve a numeric class id through ``<task>.names`` when available."""
+        if 0 <= class_id < len(self._class_names):
+            return self._class_names[class_id]
+        return str(class_id)
 
     def load(self, task: str) -> LoadResult:
         """Make ``task`` the active model, building/caching as needed.
@@ -105,10 +113,12 @@ class ModelManager:
         warmup = self._warmup(backend)
 
         # Atomic swap: replace the active backend and free the old one.
+        class_names = self._load_class_names(task)
         with self._lock:
             old = self._backend
             self._backend = backend
             self._active_task = task
+            self._class_names = class_names
             self._last_warmup = warmup
         if old is not None:
             old.close()
@@ -142,3 +152,15 @@ class ModelManager:
                 return None
             times.append((time.perf_counter() - t0) * 1000.0)
         return WarmupStats(len(times), float(np.mean(times)), times[-1])
+
+    def _load_class_names(self, task: str) -> list[str]:
+        names_path = os.path.join(self._model_dir, f"{task}.names")
+        if not os.path.exists(names_path):
+            return []
+
+        with open(names_path, encoding="utf-8") as names_file:
+            return [
+                line.strip()
+                for line in names_file
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
