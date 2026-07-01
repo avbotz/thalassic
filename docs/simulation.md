@@ -36,25 +36,34 @@ Use `seed` in the launch argument to get reproducible scenarios.
 
 The following nodes are launched in simulation mode (in addition to the real-hardware nodes):
 
+The sim sensor bridges run together inside a single composable-node container
+(`sim_sensors_container`):
+
 | Node | Package | Purpose |
 |---|---|---|
 | `stonefish_simulator` | `stonefish_ros2` | Physics engine + sensor simulation |
 | `robot_state_publisher` | `robot_state_publisher` | Publishes URDF and TF from joint states |
-| `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `marine_acoustic_msgs/Dvl` |
-| `thruster_republishers` | `sub_sim_sensors` | 8 individual thruster topics → `Float64MultiArray` |
+| `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `odometry/dvl` (velocity only) |
+| `sim_imu_remapper` | `sub_sim_sensors` | Stonefish NED IMU → ENU `imu/data` |
+| `sim_thruster_republisher` | `sub_sim_sensors` | 8 thruster topics → `sim/thruster_setpoints` array |
+| `sim_kill_switch` | `sub_sim_sensors` | `sim/kill_switch` → `kill_switch` after startup delay |
+| `sim_torpedo_launcher` | `sub_sim_sensors` | Torpedo launch service |
+| `sim_dropper` | `sub_sim_sensors` | Dropper service |
 
 ## Sensor Simulation
 
 ### DVL
 
-Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` converts it to `marine_acoustic_msgs/Dvl` on `dvl`, then `dvl_odom_remapper` extracts velocity and altitude for the EKF and `sub_control`.
+Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper`
+converts it directly to a velocity-only `nav_msgs/Odometry` on `odometry/dvl` —
+the same topic the hardware WaterLinked driver publishes — which the EKF fuses.
 
 ### Thrusters
 
 `sub_control` publishes 8 normalized `Float64` commands on
-`control/thruster_0` through `control/thruster_7`. The
-`sim_thruster_republisher` combines them into `sim/thruster_setpoints`, scales
-each command by 400, and publishes the array consumed by Stonefish.
+`control/thruster_0` through `control/thruster_7`. `sim_thruster_republisher`
+combines them into a `Float64MultiArray` on `sim/thruster_setpoints`, scaling
+each command by 400 (T200 count), and publishes the array consumed by Stonefish.
 
 ## Simulation Settings
 
@@ -62,10 +71,9 @@ Hardcoded in `sim_launch.py`:
 
 | Setting | Value |
 |---|---|
-| `simulation_rate` | 300 Hz |
+| `simulation_rate` | 500 Hz |
 | `window_res_x` × `window_res_y` | 1900 × 1000 |
 | `rendering_quality` | medium |
-| `use_sim_time` | false |
 
 ## Task Models
 
