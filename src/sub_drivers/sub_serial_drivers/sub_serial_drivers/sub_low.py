@@ -1,8 +1,10 @@
+import time
 import threading
 
 import serial
 import usb.core
 import rclpy
+from rclpy.duration import Duration
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
@@ -57,7 +59,9 @@ class SubLow(LifecycleNode):
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         if not self._open_serial():
-            return TransitionCallbackReturn.FAILURE
+            self._reset_usb()
+            if not self._open_serial():
+                return TransitionCallbackReturn.FAILURE
 
         kill_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self._kill_pub = self.create_lifecycle_publisher(Bool, "kill_switch", kill_qos)
@@ -122,15 +126,22 @@ class SubLow(LifecycleNode):
         if not self._is_active or self._serial is None or self._last_read is None:
             return
 
-        if self.steady_clock.now() - self._last_read > 1.0:
-            vid = self.get_parameter("vendor_id").get_parameter_value().integer_value
-            pid = self.get_parameter("product_id").get_parameter_value().integer_value
-            dev = usb.core.find(idVendor=vid, idProduct=pid)
-            if dev is None:
+        if self.steady_clock.now() - self._last_read > Duration(seconds=1.0):
+            if not self._reset_usb():
                 self.get_logger().warn("microcontroller disconnected")
                 self._teardown()
             else:
-                dev.reset()
+                self._last_read = self.steady_clock.now()
+
+    def _reset_usb(self) -> bool:
+        vid = self.get_parameter("device_vid").get_parameter_value().integer_value
+        pid = self.get_parameter("device_pid").get_parameter_value().integer_value
+        dev = usb.core.find(idVendor=vid, idProduct=pid)
+        if dev is not None:
+            dev.reset()
+            return True
+        time.sleep(0.5)
+        return False
 
     def _open_serial(self) -> bool:
         device = self.get_parameter("device").get_parameter_value().string_value
