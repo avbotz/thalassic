@@ -3,16 +3,17 @@
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
+#include <angles/angles.h>
 #include <rclcpp/rclcpp.hpp>
+#include <robot_localization/srv/set_pose.hpp>
 #include <tf2/LinearMath/Matrix3x3.hpp>
 #include <tf2/LinearMath/Quaternion.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <robot_localization/srv/set_pose.hpp>
-#include <angles/angles.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <format>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -57,7 +58,7 @@ SubControl::SubControl() : Node("sub_control") {
     altitude_sub_ = this->create_subscription<std_msgs::msg::Float64>(
         "altitude", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) { altitude_callback(msg); });
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-        "kill_switch", 10, [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
+        "kill_switch", rclcpp::QoS(1).transient_local(), [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
 
     pos_setpoint_sub_ = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
         "pos_setpoint", 10,
@@ -69,14 +70,14 @@ SubControl::SubControl() : Node("sub_control") {
         "cmd_vel", 10, [this](const geometry_msgs::msg::Twist::SharedPtr msg) { cmd_vel_callback(msg); });
 
     for (size_t i = 0; i < NUM_THRUSTERS; ++i) {
-        thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>("control/thruster_" + std::to_string(i), 10);
+        thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(std::format("control/thruster_{}", i), 10);
     }
     error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
 
     set_pose_client_ = this->create_client<robot_localization::srv::SetPose>("set_pose");
 
     control_timer_ =
-        this->create_timer(std::chrono::milliseconds{static_cast<int>(1000.0 / control_rate_hz_)}, [this]() { run(); });
+        this->create_timer(std::chrono::microseconds{static_cast<int>(1e6 / control_rate_hz_)}, [this]() { run(); });
 
     thruster_allocator_ = ThrusterAllocator();
 }

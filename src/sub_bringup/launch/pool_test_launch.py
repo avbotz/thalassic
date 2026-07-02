@@ -32,9 +32,10 @@ def camera_entities():
                 "frame_rate": 10.0,
                 "trigger_mode": "Off",
                 "stream_buffer_handling_mode": "NewestOnly",
+                # TODO: Figure out how to get everything working with packet size of 9000
                 "gev_scps_packet_size": 1500,
 
-                "frame_id": [LaunchConfiguration("robot_name"), "/front_camera"],
+                "frame_id": [LaunchConfiguration("robot_name"), "/down_camera"],
                 "parameter_file": PathJoinSubstitution(
                     [
                         FindPackageShare("spinnaker_camera_driver"),
@@ -72,7 +73,7 @@ def camera_entities():
             PathJoinSubstitution(
                 [
                     FindPackageShare("sub_bringup"),
-                    "config/params.yaml",
+                    "config/logitech_c922.yaml",
                 ]
             ),
         ],
@@ -172,6 +173,7 @@ def control_and_state_entities():
                     "config/control_gains.yaml",
                 ]
             ),
+            {"robot_name": LaunchConfiguration("robot_name")}
         ],
     )
 
