@@ -16,7 +16,7 @@ def generate_launch_description():
         ),
         static_tf(BASE_NED, f"{ROBOT}/dvl_link", z=0.015797, yaw=-math.pi / 2),
         # Naviguider IMU outputs ENU
-        static_tf(f"{ROBOT}/base_link", f"{ROBOT}/imu_link", y=-0.1, z=0.2),
+        static_tf(f"{ROBOT}/base_link", f"{ROBOT}/imu_link", x=-0.199, y=-0.09, z=0.185622),
         static_tf(BASE_NED, f"{ROBOT}/dropper_link", x=-0.19074, y=0.40252, z=0.15565),
         static_tf(
             BASE_NED, f"{ROBOT}/left_grabber_link", x=0.056319, y=0.3506, z=0.13631
@@ -27,14 +27,14 @@ def generate_launch_description():
     ]
 
     thrusters = [
-        (-0.29, 0.34, -0.08, 0.0, 0.0, 7 * math.pi / 4),
-        (-0.29, -0.34, -0.08, 0.0, 0.0, math.pi / 4),
-        (0.29, 0.34, -0.08, 0.0, 0.0, 5 * math.pi / 4),
-        (0.29, -0.34, -0.08, 0.0, 0.0, 3 * math.pi / 4),
-        (0.23, -0.22, 0.00, 0.0, math.pi / 2, 0.0),
         (-0.23, -0.22, 0.00, 0.0, math.pi / 2, 0.0),
-        (0.23, 0.22, 0.00, 0.0, math.pi / 2, 0.0),
+        (0.23, -0.22, 0.00, 0.0, math.pi / 2, 0.0),
         (-0.23, 0.22, 0.00, 0.0, math.pi / 2, 0.0),
+        (0.23, 0.22, 0.00, 0.0, math.pi / 2, 0.0),
+        (-0.285, -0.315, -0.08, 0.0, 0.0, math.pi * 3 / 4),
+        (0.285, -0.315, -0.08, 0.0, 0.0, math.pi / 4),
+        (-0.285, 0.315, -0.08, 0.0, 0.0, math.pi / 4),
+        (0.285, 0.315, -0.08, 0.0, 0.0, math.pi * 3 / 4),
     ]
     transforms += [
         static_tf(
