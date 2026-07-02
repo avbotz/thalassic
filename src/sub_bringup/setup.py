@@ -19,7 +19,7 @@ setup(
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="avbotzco@gmail.com",
-    description="Launch files",
+    description="Launch and configuration files",
     license="Proprietary",
     entry_points={
         "console_scripts": [],

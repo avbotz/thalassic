@@ -17,8 +17,10 @@ Thalassic is the ROS2 software stack for AVBotz's **Marlin V2** AUV (Autonomous 
 ./install.sh
 
 # Every new shell
+# For bash
 source setup.sh
-source setup.zsh  # for zsh shell
+# Or for zsh shell
+source setup.zsh
 
 # Build
 python -m colcon build

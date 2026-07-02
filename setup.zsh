@@ -1,7 +1,6 @@
 source /opt/ros/jazzy/setup.zsh
 source install/setup.zsh
-
-export CYCLONEDDS_URI="file://${0:a:h}/cyclonedds.xml"
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.zsh
 
 if [ -f .venv/bin/activate ]; then
     source .venv/bin/activate
