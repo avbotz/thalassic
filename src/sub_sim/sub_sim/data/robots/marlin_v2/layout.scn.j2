@@ -266,53 +266,52 @@
 
 
       <!-- Thrusters, excluding propeller which is added below -->
-
-      {{ thruster_visual(
-        name="thuster_0",
-        xyz="-0.29 0.34 -0.08",
-        rpy="0 0 " ~ PI * 7 / 4
-      ) }}
+       {{ thruster_visual(
+         name="thruster_0",
+         xyz="-0.23 -0.22 0.0",
+         rpy="0 " ~ -PI / 2 ~ " 0"
+       ) }}
 
       {{ thruster_visual(
         name="thruster_1",
-        xyz="-0.29 -0.34 -0.08",
-        rpy="0 0 " ~ PI / 4
+        xyz="0.23 -0.22 0.0",
+        rpy="0 " ~ -PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_2",
-        xyz="0.29 0.34 -0.08",
-        rpy="0 0 " ~ PI * 5 / 4
+        xyz="-0.23 0.22 0.0",
+        rpy="0 " ~ -PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_3",
-        xyz="0.29 -0.34 -0.08",
-        rpy="0 0 " ~ PI * 3 / 4
+        xyz="0.23 0.22 0.0",
+        rpy="0 " ~ -PI / 2 ~ " 0"
       ) }}
 
       {{ thruster_visual(
         name="thruster_4",
-        xyz="0.23 -0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
+        xyz="-0.285 -0.315 -0.08",
+        rpy="0 0 " ~ -PI / 4
       ) }}
 
       {{ thruster_visual(
         name="thruster_5",
-        xyz="-0.23 -0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
+        xyz="0.285 -0.315 -0.08",
+        rpy="0 0 " ~ PI * 5/4
       ) }}
 
       {{ thruster_visual(
         name="thruster_6",
-        xyz="0.23 0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
+        xyz="-0.285 0.315 -0.08",
+        rpy="0 0 " ~ PI * 5/4
       ) }}
 
       {{ thruster_visual(
         name="thruster_7",
-        xyz="-0.23 0.22 0.000",
-        rpy="0 " ~ PI / 2 ~ " 0"
+        xyz="0.285 0.315 -0.08",
+        rpy="0 0 " ~ -PI / 4
       ) }}
 
 
@@ -330,16 +329,52 @@
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      <internal_part name="weights" type="box" physics="submerged" buoyant="false">
-        <dimensions xyz="0.23 0.23 0.06" />
+      <internal_part name="disk_weights_front_right" type="cylinder" physics="submerged" buoyant="false">
+        <dimensions radius="0.07" height="0.023" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 
-        <mass value="12.5" />
+        <mass value="3.5" />
 
         <material name="aluminum"/>
         <look name="black"/>
 
-        <compound_transform xyz="0.0 0.0 0.15" rpy="0.0 0.0 0.0" />
+        <compound_transform xyz="0.345 0.35 0.095" rpy="0.0 {{ PI / 2 }} 0.0" />
+      </internal_part>
+
+      <internal_part name="disk_weights_front_left" type="cylinder" physics="submerged" buoyant="false">
+        <dimensions radius="0.07" height="0.023" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+
+        <mass value="3.5" />
+
+        <material name="aluminum"/>
+        <look name="black"/>
+
+        <compound_transform xyz="0.345 -0.35 0.095" rpy="0.0 {{ PI / 2 }} 0.0" />
+      </internal_part>
+
+      <internal_part name="disk_weights_back_right" type="cylinder" physics="submerged" buoyant="false">
+        <dimensions radius="0.07" height="0.023" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+
+        <mass value="3.5" />
+
+        <material name="aluminum"/>
+        <look name="black"/>
+
+        <compound_transform xyz="-0.345 0.35 0.095" rpy="0.0 {{ PI / 2 }} 0.0" />
+      </internal_part>
+
+      <internal_part name="disk_weights_back_left" type="cylinder" physics="submerged" buoyant="false">
+        <dimensions radius="0.07" height="0.023" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+
+        <mass value="3.5" />
+
+        <material name="aluminum"/>
+        <look name="black"/>
+
+        <compound_transform xyz="-0.345 -0.35 0.095" rpy="0.0 {{ PI / 2 }} 0.0" />
       </internal_part>
 
       <internal_part name="esc_box_left_internal" type="box" physics="submerged" buoyant="true">
@@ -475,7 +510,7 @@
       <noise velocity_percent="0.00" velocity="0.00" altitude="0.00" water_velocity_percent="0.0" water_velocity="0.00" />
       <history samples="1" />
 
-      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 0.0" />
+      <origin xyz="0.0 0.0 0.015797" rpy="0.0 0.0 {{ -PI / 2 }}" />
 
       <ros_publisher topic="/marlin_v2/sim/dvl" />
     </sensor>
@@ -487,9 +522,9 @@
       <noise angle="0.0 0.0 0.0" angular_velocity="0.0" yaw_drift="0.0" linear_acceleration="0.00"/>
       <history samples="1"/>
 
-      <origin xyz="0.0 -0.15 -0.2" rpy="0.0 0.0 0.0"/>
+      <origin xyz="-0.09 0.199 -0.185622" rpy="0.0 0.0 0.0"/>
 
-      <ros_publisher topic="/marlin_v2/imu"/>
+      <ros_publisher topic="/marlin_v2/sim/imu"/>
     </sensor>
 
     <sensor name="front_camera" rate="30.0" type="camera">
@@ -497,7 +532,7 @@
 
       <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" />
       <origin xyz="0.0 -0.33 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
-      <ros_publisher topic="/marlin_v2/sim/front_camera" />
+      <ros_publisher topic="/marlin_v2/front_camera" />
     </sensor>
 
     <sensor name="depth_camera" rate="30.0" type="depthcamera">
@@ -519,71 +554,69 @@
       <ros_publisher topic="/marlin_v2/sim/segment" />
     </sensor>
 
-    <!-- Thrusters -->
-    <!--   0-3 (yaw-only rpy)  = horizontal vectored -> surge / sway / yaw
-           4-7 (pitch 90 rpy)  = vertical            -> heave / roll / pitch-->
+    <!-- Thrusters Propellors -->
     <!-- Cannot use include tag here because they can only be used at the top level -->
     {{ thruster_actuator(
-      name="thuster_0",
+      name="thruster_0",
       link_name="base_link_ned",
-      xyz="-0.29 0.34 -0.08",
-      rpy="0 0 " ~ PI * 7 / 4,
+      xyz="-0.23 -0.22 0.0",
+      rpy="0 " ~ -PI / 2 ~ " 0",
       right="true"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_1",
       link_name="base_link_ned",
-      xyz="-0.29 -0.34 -0.08",
-      rpy="0 0 " ~ PI / 4,
-      right="true"
+      xyz="0.23 -0.22 0.0",
+      rpy="0 " ~ -PI / 2 ~ " 0",
+      right="false"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_2",
       link_name="base_link_ned",
-      xyz="0.29 0.34 -0.08",
-      rpy="0 0 " ~ PI * 5 / 4,
-      right="true"
+      xyz="-0.23 0.22 0.0",
+      rpy="0 " ~ -PI / 2 ~ " 0",
+      right="false"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_3",
       link_name="base_link_ned",
-      xyz="0.29 -0.34 -0.08",
-      rpy="0 0 " ~ PI * 3 / 4,
+      xyz="0.23 0.22 0.0",
+      rpy="0 " ~ -PI / 2 ~ " 0",
       right="true"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_4",
       link_name="base_link_ned",
-      xyz="0.23 -0.22 0.000",
-      rpy="0 " ~ PI / 2 ~ " 0",
+      xyz="-0.285 -0.315 -0.08",
+      rpy="0 0 " ~ -PI / 4,
       right="true"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_5",
       link_name="base_link_ned",
-      xyz="-0.23 -0.22 0.000",
-      rpy="0 " ~ PI / 2 ~ " 0",
-      right="true"
+      xyz="0.285 -0.315 -0.08",
+      rpy="0 0 " ~ PI * 5/4,
+      right="false"
     ) }}
 
     {{ thruster_actuator(
-      name="thruster_6",
+      name="thuster_6",
       link_name="base_link_ned",
-      xyz="0.23 0.22 0.000",
-      rpy="0 " ~ PI / 2 ~ " 0",
-      right="true"
+      xyz="-0.285 0.315 -0.08",
+      rpy="0 0 " ~ PI * 5/4,
+      right="false"
     ) }}
 
     {{ thruster_actuator(
       name="thruster_7",
       link_name="base_link_ned",
-      xyz="-0.23 0.22 0.000",
-      rpy="0 " ~ PI / 2 ~ " 0",
+      xyz="0.285 0.315 -0.08",
+      rpy="0 0 " ~ -PI / 4,
       right="true"
     ) }}
 

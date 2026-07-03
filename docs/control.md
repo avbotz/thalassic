@@ -1,145 +1,172 @@
 # Control System
 
-## State-Feedback Controller
+## Cascade PID Controller
 
-`sub_control` runs a fault-aware cascaded state-feedback controller at 50 Hz.
-The ROS topics and `Setpoint` message are unchanged.
+`sub_control` runs a 6-DOF cascade PID controller at 50 Hz. Each of the six body
+axes is driven by an outer "guidance" PID feeding an inner "effort" PID:
 
 ```
-position error ──► nonlinear guidance ──► velocity setpoint ──► PI force control
-attitude error ──► nonlinear guidance ──► rate setpoint ─────► PI torque control
-                                                                  │
-                                                                  ▼
-                                      bounded weighted thruster allocation
-                                                                  │
-                                                                  ▼
-                                                     control/thruster_0..7
+position error ──► position PID ──► velocity setpoint ─┐
+                                                        ├─► velocity PID ──► body force  ─┐
+                              (direct cmd_vel / setpoint)┘                                │
+                                                                                          ├─► thruster allocation ──► control/thruster_0..7
+attitude error ──► attitude PID ──► angular-rate setpoint ─┐                              │
+                                                           ├─► angular-rate PID ─► body torque ┘
+                              (direct cmd_vel / setpoint)──┘
 ```
 
-The outer position guidance law combines proportional and bounded integral
-position feedback, then applies `limit * tanh(command / limit)`. This removes
-steady position offsets caused by velocity bias or drag while approaching the
-configured speed limit smoothly. Velocity and angular-rate setpoints are
-slew-limited to prevent current spikes and abrupt vehicle motion.
+There are four PID banks, each holding one independent controller per axis
+(`x`, `y`, `z` for translation; roll/pitch/yaw for rotation):
 
-The inner loops are PI state-feedback controllers. Measured DVL velocity and
-IMU angular rate already provide the damping term, so numerical derivatives are
-not used. Conditional integration prevents windup while force or torque output
-is saturated.
+| Bank | Param group | Input | Output |
+|---|---|---|---|
+| Position | `pos_pid` | world position error [m] | world velocity setpoint [m/s] |
+| Velocity | `vel_pid` | body velocity error [m/s] | body force [N] |
+| Attitude | `att_pid` | geodesic attitude error [rad] | body angular-rate setpoint [rad/s] |
+| Angular rate | `ang_pid` | body angular-rate error [rad/s] | body torque [N·m] |
 
-Default translation mode is zero-velocity hold. Default attitude mode holds
-level and the heading captured when the kill switch is released.
+The position loop produces a velocity setpoint in the world frame, which is
+rotated into the body frame (via the inverse of the current orientation) before
+the velocity loop runs. The attitude and angular-rate loops both operate in the
+body frame, so the geodesic attitude error feeds the rate loop directly.
 
-## Attitude Control
+When an outer loop is bypassed (see [Command Interface](#command-interface)),
+its inner loop is driven by the commanded velocity or angular rate instead.
 
-Attitude error is not calculated by independently subtracting Euler angles.
-Current and desired RPY values are converted to rotation matrices, and the
-relative rotation is converted to a body-frame rotation vector. This avoids
-axis coupling and angle-wrap errors during combined roll, pitch, and yaw motion.
+## PID Internals
+
+Each axis is an independent-form PID:
+
+```
+output = kp * error + ki * ∫error dt + kd * d(-measurement)/dt
+```
+
+- **Derivative on measurement.** The derivative term uses the negated
+  measurement rate, not the error rate, to avoid derivative kick on setpoint
+  steps. It is additionally low-pass smoothed (`ALPHA`) to reject noise.
+- **Hard saturation with anti-windup.** Output is clamped to `±max_output`. When
+  the raw output is clipped, the excess is back-calculated off the integrator
+  (`integral -= raw - clamped`) so the integral cannot wind up against the
+  limit. A `max_output` of `0` disables both the clamp and the anti-windup.
+- **Reset.** `reset()` zeroes the integrator, smoothed derivative, and previous
+  measurement. The controller calls it on every kill-switch release.
+
+Each bank's gains are supplied as a `[kp, ki, kd, max_output]` array per axis.
+
+## Command Interface
+
+Setpoints arrive on three topics. All command frames are REP-103 body **FLU**
+(x forward, y left, z up); a downward (dive) command is negative `z`.
+
+| Topic | Type | Meaning |
+|---|---|---|
+| `pos_setpoint` | `sub_control_interfaces/Setpoint` | position **or** body-velocity hold |
+| `att_setpoint` | `sub_control_interfaces/Setpoint` | attitude **or** body angular-rate hold |
+| `cmd_vel` | `geometry_msgs/Twist` | direct body velocity + angular rate |
+
+`Setpoint` carries two flags and a `SetpointAxes` payload:
+
+```
+bool velocity      # true: treat payload as a velocity/rate setpoint (bypass outer loop)
+bool altitude      # pos_setpoint only: hold DVL altitude instead of odom z
+SetpointAxes setpoint
+```
+
+`SetpointAxes` fills `x/y/z` for translation (position [m] or linear velocity
+[m/s]) and `roll/pitch/yaw` for rotation (attitude [rad] or angular rate
+[rad/s]); the unused triple is ignored.
+
+- `pos_setpoint` with `velocity=false` holds a position; with `velocity=true` it
+  holds a body linear velocity (bypassing the position loop).
+- `pos_setpoint` with `altitude=true` regulates the z axis against DVL altitude
+  rather than the odometry z position.
+- `att_setpoint` with `velocity=false` holds an attitude (RPY normalized to
+  `[-π, π]`); with `velocity=true` it holds a body angular rate.
+- `cmd_vel` enables both velocity and angular-rate hold at once.
+
+Position and attitude setpoints are expressed relative to the pose captured when
+the kill switch was last released — `x=1.0` is one metre forward of the arm
+point. The default state is zero-velocity, level-attitude hold.
+
+## Attitude Error
+
+Attitude error is **not** computed by subtracting Euler angles per axis. Current
+and target RPY are converted to rotation matrices and the relative rotation is
+expressed as a body-frame rotation vector (`attitude_error()` in `utils.cpp`).
+This is the same frame as the angular-rate loop and avoids axis coupling and the
+gimbal singularity at pitch = ±90°.
 
 ## Safety
 
-The node publishes zero to every thruster when:
+While the kill switch is active, the node publishes zero to every thruster and
+holds the loop timer reset. On the **release** edge (killed → unkilled) it:
 
-- the kill switch is active;
-- filtered odometry is older than `feedback_timeout`;
-- altitude mode is active and DVL altitude is stale.
+1. resets the EKF pose to the origin via the `set_pose` service,
+2. resets all four PID banks (integrators and derivative state), and
+3. zeroes every cached setpoint and state estimate.
 
-Controller integrators and command ramps reset on every safety stop. Releasing
-the kill switch captures the current position and heading as the new origin.
+This captures the current pose as the new origin for subsequent position and
+attitude commands.
 
 ## Coordinate Frames
 
-ROS uses ENU world and FLU body coordinates. Control calculations use NED world
-and FRD body coordinates.
+The controller works entirely in the EKF output frame: REP-103 **ENU** world
+(`marlin_v2/odom`) and **FLU** body (`marlin_v2/base_link`). Position errors are
+formed in the world frame and rotated into the body frame; force, torque,
+velocity, and angular-rate quantities are all body FLU. There is no NED/FRD
+conversion in the control path.
 
-| Conversion | Formula |
-|---|---|
-| ENU position to NED | north=y, east=x, down=-z |
-| ENU RPY to NED RPY | roll=roll, pitch=-pitch, yaw=pi/2-yaw |
-| FLU twist to FRD | x=x, y=-y, z=-z |
-
-Position setpoints are expressed in the initial-heading frame. A position
-command of `x=5` means five metres forward from the heading captured when the
-controller was armed. Direct velocity and angular-rate commands are body-frame
-FRD commands.
-
-For altitude control, set `use_altitude=true` on a position command. Positive
-vertical error commands downward force, consistent with NED.
+(The `base_link_ned` frame still exists in the robot model — sensors and
+thrusters are mounted relative to it — but it is a static mounting frame, not the
+control frame.)
 
 ## Thruster Allocation
 
-The allocator builds the 6x8 actuation matrix from the vehicle's thruster
-positions and orientations. Unsaturated commands use its exact pseudoinverse.
+The allocator builds the 6×8 actuation matrix from each thruster's position and
+orientation. When the requested wrench keeps every thruster within the force
+limit, it applies the exact (weighted) pseudoinverse.
 
-When a command exceeds a thruster force limit, allocation becomes a bounded
-weighted least-squares problem:
+When the unconstrained solution exceeds the per-thruster force limit, allocation
+becomes a bounded weighted least-squares problem:
 
 ```
-minimize ||W(Bf - requested_wrench)||^2 + epsilon||f||^2
-subject to -max_force <= f_i <= max_force
+minimize ||W (B f − requested_wrench)||² + ε||f||²
+subject to −max_force ≤ f_i ≤ max_force
 ```
 
-Projected-gradient refinement enforces every thruster bound. Axis weights are
-configurable; the supplied profiles prioritize heave, roll, and pitch so depth
-and leveling remain controlled when simultaneous surge or yaw commands
-saturate the vehicle.
+solved by an LDLᵀ seed followed by projected-gradient refinement that enforces
+the box bounds. Axis weights `W` prioritize heave, roll, and pitch so depth and
+leveling stay controlled when simultaneous surge/sway/yaw commands saturate the
+vehicle (default `[1, 1, 2, 2, 2, 1.5]`).
+
+The force limit comes from `power_limit`: the normalized cap is mapped through
+the T200 thrust curve to a force, the allocator is bounded by that force, and
+each thruster output is converted back to a normalized command and clamped to
+`±power_limit` before publishing. `power_limit` is therefore the real authority
+limit.
 
 ## Configuration
 
-Hardware and simulation profiles are in:
+Gains live in two profiles loaded at startup (sim loads the sim profile):
 
-- `src/sub_bringup/config/control_gains.yaml`
-- `src/sub_bringup/config/control_gains_sim.yaml`
-
-Important parameter groups:
+- `src/sub_bringup/config/control_gains.yaml` — hardware
+- `src/sub_bringup/config/control_gains_sim.yaml` — simulation
 
 | Parameter | Meaning |
 |---|---|
-| `controller.position_gain` | Position-error to velocity guidance gain |
-| `controller.position_integral_gain` | Removes persistent absolute-position error |
-| `controller.attitude_gain` | Rotation-error to angular-rate guidance gain |
-| `controller.velocity_kp/ki` | Linear velocity PI gains |
-| `controller.angular_rate_kp/ki` | Angular-rate PI gains |
-| `limits.velocity` | Maximum body velocity command |
-| `limits.angular_rate` | Maximum body angular-rate command |
-| `limits.linear_acceleration` | Velocity setpoint slew rate |
-| `limits.angular_acceleration` | Rate setpoint slew rate |
-| `limits.position_integral` | Position-guidance integral bound |
-| `allocator.axis_weights` | Surge, sway, heave, roll, pitch, yaw priorities |
-| `feedback_timeout` | Maximum feedback age before zero thrust |
+| `control_rate_hz` | Control loop frequency (default `50.0`) |
+| `power_limit` | Normalized thrust cap in `[0, 1]`; bounds the allocator |
+| `robot_name` | Namespace prefix used for the `set_pose` frame id |
+| `pos_pid.{x,y,z}` | Position → velocity PID, `[kp, ki, kd, max]` |
+| `vel_pid.{x,y,z}` | Velocity → force PID, `[kp, ki, kd, max]` |
+| `att_pid.{x,y,z}` | Attitude → rate PID, `[kp, ki, kd, max]` |
+| `ang_pid.{x,y,z}` | Angular-rate → torque PID, `[kp, ki, kd, max]` |
+
+Gains are plain declared parameters: edit the YAML and restart the node to
+retune. There is no live autotuner.
 
 ## Diagnostics
 
-`control/error` publishes `sub_control_interfaces/Error` with position,
-velocity, geometric attitude, and angular-rate errors.
-
-## Automated Tuning
-
-The installed `tune_sub_control` executable performs a conservative staged
-coordinate search on one axis. It tunes inner velocity/rate gains first with a
-direct command, then tunes outer position/attitude guidance. For each gain array
-it scores error, overshoot, steady-state error, and thruster effort.
-
-By default it is a dry run: all original parameters are restored after printing
-the recommendation. The command always sends a zero setpoint on exit or abort.
-
-```bash
-# Dry-run tune of a 0.5 m surge position step
-ros2 run sub_control tune_sub_control \
-  --namespace /marlin_v2 --loop position --axis x --amplitude 0.5
-
-# Keep the selected live parameters
-ros2 run sub_control tune_sub_control \
-  --namespace /marlin_v2 --loop position --axis x --amplitude 0.5 --apply
-
-# Tune yaw attitude with a 0.35 rad step
-ros2 run sub_control tune_sub_control \
-  --namespace /marlin_v2 --loop attitude --axis z --amplitude 0.35
-```
-
-Run one axis at a time in an obstacle-free test area. Start with the supplied
-`0.75,1.0,1.25` search scales. Use `--scales` only after reviewing the first
-report. `--inner-amplitude` controls the direct velocity or angular-rate step.
-`--apply` changes the running node but does not edit the YAML profile; copy the
-printed arrays into the hardware or simulation profile after testing.
+`control/error` publishes `sub_control_interfaces/Error` every cycle with
+position, velocity, geometric-attitude, and angular-rate errors, each a
+body-FLU `[x, y, z]` triple.

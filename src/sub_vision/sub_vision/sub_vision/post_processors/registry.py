@@ -38,7 +38,7 @@ def get_post_processor(task: str) -> Optional[TaskPostProcessor]:
     """Instantiate the processor registered for ``task``, or ``None``.
 
     Returning ``None`` lets the caller fall back to a no-op (detections keep
-    their 2D + distance metadata but get no pose).
+    their 2D metadata but get no pose or distance).
     """
     cls = _REGISTRY.get(task)
     return cls() if cls is not None else None

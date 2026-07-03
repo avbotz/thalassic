@@ -1,87 +1,114 @@
 #include "sub_sim_sensors/sim_imu_remapper.hpp"
 
-#include <array>
-#include <memory>
-
-#include "geometry_msgs/msg/quaternion.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
-using std::placeholders::_1;
-
-using namespace std::chrono_literals;
+// Include tf2 headers for robust quaternion and matrix math
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Vector3.h>
+#include <array>
 
 namespace {
+// Helper function to transform 3x3 covariance matrices: C_new = T * C_old * T^T
+std::array<double, 9> transformCovariance(const std::array<double, 9>& cov_in, const tf2::Matrix3x3& T) {
+    // Pass through if uninitialized (-1.0 on first element)
+    if (cov_in[0] == -1.0) {
+        return cov_in;
+    }
 
-// Quaternion (x, y, z, w) Hamilton product: returns a * b.
-geometry_msgs::msg::Quaternion qmul(const geometry_msgs::msg::Quaternion& a, const geometry_msgs::msg::Quaternion& b) {
-    geometry_msgs::msg::Quaternion r;
-    r.x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y;
-    r.y = a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x;
-    r.z = a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w;
-    r.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
-    return r;
+    // Pass through if completely empty/zero
+    bool is_zero = true;
+    for (double v : cov_in) {
+        if (v != 0.0) {
+            is_zero = false;
+            break;
+        }
+    }
+    if (is_zero) {
+        return cov_in;
+    }
+
+    // Map std::array to tf2::Matrix3x3
+    tf2::Matrix3x3 C_old(cov_in[0], cov_in[1], cov_in[2], cov_in[3], cov_in[4], cov_in[5], cov_in[6], cov_in[7],
+                         cov_in[8]);
+
+    // Compute transformed covariance
+    tf2::Matrix3x3 C_new = T * C_old * T.transpose();
+
+    // Return as flat std::array
+    return {C_new[0][0], C_new[0][1], C_new[0][2], C_new[1][0], C_new[1][1],
+            C_new[1][2], C_new[2][0], C_new[2][1], C_new[2][2]};
 }
-
-geometry_msgs::msg::Quaternion make_quat(double x, double y, double z, double w) {
-    geometry_msgs::msg::Quaternion q;
-    q.x = x;
-    q.y = y;
-    q.z = z;
-    q.w = w;
-    return q;
-}
-
-// Stonefish reports IMU orientation in NED world / FRD body. ROS (rviz,
-// robot_localization) expects ENU world / FLU body. The full conversion is
-//   q_enu_flu = NED_ENU * q_ned_frd * FRD_FLU
-// where both static quaternions are 180-degree rotations (their own inverses):
-//   NED_ENU: 180 deg about (1,1,0)/sqrt(2)  -> swaps the world reference NED<->ENU
-//   FRD_FLU: 180 deg about X                -> swaps the body axes FRD<->FLU
-const double kSqrtHalf = 0.7071067811865476;
-const geometry_msgs::msg::Quaternion kNedEnu = make_quat(kSqrtHalf, kSqrtHalf, 0.0, 0.0);
-const geometry_msgs::msg::Quaternion kFrdFlu = make_quat(1.0, 0.0, 0.0, 0.0);
-
-}  // namespace
+}  // anonymous namespace
 
 SimIMURemapper::SimIMURemapper(const rclcpp::NodeOptions& options) : Node("sim_imu_remapper", options) {
     this->declare_parameter("robot_name", "");
     robot_name_ = this->get_parameter("robot_name").as_string();
 
-    subscriber_ =
-        this->create_subscription<sensor_msgs::msg::Imu>("imu", 10, std::bind(&SimIMURemapper::imu_callback, this, _1));
+    subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        "sim/imu", 10, [this](sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); });
 
-    publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_enu", 10);
+    publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data", 10);
 }
 
 void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned) {
     sensor_msgs::msg::Imu msg_enu{};
 
     msg_enu.header = msg_ned->header;
-    // After conversion the orientation is base_link (FLU) expressed in the ENU
-    // world, so stamp it as base_link. robot_localization then applies an
-    // identity body transform instead of re-rotating the measurement.
-    msg_enu.header.frame_id = robot_name_ + "/base_link";
+    msg_enu.header.frame_id = robot_name_.empty() ? "imu_link" : robot_name_ + "/imu_link";
 
-    // Orientation: full NED/FRD -> ENU/FLU change of reference and body frame.
-    msg_enu.orientation = qmul(kNedEnu, qmul(msg_ned->orientation, kFrdFlu));
+    // T_world: Transforms World Frame from NED to ENU (E=N_old, N=E_old, U=-D)
+    static const tf2::Matrix3x3 T_world(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0);
 
-    // Angular velocity and linear acceleration are body-frame vectors. Going
-    // FRD -> FLU is a 180 deg rotation about X, i.e. negate y and z.
-    msg_enu.angular_velocity.x = msg_ned->angular_velocity.x;
-    msg_enu.angular_velocity.y = -msg_ned->angular_velocity.y;
-    msg_enu.angular_velocity.z = -msg_ned->angular_velocity.z;
+    // T_body: Transforms the sim IMU body frame to FLU. The IMU is rigidly
+    // attached to the Stonefish base_link_ned, whose axes are X=Right, Y=Back,
+    // Z=Down (NOT standard FRD). Mapping (R,B,D) -> FLU (F,L,U) gives
+    // F=-Back, L=-Right, U=-Down, i.e. (x,y,z) -> (-y,-x,-z).
+    static const tf2::Matrix3x3 T_body(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0);
 
-    msg_enu.linear_acceleration.x = msg_ned->linear_acceleration.x;
-    msg_enu.linear_acceleration.y = -msg_ned->linear_acceleration.y;
-    msg_enu.linear_acceleration.z = -msg_ned->linear_acceleration.z;
+    // 1. Convert Linear Acceleration and Angular Velocity (Body Frame: FRD -> FLU)
+    // Note: Accel and Gyro are fixed to the body, so they only use T_body!
+    tf2::Vector3 accel_frd(msg_ned->linear_acceleration.x, msg_ned->linear_acceleration.y,
+                           msg_ned->linear_acceleration.z);
+    tf2::Vector3 accel_flu = T_body * accel_frd;
+    msg_enu.linear_acceleration.x = accel_flu.x();
+    msg_enu.linear_acceleration.y = accel_flu.y();
+    msg_enu.linear_acceleration.z = accel_flu.z();
 
-    // Covariances are diagonal (axis variances); a pure axis swap/negation
-    // leaves the diagonal magnitudes unchanged, so copy them through.
-    msg_enu.orientation_covariance = msg_ned->orientation_covariance;
-    msg_enu.angular_velocity_covariance = msg_ned->angular_velocity_covariance;
-    msg_enu.linear_acceleration_covariance = msg_ned->linear_acceleration_covariance;
+    tf2::Vector3 gyro_frd(msg_ned->angular_velocity.x, msg_ned->angular_velocity.y, msg_ned->angular_velocity.z);
+    tf2::Vector3 gyro_flu = T_body * gyro_frd;
+    msg_enu.angular_velocity.x = gyro_flu.x();
+    msg_enu.angular_velocity.y = gyro_flu.y();
+    msg_enu.angular_velocity.z = gyro_flu.z();
+
+    // 2. Convert Orientation Quaternion (World: NED -> ENU & Body: FRD -> FLU)
+    tf2::Quaternion q_ned(msg_ned->orientation.x, msg_ned->orientation.y, msg_ned->orientation.z,
+                          msg_ned->orientation.w);
+
+    if (q_ned.length() > 0.0) {
+        tf2::Matrix3x3 R_ned(q_ned);
+
+        // Apply Both World and Body transformations to the orientation
+        tf2::Matrix3x3 R_enu = T_world * R_ned * T_body;
+
+        tf2::Quaternion q_enu;
+        R_enu.getRotation(q_enu);
+        q_enu.normalize();
+
+        msg_enu.orientation.x = q_enu.x();
+        msg_enu.orientation.y = q_enu.y();
+        msg_enu.orientation.z = q_enu.z();
+        msg_enu.orientation.w = q_enu.w();
+    } else {
+        msg_enu.orientation = msg_ned->orientation;
+    }
+
+    // 3. Transform Covariance Matrices
+    msg_enu.linear_acceleration_covariance = transformCovariance(msg_ned->linear_acceleration_covariance, T_body);
+    msg_enu.angular_velocity_covariance = transformCovariance(msg_ned->angular_velocity_covariance, T_body);
+    msg_enu.orientation_covariance = transformCovariance(msg_ned->orientation_covariance, T_world);
 
     publisher_->publish(msg_enu);
 }

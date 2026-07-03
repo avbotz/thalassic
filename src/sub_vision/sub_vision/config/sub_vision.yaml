@@ -20,7 +20,5 @@
 
     # OAK-D Pro topic contract (identical in sim and on hardware).
     rgb_topic: "oak/rgb/image_raw"
-    depth_topic: "oak/stereo/image_raw"
     camera_info_topic: "oak/rgb/camera_info"
     detections_topic: "vision/detections"
-    sync_slop_s: 0.05

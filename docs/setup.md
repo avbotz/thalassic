@@ -43,12 +43,6 @@ To rebuild a single package:
 colcon build --packages-select sub_control
 ```
 
-The control tuner is installed with the package:
-
-```bash
-ros2 run sub_control tune_sub_control --help
-```
-
 ## Run the Simulation
 
 ```bash
@@ -74,17 +68,17 @@ ros2 launch sub_bringup sim_launch.py seed:=42 DX:=0.0 DY:=0.0
 ## Send Setpoints Manually
 
 ```bash
-# Hold position at 1 m forward, 0 m lateral, 0.5 m down (depth)
+# Hold position 1 m forward, 0 m lateral, 0.5 m down (FLU: dive = negative z)
 ros2 topic pub /marlin_v2/pos_setpoint sub_control_interfaces/msg/Setpoint \
-  '{velocity: false, use_altitude: false, setpoint: {x: 1.0, y: 0.0, z: 0.5}}'
+  '{velocity: false, altitude: false, setpoint: {x: 1.0, y: 0.0, z: -0.5}}'
 
 # Command a yaw of 0.5 rad (relative to startup heading)
 ros2 topic pub /marlin_v2/att_setpoint sub_control_interfaces/msg/Setpoint \
-  '{velocity: false, use_altitude: false, setpoint: {x: 0.0, y: 0.0, z: 0.5}}'
+  '{velocity: false, setpoint: {roll: 0.0, pitch: 0.0, yaw: 0.5}}'
 
-# Command forward velocity of 0.3 m/s directly (bypass position guidance)
+# Command forward velocity of 0.3 m/s directly (bypass the position loop)
 ros2 topic pub /marlin_v2/pos_setpoint sub_control_interfaces/msg/Setpoint \
-  '{velocity: true, use_altitude: false, setpoint: {x: 0.3, y: 0.0, z: 0.0}}'
+  '{velocity: true, altitude: false, setpoint: {x: 0.3, y: 0.0, z: 0.0}}'
 ```
 
 ## Useful Commands

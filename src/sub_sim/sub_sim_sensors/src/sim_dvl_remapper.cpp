@@ -1,15 +1,12 @@
 #include "sub_sim_sensors/sim_dvl_remapper.hpp"
+#include <rclcpp/qos.hpp>
 
-#include <memory>
-
-#include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 using std::placeholders::_1;
-
-using namespace std::chrono_literals;
 
 SimDVLRemapper::SimDVLRemapper(const rclcpp::NodeOptions& options) : Node("sim_dvl_remapper", options) {
     this->declare_parameter("robot_name", "");
@@ -18,40 +15,32 @@ SimDVLRemapper::SimDVLRemapper(const rclcpp::NodeOptions& options) : Node("sim_d
     subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>(
         "sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
 
-    vel_publisher_ = this->create_publisher<marine_acoustic_msgs::msg::Dvl>("dvl", 10);
+    vel_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("odometry/dvl", rclcpp::SystemDefaultsQoS());
 }
 
 void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_stonefish) {
-    marine_acoustic_msgs::msg::Dvl msg_marine{};
+    nav_msgs::msg::Odometry odom_msg{};
 
-    msg_marine.header = msg_stonefish->header;
-    msg_marine.header.frame_id = robot_name_ + "/dvl_link";
-    msg_marine.velocity.x = msg_stonefish->velocity.x;
-    msg_marine.velocity.y = msg_stonefish->velocity.y;
-    msg_marine.velocity.z = msg_stonefish->velocity.z;
-    msg_marine.altitude = msg_stonefish->altitude;
+    odom_msg.header = msg_stonefish->header;
+    odom_msg.header.frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
+    odom_msg.child_frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
 
-    msg_marine.velocity_covar = msg_stonefish->velocity_covariance;
+    odom_msg.pose.pose.position.x = 0.0;
+    odom_msg.pose.pose.position.y = 0.0;
+    odom_msg.pose.pose.position.z = 0.0;
+    odom_msg.pose.pose.orientation.x = 0.0;
+    odom_msg.pose.pose.orientation.y = 0.0;
+    odom_msg.pose.pose.orientation.z = 0.0;
+    odom_msg.pose.pose.orientation.w = 1.0;
 
-    size_t num_beams{std::min(static_cast<size_t>(4), msg_stonefish->beams.size())};
-    for (size_t i = 0; i < num_beams; ++i) {
-        const auto& b = msg_stonefish->beams[i];
-        msg_marine.range[i] = b.range;
-        msg_marine.beam_velocity[i] = b.velocity;
-        msg_marine.beam_quality[i] = (b.range >= 0) ? 255.0f : 0.0f;
-    }
+    odom_msg.twist.twist.linear.x = msg_stonefish->velocity.x;
+    odom_msg.twist.twist.linear.y = msg_stonefish->velocity.y;
+    odom_msg.twist.twist.linear.z = msg_stonefish->velocity.z;
+    odom_msg.twist.twist.angular.x = 0.0;
+    odom_msg.twist.twist.angular.y = 0.0;
+    odom_msg.twist.twist.angular.z = 0.0;
 
-    msg_marine.beam_ranges_valid = true;
-    msg_marine.beam_velocities_valid = true;
-    msg_marine.num_good_beams = 4;
-
-    msg_marine.course_gnd = std::atan2(msg_stonefish->velocity.y, msg_stonefish->velocity.x);
-    msg_marine.speed_gnd = std::hypot(msg_stonefish->velocity.x, msg_stonefish->velocity.y);
-
-    msg_marine.velocity_mode = marine_acoustic_msgs::msg::Dvl::DVL_MODE_BOTTOM;
-    msg_marine.dvl_type = marine_acoustic_msgs::msg::Dvl::DVL_TYPE_PISTON;
-
-    vel_publisher_->publish(msg_marine);
+    vel_publisher_->publish(odom_msg);
 }
 
 RCLCPP_COMPONENTS_REGISTER_NODE(SimDVLRemapper)

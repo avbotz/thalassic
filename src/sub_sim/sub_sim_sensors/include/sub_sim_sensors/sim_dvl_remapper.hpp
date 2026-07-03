@@ -1,11 +1,9 @@
 #ifndef SIM_DVL_REMAPPER_HPP_
 #define SIM_DVL_REMAPPER_HPP_
 
-#include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
-
-using namespace std::chrono_literals;
+#include "nav_msgs/msg/odometry.hpp"
 
 class SimDVLRemapper : public rclcpp::Node {
    public:
@@ -15,7 +13,7 @@ class SimDVLRemapper : public rclcpp::Node {
    private:
     std::string robot_name_;
     rclcpp::Subscription<stonefish_ros2::msg::DVL>::SharedPtr subscriber_;
-    rclcpp::Publisher<marine_acoustic_msgs::msg::Dvl>::SharedPtr vel_publisher_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vel_publisher_;
 };
 
 #endif  // SIM_DVL_REMAPPER_HPP_

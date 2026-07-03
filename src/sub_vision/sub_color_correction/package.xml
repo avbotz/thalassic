@@ -6,7 +6,6 @@
   <description>RGB-D underwater color correction for Marlin camera streams.</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
-  <license>AGPL-3.0-only</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>

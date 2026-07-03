@@ -7,12 +7,22 @@
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
-  <exec_depend>sub_sim</exec_depend>
-  <exec_depend>sub_color_correction</exec_depend>
-  <exec_depend>robot_localization</exec_depend>
-  <exec_depend>rtabmap_ros</exec_depend>
-  <exec_depend>rtabmap_sync</exec_depend>
   <exec_depend>foxglove_bridge</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rtabmap_sync</exec_depend>
+  <exec_depend>sim_labeling</exec_depend>
+  <exec_depend>spinnaker_camera_driver</exec_depend>
+  <exec_depend>stonefish_ros2</exec_depend>
+  <exec_depend>sub_color_correction</exec_depend>
+  <exec_depend>sub_control</exec_depend>
+  <exec_depend>sub_serial_drivers</exec_depend>
+  <exec_depend>sub_sim_sensors</exec_depend>
+  <exec_depend>sub_sim</exec_depend>
+  <exec_depend>sub_vision</exec_depend>
+  <exec_depend>usb_cam</exec_depend>
+  <exec_depend>waterlinked_dvl_driver</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

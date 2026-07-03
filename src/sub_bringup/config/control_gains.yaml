@@ -1,28 +1,24 @@
 /**:
   ros__parameters:
     control_rate_hz: 50.0
-    feedback_timeout: 0.5
-    thruster_max_force: 35.0
-    power_level: 0.6
+    power_limit: 0.6
 
-    controller:
-      position_gain: [0.55, 0.55, 0.50]
-      position_integral_gain: [0.08, 0.08, 0.08]
-      attitude_gain: [0.8, 0.8, 0.7]
-      velocity_kp: [18.0, 18.0, 24.0]
-      velocity_ki: [2.0, 2.0, 3.0]
-      angular_rate_kp: [2.5, 2.5, 3.5]
-      angular_rate_ki: [0.03, 0.03, 0.05]
+    pos_pid:
+      x: [0.8, 0.1, 0.0, 1.0]
+      y: [0.8, 0.1, 0.0, 1.0]
+      z: [0.7, 0.1, 0.0, 0.7]
 
-    limits:
-      velocity: [0.8, 0.8, 0.5]
-      angular_rate: [0.35, 0.35, 0.30]
-      linear_acceleration: [0.5, 0.5, 0.35]
-      angular_acceleration: [0.45, 0.45, 0.35]
-      velocity_integral: [10.0, 10.0, 12.0]
-      angular_integral: [0.5, 0.5, 0.5]
-      position_integral: [0.75, 0.75, 0.75]
+    vel_pid:
+      x: [30.0, 3.0, 0.0, 50.0]
+      y: [30.0, 3.0, 0.0, 50.0]
+      z: [38.0, 5.0, 0.0, 60.0]
 
-    allocator:
-      # Depth and leveling remain authoritative when the requested wrench saturates.
-      axis_weights: [1.0, 1.0, 2.5, 2.5, 2.5, 1.5]
+    att_pid:
+      x: [3.0, 0.5, 0.0, 4.0]
+      y: [3.0, 0.5, 0.0, 4.0]
+      z: [1.5, 0.1, 0.0, 4.0]
+
+    ang_pid:
+      x: [3.5, 0.1, 0.0, 20.0]
+      y: [3.5, 0.1, 0.0, 20.0]
+      z: [4.5, 0.1, 0.0, 20.0]

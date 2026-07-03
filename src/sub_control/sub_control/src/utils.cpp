@@ -3,60 +3,23 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-double normalize_angle(double angle) {
-    while (angle > M_PI) {
-        angle -= 2.0 * M_PI;
-    }
-    while (angle < -M_PI) {
-        angle += 2.0 * M_PI;
-    }
-    return angle;
-}
-
-double angle_difference(double target, double current) { return normalize_angle(target - current); }
-
-std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
-                                     const std::array<double, 3>& current_rpy) {
-    const auto rotation = [](const std::array<double, 3>& rpy) {
-        return (Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX()))
-            .toRotationMatrix();
-    };
-
-    const Eigen::Matrix3d error_rotation = rotation(current_rpy).transpose() * rotation(target_rpy);
-    const Eigen::AngleAxisd error(error_rotation);
-    const Eigen::Vector3d rotation_vector = error.axis() * error.angle();
-    return {rotation_vector.x(), rotation_vector.y(), rotation_vector.z()};
-}
-
-void enu_to_ned_position(double ex, double ey, double ez, double& n, double& e, double& d) {
-    n = ey;
-    e = ex;
-    d = -ez;
-}
-
-void enu_to_ned_rpy(double roll_e, double pitch_e, double yaw_e, double& roll_n, double& pitch_n, double& yaw_n) {
-    roll_n = roll_e;
-    pitch_n = -pitch_e;
-    yaw_n = normalize_angle(M_PI / 2.0 - yaw_e);
-}
-
-std::array<double, 2> to_rotated_frame(double vx, double vy, double yaw) {
-    const double c = std::cos(yaw);
-    const double s = std::sin(yaw);
-    return {{c * vx + s * vy, -s * vx + c * vy}};
-}
-
 namespace {
 
+enum class PROPELLER_DIRECTION { CLOCKWISE=1, COUNTER_CLOCKWISE=-1 };
+
 struct ThrusterPose {
-    double x, y, z;
-    double roll, pitch, yaw;
+    double x;
+    double y;
+    double z;
+    double roll;
+    double pitch;
+    double yaw;
+    PROPELLER_DIRECTION direction;
 };
 
 struct ThrusterMap {
@@ -66,19 +29,29 @@ struct ThrusterMap {
     double force;
 };
 
-const std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
-    //   x      y      z    roll  pitch        yaw
-    {-0.29, 0.34, -0.08, 0.0, 0.0, 7.0 * M_PI / 4.0},   // thr 0  horizontal
-    {-0.29, -0.34, -0.08, 0.0, 0.0, 1.0 * M_PI / 4.0},  // thr 1  horizontal
-    {0.29, 0.34, -0.08, 0.0, 0.0, 5.0 * M_PI / 4.0},    // thr 2  horizontal
-    {0.29, -0.34, -0.08, 0.0, 0.0, 3.0 * M_PI / 4.0},   // thr 3  horizontal
-    {0.23, -0.22, 0.00, 0.0, M_PI / 2.0, 0.0},          // thr 4  vertical
-    {-0.23, -0.22, 0.00, 0.0, M_PI / 2.0, 0.0},         // thr 5  vertical
-    {0.23, 0.22, 0.00, 0.0, M_PI / 2.0, 0.0},           // thr 6  vertical
-    {-0.23, 0.22, 0.00, 0.0, M_PI / 2.0, 0.0},          // thr 7  vertical
+constexpr double thrust_sign(PROPELLER_DIRECTION direction) {
+    return static_cast<double>(direction);
+}
+
+// Should match sim thruster layout from layout.scn.j2
+// Thruster positions below are in NED, so they live in base_link_ned frame (X=Right, Y=Back, Z=Down).
+// Thruster positions are rotated into the FLU body frame before further use
+// Same thruster configuration as BlueROV2 Heavy.
+// Thrusters 0-3: vertical units (pitch 90)  -> heave / roll / pitch
+// Thrusters 4-7 : horizontal units (45-deg) -> surge / sway / yaw
+constexpr std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
+    // x, y, z, roll, pitch, yaw, direction
+    {-0.23, -0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},             // vertical front left (0)
+    {0.23, -0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical front right (1)
+    {-0.23, 0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical back left (2)
+    {0.23, 0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},               // vertical back right (3)
+    {-0.285, -0.315, -0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},              // horizontal front left (4)
+    {0.285, -0.315, -0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal front right (5)
+    {-0.285, 0.315, -0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal back left (6)
+    {0.285, 0.315, -0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},               // horizontal back right (7)
 }};
 
-auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
+constexpr auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
                                                          {-0.99, -39.72258662},
                                                          {-0.98, -39.45569354},
                                                          {-0.97, -38.8774252},
@@ -283,9 +256,11 @@ auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
 }  // namespace
 
 ThrusterAllocator::ThrusterAllocator() {
-    // Build the actuation matrix B (6 x 8): column i is the body wrench produced
-    // by 1 N of thrust on thruster i, [ axis_i ; r_i x axis_i ]. axis_i is the
-    // thruster's +x rotated by its (roll, pitch, yaw); r_i is its position.
+    Eigen::Matrix3d ned_to_flu;
+    ned_to_flu << 0.0, -1.0, 0.0,
+                  -1.0, 0.0, 0.0,
+                  0.0, 0.0, -1.0;
+
     Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> B;
     for (int i = 0; i < NUM_THRUSTERS; ++i) {
         const ThrusterPose& g = THRUSTER_GEOMETRY[i];
@@ -293,8 +268,8 @@ ThrusterAllocator::ThrusterAllocator() {
             (Eigen::AngleAxisd(g.yaw, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(g.pitch, Eigen::Vector3d::UnitY()) *
              Eigen::AngleAxisd(g.roll, Eigen::Vector3d::UnitX()))
                 .toRotationMatrix();
-        const Eigen::Vector3d axis = rot * Eigen::Vector3d::UnitX();
-        const Eigen::Vector3d r(g.x, g.y, g.z);
+        const Eigen::Vector3d axis = thrust_sign(g.direction) * (ned_to_flu * (rot * Eigen::Vector3d::UnitX()));
+        const Eigen::Vector3d r = ned_to_flu * Eigen::Vector3d(g.x, g.y, g.z);
         B.block<3, 1>(0, i) = axis;
         B.block<3, 1>(3, i) = r.cross(axis);
     }
@@ -327,9 +302,9 @@ std::array<double, NUM_DOF> ThrusterAllocator::wrench_from_forces(
     return wrench;
 }
 
-std::array<double, NUM_THRUSTERS> ThrusterAllocator::allocate(
-    const std::array<double, NUM_DOF>& wrench, double max_force,
-    const std::array<double, NUM_DOF>& axis_weights) const {
+std::array<double, NUM_THRUSTERS> ThrusterAllocator::allocate(const std::array<double, NUM_DOF>& wrench,
+                                                              double max_force,
+                                                              const std::array<double, NUM_DOF>& axis_weights) const {
     std::array<double, NUM_THRUSTERS> unconstrained{};
     double peak_force = 0.0;
     for (int thruster = 0; thruster < NUM_THRUSTERS; ++thruster) {
@@ -442,4 +417,19 @@ double norm_to_force(double normalized) {
         }
     }
     return THRUSTER_LOOKUP_TABLE.back().force;
+}
+
+std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
+                                     const std::array<double, 3>& current_rpy) {
+    const auto rotation = [](const std::array<double, 3>& rpy) {
+        return (Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX()))
+            .toRotationMatrix();
+    };
+
+    const Eigen::Matrix3d error_rotation = rotation(current_rpy).transpose() * rotation(target_rpy);
+    const Eigen::AngleAxisd error(error_rotation);
+    const Eigen::Vector3d rotation_vector = error.axis() * error.angle();
+    return {rotation_vector.x(), rotation_vector.y(), rotation_vector.z()};
 }

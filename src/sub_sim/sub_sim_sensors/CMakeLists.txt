@@ -21,6 +21,7 @@ find_package(sub_driver_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(tf2 REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -41,7 +42,6 @@ add_library(${PROJECT_NAME}_components SHARED
   src/sim_kill_switch.cpp
   src/sim_torpedo_launcher.cpp
   src/sim_dropper.cpp
-  src/sim_oak_camera_remapper.cpp
 )
 target_include_directories(${PROJECT_NAME}_components PRIVATE include ${OpenCV_INCLUDE_DIRS})
 ament_target_dependencies(${PROJECT_NAME}_components
@@ -56,6 +56,8 @@ ament_target_dependencies(${PROJECT_NAME}_components
   sub_driver_interfaces
   cv_bridge
   OpenCV
+  nav_msgs
+  tf2
 )
 
 # Each registration also generates a standalone executable of the same name, so
@@ -72,8 +74,6 @@ rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimTorpedoLauncher" EXECUTABLE sim_torpedo_launcher)
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimDropper" EXECUTABLE sim_dropper)
-rclcpp_components_register_node(${PROJECT_NAME}_components
-  PLUGIN "SimOakCameraRemapper" EXECUTABLE sim_oak_camera_remapper)
 
 install(TARGETS ${PROJECT_NAME}_components
   ARCHIVE DESTINATION lib

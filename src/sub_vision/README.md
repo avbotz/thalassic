@@ -1,7 +1,7 @@
 # sub_vision
 
 Perception for the Marlin V2 AUV: YOLOv10 detection with per-task OpenCV
-post-processing and depth-based 3D metadata. Inference runs through
+post-processing. Inference runs through
 **TensorRT** (serialized engine) or **ONNX Runtime**; pre-processing
 (letterbox) and post-processing (decode + box rescaling) live in
 `backends.py`. Targets the Jetson AGX Orin (TensorRT, CUDA) in production and
@@ -13,7 +13,7 @@ This directory holds two ROS 2 (Jazzy) packages:
 | Package | Build type | Contents |
 | --- | --- | --- |
 | `sub_vision_interfaces` | `ament_cmake` | `Detection.msg`, `DetectionArray.msg`, `LoadModel.srv` |
-| `sub_vision` | `ament_python` | model manager, post-processors, depth metadata, node |
+| `sub_vision` | `ament_python` | model manager, post-processors, node |
 
 > The detector is **YOLOv10 (NMS-free / end-to-end)**: the exported head emits
 > `(1, N, 6)` boxes directly, so the pipeline runs **no** separate NMS step.
@@ -35,18 +35,17 @@ All topics are relative to the node namespace (e.g. `/marlin_v2`):
 | --- | --- | --- |
 | `oak/rgb/image_raw` | `sensor_msgs/Image` | `bgr8` |
 | `oak/rgb/camera_info` | `sensor_msgs/CameraInfo` | intrinsics |
-| `oak/stereo/image_raw` | `sensor_msgs/Image` | `16UC1`, **millimeters**, `0` = no return |
-| `oak/stereo/camera_info` | `sensor_msgs/CameraInfo` | intrinsics |
 | **out:** `vision/detections` | `sub_vision_interfaces/DetectionArray` | detections + 3D metadata |
 | **out:** `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | model state + timing |
 
 | Source | How it produces the contract |
 | --- | --- |
-| **Real** | `depthai_ros_driver_v3` with RGB↔depth alignment enabled (`config/oak_d_pro.yaml`). Depth is native `16UC1` mm. |
-| **Sim** | Stonefish publishes `front_camera` (rgb8) + `depth_camera` (`32FC1` m). `sim_oak_camera_remapper` converts → `bgr8` + `16UC1` mm, remaps topics/`frame_id`, passes `CameraInfo`, keeps sim timestamps. |
+| **Real** | `depthai_ros_driver_v3` (`config/oak_d_pro.yaml`). |
+| **Sim** | Stonefish publishes `front_camera` (rgb8); `sim_oak_camera_remapper` converts → `bgr8`, remaps topics/`frame_id`, passes `CameraInfo`, keeps sim timestamps. |
 
-Bounding boxes, `distance_m`, and `pose` are all expressed in the camera
-**optical** frame (`header.frame_id` from the source image).
+The depth camera is **not** used: `sub_vision` subscribes to RGB only.
+Bounding boxes and `pose` are expressed in the camera **optical** frame
+(`header.frame_id` from the source image).
 
 ### Launch
 
@@ -124,9 +123,10 @@ No core edits — add a model and a post-processor:
    @register_post_processor("buoy")
    class BuoyPostProcessor(TaskPostProcessor):
        def process(self, detections, rgb_image, depth_image, camera_info):
-           # detections already carry the 2D box + depth-derived distance_m.
-           # Add task-specific work here: fill det.pose / det.pose_valid via
-           # cv2.solvePnP on known geometry, append det.extra KeyValues, etc.
+           # detections already carry the 2D box; depth_image is always None
+           # (no depth camera). Add task-specific work here: fill det.pose /
+           # det.pose_valid via cv2.solvePnP on known geometry, set
+           # det.distance_m, append det.extra KeyValues, etc.
            return detections
    ```
 
@@ -134,7 +134,7 @@ No core edits — add a model and a post-processor:
    node loads). `gate.py` is a worked `cv2.solvePnP` example.
 
 A task with no registered processor still publishes detections with 2D boxes and
-`distance_m`; only `pose` is left invalid.
+the default `distance_m` proxy; only `pose` is left invalid.
 
 ---
 
@@ -143,7 +143,9 @@ A task with no registered processor still publishes detections with 2D boxes and
 `Detection.msg` builds on `vision_msgs/Detection2D` (bbox + class id/score) and
 adds:
 
-* `float32 distance_m` — median valid depth inside the bbox (NaN if none).
+* `float32 distance_m` — distance to the object in meters. Default proxy =
+  `(bbox_height / image_height) * CAMERA_HEIGHT_M` (`sub_vision/constants.py`);
+  a task post-processor may overwrite it with a better estimate.
 * `geometry_msgs/Pose pose` + `bool pose_valid` — 6-DOF pose when recoverable.
 * `diagnostic_msgs/KeyValue[] extra` — task-specific metadata, so new tasks
   never require a message change.
@@ -158,8 +160,7 @@ adds:
 colcon test --packages-select sub_vision sub_sim_sensors --merge-install
 ```
 
-* `sub_vision` (pytest): depth distance estimation / deprojection
-  (`test_metadata.py`) and the post-processor registry
+* `sub_vision` (pytest): the post-processor registry
   (`test_post_processor_registry.py`).
 * `sub_sim_sensors` (gtest): the meters→millimeters depth conversion
   (`test_depth_conversion.cpp`).

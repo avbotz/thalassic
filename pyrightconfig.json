@@ -4,9 +4,9 @@
     "install/lib/python3.12/site-packages",
     "/opt/ros/jazzy/lib/python3.12/site-packages",
   ],
-  "exclude": [
-    "log"
+  "include": [
+    "src"
   ],
   "reportUnusedCallResult": false,
-  "typeCheckingMode": "standard"
+  "typeCheckingMode": "standard",
 }

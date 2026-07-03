@@ -12,48 +12,46 @@ small detections, and saves the color image + YOLOv11 segmentation
 annotation.
 """
 
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
-from ament_index_python.packages import get_package_share_directory
+from pathlib import Path
 
 import numpy as np
-from pathlib import Path
+import rclpy
+from ament_index_python.packages import get_package_share_directory
+from cv_bridge import CvBridge
+from rclpy.node import Node
+from sensor_msgs.msg import Image
 
 from sim_labeling.parse_ids import (
     build_pixel_to_class_id,
     get_class_names,
     parse_scenario_ids,
 )
-from sim_labeling.save import save_labeled_image, save_dataset_yaml
+from sim_labeling.save import save_dataset_yaml, save_labeled_image
 
 
 class LabelNode(Node):
     """Node that pairs segmentation frames with color frames for auto-labeling."""
 
     def __init__(self):
-        super().__init__('label_node')
+        super().__init__("label_node")
 
         # ── ROS parameters ──────────────────────────────────────────────
-        self.declare_parameter('scenario_file', '')
-        self.declare_parameter('output_dir', 'train_imgs')
-        self.declare_parameter('min_bbox_area', 400)
-        self.declare_parameter('seg_topic',
-                               '/marlin_v2/sim/segment/image_raw')
-        self.declare_parameter('front_cam_topic',
-                               '/marlin_v2/oak/rgb/image_raw')
+        self.declare_parameter("scenario_file", "")
+        self.declare_parameter("output_dir", "train_imgs")
+        self.declare_parameter("min_bbox_area", 400)
+        self.declare_parameter("seg_topic", "/marlin_v2/sim/segment/image_raw")
+        self.declare_parameter("front_cam_topic", "/marlin_v2/oak/rgb/image_raw")
 
-        scenario_file = self.get_parameter('scenario_file') \
-                            .get_parameter_value().string_value
-        self.output_dir = self.get_parameter('output_dir') \
-                              .get_parameter_value().string_value
-        self.min_bbox_area = self.get_parameter('min_bbox_area') \
-                     .get_parameter_value().integer_value
-        seg_topic = self.get_parameter('seg_topic') \
-                        .get_parameter_value().string_value
-        front_cam_topic = self.get_parameter('front_cam_topic') \
-                              .get_parameter_value().string_value
+        scenario_file = self.get_parameter("scenario_file").get_parameter_value().string_value
+        self.output_dir = self.get_parameter("output_dir").get_parameter_value().string_value
+        self.min_bbox_area = self.get_parameter("min_bbox_area").get_parameter_value().integer_value
+        seg_topic = self.get_parameter("seg_topic").get_parameter_value().string_value
+        front_cam_topic = (
+            self.get_parameter("front_cam_topic").get_parameter_value().string_value
+        )
+
+        if not self.output_dir:
+            os.makedirs(self.output_dir, exist_ok=True)
 
         # ── Build pixel → class_id mapping from scenario ────────────────
         self.pixel_to_class: dict[int, int] = {}
@@ -63,22 +61,22 @@ class LabelNode(Node):
             self._load_scenario(scenario_file)
         else:
             self.get_logger().warn(
-                'No scenario_file parameter set. '
-                'Will attempt to find it from sub_sim share directory.'
+                "No scenario_file parameter set. "
+                "Will attempt to find it from sub_sim share directory."
             )
             self._try_auto_detect_scenario()
 
         if self.pixel_to_class:
             self.get_logger().info(
-                f'Loaded {len(self.pixel_to_class)} segmentation pixel '
-                f'mappings across {len(self.class_names)} classes.'
+                f"Loaded {len(self.pixel_to_class)} segmentation pixel "
+                f"mappings across {len(self.class_names)} classes."
             )
             # Write dataset.yaml once
             save_dataset_yaml(self.class_names, self.output_dir)
         else:
             self.get_logger().error(
-                'No pixel-to-class mapping could be built! '
-                'Labeling will be non-functional.'
+                "No pixel-to-class mapping could be built! "
+                "Labeling will be non-functional."
             )
 
         # ── State ───────────────────────────────────────────────────────
@@ -88,18 +86,16 @@ class LabelNode(Node):
         self.saved_count = 0
 
         # ── Subscriptions ───────────────────────────────────────────────
-        self.seg_sub = self.create_subscription(
-            Image, seg_topic, self.seg_callback, 10
-        )
+        self.seg_sub = self.create_subscription(Image, seg_topic, self.seg_callback, 10)
         self.front_sub = self.create_subscription(
             Image, front_cam_topic, self.front_callback, 10
         )
 
         self.get_logger().info(
-            f'Label node started. '
-            f'Seg topic: {seg_topic}, '
-            f'Front cam topic: {front_cam_topic}, '
-            f'Output dir: {self.output_dir}'
+            f"Label node started. "
+            f"Seg topic: {seg_topic}, "
+            f"Front cam topic: {front_cam_topic}, "
+            f"Output dir: {self.output_dir}"
         )
 
     # ── Scenario loading ────────────────────────────────────────────────
@@ -115,12 +111,12 @@ class LabelNode(Node):
 
             if data_dir is None:
                 self.get_logger().error(
-                    f'Could not determine data_dir for scenario {scenario_file}'
+                    f"Could not determine data_dir for scenario {scenario_file}"
                 )
                 return
 
             self.get_logger().info(
-                f'Parsing scenario: {scenario_file} with data_dir: {data_dir}'
+                f"Parsing scenario: {scenario_file} with data_dir: {data_dir}"
             )
 
             self.pixel_to_class, self.class_names = build_pixel_to_class_id(
@@ -134,12 +130,13 @@ class LabelNode(Node):
             for g in prop_groups:
                 self.get_logger().info(
                     f'  Prop "{g.class_name}" (class {g.class_id}): '
-                    f'{len(g.seg_ids)} seg IDs'
+                    f"{len(g.seg_ids)} seg IDs"
                 )
 
         except Exception as e:
-            self.get_logger().error(f'Failed to parse scenario: {e}')
+            self.get_logger().error(f"Failed to parse scenario: {e}")
             import traceback
+
             self.get_logger().error(traceback.format_exc())
 
     def _find_data_dir(self, scenario_path: Path) -> Path | None:
@@ -171,15 +168,14 @@ class LabelNode(Node):
 
             # Look for rendered .scn files in /tmp
             import glob
+
             scn_files = sorted(
                 glob.glob("/tmp/woollett*.scn"),
                 key=lambda f: Path(f).stat().st_mtime,
                 reverse=True,
             )
             if scn_files:
-                self.get_logger().info(
-                    f'Auto-detected scenario file: {scn_files[0]}'
-                )
+                self.get_logger().info(f"Auto-detected scenario file: {scn_files[0]}")
                 self._load_scenario_with_data_dir(scn_files[0], str(data_dir))
                 return
 
@@ -188,13 +184,13 @@ class LabelNode(Node):
             template = scenario_dir / "woollett.scn.j2"
             if template.exists():
                 self.get_logger().warn(
-                    'Using scenario template (IDs may differ if randomization '
-                    'changes include order, but include order is fixed).'
+                    "Using scenario template (IDs may differ if randomization "
+                    "changes include order, but include order is fixed)."
                 )
                 self._load_scenario_with_data_dir(str(template), str(data_dir))
 
         except Exception as e:
-            self.get_logger().error(f'Auto-detect failed: {e}')
+            self.get_logger().error(f"Auto-detect failed: {e}")
 
     def _load_scenario_with_data_dir(self, scenario_file: str, data_dir: str):
         """Load scenario with explicit data_dir."""
@@ -203,7 +199,7 @@ class LabelNode(Node):
                 scenario_file, data_dir
             )
         except Exception as e:
-            self.get_logger().error(f'Failed to parse scenario: {e}')
+            self.get_logger().error(f"Failed to parse scenario: {e}")
 
     # ── Callbacks ───────────────────────────────────────────────────────
 
@@ -211,14 +207,14 @@ class LabelNode(Node):
         """Handle segmentation camera image."""
         if self.latest_front_image is None:
             self.get_logger().warn(
-                'No front image available for segmentation.',
+                "No front image available for segmentation.",
                 throttle_duration_sec=5.0,
             )
             return
 
         if not self.pixel_to_class:
             self.get_logger().warn(
-                'No pixel-to-class mapping loaded. Skipping.',
+                "No pixel-to-class mapping loaded. Skipping.",
                 throttle_duration_sec=10.0,
             )
             return
@@ -226,7 +222,7 @@ class LabelNode(Node):
         self.frame_count += 1
 
         # Convert segmentation image: 16UC1 → numpy uint16
-        seg_img = self.cvb.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        seg_img = self.cvb.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         if seg_img.dtype != np.uint16:
             seg_img = seg_img.astype(np.uint16)
 
@@ -243,8 +239,8 @@ class LabelNode(Node):
             self.saved_count += 1
             if self.saved_count % 50 == 0:
                 self.get_logger().info(
-                    f'Saved {self.saved_count} labeled images '
-                    f'({self.frame_count} frames processed).'
+                    f"Saved {self.saved_count} labeled images "
+                    f"({self.frame_count} frames processed)."
                 )
 
     def front_callback(self, msg: Image):
@@ -260,5 +256,5 @@ def main(args=None):
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
