@@ -1,7 +1,7 @@
 [submodule "src/stonefish_ros2"]
 	path = src/stonefish_ros2
 	url = https://github.com/patrykcieslak/stonefish_ros2.git
-[submodule "src/waterlinked_dvl"]
+[submodule "src/sub_drivers/waterlinked_dvl"]
 	path = src/sub_drivers/waterlinked_dvl
 	url = https://github.com/waterlinked/waterlinked_dvl
 [submodule "src/sub_drivers/flir_camera_driver"]

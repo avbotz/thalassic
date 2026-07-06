@@ -7,13 +7,13 @@
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
+  <depend>angles</depend>
+  <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
+  <depend>robot_localization</depend>
   <depend>sub_control_interfaces</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
-  <depend>nav_msgs</depend>
-  <depend>robot_localization</depend>
-  <depend>angles</depend>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

@@ -3,7 +3,7 @@
 <package format="3">
   <name>sub_control_interfaces</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Contains interfaces for the sub control package</description>
   <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
   <license>Proprietary</license>
 

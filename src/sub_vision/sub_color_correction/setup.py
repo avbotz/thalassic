@@ -15,7 +15,7 @@ setup(
     maintainer="AVBotz",
     maintainer_email="avbotzco@gmail.com",
     description="RGB-D underwater color correction for Marlin camera streams.",
-    license="Proprietary AND AGPL-3.0-only",
+    license="Proprietary",
     entry_points={
         "console_scripts": [
             "deepseecolor_node = sub_color_correction.deepseecolor_node:main",
