@@ -152,8 +152,6 @@ void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg
 }
 
 void SubControl::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
-    RCLCPP_INFO(get_logger(), "kill_callback: killed_=%d, msg->data=%d", killed_, msg->data);
-
     if (killed_ && !msg->data) {
         auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
         request->pose.header.frame_id = robot_name_.empty() ? "odom" : robot_name_ + "/odom";

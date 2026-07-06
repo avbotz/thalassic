@@ -24,9 +24,9 @@ class NaviGuiderIMUDriver(LifecycleNode):
         self.declare_parameter("frame_id", "imu_link")
         # Per-sensor output rates in Hz. 0 disables a sensor. Aggregate data
         # rate must not exceed 1200 Hz.
-        self.declare_parameter("accel_rate", 100)
-        self.declare_parameter("gyro_rate", 100)
-        self.declare_parameter("orientation_rate", 100)
+        self.declare_parameter("accel_rate", 50)
+        self.declare_parameter("gyro_rate", 50)
+        self.declare_parameter("orientation_rate", 50)
 
         self._serial: serial.Serial | None = None
         self._rx_buffer = bytearray()
