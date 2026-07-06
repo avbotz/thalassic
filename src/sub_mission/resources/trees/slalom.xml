@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RoboSub 2026 slalom task: weave through three red/white pipe gates staying
+  within the plane of the pipes (sim: models/slalom_task, z ~1.05-1.35). More
+  points for staying between the pipes, so transit at pipe depth.
+-->
+<root BTCPP_format="4" main_tree_to_execute="SlalomMission">
+  <BehaviorTree ID="SlalomMission">
+    <Sequence name="slalom_mission">
+      <PosSetpoint z="1.2"/>
+      <Fallback name="acquire_slalom">
+        <SearchForSlalom/>
+        <RecoverSlalomSearch/>
+      </Fallback>
+      <PassSlalomChannel/>
+      <PosSetpoint z="1.0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
