@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="CoinFlipMission">
+  <BehaviorTree ID="CoinFlipMission">
+    <Sequence name="coin_flip_mission">
+      <PosSetpoint z="1.0"/>
+      <Fallback name="find_gate_or_abort">
+        <Sequence name="gate_found">
+          <SearchGateAfterCoinFlip/>
+          <SetYawZero/>
+        </Sequence>
+        <AbortMission/>
+      </Fallback>
+    </Sequence>
+  </BehaviorTree>
+</root>

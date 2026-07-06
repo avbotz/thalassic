@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="OctagonMission">
+  <BehaviorTree ID="OctagonMission">
+    <Sequence name="octagon_mission">
+      <PosSetpoint z="1.5"/>
+      <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
+      <SearchDhdFront/>
+      <ApproachDhdFront/>
+      <PosSetpoint z="0.5"/>
+      <PosSetpoint x="1.0" velocity="true"/>
+      <FindDhdDown/>
+      <AlignOverDhd/>
+      <SurfaceForOctagonPoints/>
+      <Sequence name="grab_and_drop_objects">
+        <GrabYellowObject/>
+        <DropYellowObject/>
+        <GrabRedObject/>
+        <DropRedObject/>
+      </Sequence>
+      <ReturnToDhdCenter/>
+      <SurfaceAtOctagon/>
+      <PosSetpoint z="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

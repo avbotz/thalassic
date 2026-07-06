@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RoboSub 2026 competition run, pool C start. Same headings as pool B;
+     see pool_a.xml for what each value means. -->
+<root BTCPP_format="4" main_tree_to_execute="CompetitionPoolC">
+  <BehaviorTree ID="CompetitionPoolC">
+    <Sequence name="pool_c">
+      <Script code="@gate_exit_yaw := 0.34906585;
+                    @torp_search_yaw := -2.35619449;
+                    @octagon_search_yaw := -0.61086524;
+                    @target_animal := 1"/>
+      <SubTree ID="CompetitionRun"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

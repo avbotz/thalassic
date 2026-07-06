@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" project_name="Project">
+    <include path="missions/pool_a.xml"/>
+    <include path="missions/pool_b.xml"/>
+    <include path="missions/pool_c.xml"/>
+    <include path="missions/pool_d.xml"/>
+    <include path="missions/prelim.xml"/>
+    <include path="missions/pool_test.xml"/>
+    <include path="missions/vision_test.xml"/>
+    <include path="missions/pid_tuning.xml"/>
+    <include path="trees/coin_flip.xml"/>
+    <include path="trees/gate.xml"/>
+    <include path="trees/bins.xml"/>
+    <include path="trees/torp.xml"/>
+    <include path="trees/octagon.xml"/>
+    <include path="trees/prelim.xml"/>
+    <include path="trees/pool_test.xml"/>
+    <include path="trees/vision_test.xml"/>
+
+    <TreeNodesModel>
+        <Action ID="PosSetpoint">
+            <input_port name="x" default="0.0">North/forward position or velocity setpoint</input_port>
+            <input_port name="y" default="0.0">East/right position or velocity setpoint</input_port>
+            <input_port name="z" default="0.0">Down/depth position or velocity setpoint</input_port>
+            <input_port name="velocity" default="false">True for velocity mode</input_port>
+            <input_port name="use_altitude" default="false">True when z is an altitude setpoint</input_port>
+        </Action>
+        <Action ID="AttSetpoint">
+            <input_port name="roll" default="0.0">Roll setpoint in radians</input_port>
+            <input_port name="pitch" default="0.0">Pitch setpoint in radians</input_port>
+            <input_port name="yaw" default="0.0">Yaw setpoint in radians</input_port>
+            <input_port name="velocity" default="false">True for angular velocity mode</input_port>
+        </Action>
+        <Action ID="MoveRelative">
+            <input_port name="x" default="0.0">Forward offset in meters</input_port>
+            <input_port name="y" default="0.0">Right offset in meters</input_port>
+            <input_port name="z" default="0.0">Down/depth offset in meters</input_port>
+        </Action>
+        <Action ID="AddAttSetpoint">
+            <input_port name="roll" default="0.0">Roll offset in radians</input_port>
+            <input_port name="pitch" default="0.0">Pitch offset in radians</input_port>
+            <input_port name="yaw" default="0.0">Yaw offset in radians</input_port>
+        </Action>
+        <Action ID="Spin">
+            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians</input_port>
+            <input_port name="rate" default="3.14159265">Yaw rate in radians per second</input_port>
+        </Action>
+        <Action ID="WaitUntilHit">
+            <input_port name="axis" default="x">Velocity axis to monitor: x, y, or z</input_port>
+            <input_port name="threshold" default="-1.0">Speed ratio threshold; negative selects old defaults</input_port>
+            <input_port name="timeout_msec" default="40000">Maximum wait time before returning FAILURE</input_port>
+        </Action>
+        <Action ID="SurfaceAndKill"/>
+        <Condition ID="NotKilled"/>
+        <Action ID="SearchGateAfterCoinFlip"/>
+        <Action ID="SetYawZero"/>
+        <Action ID="AbortMission"/>
+        <Action ID="AlignWithGate"/>
+        <Action ID="ApproachAbydosSymbol"/>
+        <Action ID="FindPathMarkerForBuoy"/>
+        <Action ID="FindPathMarkerForBins"/>
+        <Action ID="AlignAboveBinsPathMarker"/>
+        <Action ID="FindBins"/>
+        <Action ID="AlignOverBins"/>
+        <Action ID="AlignOverBinShark"/>
+        <Action ID="DropBalls"/>
+        <Action ID="SearchTorpBoard"/>
+        <Action ID="RecoverTorpBoardSearch"/>
+        <Action ID="VerifyTorpBoard"/>
+        <Action ID="ApproachTorpBoard"/>
+        <Action ID="OrientToTorpBoard"/>
+        <Action ID="ShootOpenTorpHole"/>
+        <Action ID="ShootClosedTorpHole"/>
+        <Action ID="SearchDhdFront"/>
+        <Action ID="ApproachDhdFront"/>
+        <Action ID="FindDhdDown"/>
+        <Action ID="AlignOverDhd"/>
+        <Action ID="SurfaceForOctagonPoints"/>
+        <Action ID="GrabYellowObject"/>
+        <Action ID="DropYellowObject"/>
+        <Action ID="GrabRedObject"/>
+        <Action ID="DropRedObject"/>
+        <Action ID="ReturnToDhdCenter"/>
+        <Action ID="SurfaceAtOctagon"/>
+        <Action ID="RunVisionTest"/>
+    </TreeNodesModel>
+</root>
