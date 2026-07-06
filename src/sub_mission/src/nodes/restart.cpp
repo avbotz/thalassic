@@ -16,7 +16,6 @@
  */
 
 #include "sub_mission/nodes/restart.hpp"
-#include "sub_mission/utils.hpp"
 
 int main(int argc, char** argv)
 {
@@ -47,25 +46,9 @@ int main(int argc, char** argv)
             // sub is alive, activate
             setsid();
 
-            std::string command = std::string("ros2 run sub_mission mission --ros-args -p ") +
-                std::string("POOL_A:=") + bool_to_text(node->POOL_A) + std::string(" -p ") +
-                std::string("POOL_B:=") + bool_to_text(node->POOL_B) + std::string(" -p ") +
-                std::string("POOL_C:=") + bool_to_text(node->POOL_C) + std::string(" -p ") +
-                std::string("POOL_D:=") + bool_to_text(node->POOL_D) + std::string(" -p ") +
-                std::string("HEADS:=") + bool_to_text(node->HEADS) + std::string(" -p ") +
-                std::string("TAILS:=") + bool_to_text(node->TAILS) + std::string(" -p ") +
-                std::string("SIM:=") + bool_to_text(node->SIM) + std::string(" -p ") +
-                std::string("COIN_FLIP:=") + bool_to_text(node->COIN_FLIP) + std::string(" -p ") +
-                std::string("GATE:=") + bool_to_text(node->GATE) + std::string(" -p ") +
-                std::string("BUOY:=") + bool_to_text(node->BUOY) + std::string(" -p ") +
-                std::string("BINS:=") + bool_to_text(node->BINS) + std::string(" -p ") +
-                std::string("TORP:=") + bool_to_text(node->TORP) + std::string(" -p ") +
-                std::string("OCTAGON:=") + bool_to_text(node->OCTAGON) + std::string(" -p ") +
-                std::string("PRELIM:=") + bool_to_text(node->PRELIM) + std::string(" -p ") +
-                std::string("POOL_TEST:=") + bool_to_text(node->POOL_TEST) + std::string(" -p ") +
-                std::string("VISION_TEST:=") + bool_to_text(node->VISION_TEST) + std::string(" -p ") +
-                std::string("PID_TUNING_SEQUENCE:=") + bool_to_text(node->PID_TUNING_SEQUENCE);
-                
+            std::string command = std::string("ros2 run sub_mission mission --ros-args -p 'mission:=") +
+                node->mission + std::string("'");
+
             system(command.c_str());
         }
 

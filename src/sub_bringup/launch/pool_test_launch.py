@@ -228,10 +228,20 @@ def generate_launch_description():
         )
     )
 
+    sub_mission_node = Node(
+        package="sub_mission",
+        executable="mission",
+        name="sub_mission",
+        output="screen",
+        namespace=LaunchConfiguration("ns"),
+        parameters=[{"mission": "pid_tuning"}],
+    )
+
     return LaunchDescription(
         [
             declare_robot_name,
             include_transforms,
+            # sub_mission_node,
             *control_and_state_entities(),
             *camera_entities(),
             *vision_entities(),

@@ -8,7 +8,8 @@
       <PosSetpoint x="2.2" velocity="true"/>
       <FindBins/>
       <AlignOverBins/>
-      <AlignOverBinShark/>
+      <!-- Center over the {@target_animal} half before dropping. -->
+      <AlignOverBinTarget/>
       <PosSetpoint z="0.6" use_altitude="true"/>
       <DropBalls/>
     </Sequence>

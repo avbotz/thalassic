@@ -5,24 +5,13 @@
       <PosSetpoint z="1.0"/>
       <PosSetpoint x="4.0" y="0.0"/>
       <AlignWithGate/>
-      <ApproachAbydosSymbol/>
+      <!-- Drive through the {@target_animal} half chosen in the pool mission. -->
+      <PassGateChosenSide/>
       <PosSetpoint x="0.25" velocity="true"/>
       <Sleep msec="10000"/>
       <Spin yaw="12.56637061"/>
       <PosSetpoint z="0.5"/>
-      <Fallback name="pool_exit_heading">
-        <Sequence name="pool_b_or_c_exit">
-          <Inverter>
-            <PoolAOrD/>
-          </Inverter>
-          <AttSetpoint yaw="0.34906585"/>
-        </Sequence>
-        <Sequence name="pool_a_or_d_exit">
-          <PoolAOrD/>
-          <AttSetpoint yaw="-0.34906585"/>
-        </Sequence>
-        <AttSetpoint yaw="-0.34906585"/>
-      </Fallback>
+      <AttSetpoint name="pool_exit_heading" yaw="{@gate_exit_yaw}"/>
     </Sequence>
   </BehaviorTree>
 </root>

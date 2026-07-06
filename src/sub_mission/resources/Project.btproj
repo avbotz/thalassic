@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4" project_name="Project">
-    <include path="main_mission.xml"/>
-    <include path="coin_flip.xml"/>
-    <include path="gate.xml"/>
-    <include path="buoy.xml"/>
-    <include path="bins.xml"/>
-    <include path="torp.xml"/>
-    <include path="octagon.xml"/>
-    <include path="prelim.xml"/>
-    <include path="pool_test.xml"/>
-    <include path="vision_test.xml"/>
-    <include path="pid_tuning_sequence.xml"/>
+    <include path="missions/pool_a.xml"/>
+    <include path="missions/pool_b.xml"/>
+    <include path="missions/pool_c.xml"/>
+    <include path="missions/pool_d.xml"/>
+    <include path="missions/prelim.xml"/>
+    <include path="missions/pool_test.xml"/>
+    <include path="missions/vision_test.xml"/>
+    <include path="missions/pid_tuning.xml"/>
+    <include path="trees/coin_flip.xml"/>
+    <include path="trees/gate.xml"/>
+    <include path="trees/bins.xml"/>
+    <include path="trees/torp.xml"/>
+    <include path="trees/octagon.xml"/>
+    <include path="trees/prelim.xml"/>
+    <include path="trees/pool_test.xml"/>
+    <include path="trees/vision_test.xml"/>
 
     <TreeNodesModel>
         <Action ID="PosSetpoint">
@@ -46,28 +51,13 @@
             <input_port name="timeout_msec" default="40000">Maximum wait time before returning FAILURE</input_port>
         </Action>
         <Action ID="SurfaceAndKill"/>
-        <Condition ID="PoolAOrD"/>
         <Condition ID="NotKilled"/>
-        <Condition ID="RunCoinFlip"/>
-        <Condition ID="RunGate"/>
-        <Condition ID="RunBuoy"/>
-        <Condition ID="RunBins"/>
-        <Condition ID="RunTorp"/>
-        <Condition ID="RunOctagon"/>
-        <Condition ID="RunPrelim"/>
-        <Condition ID="RunPoolTest"/>
-        <Condition ID="RunVisionTestFlag"/>
-        <Condition ID="RunPidTuningSequence"/>
         <Action ID="SearchGateAfterCoinFlip"/>
         <Action ID="SetYawZero"/>
         <Action ID="AbortMission"/>
         <Action ID="AlignWithGate"/>
         <Action ID="ApproachAbydosSymbol"/>
         <Action ID="FindPathMarkerForBuoy"/>
-        <Action ID="SearchForBuoy"/>
-        <Action ID="ApproachBuoy"/>
-        <Action ID="ReturnToBuoyStart"/>
-        <Action ID="RecoverFromMissingBuoy"/>
         <Action ID="FindPathMarkerForBins"/>
         <Action ID="AlignAboveBinsPathMarker"/>
         <Action ID="FindBins"/>

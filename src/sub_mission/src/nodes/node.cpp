@@ -20,8 +20,8 @@
 #include <chrono>
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <functional>
-#include <limits>
 #include <string>
 #include <thread>
 #include <vector>
@@ -618,17 +618,31 @@ class SurfaceAction : public BT::StatefulActionNode {
     std::array<std::uint64_t, 12> start_updates_ = {};
 };
 
-BT::NodeStatus blackboxAction(const rclcpp::Logger &logger, const std::string &name) {
-    RCLCPP_INFO(logger, "Blackbox BT action '%s' ticked. Replace this stub when the mission primitive is ready.",
-                name.c_str());
-    return BT::NodeStatus::SUCCESS;
-}
+// ---------------------------------------------------------------------------
+// Blackbox action framework
+//
+// A "blackbox" is a mission primitive whose real behavior lives in the
+// perception/strategy layer and is not wired up yet (vision alignment, object
+// manipulation, torpedo/dropper actuation, ...). Registering it as a stub lets
+// a full mission tree load and dry-run in the sim before the primitive exists;
+// each stub logs its human-readable description and returns a fixed status.
+//
+// Promotion path -- to give a blackbox real behavior:
+//   1. Write a BT::StatefulActionNode for it (PosSetpointAction above is the
+//      template). It can publish setpoints, read node_.control_errors and the
+//      {@...} blackboard, and return RUNNING until the goal is reached.
+//   2. registerBuilder<YourAction>("Name", ...) it in registerMissionNodes().
+//   3. Delete its row from kBlackboxActions below.
+// Whatever remains in kBlackboxActions is, by definition, not implemented yet.
+struct BlackboxAction {
+    const char *name;
+    const char *description;
+    BT::NodeStatus result = BT::NodeStatus::SUCCESS;
+};
 
-void registerTaskFlagCondition(BT::BehaviorTreeFactory &factory, const std::string &condition_name,
-                               const bool enabled) {
-    factory.registerSimpleCondition(condition_name, [enabled](BT::TreeNode &) {
-        return enabled ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
-    });
+BT::NodeStatus tickBlackbox(const rclcpp::Logger &logger, const BlackboxAction &spec) {
+    RCLCPP_INFO(logger, "[blackbox] %s -> %s  (%s)", spec.name, statusName(spec.result), spec.description);
+    return spec.result;
 }
 
 void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, const rclcpp::Logger logger,
@@ -636,24 +650,9 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
                           QuaternionCmdPublisher::SharedPtr attitude_publisher,
                           VectorCmdPublisher::SharedPtr linear_velocity_publisher,
                           VectorCmdPublisher::SharedPtr angular_velocity_publisher, rclcpp::Clock::SharedPtr clock) {
-    factory.registerSimpleCondition("PoolAOrD", [&node](BT::TreeNode &) {
-        return (node.POOL_A || node.POOL_D) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
-    });
-
     factory.registerSimpleCondition("NotKilled", [](BT::TreeNode &) {
         return !mission_killed ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
-
-    registerTaskFlagCondition(factory, "RunCoinFlip", node.COIN_FLIP);
-    registerTaskFlagCondition(factory, "RunGate", node.GATE);
-    registerTaskFlagCondition(factory, "RunBuoy", node.BUOY);
-    registerTaskFlagCondition(factory, "RunBins", node.BINS);
-    registerTaskFlagCondition(factory, "RunTorp", node.TORP);
-    registerTaskFlagCondition(factory, "RunOctagon", node.OCTAGON);
-    registerTaskFlagCondition(factory, "RunPrelim", node.PRELIM);
-    registerTaskFlagCondition(factory, "RunPoolTest", node.POOL_TEST);
-    registerTaskFlagCondition(factory, "RunVisionTestFlag", node.VISION_TEST);
-    registerTaskFlagCondition(factory, "RunPidTuningSequence", node.PID_TUNING_SEQUENCE);
 
     factory.registerBuilder<PosSetpointAction>(
         "PosSetpoint", [&node, position_publisher, linear_velocity_publisher, clock,
@@ -701,43 +700,59 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     factory.registerBuilder<SurfaceAction>("SurfaceAtOctagon", surface_builder);
     factory.registerBuilder<SurfaceAction>("SurfaceAndKill", surface_builder);
 
-    const std::vector<std::string> blackbox_nodes = {"SearchGateAfterCoinFlip",
-                                                     "SetYawZero",
-                                                     "AbortMission",
-                                                     "AlignWithGate",
-                                                     "ApproachAbydosSymbol",
-                                                     "FindPathMarkerForBuoy",
-                                                     "SearchForBuoy",
-                                                     "ApproachBuoy",
-                                                     "ReturnToBuoyStart",
-                                                     "RecoverFromMissingBuoy",
-                                                     "FindPathMarkerForBins",
-                                                     "AlignAboveBinsPathMarker",
-                                                     "FindBins",
-                                                     "AlignOverBins",
-                                                     "AlignOverBinShark",
-                                                     "DropBalls",
-                                                     "SearchTorpBoard",
-                                                     "RecoverTorpBoardSearch",
-                                                     "VerifyTorpBoard",
-                                                     "ApproachTorpBoard",
-                                                     "OrientToTorpBoard",
-                                                     "ShootOpenTorpHole",
-                                                     "ShootClosedTorpHole",
-                                                     "SearchDhdFront",
-                                                     "ApproachDhdFront",
-                                                     "FindDhdDown",
-                                                     "AlignOverDhd",
-                                                     "SurfaceForOctagonPoints",
-                                                     "GrabYellowObject",
-                                                     "DropYellowObject",
-                                                     "GrabRedObject",
-                                                     "DropRedObject",
-                                                     "ReturnToDhdCenter",
-                                                     "RunVisionTest"};
+    constexpr BT::NodeStatus OK = BT::NodeStatus::SUCCESS;
+    constexpr BT::NodeStatus FAIL = BT::NodeStatus::FAILURE;
+    const std::vector<BlackboxAction> blackbox_actions = {
+        // Coin flip / orientation
+        {"SearchGateAfterCoinFlip", "Rotate to reacquire the gate after the coin-flip drop", OK},
+        {"SetYawZero", "Latch the current heading as the mission yaw reference", OK},
+        {"AbortMission", "Give up on the current task and fail out", FAIL},
+        // Gate (2026: pass the chosen reef-shark or sawfish half)
+        {"AlignWithGate", "Center on the gate using front-camera detections", OK},
+        {"PassGateChosenSide", "Drive through the {@target_animal} half of the gate", OK},
+        // Slalom (2026: weave the three red/white pipe gates)
+        {"SearchForSlalom", "Sweep to bring the slalom pipes into view", OK},
+        {"RecoverSlalomSearch", "Dead-reckon forward when the slalom is not seen", OK},
+        {"PassSlalomChannel", "Weave through the slalom staying within the pipe plane", OK},
+        // Bins (2026: single bin, shark/sawfish halves)
+        {"FindPathMarkerForBins", "Find the path marker pointing toward the bin", OK},
+        {"AlignAboveBinsPathMarker", "Align heading to the bin path marker", OK},
+        {"FindBins", "Bring the bin into the down-camera view", OK},
+        {"AlignOverBins", "Center over the bin", OK},
+        {"AlignOverBinTarget", "Center over the {@target_animal} half of the bin", OK},
+        {"DropBalls", "Release both droppers", OK},
+        // Torpedoes (2026: board with two openings)
+        {"SearchTorpBoard", "Sweep to find the torpedo board", OK},
+        {"RecoverTorpBoardSearch", "Dead-reckon along the search heading when the board is not seen", OK},
+        {"VerifyTorpBoard", "Confirm the detection is the torpedo board", OK},
+        {"ApproachTorpBoard", "Close range on the torpedo board", OK},
+        {"OrientToTorpBoard", "Square up to the board face", OK},
+        {"ShootChosenTorpHole", "Fire a torpedo through the {@target_animal} opening", OK},
+        {"ShootOtherTorpHole", "Fire the second torpedo through the other opening", OK},
+        // Octagon (2026: home the pinger, surface, sort trash by color)
+        {"SearchDhdFront", "Search the front camera for the octagon marker", OK},
+        {"ApproachDhdFront", "Approach the octagon", OK},
+        {"FindDhdDown", "Bring the octagon center into the down camera", OK},
+        {"AlignOverDhd", "Center over the octagon", OK},
+        {"SurfaceForOctagonPoints", "Surface inside the octagon", OK},
+        {"GrabYellowObject", "Pick up the yellow object", OK},
+        {"DropYellowObject", "Sort the yellow object onto the table", OK},
+        {"GrabRedObject", "Pick up the red object", OK},
+        {"DropRedObject", "Sort the red object onto the table", OK},
+        {"ReturnToDhdCenter", "Return to the octagon center", OK},
+        // Buoy (legacy 2024 task; still available via trees/buoy.xml, not in the 2026 run)
+        {"FindPathMarkerForBuoy", "Find the path marker pointing toward the buoy", OK},
+        {"SearchForBuoy", "Sweep to find the buoy", OK},
+        {"ApproachBuoy", "Close range on the buoy", OK},
+        {"ReturnToBuoyStart", "Return to the buoy approach start", OK},
+        {"RecoverFromMissingBuoy", "Recover when the buoy is not found", OK},
+        // Vision bring-up
+        {"RunVisionTest", "Cycle the vision detectors and log detections", OK},
+    };
 
-    for (const std::string &name : blackbox_nodes) {
-        factory.registerSimpleAction(name, [logger, name](BT::TreeNode &) { return blackboxAction(logger, name); });
+    for (const BlackboxAction &spec : blackbox_actions) {
+        factory.registerSimpleAction(spec.name,
+                                     [logger, spec](BT::TreeNode &) { return tickBlackbox(logger, spec); });
     }
 }
 
@@ -752,44 +767,9 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
     this->control_error_sub = this->create_subscription<sub_control_interfaces::msg::Error>(
         "control/error", 10, std::bind(&MissionNode::control_error_callback, this, std::placeholders::_1));
 
-    // Set up parameters that can be passed to the node via a launch file or terminal (default=false)
-    this->declare_parameter<bool>("POOL_A", false);
-    this->declare_parameter<bool>("POOL_B", false);
-    this->declare_parameter<bool>("POOL_C", false);
-    this->declare_parameter<bool>("POOL_D", false);
-    this->declare_parameter<bool>("HEADS", false);
-    this->declare_parameter<bool>("TAILS", false);
-    this->declare_parameter<bool>("SIM", false);
-    this->declare_parameter<bool>("COIN_FLIP", false);
-    this->declare_parameter<bool>("GATE", false);
-    this->declare_parameter<bool>("BUOY", false);
-    this->declare_parameter<bool>("BINS", false);
-    this->declare_parameter<bool>("TORP", false);
-    this->declare_parameter<bool>("OCTAGON", false);
-    this->declare_parameter<bool>("PRELIM", false);
-    this->declare_parameter<bool>("POOL_TEST", false);
-    this->declare_parameter<bool>("VISION_TEST", false);
-    this->declare_parameter<bool>("PID_TUNING_SEQUENCE", false);
-
-    // Store the parameters inside variables
-    this->get_parameter("POOL_A", this->POOL_A);
-    this->get_parameter("POOL_B", this->POOL_B);
-    this->get_parameter("POOL_C", this->POOL_C);
-    this->get_parameter("POOL_D", this->POOL_D);
-    this->get_parameter("HEADS", this->HEADS);
-    this->get_parameter("TAILS", this->TAILS);
-    this->get_parameter("SIM", this->SIM);
-    this->get_parameter("COIN_FLIP", this->COIN_FLIP);
-    this->get_parameter("GATE", this->GATE);
-    this->get_parameter("BUOY", this->BUOY);
-    this->get_parameter("BINS", this->BINS);
-    this->get_parameter("TORP", this->TORP);
-    this->get_parameter("OCTAGON", this->OCTAGON);
-    this->get_parameter("PRELIM", this->PRELIM);
-    this->get_parameter("POOL_TEST", this->POOL_TEST);
-    this->get_parameter("VISION_TEST", this->VISION_TEST);
-    this->get_parameter("PID_TUNING_SEQUENCE", this->PID_TUNING_SEQUENCE);
-
+    // Mission config name (resources/missions/<name>.xml) or file path
+    this->declare_parameter<std::string>("mission", "");
+    this->get_parameter("mission", this->mission);
 }
 
 void MissionNode::kill_callback(const std_msgs::msg::Bool &msg) {
@@ -836,8 +816,25 @@ void MissionNode::activate() {
     std::this_thread::sleep_for(7s);
 }
 
-void MissionNode::execute() {
-    RCLCPP_INFO(this->get_logger(), "Executing mission");
+bool MissionNode::load_mission() {
+    std::string available;
+    for (const std::string &name : availableMissions()) {
+        available += "\n  " + name;
+    }
+
+    if (this->mission.empty()) {
+        RCLCPP_ERROR(this->get_logger(),
+                     "No mission selected. Relaunch with -p mission:=<name or path>. Available missions:%s",
+                     available.c_str());
+        return false;
+    }
+
+    const std::string mission_path = resolveMissionPath(this->mission);
+    if (!std::filesystem::exists(mission_path)) {
+        RCLCPP_ERROR(this->get_logger(), "Mission file '%s' does not exist. Available missions:%s",
+                     mission_path.c_str(), available.c_str());
+        return false;
+    }
 
     try {
         BT::BehaviorTreeFactory factory;
@@ -848,32 +845,57 @@ void MissionNode::execute() {
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
                              linear_velocity_publisher, angular_velocity_publisher, this->get_clock());
 
-        factory.registerBehaviorTreeFromFile(missionTreePath());
-        BT::Tree tree = factory.createTree("SelectedMission");
-        BT::Groot2Publisher groot_publish(tree, 5555);
+        for (const std::string &tree_file : treeFiles()) {
+            factory.registerBehaviorTreeFromFile(tree_file);
+        }
+
+        // The mission file's main_tree_to_execute composes the registered task trees.
+        this->tree = factory.createTreeFromFile(mission_path);
+        RCLCPP_INFO(this->get_logger(), "Loaded mission from %s", mission_path.c_str());
+    } catch (const std::exception &error) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to load mission '%s': %s", mission_path.c_str(), error.what());
+        return false;
+    }
+    return true;
+}
+
+void MissionNode::execute() {
+    if (!this->tree.has_value()) {
+        RCLCPP_ERROR(this->get_logger(), "No mission tree loaded.");
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Executing mission '%s'", this->mission.c_str());
+
+    try {
+        BT::Groot2Publisher groot_publish(*this->tree, 5555);
         BT::NodeStatus status = BT::NodeStatus::IDLE;
         while (rclcpp::ok()) {
-            status = tree.tickOnce();
+            status = this->tree->tickOnce();
             if (status != BT::NodeStatus::RUNNING) {
                 break;
             }
-            tree.sleep(std::chrono::milliseconds(50));
+            this->tree->sleep(std::chrono::milliseconds(50));
         }
 
         if (status == BT::NodeStatus::RUNNING) {
-            tree.haltTree();
-            RCLCPP_INFO(this->get_logger(), "Behavior tree 'SelectedMission' halted while RUNNING.");
+            this->tree->haltTree();
+            RCLCPP_INFO(this->get_logger(), "Mission '%s' halted while RUNNING.", this->mission.c_str());
             return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "Behavior tree 'SelectedMission' finished with %s.", statusName(status));
+        RCLCPP_INFO(this->get_logger(), "Mission '%s' finished with %s.", this->mission.c_str(), statusName(status));
     } catch (const std::exception &error) {
-        RCLCPP_ERROR(this->get_logger(), "Behavior tree failed: %s", error.what());
+        RCLCPP_ERROR(this->get_logger(), "Mission failed: %s", error.what());
     }
 }
 
 void MissionNode::run() {
-    // Activates node, and executes the mission (does everything in one function)
+    // Loads the mission tree, activates the node, and executes the mission.
+    // Loading first surfaces XML mistakes at launch, before the sub is unkilled.
+    if (!this->load_mission()) {
+        return;
+    }
     this->activate();
     this->execute();
 }

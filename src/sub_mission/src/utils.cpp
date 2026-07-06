@@ -1,8 +1,38 @@
 #include "sub_mission/utils.hpp"
 
+#include <algorithm>
 #include <exception>
+#include <filesystem>
+#include <system_error>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
+
+namespace
+{
+
+std::string resourcesDirectory()
+{
+    try {
+        return ament_index_cpp::get_package_share_directory("sub_mission") + "/resources";
+    } catch (const std::exception &) {
+        return "resources";
+    }
+}
+
+std::vector<std::string> listXmlFiles(const std::string &directory, const bool stem_only)
+{
+    std::vector<std::string> files;
+    std::error_code error;
+    for (const auto &entry : std::filesystem::directory_iterator(directory, error)) {
+        if (entry.path().extension() == ".xml") {
+            files.push_back(stem_only ? entry.path().stem().string() : entry.path().string());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+}  // namespace
 
 const char *statusName(const BT::NodeStatus status) {
     switch (status) {
@@ -21,14 +51,36 @@ const char *statusName(const BT::NodeStatus status) {
     return "UNKNOWN";
 }
 
-std::string missionTreePath() {
-    try {
-        return ament_index_cpp::get_package_share_directory("sub_mission") + "/resources/main_mission.xml";
-    } catch (const std::exception &) {
-        return "resources/main_mission.xml";
-    }
+std::string missionsDirectory()
+{
+    return resourcesDirectory() + "/missions";
 }
 
-std::string bool_to_text(const bool value) {
-    return value ? "true" : "false";
+std::string treesDirectory()
+{
+    return resourcesDirectory() + "/trees";
+}
+
+std::string resolveMissionPath(const std::string &name_or_path)
+{
+    if (name_or_path.find('/') != std::string::npos || std::filesystem::exists(name_or_path)) {
+        return name_or_path;
+    }
+    std::string file_name = name_or_path;
+    const std::string extension = ".xml";
+    if (file_name.size() < extension.size() ||
+        file_name.compare(file_name.size() - extension.size(), extension.size(), extension) != 0) {
+        file_name += extension;
+    }
+    return missionsDirectory() + "/" + file_name;
+}
+
+std::vector<std::string> availableMissions()
+{
+    return listXmlFiles(missionsDirectory(), true);
+}
+
+std::vector<std::string> treeFiles()
+{
+    return listXmlFiles(treesDirectory(), false);
 }

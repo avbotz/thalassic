@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RoboSub 2026 competition run, pool A start.
+
+  A mission = pool-side data + the shared CompetitionRun tree
+  (resources/trees/competition.xml). Only the values below change between
+  pools; the task ordering lives once in CompetitionRun. Pools A and D share
+  these values; B and C use the mirrored signs (see pool_b.xml).
+
+  Mirrored per pool (the sub starts on opposite sides of the course, so search
+  and exit headings flip sign):
+    gate_exit_yaw       heading to hold after clearing the gate        (rad)
+    torp_search_yaw     heading to face while searching the torp board (rad)
+    octagon_search_yaw  heading to face while searching the octagon     (rad)
+
+  Mission-wide strategy (same for every pool):
+    target_animal       gate side choice, re-scored at bins + torpedoes.
+                        1 = sawfish, 0 = reef shark. Read as {@target_animal}
+                        by gate/bins/torp so the choice is made once here.
+-->
+<root BTCPP_format="4" main_tree_to_execute="CompetitionPoolA">
+  <BehaviorTree ID="CompetitionPoolA">
+    <Sequence name="pool_a">
+      <Script code="@gate_exit_yaw := -0.34906585;
+                    @torp_search_yaw := 2.35619449;
+                    @octagon_search_yaw := 0.61086524;
+                    @target_animal := 1"/>
+      <SubTree ID="CompetitionRun"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

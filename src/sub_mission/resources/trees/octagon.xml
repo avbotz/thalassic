@@ -3,13 +3,7 @@
   <BehaviorTree ID="OctagonMission">
     <Sequence name="octagon_mission">
       <PosSetpoint z="1.5"/>
-      <Fallback name="octagon_search_heading">
-        <Sequence name="pool_a_or_d_octagon_search">
-          <PoolAOrD/>
-          <AttSetpoint yaw="0.61086524"/>
-        </Sequence>
-        <AttSetpoint yaw="-0.61086524"/>
-      </Fallback>
+      <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
       <SearchDhdFront/>
       <ApproachDhdFront/>
       <PosSetpoint z="0.5"/>
