@@ -132,7 +132,13 @@ def control_and_state_entities():
         executable="sub_low",
         name="sub_low",
         namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"device": "/dev/pico"}],
+        parameters=[
+            {
+                "device": "/dev/pico",
+                "depth_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+            }
+        ],
     )
 
     naviguider_imu_driver_node = LifecycleNode(

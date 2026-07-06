@@ -1,11 +1,8 @@
-import time
 import threading
 
 import serial
-import usb.core
 import rclpy
-from rclpy.duration import Duration
-from rclpy.clock import Clock, ClockType
+from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import (
@@ -13,6 +10,7 @@ from rclpy.qos import (
     QoSHistoryPolicy,
     QoSProfile,
     QoSReliabilityPolicy,
+    qos_profile_sensor_data,
 )
 from std_msgs.msg import Bool, Float64
 
@@ -35,6 +33,10 @@ class SubLow(LifecycleNode):
         self.declare_parameter("baud", 115200)
         self.declare_parameter("serial_timeout", 1.0)
 
+        self.declare_parameter("depth_frame_id", "odom")
+        self.declare_parameter("depth_child_frame_id", "base_link")
+        self.declare_parameter("depth_z_variance", 0.01)
+
         self._serial: serial.Serial | None = None
         self._write_lock = threading.Lock()
 
@@ -43,28 +45,25 @@ class SubLow(LifecycleNode):
 
         self._is_active = False
 
-        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
-        self._last_read = None
-
         self._kill_pub = None
+        self._depth_pub = None
         self._thruster_subs = []
         self._launch_torpedo_srv = None
         self._set_dropper_srv = None
 
-        self.create_timer(
-            0.8,
-            self._ensure_connected,
-            clock=self.steady_clock
-        )
-
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         if not self._open_serial():
-            self._reset_usb()
-            if not self._open_serial():
-                return TransitionCallbackReturn.FAILURE
+            return TransitionCallbackReturn.FAILURE
 
         kill_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self._kill_pub = self.create_lifecycle_publisher(Bool, "kill_switch", kill_qos)
+
+        self._depth_frame_id = self.get_parameter("depth_frame_id").value
+        self._depth_child_frame_id = self.get_parameter("depth_child_frame_id").value
+        self._depth_z_variance = self.get_parameter("depth_z_variance").value
+        self._depth_pub = self.create_lifecycle_publisher(
+            Odometry, "odometry/depth", qos_profile_sensor_data
+        )
 
         thruster_qos = QoSProfile(
             depth=1,
@@ -116,32 +115,6 @@ class SubLow(LifecycleNode):
         self._write("a 0\n")
         self._teardown()
         return TransitionCallbackReturn.SUCCESS
-
-    # This method ensures that the MCU is continually sending data by periodically checking the last read time.
-    # The MCU should always be sending kill switch data at 10 Hz (100 ms interval).
-    # This check is required due to a weird issue where the MCU stops communicating with the Jetson when the kill
-    # switch is flipped from killed to unkilled.
-    # TODO: This is a very hacky fix and should be resolved in a better manner in the future.
-    def _ensure_connected(self):
-        if not self._is_active or self._serial is None or self._last_read is None:
-            return
-
-        if self.steady_clock.now() - self._last_read > Duration(seconds=1.0):
-            if not self._reset_usb():
-                self.get_logger().warn("microcontroller disconnected")
-                self._teardown()
-            else:
-                self._last_read = self.steady_clock.now()
-
-    def _reset_usb(self) -> bool:
-        vid = self.get_parameter("device_vid").get_parameter_value().integer_value
-        pid = self.get_parameter("device_pid").get_parameter_value().integer_value
-        dev = usb.core.find(idVendor=vid, idProduct=pid)
-        if dev is not None:
-            dev.reset()
-            return True
-        time.sleep(0.5)
-        return False
 
     def _open_serial(self) -> bool:
         device = self.get_parameter("device").get_parameter_value().string_value
@@ -205,8 +178,6 @@ class SubLow(LifecycleNode):
                 self.get_logger().warn("error while handling serial line")
 
     def _handle_line(self, line: bytes) -> None:
-        self._last_read = self.steady_clock.now()
-
         fields = line.split()
         if not fields:
             return
@@ -220,7 +191,27 @@ class SubLow(LifecycleNode):
             if self._kill_pub is not None:
                 self._kill_pub.publish(Bool(data=bool(value)))
         elif fields[0] == b"d":
-            pass
+            try:
+                depth = float(fields[1])
+            except (IndexError, ValueError):
+                return
+
+            self._publish_depth(depth)
+
+    def _publish_depth(self, depth: float) -> None:
+        if self._depth_pub is None:
+            return
+
+        odom = Odometry()
+        odom.header.stamp = self.get_clock().now().to_msg()
+        odom.header.frame_id = self._depth_frame_id
+        odom.child_frame_id = self._depth_child_frame_id
+        # Sensor reports depth (positive down); report ENU z (positive up).
+        odom.pose.pose.position.z = -depth
+        odom.pose.pose.orientation.w = 1.0
+        odom.pose.covariance[14] = self._depth_z_variance
+
+        self._depth_pub.publish(odom)
 
     def _teardown(self) -> None:
         self._stop_reader()
@@ -249,6 +240,9 @@ class SubLow(LifecycleNode):
         if self._kill_pub is not None:
             self.destroy_lifecycle_publisher(self._kill_pub)
             self._kill_pub = None
+        if self._depth_pub is not None:
+            self.destroy_lifecycle_publisher(self._depth_pub)
+            self._depth_pub = None
         if self._launch_torpedo_srv is not None:
             self.destroy_service(self._launch_torpedo_srv)
             self._launch_torpedo_srv = None
