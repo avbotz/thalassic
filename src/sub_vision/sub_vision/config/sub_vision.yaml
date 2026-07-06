@@ -1,6 +1,8 @@
 # sub_vision perception node configuration.
-# Topics are relative to the node namespace (e.g. /marlin_v2/oak/...), matching
-# the OAK-D Pro contract that the Stonefish bridge reproduces in sim.
+# Topics are relative to the node namespace (e.g. /marlin_v2/...). Each launch
+# file overrides rgb_topic/camera_info_topic with its camera source: Stonefish
+# publishes front_camera/image_color in sim, the usb_cam driver publishes
+# front_camera/image_raw at pool tests.
 /**:
   ros__parameters:
     # Where <task>.onnx / <task>.engine models (and optional <task>.names) live.
@@ -18,7 +20,12 @@
     conf_threshold: 0.25
     warmup_iterations: 3
 
-    # OAK-D Pro topic contract (identical in sim and on hardware).
-    rgb_topic: "oak/rgb/image_raw"
-    camera_info_topic: "oak/rgb/camera_info"
+    # Front-camera contract; launch files override the two input topics.
+    rgb_topic: "front_camera/image_raw"
+    camera_info_topic: "front_camera/camera_info"
     detections_topic: "vision/detections"
+
+    # image_transport convention: "raw" subscribes <rgb_topic>, "compressed"
+    # subscribes <rgb_topic>/compressed (use when frames cross the network,
+    # e.g. running vision on a laptop against the sub's cameras).
+    image_transport: "raw"

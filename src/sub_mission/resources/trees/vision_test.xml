@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Vision integration smoke test: loads a task model on the front camera and
+  confirms detections stream back. No motion nodes, so it is safe on the
+  bench even while the kill switch is engaged. To cover another model, add
+  its LoadModel + WaitForDetection pair to the sequence.
+-->
 <root BTCPP_format="4" main_tree_to_execute="VisionTestMission">
   <BehaviorTree ID="VisionTestMission">
     <Sequence name="vision_test_mission">
-      <RunVisionTest/>
+      <LoadModel task="gate" timeout_msec="30000"/>
+      <WaitForDetection task="gate" timeout_msec="20000"/>
     </Sequence>
   </BehaviorTree>
 </root>

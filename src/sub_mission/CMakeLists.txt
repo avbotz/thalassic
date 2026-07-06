@@ -22,6 +22,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
+find_package(sub_vision_interfaces REQUIRED)
 
 if(BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
@@ -39,14 +40,18 @@ endif()
 add_executable(mission
     src/nodes/mission.cpp
     src/nodes/node.cpp
+    src/nodes/vision.cpp
     src/utils.cpp
+    src/vision_client.cpp
     src/blackbox.cpp
 )
 
 add_executable(restart
     src/nodes/restart.cpp
     src/nodes/node.cpp
+    src/nodes/vision.cpp
     src/utils.cpp
+    src/vision_client.cpp
     src/blackbox.cpp
 )
 
@@ -61,6 +66,7 @@ foreach(node IN ITEMS mission restart)
         "rclcpp"
         "geometry_msgs"
         "sub_control_interfaces"
+        "sub_vision_interfaces"
     )
 
     install(TARGETS

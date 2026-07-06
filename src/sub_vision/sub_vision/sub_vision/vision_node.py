@@ -1,3 +1,4 @@
+import math
 import os
 
 import rclpy
@@ -5,7 +6,7 @@ from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from vision_msgs.msg import (
     BoundingBox2D,
     Detection2D,
@@ -35,6 +36,10 @@ class VisionNode(Node):
         self.declare_parameter("rgb_topic", "front_camera/image_raw")
         self.declare_parameter("camera_info_topic", "front_camera/camera_info")
         self.declare_parameter("detections_topic", "vision/detections")
+        # image_transport convention (rclpy has no image_transport bindings):
+        # "raw" subscribes <rgb_topic>; "compressed" subscribes
+        # <rgb_topic>/compressed — use it when frames cross the network.
+        self.declare_parameter("image_transport", "raw")
 
         self._model_dir = self.get_parameter("model_dir").value
         self._detections_task = ""
@@ -68,12 +73,24 @@ class VisionNode(Node):
             qos_profile_sensor_data,
         )
 
-        self.create_subscription(
-            Image,
-            self.get_parameter("rgb_topic").value,
-            self._on_frame,
-            qos_profile_sensor_data,
-        )
+        rgb_topic = self.get_parameter("rgb_topic").value
+        transport = self.get_parameter("image_transport").value
+        if transport == "compressed":
+            self.create_subscription(
+                CompressedImage,
+                f"{rgb_topic}/compressed",
+                self._on_compressed_frame,
+                qos_profile_sensor_data,
+            )
+        elif transport == "raw":
+            self.create_subscription(
+                Image,
+                rgb_topic,
+                self._on_frame,
+                qos_profile_sensor_data,
+            )
+        else:
+            raise ValueError(f"unsupported image_transport '{transport}' (raw|compressed)")
 
         self._load_srv = self.create_service(LoadModel, "~/load_model", self._on_load_model)
         self.create_timer(2.0, self._publish_diagnostics)
@@ -100,6 +117,14 @@ class VisionNode(Node):
         return response
 
     def _on_frame(self, rgb_msg: Image) -> None:
+        self._process_frame(rgb_msg.header, lambda: self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8"))
+
+    def _on_compressed_frame(self, rgb_msg: CompressedImage) -> None:
+        self._process_frame(
+            rgb_msg.header, lambda: self._bridge.compressed_imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
+        )
+
+    def _process_frame(self, header, decode) -> None:
         task = self._manager.active_task
         if task is None:
             return  # no model loaded yet
@@ -107,7 +132,7 @@ class VisionNode(Node):
             self.get_logger().warn("no CameraInfo yet; skipping frame", throttle_duration_sec=5.0)
             return
 
-        rgb = self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
+        rgb = decode()
 
         t0 = self.get_clock().now()
         raw = self._manager.infer(rgb)
@@ -115,8 +140,7 @@ class VisionNode(Node):
         if raw is None:
             return
 
-        image_height = rgb.shape[0]
-        msg = self._build_detection_array(rgb_msg.header, task, raw, image_height)
+        msg = self._build_detection_array(header, task, raw, self._camera_info)
 
         # Per-task OpenCV enrichment (pose, extra). No-op fallback keeps the 2D
         # metadata when a task has no registered processor.
@@ -129,7 +153,7 @@ class VisionNode(Node):
     # ----------------------------------------------------------------------- #
     # Message assembly
     # ----------------------------------------------------------------------- #
-    def _build_detection_array(self, header, task, raw, image_height) -> DetectionArray:
+    def _build_detection_array(self, header, task, raw, camera_info) -> DetectionArray:
         out = DetectionArray()
         out.header = header
         out.task = task
@@ -137,11 +161,30 @@ class VisionNode(Node):
         for x1, y1, x2, y2, score, cls in raw:
             det = Detection()
             det.detection = self._make_detection2d(header, x1, y1, x2, y2, score, cls)
+            det.bearing_horizontal, det.bearing_vertical = self._bearings(
+                det.detection.bbox.center.position, camera_info
+            )
 
             # TODO: Calculate depth based on bbox size
 
             out.detections.append(det)
         return out
+
+    @staticmethod
+    def _bearings(center, camera_info) -> tuple[float, float]:
+        """Angles from the optical axis to a pixel, via the pinhole intrinsics.
+
+        K = [fx 0 cx; 0 fy cy; 0 0 1]. Positive horizontal = right of center,
+        positive vertical = below center (optical-frame convention).
+        """
+        fx, cx = camera_info.k[0], camera_info.k[2]
+        fy, cy = camera_info.k[4], camera_info.k[5]
+        if fx <= 0.0 or fy <= 0.0:  # uncalibrated source: no usable bearing
+            return 0.0, 0.0
+        return (
+            float(math.atan2(center.x - cx, fx)),
+            float(math.atan2(center.y - cy, fy)),
+        )
 
     @staticmethod
     def _make_detection2d(header, x1, y1, x2, y2, score, cls) -> Detection2D:

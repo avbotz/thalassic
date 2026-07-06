@@ -7,6 +7,14 @@
 # Standard 2D detection: bbox + class hypotheses (id/label/score) + source header.
 vision_msgs/Detection2D detection
 
+# Bearing from the camera optical axis to the bbox center, in radians,
+# computed from the camera intrinsics. Positive horizontal = target right of
+# center, positive vertical = target below center (optical-frame convention).
+# This is the steering signal sub_mission consumes: yaw/translate until the
+# relevant bearing is ~0. Always filled.
+float32 bearing_horizontal
+float32 bearing_vertical
+
 # Estimated distance from the camera optical frame to the object, in meters.
 # Default proxy = (bbox_height / image_height) * CAMERA_HEIGHT_M (see
 # sub_vision/constants.py); a task post-processor may overwrite it with a

@@ -24,7 +24,9 @@ std::vector<std::string> listXmlFiles(const std::string &directory, const bool s
     std::vector<std::string> files;
     std::error_code error;
     for (const auto &entry : std::filesystem::directory_iterator(directory, error)) {
-        if (entry.path().extension() == ".xml") {
+        // Skip dangling symlinks: with --symlink-install, deleting a tree in
+        // src leaves a dead link in install/ that would fail every mission.
+        if (entry.path().extension() == ".xml" && std::filesystem::exists(entry.path(), error)) {
             files.push_back(stem_only ? entry.path().stem().string() : entry.path().string());
         }
     }
