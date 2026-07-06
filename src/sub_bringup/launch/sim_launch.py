@@ -130,6 +130,18 @@ def sim_entities() -> list:
                 "SimIMURemapper",
                 parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
             ),
+            sim_component(
+                "sim_pressure_to_depth",
+                "SimPressureToDepth",
+                parameters=[
+                    {
+                        "pressure_unit": "pa",
+                        "pressure_reference": "gauge",
+                        "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                        "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+                    }
+                ],
+            ),
             sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
             sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
             sim_component("sim_dropper", "SimDropper"),
