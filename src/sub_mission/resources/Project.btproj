@@ -52,10 +52,40 @@
         </Action>
         <Action ID="SurfaceAndKill"/>
         <Condition ID="NotKilled"/>
+        <Action ID="LoadModel">
+            <input_port name="camera" default="front">Camera whose vision node loads the model</input_port>
+            <input_port name="task">Task model to load, e.g. gate</input_port>
+            <input_port name="timeout_msec" default="20000">Maximum wait for service + load</input_port>
+        </Action>
+        <Condition ID="DetectionVisible">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Only accept detections from this task's model</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="max_age_msec" default="1000">How recent the detection must be</input_port>
+        </Condition>
+        <Action ID="WaitForDetection">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Only accept detections from this task's model</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="timeout_msec" default="15000">Maximum wait before returning FAILURE</input_port>
+        </Action>
+        <Action ID="AlignToDetection">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Only accept detections from this task's model</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="yaw" default="true">Steer yaw to zero the horizontal bearing</input_port>
+            <input_port name="depth" default="false">Steer depth to zero the vertical bearing</input_port>
+            <input_port name="tolerance" default="0.05">Aligned when |bearing| &lt;= tolerance (rad)</input_port>
+            <input_port name="depth_gain" default="1.5">Meters of depth change per radian of bearing</input_port>
+            <input_port name="max_depth_step" default="0.5">Depth correction clamp per frame (m)</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
+        </Action>
         <Action ID="SearchGateAfterCoinFlip"/>
         <Action ID="SetYawZero"/>
         <Action ID="AbortMission"/>
-        <Action ID="AlignWithGate"/>
         <Action ID="ApproachAbydosSymbol"/>
         <Action ID="FindPathMarkerForBuoy"/>
         <Action ID="FindPathMarkerForBins"/>
@@ -82,6 +112,5 @@
         <Action ID="DropRedObject"/>
         <Action ID="ReturnToDhdCenter"/>
         <Action ID="SurfaceAtOctagon"/>
-        <Action ID="RunVisionTest"/>
     </TreeNodesModel>
 </root>

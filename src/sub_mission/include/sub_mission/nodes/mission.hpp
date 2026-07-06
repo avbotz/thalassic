@@ -12,6 +12,7 @@
 #include "behaviortree_cpp/bt_factory.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
+#include "sub_mission/vision_client.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 using namespace std::chrono_literals;
@@ -39,6 +40,9 @@ public:
     // Name (resources/missions/<name>.xml) or path of the mission tree to run.
     std::string mission;
 
+    // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
+    VisionClient &vision() { return *vision_client; }
+
     bool killed = true;
     std::array<double, 12> control_errors = {};
     std::array<std::uint64_t, 12> control_error_updates = {};
@@ -53,4 +57,5 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub;
     rclcpp::Subscription<sub_control_interfaces::msg::Error>::SharedPtr control_error_sub;
+    std::unique_ptr<VisionClient> vision_client;
 };

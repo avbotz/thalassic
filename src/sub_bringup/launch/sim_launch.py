@@ -9,8 +9,13 @@ from launch.actions import (
     RegisterEventHandler,
     SetLaunchConfiguration,
 )
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    NotEqualsSubstitution,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.actions.node import ExecuteProcess
 from launch_ros.descriptions import ComposableNode
@@ -351,6 +356,13 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
                     "config/sub_vision.yaml",
                 ]
             ),
+            # Stonefish publishes the front camera as rgb8 on image_color;
+            # cv_bridge converts to bgr8 in the node, so no bridge is needed.
+            {
+                "rgb_topic": "front_camera/image_color",
+                "camera_info_topic": "front_camera/camera_info",
+                "image_transport": "raw",
+            },
         ],
     )
 
@@ -362,6 +374,15 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
 
 def generate_launch_description():
     declare_robot_name = DeclareLaunchArgument("robot_name", default_value="marlin_v2")
+
+    # Empty (the default) brings the stack up without a mission; pass
+    # mission:=<name or path> to also run the mission executive, e.g.
+    #   ros2 launch sub_bringup sim_launch.py mission:=pool_a
+    declare_mission = DeclareLaunchArgument(
+        "mission",
+        default_value="",
+        description="Mission tree to execute (resources/missions/<name>.xml or a path); empty skips sub_mission",
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -376,17 +397,18 @@ def generate_launch_description():
     sub_mission_node = Node(
         package="sub_mission",
         executable="mission",
-        name="sub_mission",
         output="screen",
-        namespace=LaunchConfiguration("ns"),
-        parameters=[{"mission": "pid_tuning"}],
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[{"mission": LaunchConfiguration("mission")}],
+        condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
     return LaunchDescription(
         [
             declare_robot_name,
+            declare_mission,
             include_transforms,
-            # sub_mission_node,
+            sub_mission_node,
             *sim_entities(),
             *control_and_state_entities(),
             *vision_entities(),

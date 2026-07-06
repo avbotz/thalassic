@@ -4,7 +4,7 @@
     <Sequence name="gate_mission">
       <PosSetpoint z="1.0"/>
       <PosSetpoint x="4.0" y="0.0"/>
-      <AlignWithGate/>
+      <SubTree ID="AlignWithGate"/>
       <!-- Drive through the {@target_animal} half chosen in the pool mission. -->
       <PassGateChosenSide/>
       <PosSetpoint x="0.25" velocity="true"/>
@@ -13,5 +13,18 @@
       <PosSetpoint z="0.5"/>
       <AttSetpoint name="pool_exit_heading" yaw="{@gate_exit_yaw}"/>
     </Sequence>
+  </BehaviorTree>
+
+  <!-- Center the gate in the front camera. Best effort by design: if vision
+       is down or the gate is never seen, fall through and run the gate blind
+       on dead reckoning (same always-SUCCESS contract as the old stub). -->
+  <BehaviorTree ID="AlignWithGate">
+    <ForceSuccess>
+      <Sequence name="align_with_gate">
+        <LoadModel task="gate"/>
+        <WaitForDetection task="gate" timeout_msec="15000"/>
+        <AlignToDetection task="gate" tolerance="0.05" timeout_msec="30000"/>
+      </Sequence>
+    </ForceSuccess>
   </BehaviorTree>
 </root>

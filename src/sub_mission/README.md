@@ -96,23 +96,79 @@ New pool-dependent numbers (headings, distances, depths) should follow the
 same pattern: assign `@key` in each pool mission's `Script` and read it with
 `{@key}` in the task tree, instead of branching on a condition node.
 
+## Vision primitives
+
+Perception-driven behavior is built from four generic leaves that talk to
+`sub_vision` (`src/nodes/vision.cpp`). Task-specific behavior ("align with the
+gate") is XML composition of these in `resources/trees/` — not new C++.
+
+| Node | Kind | Does |
+|------|------|------|
+| `LoadModel` | action | asks the camera's `sub_vision` node to activate a task's detector (async `load_model` service call; no-op if already active) |
+| `DetectionVisible` | condition | SUCCESS iff a matching detection newer than `max_age_msec` exists |
+| `WaitForDetection` | action | waits up to `timeout_msec` for a matching detection that arrived **after the node started** (a stale frame can't satisfy it) |
+| `AlignToDetection` | action | closed loop: re-targets yaw (and optionally depth) once per new camera frame until the bearing is within `tolerance` |
+
+All four share the filter ports `camera` (default `front`; `down` is already
+wired in `src/vision_client.cpp` for when a down-camera vision node exists),
+`task`, `class_id`, and `min_score`. Detections arrive as
+`sub_vision_interfaces/DetectionArray` on `vision/detections`, cached per
+camera by `VisionClient`; the steering signal is the per-detection
+`bearing_horizontal`/`bearing_vertical` that `sub_vision` computes from the
+camera intrinsics (positive = right of / below center).
+
+`AlignToDetection` references its absolute yaw/depth targets to the *measured*
+state (commanded setpoint minus control error), so re-issuing a command on
+every frame stays convergent instead of integrating the correction. Extra
+ports: `yaw` (default true), `depth` (default false), `tolerance` (rad),
+`depth_gain` (m of depth per rad of vertical bearing), `max_depth_step`,
+`timeout_msec`.
+
+**Kill-switch policy:** the passive leaves (`LoadModel`, `DetectionVisible`,
+`WaitForDetection`) run while killed so the vision path is testable on the
+bench; `AlignToDetection` moves the sub and fails immediately when killed.
+
+The worked example is `trees/gate.xml`:
+
+```xml
+<BehaviorTree ID="AlignWithGate">
+  <ForceSuccess>
+    <Sequence name="align_with_gate">
+      <LoadModel task="gate"/>
+      <WaitForDetection task="gate" timeout_msec="15000"/>
+      <AlignToDetection task="gate" tolerance="0.05" timeout_msec="30000"/>
+    </Sequence>
+  </ForceSuccess>
+</BehaviorTree>
+```
+
+`missions/vision_test.xml` (LoadModel + WaitForDetection, no motion nodes) is
+the bench smoke test for the whole mission↔vision path: run it next to a live
+`sub_vision` node and a camera, and it succeeds as soon as the detector sees
+the task object.
+
 ## Blackbox actions
 
-The perception-driven primitives (`AlignWithGate`, `PassSlalomChannel`,
-`ApproachTorpBoard`, ...) are **blackbox stubs**: they log a description and
-return a fixed status so a full mission tree loads and dry-runs in the sim
-before the primitive is wired up. They live in a single self-documenting
-registry, `blackbox_actions` in `src/nodes/node.cpp`, grouped by task.
+The not-yet-implemented perception primitives (`PassSlalomChannel`,
+`ApproachTorpBoard`, `AlignOverBins`, ...) are **blackbox stubs**: they log a
+description and return a fixed status so a full mission tree loads and
+dry-runs in the sim before the primitive is wired up. They live in a single
+self-documenting registry, `blackbox_actions` in `src/nodes/node.cpp`, grouped
+by task.
 
 Real, closed-loop primitives (`PosSetpoint`, `AttSetpoint`, `MoveRelative`,
 `Spin`, `WaitUntilHit`, `SurfaceAtOctagon`) are full `BT::StatefulActionNode`s
 in the same file — they publish setpoints and return `RUNNING` until the goal
-is reached. To promote a blackbox to a real action:
+is reached. To promote a blackbox:
 
-1. Write a `StatefulActionNode` for it (`PosSetpointAction` is the template);
-   it can publish setpoints and read `node_.control_errors` / the `{@...}`
-   blackboard.
-2. `registerBuilder<YourAction>("Name", ...)` it in `registerMissionNodes()`.
-3. Delete its row from `blackbox_actions`.
+1. **Prefer XML composition.** If the behavior is "find/track/center on a
+   detection", compose the vision primitives in a tree under
+   `resources/trees/` — `AlignWithGate` was promoted this way with zero new
+   C++ — and delete the stub's row from `blackbox_actions`.
+2. Only when the behavior needs genuinely new motion/logic, write a
+   `StatefulActionNode` (`PosSetpointAction` is the template; it can publish
+   setpoints and read `node_.control_errors` / the `{@...}` blackboard),
+   `registerBuilder<YourAction>("Name", ...)` it in `registerMissionNodes()`,
+   then delete the stub's row.
 
 Whatever remains in `blackbox_actions` is, by definition, not implemented yet.

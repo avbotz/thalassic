@@ -15,6 +15,8 @@
  */
 
 #include "sub_mission/nodes/mission.hpp"
+#include "sub_mission/nodes/commands.hpp"
+#include "sub_mission/nodes/vision.hpp"
 #include "sub_mission/utils.hpp"
 
 #include <chrono>
@@ -28,76 +30,10 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
-#include "geometry_msgs/msg/point_stamped.hpp"
-#include "geometry_msgs/msg/quaternion_stamped.hpp"
-#include "geometry_msgs/msg/vector3_stamped.hpp"
 
 namespace {
 
-using PointCmdMsg = geometry_msgs::msg::PointStamped;
-using QuaternionCmdMsg = geometry_msgs::msg::QuaternionStamped;
-using VectorCmdMsg = geometry_msgs::msg::Vector3Stamped;
-using PointCmdPublisher = rclcpp::Publisher<PointCmdMsg>;
-using QuaternionCmdPublisher = rclcpp::Publisher<QuaternionCmdMsg>;
-using VectorCmdPublisher = rclcpp::Publisher<VectorCmdMsg>;
 bool mission_killed = false;
-constexpr double POSITION_TOLERANCE = 0.25;
-constexpr double ANGLE_TOLERANCE = 0.0872665;
-constexpr const char *ALTITUDE_FRAME = "altitude";
-
-double normalizeAngle(double angle) {
-    while (angle > M_PI) {
-        angle -= 2.0 * M_PI;
-    }
-    while (angle < -M_PI) {
-        angle += 2.0 * M_PI;
-    }
-    return angle;
-}
-
-bool portProvided(const BT::TreeNode &node, const std::string &port) {
-    return node.config().input_ports.find(port) != node.config().input_ports.end();
-}
-
-QuaternionCmdMsg quaternionCommand(const rclcpp::Clock &clock, const double roll, const double pitch,
-                                   const double yaw) {
-    const double cy = std::cos(yaw * 0.5);
-    const double sy = std::sin(yaw * 0.5);
-    const double cp = std::cos(pitch * 0.5);
-    const double sp = std::sin(pitch * 0.5);
-    const double cr = std::cos(roll * 0.5);
-    const double sr = std::sin(roll * 0.5);
-
-    QuaternionCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = "base_link";
-    msg.quaternion.w = cr * cp * cy + sr * sp * sy;
-    msg.quaternion.x = sr * cp * cy - cr * sp * sy;
-    msg.quaternion.y = cr * sp * cy + sr * cp * sy;
-    msg.quaternion.z = cr * cp * sy - sr * sp * cy;
-    return msg;
-}
-
-PointCmdMsg positionCommand(const rclcpp::Clock &clock, const std::array<double, 3> &target,
-                            const bool use_altitude) {
-    PointCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = use_altitude ? ALTITUDE_FRAME : "base_link";
-    msg.point.x = target[0];
-    msg.point.y = -target[1];
-    msg.point.z = use_altitude ? target[2] : -target[2];
-    return msg;
-}
-
-VectorCmdMsg vectorCommand(const rclcpp::Clock &clock, const std::array<double, 3> &target) {
-    VectorCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = "base_link";
-    msg.vector.x = target[0];
-    msg.vector.y = -target[1];
-    msg.vector.z = -target[2];
-    return msg;
-}
 
 class PosSetpointAction : public BT::StatefulActionNode {
    public:
@@ -708,7 +644,8 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
         {"SetYawZero", "Latch the current heading as the mission yaw reference", OK},
         {"AbortMission", "Give up on the current task and fail out", FAIL},
         // Gate (2026: pass the chosen reef-shark or sawfish half)
-        {"AlignWithGate", "Center on the gate using front-camera detections", OK},
+        // AlignWithGate is real now: a subtree in trees/gate.xml composed of
+        // the vision primitives (LoadModel / WaitForDetection / AlignToDetection).
         {"PassGateChosenSide", "Drive through the {@target_animal} half of the gate", OK},
         // Slalom (2026: weave the three red/white pipe gates)
         {"SearchForSlalom", "Sweep to bring the slalom pipes into view", OK},
@@ -746,8 +683,6 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
         {"ApproachBuoy", "Close range on the buoy", OK},
         {"ReturnToBuoyStart", "Return to the buoy approach start", OK},
         {"RecoverFromMissingBuoy", "Recover when the buoy is not found", OK},
-        // Vision bring-up
-        {"RunVisionTest", "Cycle the vision detectors and log detections", OK},
     };
 
     for (const BlackboxAction &spec : blackbox_actions) {
@@ -766,6 +701,8 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
 
     this->control_error_sub = this->create_subscription<sub_control_interfaces::msg::Error>(
         "control/error", 10, std::bind(&MissionNode::control_error_callback, this, std::placeholders::_1));
+
+    this->vision_client = std::make_unique<VisionClient>(*this);
 
     // Mission config name (resources/missions/<name>.xml) or file path
     this->declare_parameter<std::string>("mission", "");
@@ -844,6 +781,8 @@ bool MissionNode::load_mission() {
         const auto angular_velocity_publisher = this->create_publisher<VectorCmdMsg>("cmd_angular_velocity", 10);
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
                              linear_velocity_publisher, angular_velocity_publisher, this->get_clock());
+        registerVisionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
+                            this->get_clock());
 
         for (const std::string &tree_file : treeFiles()) {
             factory.registerBehaviorTreeFromFile(tree_file);

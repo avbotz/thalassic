@@ -24,39 +24,37 @@ This directory holds two ROS 2 (Jazzy) packages:
 
 ## The topic contract (real camera == sim)
 
-`sub_vision` subscribes to one set of topics regardless of whether it is fed by
-the real OAK-D Pro or the simulator. There are **no `if sim:` branches**
-downstream — the Stonefish bridge (`sub_sim_sensors/sim_oak_camera_remapper`)
-makes the sim output byte-compatible with the real driver.
+`sub_vision` reads one RGB stream plus its intrinsics and publishes detections.
+The input topics are plain parameters, so there are **no `if sim:` branches and
+no bridge nodes** — each launch file points the node at its camera source and
+`cv_bridge` normalizes any 8-bit color encoding to `bgr8` on receipt.
 
 All topics are relative to the node namespace (e.g. `/marlin_v2`):
 
-| Topic | Type | Encoding / units |
+| Topic (parameter) | Type | Notes |
 | --- | --- | --- |
-| `oak/rgb/image_raw` | `sensor_msgs/Image` | `bgr8` |
-| `oak/rgb/camera_info` | `sensor_msgs/CameraInfo` | intrinsics |
-| **out:** `vision/detections` | `sub_vision_interfaces/DetectionArray` | detections + 3D metadata |
+| `rgb_topic` (default `front_camera/image_raw`) | `sensor_msgs/Image` | any 8-bit color encoding |
+| `camera_info_topic` (default `front_camera/camera_info`) | `sensor_msgs/CameraInfo` | intrinsics; also feed the per-detection bearings |
+| **out:** `detections_topic` (default `vision/detections`) | `sub_vision_interfaces/DetectionArray` | detections + bearings + 3D metadata |
 | **out:** `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | model state + timing |
 
-| Source | How it produces the contract |
-| --- | --- |
-| **Real** | `depthai_ros_driver_v3` (`config/oak_d_pro.yaml`). |
-| **Sim** | Stonefish publishes `front_camera` (rgb8); `sim_oak_camera_remapper` converts → `bgr8`, remaps topics/`frame_id`, passes `CameraInfo`, keeps sim timestamps. |
+| Launch file | Camera | Parameter override |
+| --- | --- | --- |
+| `sim_launch.py` | Stonefish `front_camera` | `rgb_topic: front_camera/image_color` (rgb8) |
+| `pool_test_launch.py` | Logitech C922 via `usb_cam` | `rgb_topic: front_camera/image_raw` (OAK-D driver block present but commented out) |
 
 The depth camera is **not** used: `sub_vision` subscribes to RGB only.
-Bounding boxes and `pose` are expressed in the camera **optical** frame
-(`header.frame_id` from the source image).
+Bounding boxes, bearings, and `pose` are expressed in the camera **optical**
+frame (`header.frame_id` from the source image).
 
-### Launch
+### image_transport
 
-`pool_test_launch.py` selects the camera source with a launch arg:
-
-```bash
-ros2 launch sub_bringup pool_test_launch.py                  # real OAK-D driver
-ros2 launch sub_bringup pool_test_launch.py use_sim:=true    # Stonefish bridge
-```
-
-`sim_launch.py` brings up Stonefish + the bridge + `sub_vision` for full sim.
+rclpy has no `image_transport` bindings, so the node implements the convention
+with a parameter: `image_transport: raw` (default) subscribes `<rgb_topic>`
+directly; `compressed` subscribes `<rgb_topic>/compressed`
+(`sensor_msgs/CompressedImage`) instead — use it when frames cross the network,
+e.g. running vision on a laptop against the sub's cameras. Any other value
+fails fast at startup.
 
 ---
 
@@ -143,6 +141,12 @@ the default `distance_m` proxy; only `pose` is left invalid.
 `Detection.msg` builds on `vision_msgs/Detection2D` (bbox + class id/score) and
 adds:
 
+* `float32 bearing_horizontal` / `bearing_vertical` — radians from the camera
+  optical axis to the bbox center, computed from the `CameraInfo` intrinsics.
+  Positive horizontal = target right of center, positive vertical = target
+  below center. Always filled (0 when the source is uncalibrated). This is the
+  steering signal `sub_mission`'s vision leaves consume (`AlignToDetection`
+  yaws/dives until the relevant bearing is ~0).
 * `float32 distance_m` — distance to the object in meters. Default proxy =
   `(bbox_height / image_height) * CAMERA_HEIGHT_M` (`sub_vision/constants.py`);
   a task post-processor may overwrite it with a better estimate.
@@ -157,10 +161,8 @@ adds:
 ## Tests
 
 ```bash
-colcon test --packages-select sub_vision sub_sim_sensors --merge-install
+colcon test --packages-select sub_vision --merge-install
 ```
 
-* `sub_vision` (pytest): the post-processor registry
-  (`test_post_processor_registry.py`).
-* `sub_sim_sensors` (gtest): the meters→millimeters depth conversion
-  (`test_depth_conversion.cpp`).
+There is no unit-test suite yet (and no linters are configured for this
+package by design); the command above is a build/packaging sanity check.

@@ -3,7 +3,7 @@
   <BehaviorTree ID="PoolTestMission">
     <Sequence name="pool_test_mission">
       <PosSetpoint z="1.0"/>
-      <AlignWithGate/>
+      <SubTree ID="AlignWithGate"/>
       <PosSetpoint x="0.25" velocity="true"/>
       <Sleep msec="10000"/>
       <Spin yaw="12.56637061"/>
