@@ -131,7 +131,13 @@ def control_and_state_entities():
         executable="sub_low",
         name="sub_low",
         namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"device": "/dev/pico"}],
+        parameters=[
+            {
+                "device": "/dev/pico",
+                "depth_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+            }
+        ],
     )
 
     naviguider_imu_driver_node = LifecycleNode(
@@ -159,20 +165,6 @@ def control_and_state_entities():
         ],
     )
 
-    depth_odometry_driver_node = Node(
-        package="sub_serial_drivers",
-        executable="depth_odometry_driver",
-        name="depth_odometry_driver",
-        namespace=LaunchConfiguration("robot_name"),
-        output="both",
-        parameters=[
-            {
-                "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
-                "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
-            }
-        ],
-    )
-
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
@@ -190,7 +182,6 @@ def control_and_state_entities():
     )
 
     return [
-        depth_odometry_driver_node,
         robot_localization_node,
         sub_control_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),

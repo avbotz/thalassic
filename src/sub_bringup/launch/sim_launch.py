@@ -137,6 +137,8 @@ def sim_entities() -> list:
                     {
                         "pressure_unit": "pa",
                         "pressure_reference": "gauge",
+                        "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                        "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
                     }
                 ],
             ),
@@ -256,20 +258,6 @@ def control_and_state_entities() -> list[Node]:
         ],
     )
 
-    depth_odometry_driver_node = Node(
-        package="sub_serial_drivers",
-        executable="depth_odometry_driver",
-        name="depth_odometry_driver",
-        output="both",
-        namespace=LaunchConfiguration("robot_name"),
-        parameters=[
-            {
-                "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
-                "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
-            }
-        ],
-    )
-
     sub_control_node = Node(
         package="sub_control",
         executable="sub_control",
@@ -292,7 +280,6 @@ def control_and_state_entities() -> list[Node]:
         # Depth camera not on marlin
         # rgbd_sync,
         # depth_camera_visual_odom,
-        depth_odometry_driver_node,
         robot_localization_node,
         sub_control_node,
     ]

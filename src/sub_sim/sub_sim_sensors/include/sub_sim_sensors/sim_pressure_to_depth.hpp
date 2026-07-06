@@ -1,9 +1,11 @@
 #ifndef SIM_PRESSURE_TO_DEPTH_HPP_
 #define SIM_PRESSURE_TO_DEPTH_HPP_
 
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/fluid_pressure.hpp"
-#include "std_msgs/msg/float64.hpp"
+
+#include <string>
 
 class SimPressureToDepth : public rclcpp::Node {
    public:
@@ -11,15 +13,13 @@ class SimPressureToDepth : public rclcpp::Node {
     void pressure_callback(const sensor_msgs::msg::FluidPressure::SharedPtr msg);
 
    private:
-    double pressure_to_pascal(double pressure) const;
-
-    std::string pressure_unit_;
-    std::string pressure_reference_;
-    double surface_pressure_pa_;
     double water_density_kg_m3_;
     double gravity_m_s2_;
+    std::string frame_id_;
+    std::string child_frame_id_;
+    double z_variance_;
     rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr subscriber_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_;
 };
 
 #endif  // SIM_PRESSURE_TO_DEPTH_HPP_

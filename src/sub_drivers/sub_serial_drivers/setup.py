@@ -20,7 +20,6 @@ setup(
     entry_points={
         "console_scripts": [
             "sub_low = sub_serial_drivers.sub_low:main",
-            "depth_odometry_driver = sub_serial_drivers.depth_odometry_driver:main",
             "naviguider_imu_driver = sub_serial_drivers.naviguider_imu_driver:main",
         ],
     },
