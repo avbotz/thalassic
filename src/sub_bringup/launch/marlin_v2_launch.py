@@ -15,6 +15,7 @@ def generate_launch_description():
             BASE_NED, f"{ROBOT}/front_camera", y=-0.33, z=-0.16631, roll=math.pi / 2
         ),
         static_tf(BASE_NED, f"{ROBOT}/dvl_link", z=0.015797, yaw=-math.pi / 2),
+        static_tf(BASE_NED, f"{ROBOT}/pressure_link", y=0.34012, z=-0.19384),
         # Naviguider IMU outputs ENU
         static_tf(f"{ROBOT}/base_link", f"{ROBOT}/imu_link", x=-0.199, y=-0.09, z=0.185622),
         static_tf(BASE_NED, f"{ROBOT}/dropper_link", x=-0.19074, y=0.40252, z=0.15565),

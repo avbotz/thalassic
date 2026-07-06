@@ -11,7 +11,7 @@ SimPressureToDepth::SimPressureToDepth(const rclcpp::NodeOptions& options) : Nod
     this->declare_parameter("water_density_kg_m3", 997.0);
     this->declare_parameter("gravity_m_s2", 9.80665);
     this->declare_parameter("frame_id", "marlin_v2/odom");
-    this->declare_parameter("child_frame_id", "marlin_v2/base_link");
+    this->declare_parameter("child_frame_id", "marlin_v2/depth_link");
     this->declare_parameter("z_variance", 0.01);
 
     water_density_kg_m3_ = this->get_parameter("water_density_kg_m3").as_double();

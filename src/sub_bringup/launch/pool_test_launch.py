@@ -148,7 +148,7 @@ def control_and_state_entities():
             {
                 "device": "/dev/pico",
                 "depth_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
-                "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+                "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/depth_link"],
             }
         ],
     )
