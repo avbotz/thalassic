@@ -107,35 +107,42 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
     velocity_control_enabled_ = msg->velocity;
     altitude_control_enabled_ = msg->altitude;
     if (velocity_control_enabled_) {
+        if (velocity_setpoint_[0] != msg->setpoint.x || velocity_setpoint_[1] != msg->setpoint.y || velocity_setpoint_[2] != msg->setpoint.z) {
+            RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", velocity_setpoint_[0], velocity_setpoint_[1], velocity_setpoint_[2]);
+        }
+
         velocity_setpoint_[0] = msg->setpoint.x;
         velocity_setpoint_[1] = msg->setpoint.y;
         velocity_setpoint_[2] = msg->setpoint.z;
-
-        RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", velocity_setpoint_[0], velocity_setpoint_[1], velocity_setpoint_[2]);
     } else {
+        if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
+            RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", position_setpoint_[0], position_setpoint_[1], position_setpoint_[2]);
+        }
+
         position_setpoint_[0] = msg->setpoint.x;
         position_setpoint_[1] = msg->setpoint.y;
         position_setpoint_[2] = msg->setpoint.z;
-
-        RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", position_setpoint_[0], position_setpoint_[1], position_setpoint_[2]);
     }
-
 }
 
 void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
     angvel_control_enabled_ = msg->velocity;
     if (angvel_control_enabled_) {
+        if (angvel_setpoint_[0] != msg->setpoint.roll || angvel_setpoint_[1] != msg->setpoint.pitch || angvel_setpoint_[2] != msg->setpoint.yaw) {
+            RCLCPP_INFO(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", angvel_setpoint_[0], angvel_setpoint_[1], angvel_setpoint_[2]);
+        }
+
         angvel_setpoint_[0] = msg->setpoint.roll;
         angvel_setpoint_[1] = msg->setpoint.pitch;
         angvel_setpoint_[2] = msg->setpoint.yaw;
-
-        RCLCPP_INFO(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", angvel_setpoint_[0], angvel_setpoint_[1], angvel_setpoint_[2]);
     } else {
+        if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
+            RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", attitude_setpoint_[0], attitude_setpoint_[1], attitude_setpoint_[2]);
+        }
+
         attitude_setpoint_[0] = angles::normalize_angle(msg->setpoint.roll);
         attitude_setpoint_[1] = angles::normalize_angle(msg->setpoint.pitch);
         attitude_setpoint_[2] = angles::normalize_angle(msg->setpoint.yaw);
-
-        RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", attitude_setpoint_[0], attitude_setpoint_[1], attitude_setpoint_[2]);
     }
 }
 

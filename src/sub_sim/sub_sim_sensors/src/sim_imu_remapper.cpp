@@ -44,8 +44,8 @@ std::array<double, 9> transformCovariance(const std::array<double, 9>& cov_in, c
 }  // anonymous namespace
 
 SimIMURemapper::SimIMURemapper(const rclcpp::NodeOptions& options) : Node("sim_imu_remapper", options) {
-    this->declare_parameter("robot_name", "");
-    robot_name_ = this->get_parameter("robot_name").as_string();
+    this->declare_parameter("imu_link", "imu_link");
+    imu_link_ = this->get_parameter("imu_link").as_string();
 
     subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
         "sim/imu", 10, [this](sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); });
@@ -57,7 +57,7 @@ void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned
     sensor_msgs::msg::Imu msg_enu{};
 
     msg_enu.header = msg_ned->header;
-    msg_enu.header.frame_id = robot_name_.empty() ? "imu_link" : robot_name_ + "/imu_link";
+    msg_enu.header.frame_id = imu_link_;
 
     // T_world: Transforms World Frame from NED to ENU (E=N_old, N=E_old, U=-D)
     static const tf2::Matrix3x3 T_world(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0);

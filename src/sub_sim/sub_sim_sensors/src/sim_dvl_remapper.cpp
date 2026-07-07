@@ -9,8 +9,8 @@
 using std::placeholders::_1;
 
 SimDVLRemapper::SimDVLRemapper(const rclcpp::NodeOptions& options) : Node("sim_dvl_remapper", options) {
-    this->declare_parameter("robot_name", "");
-    robot_name_ = this->get_parameter("robot_name").as_string();
+    this->declare_parameter("dvl_link", "dvl_link");
+    dvl_link_ = this->get_parameter("dvl_link").as_string();
 
     subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>(
         "sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
@@ -22,8 +22,8 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
     nav_msgs::msg::Odometry odom_msg{};
 
     odom_msg.header = msg_stonefish->header;
-    odom_msg.header.frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
-    odom_msg.child_frame_id = robot_name_.empty() ? "dvl_link" : robot_name_ + "/dvl_link";
+    odom_msg.header.frame_id = dvl_link_;
+    odom_msg.child_frame_id = dvl_link_;
 
     odom_msg.pose.pose.position.x = 0.0;
     odom_msg.pose.pose.position.y = 0.0;

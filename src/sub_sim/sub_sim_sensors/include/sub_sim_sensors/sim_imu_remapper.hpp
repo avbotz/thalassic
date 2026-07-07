@@ -12,7 +12,7 @@ class SimIMURemapper : public rclcpp::Node {
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
 
    private:
-    std::string robot_name_;
+    std::string imu_link_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subscriber_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr publisher_;
 };

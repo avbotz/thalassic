@@ -11,7 +11,7 @@ class SimDVLRemapper : public rclcpp::Node {
     void dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg);
 
    private:
-    std::string robot_name_;
+    std::string dvl_link_;
     rclcpp::Subscription<stonefish_ros2::msg::DVL>::SharedPtr subscriber_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vel_publisher_;
 };
