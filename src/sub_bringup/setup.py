@@ -22,6 +22,8 @@ setup(
     description="Launch and configuration files",
     license="Proprietary",
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "pid_tuner = sub_bringup.pid_tuner:main",
+        ],
     },
 )

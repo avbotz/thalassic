@@ -1,0 +1,14 @@
+# Placeholder mesh for parts that need a physical/visual entry but no real
+# geometry. Must NOT be an empty file: Stonefish builds a convex hull from
+# the vertices, and a hull with zero points segfaults Bullet's GJK support
+# query the first time anything touches it (observed as stonefish_simulator
+# SIGSEGV in btConvexShape::localGetSupportVertexWithoutMarginNonVirtual).
+# A 1 cm tetrahedron keeps the hull valid while being physically negligible.
+v 0.005 0.0 0.0
+v -0.005 0.005 0.0
+v -0.005 -0.005 0.0
+v 0.0 0.0 0.005
+f 1 3 2
+f 1 2 4
+f 2 3 4
+f 1 4 3

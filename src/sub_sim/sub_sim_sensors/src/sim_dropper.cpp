@@ -7,7 +7,7 @@
 #include "rclcpp_components/register_node_macro.hpp"
 
 SimDropper::SimDropper(const rclcpp::NodeOptions& options) : Node("sim_dropper", options) {
-    this->declare_parameter<std::string>("joint_name", "marlin_v2/dropper_joint");
+    this->declare_parameter<std::string>("joint_name", "dropper_joint");
     this->declare_parameter<double>("open_position", 1.5);  // rad
     this->declare_parameter<double>("release_angle", 1.0);  // rad
 

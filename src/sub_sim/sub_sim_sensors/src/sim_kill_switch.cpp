@@ -36,6 +36,10 @@ void SimKillSwitch::sim_callback(const std_msgs::msg::Bool& msg) {
     // Ignore external commands during startup window
     // Afterwards pass them through to kill_switch topic
     if (startup_done_) {
+        if (!msg.data) {
+            // model time waiting for ESCs to initialize before sending unkill command
+            rclcpp::sleep_for(std::chrono::seconds(3));
+        }
         publish(msg.data);
     }
 }

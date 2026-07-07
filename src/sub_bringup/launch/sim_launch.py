@@ -128,20 +128,18 @@ def sim_entities() -> list:
             sim_component(
                 "sim_dvl_remapper",
                 "SimDVLRemapper",
-                parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
+                parameters=[{"dvl_link": [LaunchConfiguration("robot_name"), "/dvl_link"]}],
             ),
             sim_component(
                 "sim_imu_remapper",
                 "SimIMURemapper",
-                parameters=[{"robot_name": LaunchConfiguration("robot_name")}],
+                parameters=[{"imu_link": [LaunchConfiguration("robot_name"), "/imu_link"]}],
             ),
             sim_component(
                 "sim_pressure_to_depth",
                 "SimPressureToDepth",
                 parameters=[
                     {
-                        "pressure_unit": "pa",
-                        "pressure_reference": "gauge",
                         "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
                         "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
                     }
@@ -149,11 +147,17 @@ def sim_entities() -> list:
             ),
             sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
             sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
-            sim_component("sim_dropper", "SimDropper"),
+            sim_component(
+                "sim_dropper",
+                "SimDropper",
+                parameters=[
+                    {"joint_name": "marlin_v2/dropper_joint"}
+                ],
+            ),
             sim_component(
                 "sim_kill_switch",
                 "SimKillSwitch",
-                parameters=[{"off_delay": 8.0}],
+                parameters=[{"off_delay": 6.0}],
             ),
         ],
         ros_arguments=["--disable-stdout-logs"],

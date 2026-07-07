@@ -3,7 +3,8 @@
 	url = https://github.com/patrykcieslak/stonefish_ros2.git
 [submodule "src/sub_drivers/waterlinked_dvl"]
 	path = src/sub_drivers/waterlinked_dvl
-	url = https://github.com/waterlinked/waterlinked_dvl
+	url = https://github.com/avbotz/waterlinked_dvl
+	branch = frame-fix
 [submodule "src/sub_drivers/flir_camera_driver"]
 	path = src/sub_drivers/flir_camera_driver
 	url = https://github.com/ros-drivers/flir_camera_driver
