@@ -5,10 +5,12 @@
       <PosSetpoint z="1.0"/>
       <PosSetpoint x="4.0" y="0.0"/>
       <SubTree ID="AlignWithGate"/>
-      <!-- Drive through the {@target_animal} half chosen in the pool mission. -->
-      <PassGateChosenSide/>
-      <PosSetpoint x="0.25" velocity="true"/>
-      <Sleep msec="10000"/>
+      <!-- Sweep for the chosen half, then move forward while keeping it centered. -->
+      <Fallback name="maybe_sweep_chosen_gate_half">
+        <SweepCheck task="gate" class_id="{@target_animal}" attempts="4"/>
+        <AlwaysSuccess/>
+      </Fallback>
+      <ForwardAlign task="gate" class_id="{@target_animal}" max_dist="10.0" timeout_msec="30000"/>
       <Spin yaw="12.56637061"/>
       <PosSetpoint z="0.5"/>
       <AttSetpoint name="pool_exit_heading" yaw="{@gate_exit_yaw}"/>

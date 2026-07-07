@@ -84,6 +84,12 @@ Models live in `model_dir` as exported graphs:
   the Jetson it runs on).
 * `<task>.onnx` — exported **ONNX** graph for ONNX Runtime.
 
+`sub_mission` may request role-specific model tasks. For logical BT task
+`gate`, role `SURVEY` loads `gate_survey`, and role `SEARCH` loads
+`gate_search`. Task post-processors fall back from those suffixes to the base
+task processor, so `gate_survey` and `gate_search` still use the `gate`
+post-processor when one is registered.
+
 Selection, per the `backend` param:
 
 1. `auto` (default) prefers `<task>.engine` (TensorRT) and falls back to

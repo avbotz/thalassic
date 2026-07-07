@@ -41,6 +41,11 @@ def get_post_processor(task: str) -> Optional[TaskPostProcessor]:
     their 2D metadata but get no pose or distance).
     """
     cls = _REGISTRY.get(task)
+    if cls is None:
+        for suffix in ("_survey", "_search"):
+            if task.endswith(suffix):
+                cls = _REGISTRY.get(task[: -len(suffix)])
+                break
     return cls() if cls is not None else None
 
 

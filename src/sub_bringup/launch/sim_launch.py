@@ -387,6 +387,11 @@ def generate_launch_description():
         default_value="",
         description="Mission tree to execute (resources/missions/<name>.xml or a path); empty skips sub_mission",
     )
+    declare_role = DeclareLaunchArgument(
+        "role",
+        default_value="SURVEY",
+        description="Mission vision role: SURVEY or SEARCH",
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -401,9 +406,15 @@ def generate_launch_description():
     sub_mission_node = Node(
         package="sub_mission",
         executable="mission",
+        name="sub_mission",
         output="screen",
         namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"mission": LaunchConfiguration("mission")}],
+        parameters=[
+            {
+                "mission": LaunchConfiguration("mission"),
+                "role": LaunchConfiguration("role"),
+            }
+        ],
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
@@ -411,6 +422,7 @@ def generate_launch_description():
         [
             declare_robot_name,
             declare_mission,
+            declare_role,
             include_transforms,
             sub_mission_node,
             *sim_entities(),

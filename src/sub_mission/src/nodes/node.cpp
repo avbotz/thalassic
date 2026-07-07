@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -34,64 +35,46 @@
 namespace {
 
 bool mission_killed = false;
-
 class PosSetpointAction : public BT::StatefulActionNode {
    public:
     PosSetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
-                      PointCmdPublisher::SharedPtr position_publisher,
-                      VectorCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
+                      PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
                       rclcpp::Logger logger)
         : BT::StatefulActionNode(name, config),
           node_(node),
           position_publisher_(position_publisher),
-          velocity_publisher_(velocity_publisher),
           clock_(clock),
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("x", 0.0, "North/forward position or velocity setpoint"),
-                BT::InputPort<double>("y", 0.0, "East/right position or velocity setpoint"),
-                BT::InputPort<double>("z", 0.0, "Down/depth position or velocity setpoint"),
-                BT::InputPort<bool>("velocity", false, "True for velocity mode"),
-                BT::InputPort<bool>("use_altitude", false, "True when z is an altitude setpoint")};
+        return {BT::InputPort<double>("x", UNSPECIFIED_PORT, "North/forward position setpoint"),
+                BT::InputPort<double>("y", UNSPECIFIED_PORT, "East/right position setpoint"),
+                BT::InputPort<double>("z", UNSPECIFIED_PORT, "Down/depth position setpoint")};
     }
 
     BT::NodeStatus onStart() override {
-        bool velocity = false;
-        bool use_altitude = false;
-        getInput("velocity", velocity);
-        getInput("use_altitude", use_altitude);
-        active_axes_ = {portProvided(*this, "x"), portProvided(*this, "y"), portProvided(*this, "z")};
-        std::array<double, 3> target{};
+        std::array<double, 3> inputs{};
+        getInput("x", inputs[0]);
+        getInput("y", inputs[1]);
+        getInput("z", inputs[2]);
+        active_axes_ = {std::isfinite(inputs[0]), std::isfinite(inputs[1]), std::isfinite(inputs[2])};
+        std::array<double, 3> target = node_.commanded_pos;
 
-        if (velocity) {
-            getInput("x", target[0]);
-            getInput("y", target[1]);
-            getInput("z", target[2]);
-            node_.last_velocity_setpoint = target;
-            velocity_publisher_->publish(vectorCommand(*clock_, target));
-        } else {
-            target = node_.commanded_pos;
-            if (active_axes_[0]) {
-                getInput("x", target[0]);
-            }
-            if (active_axes_[1]) {
-                getInput("y", target[1]);
-            }
-            if (active_axes_[2]) {
-                getInput("z", target[2]);
-            }
-            node_.commanded_pos = target;
-            position_publisher_->publish(positionCommand(*clock_, target, use_altitude));
+        if (active_axes_[0]) {
+            target[0] = inputs[0];
         }
+        if (active_axes_[1]) {
+            target[1] = inputs[1];
+        }
+        if (active_axes_[2]) {
+            target[2] = inputs[2];
+        }
+        node_.commanded_pos = target;
+        position_publisher_->publish(positionCommand(*clock_, target, false));
 
         start_updates_ = node_.control_error_updates;
 
-        RCLCPP_INFO(logger_, "Published position command: velocity=%s use_altitude=%s xyz=(%.3f, %.3f, %.3f)",
-                    velocity ? "true" : "false", use_altitude ? "true" : "false", target[0], target[1], target[2]);
-        if (velocity) {
-            return BT::NodeStatus::SUCCESS;
-        }
+        RCLCPP_INFO(logger_, "Published position command: xyz=(%.3f, %.3f, %.3f)", target[0], target[1], target[2]);
         return checkErrors();
     }
 
@@ -122,68 +105,135 @@ class PosSetpointAction : public BT::StatefulActionNode {
 
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
-    VectorCmdPublisher::SharedPtr velocity_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<bool, 3> active_axes_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
 };
 
-class AttSetpointAction : public BT::StatefulActionNode {
+class VelocitySetpointAction : public BT::SyncActionNode {
    public:
-    AttSetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
-                      QuaternionCmdPublisher::SharedPtr attitude_publisher,
-                      VectorCmdPublisher::SharedPtr angular_velocity_publisher, rclcpp::Clock::SharedPtr clock,
-                      rclcpp::Logger logger)
-        : BT::StatefulActionNode(name, config),
+    VelocitySetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                           VectorCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
+                           rclcpp::Logger logger)
+        : BT::SyncActionNode(name, config),
           node_(node),
-          attitude_publisher_(attitude_publisher),
-          angular_velocity_publisher_(angular_velocity_publisher),
+          velocity_publisher_(velocity_publisher),
           clock_(clock),
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("roll", 0.0, "Roll setpoint in radians"),
-                BT::InputPort<double>("pitch", 0.0, "Pitch setpoint in radians"),
-                BT::InputPort<double>("yaw", 0.0, "Yaw setpoint in radians"),
-                BT::InputPort<bool>("velocity", false, "True for angular velocity mode")};
+        return {BT::InputPort<double>("x", 0.0, "Forward velocity in meters per second"),
+                BT::InputPort<double>("y", 0.0, "Right velocity in meters per second"),
+                BT::InputPort<double>("z", 0.0, "Down velocity in meters per second")};
+    }
+
+    BT::NodeStatus tick() override {
+        std::array<double, 3> target{};
+        getInput("x", target[0]);
+        getInput("y", target[1]);
+        getInput("z", target[2]);
+
+        node_.last_velocity_setpoint = target;
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, target));
+        RCLCPP_INFO(logger_, "Published velocity command: xyz=(%.3f, %.3f, %.3f)", target[0], target[1], target[2]);
+        return BT::NodeStatus::SUCCESS;
+    }
+
+   private:
+    MissionNode &node_;
+    VectorCmdPublisher::SharedPtr velocity_publisher_;
+    rclcpp::Clock::SharedPtr clock_;
+    rclcpp::Logger logger_;
+};
+
+class AltitudeSetpointAction : public BT::StatefulActionNode {
+   public:
+    AltitudeSetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                           PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
+                           rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config),
+          node_(node),
+          position_publisher_(position_publisher),
+          clock_(clock),
+          logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        return {BT::InputPort<double>("z", "Altitude above bottom in meters")};
     }
 
     BT::NodeStatus onStart() override {
-        bool velocity = false;
-        getInput("velocity", velocity);
-        active_axes_ = {portProvided(*this, "roll"), portProvided(*this, "pitch"), portProvided(*this, "yaw")};
-        std::array<double, 3> target{};
+        getInput("z", node_.commanded_pos[2]);
+        start_updates_ = node_.control_error_updates;
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, true));
+        RCLCPP_INFO(logger_, "Published altitude command: z=%.3f", node_.commanded_pos[2]);
+        return checkErrors();
+    }
 
-        if (velocity) {
-            getInput("roll", target[0]);
-            getInput("pitch", target[1]);
-            getInput("yaw", target[2]);
-            node_.last_angvel_setpoint = target;
-            angular_velocity_publisher_->publish(vectorCommand(*clock_, target));
-        } else {
-            target = node_.commanded_att;
-            if (active_axes_[0]) {
-                getInput("roll", target[0]);
-            }
-            if (active_axes_[1]) {
-                getInput("pitch", target[1]);
-            }
-            if (active_axes_[2]) {
-                getInput("yaw", target[2]);
-                target[2] = normalizeAngle(target[2]);
-            }
-            node_.commanded_att = target;
-            attitude_publisher_->publish(quaternionCommand(*clock_, target[0], -target[1], -target[2]));
+    BT::NodeStatus onRunning() override { return checkErrors(); }
+
+    void onHalted() override { RCLCPP_INFO(logger_, "AltitudeSetpoint wait halted."); }
+
+   private:
+    BT::NodeStatus checkErrors() const {
+        if (mission_killed) {
+            RCLCPP_WARN(logger_, "AltitudeSetpoint wait failed because kill switch is engaged.");
+            return BT::NodeStatus::FAILURE;
         }
+        if (node_.control_error_updates[2] > start_updates_[2] &&
+            std::fabs(node_.control_errors[2]) <= POSITION_TOLERANCE) {
+            return BT::NodeStatus::SUCCESS;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    MissionNode &node_;
+    PointCmdPublisher::SharedPtr position_publisher_;
+    rclcpp::Clock::SharedPtr clock_;
+    rclcpp::Logger logger_;
+    std::array<std::uint64_t, 12> start_updates_ = {};
+};
+
+class AttSetpointAction : public BT::StatefulActionNode {
+   public:
+    AttSetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                      QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
+                      rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config),
+          node_(node),
+          attitude_publisher_(attitude_publisher),
+          clock_(clock),
+          logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll setpoint in radians"),
+                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch setpoint in radians"),
+                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw setpoint in radians")};
+    }
+
+    BT::NodeStatus onStart() override {
+        std::array<double, 3> inputs{};
+        getInput("roll", inputs[0]);
+        getInput("pitch", inputs[1]);
+        getInput("yaw", inputs[2]);
+        active_axes_ = {std::isfinite(inputs[0]), std::isfinite(inputs[1]), std::isfinite(inputs[2])};
+        std::array<double, 3> target = node_.commanded_att;
+
+        if (active_axes_[0]) {
+            target[0] = inputs[0];
+        }
+        if (active_axes_[1]) {
+            target[1] = inputs[1];
+        }
+        if (active_axes_[2]) {
+            target[2] = normalizeAngle(inputs[2]);
+        }
+        node_.commanded_att = target;
+        attitude_publisher_->publish(attitudeCommand(*clock_, target));
 
         start_updates_ = node_.control_error_updates;
 
-        RCLCPP_INFO(logger_, "Published attitude command: velocity=%s rpy=(%.3f, %.3f, %.3f)",
-                    velocity ? "true" : "false", target[0], target[1], target[2]);
-        if (velocity) {
-            return BT::NodeStatus::SUCCESS;
-        }
+        RCLCPP_INFO(logger_, "Published attitude command: rpy=(%.3f, %.3f, %.3f)", target[0], target[1], target[2]);
         return checkErrors();
     }
 
@@ -214,11 +264,47 @@ class AttSetpointAction : public BT::StatefulActionNode {
 
     MissionNode &node_;
     QuaternionCmdPublisher::SharedPtr attitude_publisher_;
-    VectorCmdPublisher::SharedPtr angular_velocity_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<bool, 3> active_axes_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
+};
+
+class AngularVelocitySetpointAction : public BT::SyncActionNode {
+   public:
+    AngularVelocitySetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                                  VectorCmdPublisher::SharedPtr angular_velocity_publisher,
+                                  rclcpp::Clock::SharedPtr clock, rclcpp::Logger logger)
+        : BT::SyncActionNode(name, config),
+          node_(node),
+          angular_velocity_publisher_(angular_velocity_publisher),
+          clock_(clock),
+          logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        return {BT::InputPort<double>("roll", 0.0, "Roll rate in radians per second"),
+                BT::InputPort<double>("pitch", 0.0, "Pitch rate in radians per second"),
+                BT::InputPort<double>("yaw", 0.0, "Yaw rate in radians per second")};
+    }
+
+    BT::NodeStatus tick() override {
+        std::array<double, 3> target{};
+        getInput("roll", target[0]);
+        getInput("pitch", target[1]);
+        getInput("yaw", target[2]);
+
+        node_.last_angvel_setpoint = target;
+        angular_velocity_publisher_->publish(angularVelocityCommand(*clock_, target));
+        RCLCPP_INFO(logger_, "Published angular velocity command: rpy=(%.3f, %.3f, %.3f)", target[0], target[1],
+                    target[2]);
+        return BT::NodeStatus::SUCCESS;
+    }
+
+   private:
+    MissionNode &node_;
+    VectorCmdPublisher::SharedPtr angular_velocity_publisher_;
+    rclcpp::Clock::SharedPtr clock_;
+    rclcpp::Logger logger_;
 };
 
 class MoveRelativeAction : public BT::StatefulActionNode {
@@ -299,27 +385,29 @@ class AddAttSetpointAction : public BT::StatefulActionNode {
         : BT::StatefulActionNode(name, config), node_(node), publisher_(publisher), clock_(clock), logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("roll", 0.0, "Roll offset in radians"),
-                BT::InputPort<double>("pitch", 0.0, "Pitch offset in radians"),
-                BT::InputPort<double>("yaw", 0.0, "Yaw offset in radians")};
+        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll offset in radians"),
+                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch offset in radians"),
+                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw offset in radians")};
     }
 
     BT::NodeStatus onStart() override {
-        double roll = 0.0;
-        double pitch = 0.0;
-        double yaw = 0.0;
-        getInput("roll", roll);
-        getInput("pitch", pitch);
-        getInput("yaw", yaw);
-
-        active_axes_ = {portProvided(*this, "roll"), portProvided(*this, "pitch"), portProvided(*this, "yaw")};
-        node_.commanded_att[0] += roll;
-        node_.commanded_att[1] += pitch;
-        node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + yaw);
+        std::array<double, 3> inputs{};
+        getInput("roll", inputs[0]);
+        getInput("pitch", inputs[1]);
+        getInput("yaw", inputs[2]);
+        active_axes_ = {std::isfinite(inputs[0]), std::isfinite(inputs[1]), std::isfinite(inputs[2])};
+        if (active_axes_[0]) {
+            node_.commanded_att[0] += inputs[0];
+        }
+        if (active_axes_[1]) {
+            node_.commanded_att[1] += inputs[1];
+        }
+        if (active_axes_[2]) {
+            node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + inputs[2]);
+        }
 
         start_updates_ = node_.control_error_updates;
-        publisher_->publish(quaternionCommand(*clock_, node_.commanded_att[0], -node_.commanded_att[1],
-                                              -node_.commanded_att[2]));
+        publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
         RCLCPP_INFO(logger_, "Published additive attitude target rpy=(%.3f, %.3f, %.3f)",
                     node_.commanded_att[0], node_.commanded_att[1], node_.commanded_att[2]);
         return checkErrors();
@@ -387,7 +475,7 @@ class SpinAction : public BT::StatefulActionNode {
         start_updates_ = node_.control_error_updates[11];
 
         node_.last_angvel_setpoint = {0.0, 0.0, std::copysign(rate_, target_)};
-        angular_velocity_publisher_->publish(vectorCommand(*clock_, node_.last_angvel_setpoint));
+        angular_velocity_publisher_->publish(angularVelocityCommand(*clock_, node_.last_angvel_setpoint));
         RCLCPP_INFO(logger_, "Published spin yaw=%.3f rate=%.3f", target_, node_.last_angvel_setpoint[2]);
         return BT::NodeStatus::RUNNING;
     }
@@ -410,8 +498,7 @@ class SpinAction : public BT::StatefulActionNode {
         if (std::fabs(accumulated_) >= std::fabs(target_)) {
             stopSpin();
             node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + target_);
-            attitude_publisher_->publish(quaternionCommand(*clock_, node_.commanded_att[0], -node_.commanded_att[1],
-                                                           -node_.commanded_att[2]));
+            attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
             return BT::NodeStatus::SUCCESS;
         }
 
@@ -423,7 +510,7 @@ class SpinAction : public BT::StatefulActionNode {
    private:
     void stopSpin() {
         node_.last_angvel_setpoint = {0.0, 0.0, 0.0};
-        angular_velocity_publisher_->publish(vectorCommand(*clock_, node_.last_angvel_setpoint));
+        angular_velocity_publisher_->publish(angularVelocityCommand(*clock_, node_.last_angvel_setpoint));
     }
 
     MissionNode &node_;
@@ -543,7 +630,7 @@ class SurfaceAction : public BT::StatefulActionNode {
 
     void publishZeroVelocity() {
         node_.last_velocity_setpoint = {0.0, 0.0, 0.0};
-        velocity_publisher_->publish(vectorCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
     }
 
     MissionNode &node_;
@@ -591,17 +678,35 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     });
 
     factory.registerBuilder<PosSetpointAction>(
-        "PosSetpoint", [&node, position_publisher, linear_velocity_publisher, clock,
+        "PosSetpoint", [&node, position_publisher, clock,
                         logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<PosSetpointAction>(name, config, node, position_publisher,
-                                                       linear_velocity_publisher, clock, logger);
+            return std::make_unique<PosSetpointAction>(name, config, node, position_publisher, clock, logger);
+        });
+
+    factory.registerBuilder<VelocitySetpointAction>(
+        "VelocitySetpoint", [&node, linear_velocity_publisher, clock,
+                             logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<VelocitySetpointAction>(name, config, node, linear_velocity_publisher, clock,
+                                                            logger);
+        });
+
+    factory.registerBuilder<AltitudeSetpointAction>(
+        "AltitudeSetpoint", [&node, position_publisher, clock,
+                             logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<AltitudeSetpointAction>(name, config, node, position_publisher, clock, logger);
         });
 
     factory.registerBuilder<AttSetpointAction>(
-        "AttSetpoint", [&node, attitude_publisher, angular_velocity_publisher, clock,
+        "AttSetpoint", [&node, attitude_publisher, clock,
                         logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<AttSetpointAction>(name, config, node, attitude_publisher,
-                                                       angular_velocity_publisher, clock, logger);
+            return std::make_unique<AttSetpointAction>(name, config, node, attitude_publisher, clock, logger);
+        });
+
+    factory.registerBuilder<AngularVelocitySetpointAction>(
+        "AngularVelocitySetpoint", [&node, angular_velocity_publisher, clock,
+                                    logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<AngularVelocitySetpointAction>(name, config, node, angular_velocity_publisher,
+                                                                   clock, logger);
         });
 
     factory.registerBuilder<MoveRelativeAction>(
@@ -643,10 +748,8 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
         {"SearchGateAfterCoinFlip", "Rotate to reacquire the gate after the coin-flip drop", OK},
         {"SetYawZero", "Latch the current heading as the mission yaw reference", OK},
         {"AbortMission", "Give up on the current task and fail out", FAIL},
-        // Gate (2026: pass the chosen reef-shark or sawfish half)
-        // AlignWithGate is real now: a subtree in trees/gate.xml composed of
-        // the vision primitives (LoadModel / WaitForDetection / AlignToDetection).
-        {"PassGateChosenSide", "Drive through the {@target_animal} half of the gate", OK},
+        // Gate alignment/pass-through is implemented in trees/gate.xml with
+        // SweepCheck + ForwardAlign.
         // Slalom (2026: weave the three red/white pipe gates)
         {"SearchForSlalom", "Sweep to bring the slalom pipes into view", OK},
         {"RecoverSlalomSearch", "Dead-reckon forward when the slalom is not seen", OK},
@@ -707,6 +810,24 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
     // Mission config name (resources/missions/<name>.xml) or file path
     this->declare_parameter<std::string>("mission", "");
     this->get_parameter("mission", this->mission);
+
+    this->declare_parameter<std::string>("role", "SURVEY");
+    this->get_parameter("role", this->role);
+    if (this->role != "SURVEY" && this->role != "SEARCH") {
+        throw std::invalid_argument("sub_mission role must be SURVEY or SEARCH");
+    }
+    RCLCPP_INFO(this->get_logger(), "Mission role: %s", this->role.c_str());
+}
+
+std::string MissionNode::visionModelTask(const std::string &task) const {
+    if (task.empty()) {
+        return task;
+    }
+    return task + (this->role == "SEARCH" ? "_search" : "_survey");
+}
+
+bool MissionNode::visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const {
+    return logical_task.empty() || reported_task == logical_task || reported_task == visionModelTask(logical_task);
 }
 
 void MissionNode::kill_callback(const std_msgs::msg::Bool &msg) {
@@ -775,10 +896,10 @@ bool MissionNode::load_mission() {
 
     try {
         BT::BehaviorTreeFactory factory;
-        const auto position_publisher = this->create_publisher<PointCmdMsg>("cmd_position", 10);
-        const auto attitude_publisher = this->create_publisher<QuaternionCmdMsg>("cmd_attitude", 10);
-        const auto linear_velocity_publisher = this->create_publisher<VectorCmdMsg>("cmd_linear_velocity", 10);
-        const auto angular_velocity_publisher = this->create_publisher<VectorCmdMsg>("cmd_angular_velocity", 10);
+        const auto position_publisher = this->create_publisher<PointCmdMsg>("pos_setpoint", 10);
+        const auto attitude_publisher = this->create_publisher<QuaternionCmdMsg>("att_setpoint", 10);
+        const auto linear_velocity_publisher = position_publisher;
+        const auto angular_velocity_publisher = attitude_publisher;
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
                              linear_velocity_publisher, angular_velocity_publisher, this->get_clock());
         registerVisionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,

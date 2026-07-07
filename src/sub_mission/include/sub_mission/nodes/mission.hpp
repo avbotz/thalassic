@@ -39,6 +39,11 @@ public:
 
     // Name (resources/missions/<name>.xml) or path of the mission tree to run.
     std::string mission;
+    std::string role;
+
+    // Logical BT task name -> role-specific sub_vision model task name.
+    std::string visionModelTask(const std::string &task) const;
+    bool visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const;
 
     // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
     VisionClient &vision() { return *vision_client; }
