@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="TorpMission">
   <BehaviorTree ID="TorpMission">
     <Sequence name="torp_mission">
-      <PosSetpoint z="1.0" use_altitude="true"/>
+      <AltitudeSetpoint z="1.0"/>
       <AttSetpoint name="torp_search_heading" yaw="{@torp_search_yaw}"/>
       <Fallback name="find_torp_board">
         <SearchTorpBoard/>
@@ -12,9 +12,9 @@
       <ApproachTorpBoard/>
       <OrientToTorpBoard/>
       <ShootChosenTorpHole/>
-      <PosSetpoint x="-1.5" velocity="true"/>
+      <VelocitySetpoint x="-1.5"/>
       <ShootOtherTorpHole/>
-      <PosSetpoint x="-1.5" velocity="true"/>
+      <VelocitySetpoint x="-1.5"/>
       <PosSetpoint z="1.0"/>
     </Sequence>
   </BehaviorTree>

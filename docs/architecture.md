@@ -8,6 +8,7 @@ src/
 ├── sub_control/
 │   ├── sub_control/             # Control algorithm
 │   └── sub_control_interfaces/  # ROS2 messages for control
+├── sub_mission/            # BehaviorTree.CPP mission execution
 ├── sub_drivers/
 │   ├── flir_camera_driver/      # FLIR / Spinnaker camera driver (submodule)
 │   ├── sub_driver_interfaces/   # Dropper / torpedo service definitions
@@ -35,7 +36,7 @@ thruster allocation at 50 Hz. See [control.md](control.md) for details.
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `altitude` | `std_msgs/Float64` |
 | Sub | `kill_switch` | `std_msgs/Bool` |
-| Pub | `control/thruster_0` … `thruster_7` | `std_msgs/Float64` (normalized −1…1) |
+| Pub | `control/thruster_0` ... `thruster_7` | `std_msgs/Float64` (normalized -1...1) |
 | Pub | `control/error` | `sub_control_interfaces/Error` |
 | Client | `set_pose` | `robot_localization/SetPose` |
 
@@ -53,6 +54,19 @@ thruster allocation at 50 Hz. See [control.md](control.md) for details.
 
 PID gain arrays are loaded from the hardware or simulation control profile at
 startup. See [control.md](control.md).
+
+### `sub_mission` (`sub_mission/mission`)
+
+Runs the selected mission as BehaviorTree.CPP XML. See
+[mission.md](mission.md) for behavior tree structure, movement nodes, and
+blackbox boundaries.
+
+| | Topic | Type |
+|---|---|---|
+| Sub | `kill_switch` | `std_msgs/Bool` |
+| Sub | `control/error` | `sub_control_interfaces/Error` |
+| Pub | `pos_setpoint` | `sub_control_interfaces/Setpoint` |
+| Pub | `att_setpoint` | `sub_control_interfaces/Setpoint` |
 
 ### `waterlinked_dvl_driver` (`waterlinked_dvl`) — hardware only
 
@@ -140,7 +154,8 @@ Stonefish
   ├─ sim/kill_switch ► sim_kill_switch ─► kill_switch ──────────────────────────► sub_control
   └─ sim/thruster_setpoints ◄── sim_thruster_republisher ◄── control/thruster_i ◄── sub_control
                                                                                       ▲
-                                                      odometry/filtered (EKF) ───────┘
+                                                      odometry/filtered (EKF) ───────┤
+                                                      cmd_* (sub_mission) ───────────┘
 ```
 
 On hardware the same graph applies, with `waterlinked_dvl_driver` publishing

@@ -7,7 +7,7 @@
       <SearchDhdFront/>
       <ApproachDhdFront/>
       <PosSetpoint z="0.5"/>
-      <PosSetpoint x="1.0" velocity="true"/>
+      <VelocitySetpoint x="1.0"/>
       <FindDhdDown/>
       <AlignOverDhd/>
       <SurfaceForOctagonPoints/>

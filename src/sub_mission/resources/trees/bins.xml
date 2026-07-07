@@ -5,12 +5,12 @@
       <FindPathMarkerForBins/>
       <AlignAboveBinsPathMarker/>
       <PosSetpoint z="0.5"/>
-      <PosSetpoint x="2.2" velocity="true"/>
+      <VelocitySetpoint x="2.2"/>
       <FindBins/>
       <AlignOverBins/>
       <!-- Center over the {@target_animal} half before dropping. -->
       <AlignOverBinTarget/>
-      <PosSetpoint z="0.6" use_altitude="true"/>
+      <AltitudeSetpoint z="0.6"/>
       <DropBalls/>
     </Sequence>
   </BehaviorTree>

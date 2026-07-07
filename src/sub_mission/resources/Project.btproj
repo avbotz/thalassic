@@ -8,8 +8,10 @@
     <include path="missions/pool_test.xml"/>
     <include path="missions/vision_test.xml"/>
     <include path="missions/pid_tuning.xml"/>
+    <include path="trees/competition.xml"/>
     <include path="trees/coin_flip.xml"/>
     <include path="trees/gate.xml"/>
+    <include path="trees/slalom.xml"/>
     <include path="trees/bins.xml"/>
     <include path="trees/torp.xml"/>
     <include path="trees/octagon.xml"/>
@@ -19,17 +21,27 @@
 
     <TreeNodesModel>
         <Action ID="PosSetpoint">
-            <input_port name="x" default="0.0">North/forward position or velocity setpoint</input_port>
-            <input_port name="y" default="0.0">East/right position or velocity setpoint</input_port>
-            <input_port name="z" default="0.0">Down/depth position or velocity setpoint</input_port>
-            <input_port name="velocity" default="false">True for velocity mode</input_port>
-            <input_port name="use_altitude" default="false">True when z is an altitude setpoint</input_port>
+            <input_port name="x" default="nan">North/forward position setpoint</input_port>
+            <input_port name="y" default="nan">East/right position setpoint</input_port>
+            <input_port name="z" default="nan">Down/depth position setpoint</input_port>
+        </Action>
+        <Action ID="VelocitySetpoint">
+            <input_port name="x" default="0.0">Forward velocity in meters per second</input_port>
+            <input_port name="y" default="0.0">Right velocity in meters per second</input_port>
+            <input_port name="z" default="0.0">Down velocity in meters per second</input_port>
+        </Action>
+        <Action ID="AltitudeSetpoint">
+            <input_port name="z">Altitude above bottom in meters</input_port>
         </Action>
         <Action ID="AttSetpoint">
-            <input_port name="roll" default="0.0">Roll setpoint in radians</input_port>
-            <input_port name="pitch" default="0.0">Pitch setpoint in radians</input_port>
-            <input_port name="yaw" default="0.0">Yaw setpoint in radians</input_port>
-            <input_port name="velocity" default="false">True for angular velocity mode</input_port>
+            <input_port name="roll" default="nan">Roll setpoint in radians</input_port>
+            <input_port name="pitch" default="nan">Pitch setpoint in radians</input_port>
+            <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
+        </Action>
+        <Action ID="AngularVelocitySetpoint">
+            <input_port name="roll" default="0.0">Roll rate in radians per second</input_port>
+            <input_port name="pitch" default="0.0">Pitch rate in radians per second</input_port>
+            <input_port name="yaw" default="0.0">Yaw rate in radians per second</input_port>
         </Action>
         <Action ID="MoveRelative">
             <input_port name="x" default="0.0">Forward offset in meters</input_port>
@@ -37,9 +49,9 @@
             <input_port name="z" default="0.0">Down/depth offset in meters</input_port>
         </Action>
         <Action ID="AddAttSetpoint">
-            <input_port name="roll" default="0.0">Roll offset in radians</input_port>
-            <input_port name="pitch" default="0.0">Pitch offset in radians</input_port>
-            <input_port name="yaw" default="0.0">Yaw offset in radians</input_port>
+            <input_port name="roll" default="nan">Roll offset in radians</input_port>
+            <input_port name="pitch" default="nan">Pitch offset in radians</input_port>
+            <input_port name="yaw" default="nan">Yaw offset in radians</input_port>
         </Action>
         <Action ID="Spin">
             <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians</input_port>
@@ -83,24 +95,64 @@
             <input_port name="max_depth_step" default="0.5">Depth correction clamp per frame (m)</input_port>
             <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
         </Action>
+        <Action ID="ForwardSweepAlign">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Task model to load and align to</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
+            <input_port name="num_sweeps" default="3">Forward sweep passes before FAILURE</input_port>
+            <input_port name="forward_step" default="2.0">Forward move between sweeps in meters</input_port>
+            <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
+            <input_port name="move_timeout_msec" default="20000">Maximum wait for each commanded movement</input_port>
+            <input_port name="load_timeout_msec" default="20000">Maximum wait for load_model</input_port>
+        </Action>
+        <Action ID="ForwardAlign">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Task model to load and align to</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS</input_port>
+            <input_port name="forward_step" default="2.0">Forward target extension per update in meters</input_port>
+            <input_port name="close_distance" default="3.0">Distance that triggers final pass-through target</input_port>
+            <input_port name="through_distance" default="1.5">Extra travel after the detected object</input_port>
+            <input_port name="depth_offset" default="0.25">Extra depth added when tracking a gate-like target</input_port>
+            <input_port name="align_depth" default="true">Adjust depth from vertical bearing and distance</input_port>
+            <input_port name="update_msec" default="300">Minimum time between forward target updates</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum align time before SUCCESS</input_port>
+            <input_port name="load_timeout_msec" default="20000">Maximum wait for load_model</input_port>
+        </Action>
+        <Action ID="SweepCheck">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task" default="">Task model to load and sweep for</input_port>
+            <input_port name="class_id" default="">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
+            <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
+            <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw move</input_port>
+            <input_port name="load_timeout_msec" default="20000">Maximum wait for load_model</input_port>
+        </Action>
         <Action ID="SearchGateAfterCoinFlip"/>
         <Action ID="SetYawZero"/>
         <Action ID="AbortMission"/>
+        <Action ID="SearchForSlalom"/>
+        <Action ID="RecoverSlalomSearch"/>
+        <Action ID="PassSlalomChannel"/>
         <Action ID="ApproachAbydosSymbol"/>
         <Action ID="FindPathMarkerForBuoy"/>
         <Action ID="FindPathMarkerForBins"/>
         <Action ID="AlignAboveBinsPathMarker"/>
         <Action ID="FindBins"/>
         <Action ID="AlignOverBins"/>
-        <Action ID="AlignOverBinShark"/>
+        <Action ID="AlignOverBinTarget"/>
         <Action ID="DropBalls"/>
         <Action ID="SearchTorpBoard"/>
         <Action ID="RecoverTorpBoardSearch"/>
         <Action ID="VerifyTorpBoard"/>
         <Action ID="ApproachTorpBoard"/>
         <Action ID="OrientToTorpBoard"/>
-        <Action ID="ShootOpenTorpHole"/>
-        <Action ID="ShootClosedTorpHole"/>
+        <Action ID="ShootChosenTorpHole"/>
+        <Action ID="ShootOtherTorpHole"/>
         <Action ID="SearchDhdFront"/>
         <Action ID="ApproachDhdFront"/>
         <Action ID="FindDhdDown"/>

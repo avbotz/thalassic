@@ -58,6 +58,8 @@ Optional arguments:
 | `DY` | `0.25` | Max Y position fuzz (m) |
 | `DZ` | `0.10` | Max Z position fuzz (m) |
 | `DYAW` | `0.10` | Max yaw fuzz applied to task objects (rad) |
+| `mission` | `""` | Mission entrypoint to run; empty skips `sub_mission` |
+| `role` | `SURVEY` | Vision model role for mission: `SURVEY` or `SEARCH` |
 
 Example with a fixed seed:
 
@@ -65,7 +67,7 @@ Example with a fixed seed:
 ros2 launch sub_bringup sim_launch.py seed:=42 DX:=0.0 DY:=0.0
 ```
 
-## Send Setpoints Manually
+## Send Commands Manually
 
 ```bash
 # Hold position 1 m forward, 0 m lateral, 0.5 m down (FLU: dive = negative z)

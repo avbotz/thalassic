@@ -47,7 +47,7 @@ int main(int argc, char** argv)
             setsid();
 
             std::string command = std::string("ros2 run sub_mission mission --ros-args -p 'mission:=") +
-                node->mission + std::string("'");
+                node->mission + std::string("' -p 'role:=") + node->role + std::string("'");
 
             system(command.c_str());
         }
