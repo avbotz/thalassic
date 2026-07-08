@@ -18,7 +18,9 @@
 <root BTCPP_format="4" main_tree_to_execute="CompetitionRun">
   <BehaviorTree ID="CompetitionRun">
     <Sequence name="competition_run">
-      <ForceSuccess><SubTree ID="CoinFlipMission"/></ForceSuccess>
+      <!-- Coin flip is the only required acquisition step: if the gate cannot
+           be found here, CoinFlipMission returns FAILURE and stops the run. -->
+      <SubTree ID="CoinFlipMission"/>
       <ForceSuccess><SubTree ID="GateMission"/></ForceSuccess>
 
       <!-- Gate (y=-7) -> slalom (y~-2.8): ~4 m ahead. -->

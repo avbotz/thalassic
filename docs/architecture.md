@@ -59,7 +59,7 @@ startup. See [control.md](control.md).
 
 Runs the selected mission as BehaviorTree.CPP XML. See
 [mission.md](mission.md) for behavior tree structure, movement nodes, and
-blackbox boundaries.
+implementation boundaries.
 
 | | Topic | Type |
 |---|---|---|

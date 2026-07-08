@@ -3,8 +3,7 @@
 `sub_mission` runs selected missions as BehaviorTree.CPP XML. Packaged mission
 entrypoints live in `src/sub_mission/resources/missions/`; reusable task trees
 live in `src/sub_mission/resources/trees/`. C++ nodes implement reusable
-movement primitives and blackbox placeholders for features that do not have a
-current ROS API yet.
+movement primitives and typed interfaces for mission-specific features.
 
 ## Mission Selection
 
@@ -15,8 +14,13 @@ path. The `role` ROS parameter selects the vision model family and must be
 
 ```bash
 ros2 launch sub_bringup sim_launch.py mission:=pool_a
-ros2 run sub_mission mission --ros-args -p mission:=pid_tuning -p role:=SEARCH
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=pid_tuning -p role:=SEARCH
 ```
+
+The launch files put `sub_mission` in the `robot_name` namespace automatically
+(`/marlin_v2` by default). If you start `mission` manually with `ros2 run`, pass
+the same namespace yourself. Otherwise it publishes root-level topics such as
+`/pos_setpoint`, while `sub_control` listens on `/marlin_v2/pos_setpoint`.
 
 The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`,
 `pool_d`, `prelim`, `pool_test`, `vision_test`, and `pid_tuning`.
@@ -24,6 +28,42 @@ The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`,
 Vision BT XML uses logical task names such as `task="gate"`. At runtime,
 `sub_mission` maps those to role-specific sub_vision model names:
 `gate_survey` for `SURVEY`, `gate_search` for `SEARCH`.
+
+## Restart Supervisor
+
+`sub_mission/restart` is a small supervisor for competition runs. It does not
+execute the behavior tree itself. Instead, it waits until the low-level board is
+alive, spawns `sub_mission/mission` in a child process, and kills that child
+when the sub is killed. When the kill switch is released again, `restart` starts
+a fresh mission process from the beginning.
+
+Run it with the same mission parameters as `mission`:
+
+```bash
+ros2 run sub_mission restart --ros-args -r __ns:=/marlin_v2 -p mission:=pool_a -p role:=SURVEY
+```
+
+When `restart` is namespaced, it forwards that namespace along with `mission`
+and `role` to each spawned mission process:
+
+```bash
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=<value> -p role:=<value>
+```
+
+Use `restart` when you want diver-controlled full-run reset behavior: kill the
+sub, place it back at the start, release the kill switch, and the mission starts
+again from step one. Use `mission` directly for bench tests, one-off XML smoke
+tests, or debugging where automatic restart would hide the original failure.
+
+Current limitations:
+
+| Behavior | Detail |
+|---|---|
+| Restart granularity | Restarts the whole selected mission, not the current subtree |
+| State persistence | Blackboard values come from XML parameters/scripts each run; runtime BT state is discarded |
+| Stop behavior | Sends `SIGINT` to the spawned mission process group, waits for it to exit, then escalates to `SIGTERM`/`SIGKILL` if needed |
+| Parameter forwarding | Only `mission` and `role` are forwarded by `restart.cpp` today |
+| Namespace | Manual `ros2 run` commands must use the same namespace as the rest of the stack, normally `/marlin_v2` |
 
 ## Behavior Tree XML
 
@@ -48,7 +88,9 @@ Movement-related XML nodes currently implemented in C++:
 | `SweepCheck` | Sweep the old yaw pattern and align to the first valid front-camera detection |
 | `ForwardSweepAlign` | Load a vision model, sweep yaw, move forward between sweeps, and align to the first valid detection |
 | `ForwardAlign` | Move forward while continuously yaw/depth-aligning to a front-camera detection |
-| `SurfaceAtOctagon`, `SurfaceAndKill` | Surface and stop commanded motion |
+| `OrientToDetectionAtDist` | Use vision orientation metadata to square up to an object while holding distance |
+| `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection with x/y position offsets |
+| `DownAlignToDetection` | Center a down-camera detection, optionally hold distance/depth, and yaw to orientation metadata |
 
 Built-in BehaviorTree.CPP nodes such as `Sleep`, `Repeat`, `Fallback`,
 `Sequence`, `Inverter`, and decorators must not be registered in the
@@ -95,32 +137,16 @@ a later position/attitude hold when the sequence needs a completion condition.
 `Spin` is a special case: it commands angular velocity, integrates measured yaw
 rate from `control/error`, then publishes an attitude hold at the final yaw.
 
-## Blackbox Actions
+## Action Boundaries
 
-Blackbox actions are placeholders for behavior that needs an API that is not
-available in the current codebase, or behavior intentionally deferred from this
-migration.
-
-Examples:
-
-| Area | Why it remains blackboxed |
-|---|---|
-| Task-specific search strategy | Generic vision load/wait/align nodes exist, but higher-level search tactics are still placeholders |
-| Grabber/dropper/torpedo actions | These require driver/service integration rather than direct serial writes |
-| Exact abort/power-off behavior | The old mission sent raw `p 0` through `control_write`; the current stack has no mission-safe raw write API |
-| Resetting yaw origin | The old code used raw `x` write semantics; the current controller captures origin on kill-switch release |
-
-When replacing a blackbox, prefer a typed ROS topic, service, action, or
-parameter API. Do not reintroduce direct serial/raw board writes in mission.
+The packaged trees contain no blackboxed actions. Mission sequencing and
+recovery logic belong in XML, while reusable movement, vision, and actuator
+mechanics belong in C++. Hardware commands must use typed ROS topics, services,
+or actions; do not introduce logging-only placeholders or direct serial writes.
 
 ## Abort Behavior
 
-Old `AbortMission` came from the failure branch of `coin_flip()`: when the gate
-could not be found, the old mission sent `p 0` through `control_write` to set
-power to zero.
-
-That exact behavior cannot be reproduced until the current stack exposes a
-supported mission-level power-disable or abort API. A partial replacement can
-publish zero velocity commands and return `FAILURE` to stop the tree. If
-controller-level power disable is desired, implement it explicitly through a
-supported `sub_control` parameter or service rather than a raw board command.
+Coin flip does not need a separate abort leaf. If all three gate-search attempts
+fail, `CoinFlipMission` returns `FAILURE` naturally. `CompetitionRun`
+intentionally does not wrap `CoinFlipMission` in `ForceSuccess`, so that failure
+stops the full run. Mission code does not send raw serial power commands.

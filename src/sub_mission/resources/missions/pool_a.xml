@@ -13,18 +13,16 @@
     torp_search_yaw     heading to face while searching the torp board (rad)
     octagon_search_yaw  heading to face while searching the octagon     (rad)
 
-  Mission-wide strategy (same for every pool):
-    target_animal       gate side choice, re-scored at bins + torpedoes.
-                        1 = sawfish, 0 = reef shark. Read as {@target_animal}
-                        by gate/bins/torp so the choice is made once here.
+  Mission-wide role selection comes from the sub_mission `role` ROS parameter:
+    SURVEY or SEARCH. Vision tasks load role-specific models such as
+    gate_survey or gate_search.
 -->
 <root BTCPP_format="4" main_tree_to_execute="CompetitionPoolA">
   <BehaviorTree ID="CompetitionPoolA">
     <Sequence name="pool_a">
       <Script code="@gate_exit_yaw := -0.34906585;
                     @torp_search_yaw := 2.35619449;
-                    @octagon_search_yaw := 0.61086524;
-                    @target_animal := 1"/>
+                    @octagon_search_yaw := 0.61086524"/>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
   </BehaviorTree>
