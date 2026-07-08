@@ -3,28 +3,38 @@
 Behavior-tree mission executive. A mission is selected with a single ROS
 parameter, `mission`, that names a **BehaviorTree.CPP v4 XML file** — the same
 format Groot2 edits and Nav2 uses for its behaviors. This replaces the old
-pile of boolean parameters (`POOL_A`, `POOL_B`, `GATE`, `BUOY`, ...).
+pile of boolean task-selection parameters.
 
 ## Running
 
 ```sh
 # By name -> resources/missions/<name>.xml from the installed share directory
-ros2 run sub_mission mission --ros-args -p mission:=pool_a
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=pool_a
 
 # Or with an explicit path (useful while iterating without rebuilding)
-ros2 run sub_mission mission --ros-args -p mission:=/path/to/my_mission.xml
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=/path/to/my_mission.xml
 ```
+
+Use the same namespace as the rest of the stack when starting `mission` or
+`restart` manually. The bringup launch files use `robot_name:=marlin_v2` by
+default, so manual `ros2 run` commands normally need `-r __ns:=/marlin_v2`.
+Without it, mission commands publish to root-level topics such as
+`/pos_setpoint`, and the namespaced controller will not receive them.
 
 `restart` takes the same parameter and forwards it to each `mission` run it
 spawns. Launching without `mission` (or with a bad name) prints the available
 mission names and exits — before the node starts waiting on the kill switch.
+
+```sh
+ros2 run sub_mission restart --ros-args -r __ns:=/marlin_v2 -p mission:=pool_a
+```
 
 ## Layout
 
 ```
 resources/
   trees/       # task library, one file per element:
-               #   gate, slalom, bins, torp, octagon, coin_flip, buoy (legacy),
+               #   gate, slalom, bins, torp, octagon, coin_flip,
                #   competition (the shared 2026 run), plus test trees
   missions/    # runnable entrypoints (pool_a..pool_d, prelim, pool_test,
                #   vision_test, pid_tuning)
@@ -147,28 +157,10 @@ the bench smoke test for the whole mission↔vision path: run it next to a live
 `sub_vision` node and a camera, and it succeeds as soon as the detector sees
 the task object.
 
-## Blackbox actions
+## Action implementation
 
-The not-yet-implemented perception primitives (`PassSlalomChannel`,
-`ApproachTorpBoard`, `AlignOverBins`, ...) are **blackbox stubs**: they log a
-description and return a fixed status so a full mission tree loads and
-dry-runs in the sim before the primitive is wired up. They live in a single
-self-documenting registry, `blackbox_actions` in `src/nodes/node.cpp`, grouped
-by task.
-
-Real, closed-loop primitives (`PosSetpoint`, `AttSetpoint`, `MoveRelative`,
-`Spin`, `WaitUntilHit`, `SurfaceAtOctagon`) are full `BT::StatefulActionNode`s
-in the same file — they publish setpoints and return `RUNNING` until the goal
-is reached. To promote a blackbox:
-
-1. **Prefer XML composition.** If the behavior is "find/track/center on a
-   detection", compose the vision primitives in a tree under
-   `resources/trees/` — `AlignWithGate` was promoted this way with zero new
-   C++ — and delete the stub's row from `blackbox_actions`.
-2. Only when the behavior needs genuinely new motion/logic, write a
-   `StatefulActionNode` (`PosSetpointAction` is the template; it can publish
-   setpoints and read `node_.control_errors` / the `{@...}` blackboard),
-   `registerBuilder<YourAction>("Name", ...)` it in `registerMissionNodes()`,
-   then delete the stub's row.
-
-Whatever remains in `blackbox_actions` is, by definition, not implemented yet.
+Every custom node used by the packaged mission trees has a concrete C++
+implementation. Mission sequencing and recovery belong in XML; reusable
+movement, vision, and actuator mechanics belong in typed C++ actions. New
+hardware behavior must use a typed ROS topic, service, or action rather than a
+logging-only placeholder or raw serial write.
