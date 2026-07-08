@@ -37,18 +37,25 @@
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
-  <static name="woollett_floor" type="model">
+  <static name="woollett_pole_separator" type="model">
     <physical>
-      <mesh filename="empty.obj" scale="1.0" convex="true" />
+      <mesh filename="models/pools/woollett/parts/pole_separator.obj" scale="1.0" convex="true" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
-    <visual>
-      <mesh filename="models/pools/woollett/parts/floor.obj" scale="1.0" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </visual>
 
     <material name="concrete" />
-    <look name="woollett_white_texture" />
+    <look name="woollett_black" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_pole_separator" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/pole_separator.obj" scale="1.0" convex="true" />
+      <origin xyz="12.351 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="concrete" />
+    <look name="woollett_black" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
