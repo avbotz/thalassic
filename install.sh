@@ -31,7 +31,7 @@ sudo apt-get install -y \
   ros-"${DIST}"-desktop ros-"${DIST}"-depthai-ros-v3 \
   libglm-dev libsdl2-dev libfreetype6-dev unzip
 
-python3 -m venv .venv
+python3 -m venv .venv --system-site-packages
 source .venv/bin/activate
 python3 -m pip install torch kornia onnxruntime
 
@@ -50,7 +50,7 @@ SPIN_DIR="$TMP_ROOT/spinnaker"
 mkdir -p "$SPIN_DIR"
 
 python3 -m pip install gdown
-gdown --fuzzy "https://drive.google.com/file/d/1AQnH7Sm7h4AmqqT7L2I_35XCxWarIhic/view" -O "$SPIN_DIR/spinnaker-4.4.0.99-24.04.zip"
+gdown "https://drive.google.com/file/d/1AQnH7Sm7h4AmqqT7L2I_35XCxWarIhic/view" -O "$SPIN_DIR/spinnaker-4.4.0.99-24.04.zip"
 
 unzip -q "$SPIN_DIR/spinnaker-4.4.0.99-24.04.zip" -d "$SPIN_DIR"
 # named x64_noble but folder contains both arm and x64 packages
@@ -62,10 +62,11 @@ if [[ "$ARCH" == "arm64" ]]; then
 else
   sudo sh install_spinnaker.sh
 fi
-set +u; source setup.sh; set -u            # setup.sh references unbound vars
+
 cd "$ROS_WS_DIR"
 
-set +u; source "/opt/ros/${DIST}/setup.bash"; set -u
+set +u; source setup.sh; set -u  # references unbound variables
+
 if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
   sudo rosdep init
 fi

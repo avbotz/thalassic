@@ -41,14 +41,14 @@ constexpr double thrust_sign(PROPELLER_DIRECTION direction) {
 // Thrusters 4-7 : horizontal units (45-deg) -> surge / sway / yaw
 constexpr std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
     // x, y, z, roll, pitch, yaw, direction
-    {-0.23, -0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},             // vertical front left (0)
-    {0.23, -0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical front right (1)
-    {-0.23, 0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical back left (2)
-    {0.23, 0.22, 0.0, 0.0, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},               // vertical back right (3)
-    {-0.285, -0.315, -0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},              // horizontal front left (4)
-    {0.285, -0.315, -0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal front right (5)
-    {-0.285, 0.315, -0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal back left (6)
-    {0.285, 0.315, -0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},               // horizontal back right (7)
+    {-0.23, -0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},             // vertical front left (0)
+    {0.23, -0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical front right (1)
+    {-0.23, 0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical back left (2)
+    {0.23, 0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},               // vertical back right (3)
+    {-0.285, -0.315, -0.08 + 0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},              // horizontal front left (4)
+    {0.285, -0.315, -0.08 + 0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal front right (5)
+    {-0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal back left (6)
+    {0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},               // horizontal back right (7)
 }};
 
 constexpr auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
