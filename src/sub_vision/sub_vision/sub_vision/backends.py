@@ -355,4 +355,4 @@ def build_backend(
         )
 
     log(f"Loaded '{backend.name}' backend on device '{device}' for task '{task}'")
-    return backenda
+    return backend
