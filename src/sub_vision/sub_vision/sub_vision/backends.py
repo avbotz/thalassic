@@ -1,4 +1,5 @@
 import os
+import ast
 from abc import ABC, abstractmethod
 
 import cv2
@@ -17,9 +18,15 @@ class DetectionBackend(ABC):
 
     name = "base"
 
-    def __init__(self, input_size: int, conf_threshold: float):
+    def __init__(
+        self,
+        input_size: int,
+        conf_threshold: float,
+        class_count: int | None = None,
+    ):
         self.input_size = input_size
         self.conf_threshold = conf_threshold
+        self.class_count = class_count
 
     # Context managers ensure backend resources (like CUDA pointers) are safely freed
     def __enter__(self):
@@ -118,7 +125,8 @@ class DetectionBackend(ABC):
         if out.shape[0] < out.shape[1]:
             out = out.T
 
-        scores = out[:, 4:]
+        class_end = 4 + self.class_count if self.class_count is not None else None
+        scores = out[:, 4:class_end]
         cls_ids = scores.argmax(axis=1)
         confs = scores.max(axis=1)  # Faster than 2D array masking
 
@@ -156,7 +164,6 @@ class OnnxBackend(DetectionBackend):
     def __init__(
         self, onnx_path: str, device: str, input_size: int, conf_threshold: float
     ):
-        super().__init__(input_size, conf_threshold)
         import onnxruntime as ort
 
         providers = (
@@ -166,6 +173,11 @@ class OnnxBackend(DetectionBackend):
         )
 
         self._session = ort.InferenceSession(onnx_path, providers=providers)
+        super().__init__(
+            input_size,
+            conf_threshold,
+            class_count=self._class_count_from_metadata(self._session),
+        )
         self._input_name = self._session.get_inputs()[0].name
 
         # Lock to static graph size if available
@@ -175,6 +187,21 @@ class OnnxBackend(DetectionBackend):
 
     def _run(self, blob: np.ndarray) -> np.ndarray:
         return self._session.run(None, {self._input_name: blob})[0]
+
+    @staticmethod
+    def _class_count_from_metadata(session) -> int | None:
+        names = session.get_modelmeta().custom_metadata_map.get("names")
+        if not names:
+            return None
+        try:
+            parsed = ast.literal_eval(names)
+        except (SyntaxError, ValueError):
+            return None
+        if isinstance(parsed, dict):
+            return len(parsed)
+        if isinstance(parsed, list):
+            return len(parsed)
+        return None
 
 
 class TensorRTBackend(DetectionBackend):
