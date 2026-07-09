@@ -130,7 +130,8 @@
         <compound_transform xyz="0.0 0.0 -0.227" rpy="0.0 0.0 0.0" />
       </external_part>
 
-      <external_part name="meb_front_camera_dome" type="model" physics="surface">
+      <!-- TODO: Add transparency to Stonefish -->
+      <!-- <external_part name="meb_front_camera_dome" type="model" physics="surface">
         <physical>
           <mesh filename="robots/marlin_v2/meb_front_camera_dome/meb_front_camera_dome_collision.obj" scale="1.0" convex="true" />
           <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
@@ -145,7 +146,7 @@
         <look name="white" />
 
         <compound_transform xyz="0.0 -0.348744 -0.166305" rpy="0.0 0.0 0.0" />
-      </external_part>
+      </external_part> -->
 
       <external_part name="meb_mounting_front" type="model" physics="submerged" buoyant="true">
         <physical>
@@ -615,7 +616,7 @@
     ) }}
 
     {{ thruster_actuator(
-      name="thuster_6",
+      name="thruster_6",
       link_name="base_link_ned",
       xyz="-0.285 0.315 -0.08",
       rpy="0 0 " ~ PI * 5/4,

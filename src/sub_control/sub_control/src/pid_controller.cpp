@@ -77,8 +77,8 @@ double PID_Controller::update(double measurement, double error, double dt) {
 
     const double clamped = std::clamp(raw, -output_limit_, output_limit_);
 
-    if (raw != clamped) {
-        integral_ -= raw - clamped;
+    if (raw != clamped && ki_ > 0.0) {
+        integral_ -= (raw - clamped) / ki_;
     }
 
     return clamped;

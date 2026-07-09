@@ -19,7 +19,7 @@
 using namespace std::chrono_literals;
 
 SubControl::SubControl() : Node("sub_control") {
-    this->declare_parameter("control_rate_hz", 50.0);
+    this->declare_parameter("control_rate_hz", 30.0);
     this->declare_parameter("power_limit", 0.6);
     this->declare_parameter("robot_name", "");
 
@@ -114,6 +114,10 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         velocity_setpoint_[0] = msg->setpoint.x;
         velocity_setpoint_[1] = msg->setpoint.y;
         velocity_setpoint_[2] = msg->setpoint.z;
+
+        for (auto & pid : velocity_pid_controllers_) {
+            pid.reset();
+        }
     } else {
         if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
             RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", position_setpoint_[0], position_setpoint_[1], position_setpoint_[2]);
@@ -122,6 +126,10 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         position_setpoint_[0] = msg->setpoint.x;
         position_setpoint_[1] = msg->setpoint.y;
         position_setpoint_[2] = msg->setpoint.z;
+
+        for (auto & pid : position_pid_controllers_) {
+            pid.reset();
+        }
     }
 }
 
@@ -135,6 +143,10 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         angvel_setpoint_[0] = msg->setpoint.roll;
         angvel_setpoint_[1] = msg->setpoint.pitch;
         angvel_setpoint_[2] = msg->setpoint.yaw;
+
+        for (auto & pid : angvel_pid_controllers_) {
+            pid.reset();
+        }
     } else {
         if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
             RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", attitude_setpoint_[0], attitude_setpoint_[1], attitude_setpoint_[2]);
@@ -143,6 +155,10 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         attitude_setpoint_[0] = angles::normalize_angle(msg->setpoint.roll);
         attitude_setpoint_[1] = angles::normalize_angle(msg->setpoint.pitch);
         attitude_setpoint_[2] = angles::normalize_angle(msg->setpoint.yaw);
+
+        for (auto & pid : attitude_pid_controllers_) {
+            pid.reset();
+        }
     }
 }
 
