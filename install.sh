@@ -39,7 +39,7 @@ git submodule update --init --recursive
 
 # Install Stonefish
 STONEFISH_DIR="$TMP_ROOT/stonefish"
-git clone --depth 1 --branch fixes-merged https://github.com/kethan1/stonefish "$STONEFISH_DIR"
+git clone --depth 1 --branch fixes-merged https://github.com/avbotz/stonefish "$STONEFISH_DIR"
 cmake -S "$STONEFISH_DIR" -B "$STONEFISH_DIR/build" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$STONEFISH_DIR/build" -j"$JOBS"
 sudo cmake --install "$STONEFISH_DIR/build"
