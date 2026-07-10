@@ -19,9 +19,14 @@
 using namespace std::chrono_literals;
 
 SubControl::SubControl() : Node("sub_control") {
-    this->declare_parameter("control_rate_hz", 30.0);
+    // control_rate_hz and robot_name are only used to set up the timer and
+    // frame ids at startup, so a runtime change would be silently ignored.
+    rcl_interfaces::msg::ParameterDescriptor read_only;
+    read_only.read_only = true;
+
+    this->declare_parameter("control_rate_hz", 30.0, read_only);
     this->declare_parameter("power_limit", 0.6);
-    this->declare_parameter("robot_name", "");
+    this->declare_parameter("robot_name", "", read_only);
 
     this->declare_parameter("pos_pid.x", std::vector<float>{0.8, 0.0, 0.0, 1.0});
     this->declare_parameter("pos_pid.y", std::vector<float>{0.8, 0.0, 0.0, 1.0});
@@ -80,6 +85,76 @@ SubControl::SubControl() : Node("sub_control") {
         this->create_timer(std::chrono::microseconds{static_cast<int>(1e6 / control_rate_hz_)}, [this]() { run(); });
 
     thruster_allocator_ = ThrusterAllocator();
+
+    param_cb_handle_ = this->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params) { return on_parameters_set(params); });
+}
+
+PID_Controller* SubControl::pid_for_parameter(const std::string& name) {
+    std::array<PID_Controller, 3>* bank = nullptr;
+    if (name.starts_with("pos_pid.")) {
+        bank = &position_pid_controllers_;
+    } else if (name.starts_with("vel_pid.")) {
+        bank = &velocity_pid_controllers_;
+    } else if (name.starts_with("att_pid.")) {
+        bank = &attitude_pid_controllers_;
+    } else if (name.starts_with("ang_pid.")) {
+        bank = &angvel_pid_controllers_;
+    }
+    if (bank == nullptr) {
+        return nullptr;
+    }
+
+    const std::string axis = name.substr(name.find('.') + 1);
+    if (axis == "x") {
+        return &(*bank)[0];
+    }
+    if (axis == "y") {
+        return &(*bank)[1];
+    }
+    if (axis == "z") {
+        return &(*bank)[2];
+    }
+    return nullptr;
+}
+
+rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std::vector<rclcpp::Parameter>& params) {
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+
+    for (const auto& param : params) {
+        if (param.get_name() == "power_limit") {
+            if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
+                result.successful = false;
+                result.reason = "power_limit must be a double";
+                return result;
+            }
+            if (param.as_double() < 0.0 || param.as_double() > 1.0) {
+                result.successful = false;
+                result.reason = "power_limit must be in [0, 1]";
+                return result;
+            }
+            power_limit_ = param.as_double();
+            RCLCPP_INFO(this->get_logger(), "power_limit set to %f", power_limit_);
+        } else if (PID_Controller* pid = pid_for_parameter(param.get_name())) {
+            if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY) {
+                result.successful = false;
+                result.reason = param.get_name() + " must be a double array";
+                return result;
+            }
+            const std::vector<double> gains = param.as_double_array();
+            if (gains.size() != 3 && gains.size() != 4) {
+                result.successful = false;
+                result.reason = param.get_name() + " must be [kp, ki, kd] or [kp, ki, kd, output_limit]";
+                return result;
+            }
+            pid->configure(gains);
+            RCLCPP_INFO(this->get_logger(), "%s set to [%f, %f, %f, %f]", param.get_name().c_str(), gains[0],
+                        gains[1], gains[2], gains.size() == 4 ? gains[3] : 0.0);
+        }
+    }
+
+    return result;
 }
 
 void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
