@@ -1,0 +1,55 @@
+/*
+ * Ported verbatim from Nautical-Private include/mec/estimation.h.
+ * All quantities are NED / FRD (north-east-down world, forward-right-down
+ * body), matching the MCU firmware. The ROS node converts to/from the
+ * workspace's ENU/FLU convention at its topic boundary.
+ */
+
+#ifndef _MARITIME_EC_ESTIMATION_H
+#define _MARITIME_EC_ESTIMATION_H
+
+struct mec_vehicle_position {
+	float north;
+	float east;
+	float down;
+	float altitude;
+};
+
+struct mec_vehicle_position_body {
+	float forward;
+	float right;
+	float down;
+	float altitude;
+};
+
+struct mec_vehicle_velocity {
+	float north_m_s;
+	float east_m_s;
+	float down_m_s;
+};
+
+struct mec_vehicle_velocity_body {
+	float forward_m_s;
+	float right_m_s;
+	float down_m_s;
+};
+
+struct mec_vehicle_attitude {
+	float roll;
+	float pitch;
+	float yaw;
+};
+
+struct mec_vehicle_angvel {
+	float roll_rad_s;
+	float pitch_rad_s;
+	float yaw_rad_s;
+};
+
+void mec_vehicle_position_init(struct mec_vehicle_position *pos);
+void mec_vehicle_position_update(struct mec_vehicle_velocity_body *vel,
+        float altitude,
+        struct mec_vehicle_position *pos,
+        struct mec_vehicle_attitude *att, float dt);
+
+#endif /* _MARITIME_EC_ESTIMATION_H */

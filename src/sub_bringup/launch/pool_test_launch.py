@@ -195,9 +195,28 @@ def control_and_state_entities():
         ],
     )
 
+
+    # sub_control_mcu_node = Node(
+    #     package="sub_control_mcu",
+    #     executable="sub_control_mcu",
+    #     name="sub_control_mcu",
+    #     output="both",
+    #     namespace=LaunchConfiguration("robot_name"),
+    #     parameters=[
+    #         PathJoinSubstitution(
+    #             [
+    #                 FindPackageShare("sub_control_mcu"),
+    #                 "config/control_gains_mcu.yaml",
+    #             ]
+    #         ),
+    #         {"robot_name": LaunchConfiguration("robot_name")}
+    #     ],
+    # )
+
     return [
         robot_localization_node,
         sub_control_node,
+        # sub_control_mcu_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),
         *lifecycle_startup(naviguider_imu_driver_node),
         *lifecycle_startup(sub_low_node),
