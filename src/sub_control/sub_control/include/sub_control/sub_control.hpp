@@ -6,12 +6,14 @@
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <robot_localization/srv/set_pose.hpp>
 
 #include <array>
 #include <string>
+#include <vector>
 
 class SubControl : public rclcpp::Node {
    public:
@@ -30,6 +32,9 @@ class SubControl : public rclcpp::Node {
     static constexpr size_t NUM_THRUSTERS = 8;
 
     void publish_zero_thrusters();
+
+    rcl_interfaces::msg::SetParametersResult on_parameters_set(const std::vector<rclcpp::Parameter>& params);
+    PID_Controller* pid_for_parameter(const std::string& name);
 
     double control_rate_hz_{100.0};
     double power_limit_{0.6};
@@ -76,6 +81,8 @@ class SubControl : public rclcpp::Node {
 
     rclcpp::TimerBase::SharedPtr control_timer_;
     rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};
+
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_handle_;
 
     ThrusterAllocator thruster_allocator_;
 };
