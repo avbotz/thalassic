@@ -1,0 +1,30 @@
+# Gains for sub_control_mcu in the MCU's standard PID form:
+# [kp, ti, td] with u = kp * (e + integral(e)/ti - td * de/dt), ti = 0
+# disables the integral term. These are the Nautical-Private firmware
+# defaults; the node already declares them, this file just makes them
+# easy to override per deployment.
+/**:
+  ros__parameters:
+    control_rate_hz: 10.0
+    power_limit: 0.6
+    startup_pause_s: 0.0
+
+    pos_pid:
+      x: [0.6, 0.0, 0.0]
+      y: [0.6, 0.0, 0.0]
+      z: [0.55, 0.0, 0.0]
+
+    vel_pid:
+      x: [4.0, 10.0, 0.0]
+      y: [4.0, 10.0, 0.0]
+      z: [4.0, 3.5, 0.03]
+
+    att_pid:
+      x: [1.2, 0.0, 0.0]
+      y: [1.2, 0.0, 0.0]
+      z: [1.2, 0.0, 0.05]
+
+    ang_pid:
+      x: [0.3, 0.0, 0.0]
+      y: [0.3, 0.0, 0.0]
+      z: [0.6, 30.0, 0.0]
