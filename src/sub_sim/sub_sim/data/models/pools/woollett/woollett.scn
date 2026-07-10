@@ -59,10 +59,43 @@
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
-  <static name="woollett_sides" type="model">
+  <static name="woollett_long_side_left" type="model">
     <physical>
-      <mesh filename="models/pools/woollett/parts/sides.obj" scale="1.0" convex="false" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mesh filename="models/pools/woollett/parts/long_side.obj" scale="1.0" convex="true" />
+      <origin xyz="0 -11.423 1.075" rpy="0 0 0" />
+    </physical>
+
+    <material name="concrete" />
+    <look name="woollett_white_texture" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_long_side_right" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/long_side.obj" scale="1.0" convex="true" />
+      <origin xyz="0 11.423 1.075" rpy="0 0 0" />
+    </physical>
+
+    <material name="concrete" />
+    <look name="woollett_white_texture" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_short_side_left" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/short_side.obj" scale="1.0" convex="true" />
+      <origin xyz="-25 0 1.075" rpy="0 0 0" />
+    </physical>
+
+    <material name="concrete" />
+    <look name="woollett_white_texture" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="woollett_short_side_right" type="model">
+    <physical>
+      <mesh filename="models/pools/woollett/parts/short_side.obj" scale="1.0" convex="true" />
+      <origin xyz="25 0 1.075" rpy="0 0 0" />
     </physical>
 
     <material name="concrete" />
