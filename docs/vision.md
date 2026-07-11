@@ -1,9 +1,9 @@
 # Vision Terms
 
 `sub_mission` vision nodes consume `sub_vision_interfaces/DetectionArray`
-messages from the front and down camera vision nodes. Mission XML uses logical
-task names such as `gate`; at runtime those load role-specific models such as
-`gate_survey` or `gate_search`.
+messages from the front and down camera vision nodes. Mission XML uses
+task-agnostic model names such as `gate`, and mission-to-vision load requests
+send those names unchanged.
 
 ## Detection
 
@@ -16,7 +16,7 @@ Mission nodes filter detections by:
 | Field | Meaning |
 |---|---|
 | `camera` | `front` or `down` detection stream |
-| `task` | Logical model/task name, role-mapped at runtime |
+| `task` | Task-agnostic model/task name |
 | `class_id` | Optional object class within the model |
 | `min_score` | Minimum confidence |
 

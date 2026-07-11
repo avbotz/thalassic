@@ -20,18 +20,15 @@
                          num_sweeps="3"
                          forward_step="1.0"
                          sample_timeout_msec="2500.0"
-                         move_timeout_msec="20000"
-                         load_timeout_msec="20000"/>
+                         move_timeout_msec="20000"/>
       <ForwardAlign camera="front"
                     task="slalom"
                     class_id="red"
                     max_dist="2.0"
                     forward_step="0.5"
                     close_distance="1.5"
-                    through_distance="0.0"
                     align_depth="false"
-                    timeout_msec="30000"
-                    load_timeout_msec="20000"/>
+                    timeout_msec="30000"/>
       <MoveRelative y="-1.0"/>
 
       <SubTree ID="SlalomPipePass"/>

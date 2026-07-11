@@ -13,8 +13,8 @@
  *                        the detection's bearing is within tolerance.
  *
  * ForwardSweepAlign preserves the old mission's forwardSweepCheck behavior as
- * one C++ BT node: it loads the model, sweeps yaw, samples detections, moves
- * forward between sweeps, and waits for control convergence internally.
+ * one C++ BT node: it sweeps yaw, samples detections, moves forward between
+ * sweeps, and waits for control convergence internally.
  */
 
 #include "sub_mission/nodes/vision.hpp"
@@ -444,7 +444,6 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<double>("forward_step", 2.0, "Forward move between sweeps in meters"));
         ports.insert(BT::InputPort<double>("sample_timeout_msec", 2500.0, "Maximum detection sample time per yaw"));
         ports.insert(BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each commanded movement"));
-        ports.insert(BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model"));
         return ports;
     }
 
@@ -455,7 +454,6 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
         getInput("forward_step", forward_step_);
         getInput("sample_timeout_msec", sample_timeout_msec_);
         getInput("move_timeout_msec", move_timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "ForwardSweepAlign needs a task port, e.g. <ForwardSweepAlign task=\"gate\"/>.");
@@ -466,33 +464,24 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
 
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "ForwardSweepAlign: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
-        phase_ = Phase::LOAD_MODEL;
+        phase_ = Phase::YAW_MOVE;
         sweep_index_ = 0;
         angle_index_ = 0;
         detection_count_ = 0;
         detection_sum_ = 0.0;
         last_processed_ = SteadyClock::now();
-        deadline_ = last_processed_ + std::chrono::milliseconds(load_timeout_msec_);
-        sent_load_request_ = false;
-        return tickImpl();
+        beginYawMove();
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
     void onHalted() override {
-        dropPendingRequest();
         RCLCPP_INFO(logger_, "ForwardSweepAlign halted.");
     }
 
    private:
     enum class Phase {
-        LOAD_MODEL,
         FORWARD_MOVE,
         YAW_MOVE,
         SAMPLE_DETECTIONS,
@@ -504,13 +493,10 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
     BT::NodeStatus tickImpl() {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "ForwardSweepAlign failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
         }
 
         switch (phase_) {
-            case Phase::LOAD_MODEL:
-                return tickLoadModel();
             case Phase::FORWARD_MOVE:
                 return tickForwardMove();
             case Phase::YAW_MOVE:
@@ -521,45 +507,6 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
                 return tickFinalAlign();
         }
         return BT::NodeStatus::FAILURE;
-    }
-
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "ForwardSweepAlign: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "ForwardSweepAlign model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "ForwardSweepAlign load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            beginYawMove();
-            return BT::NodeStatus::RUNNING;
-        }
-        if (SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "ForwardSweepAlign model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
     }
 
     void beginForwardMove() {
@@ -677,14 +624,6 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
         return true;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     static constexpr std::size_t SWEEP_COUNT = 6;
 
     MissionNode &node_;
@@ -693,10 +632,7 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
-    Phase phase_ = Phase::LOAD_MODEL;
+    Phase phase_ = Phase::YAW_MOVE;
     std::array<std::uint64_t, 12> start_updates_ = {};
     SteadyClock::time_point last_processed_;
     SteadyClock::time_point deadline_;
@@ -705,12 +641,10 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
     int sweep_index_ = 0;
     std::size_t angle_index_ = 0;
     int move_timeout_msec_ = 20000;
-    int load_timeout_msec_ = 20000;
     double forward_step_ = 2.0;
     double sample_timeout_msec_ = 2500.0;
     int detection_count_ = 0;
     double detection_sum_ = 0.0;
-    bool sent_load_request_ = false;
 };
 
 class SweepCheckAction : public BT::StatefulActionNode {
@@ -729,7 +663,6 @@ class SweepCheckAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<int>("attempts", 4, "Detection frames sampled at each yaw"));
         ports.insert(BT::InputPort<double>("sample_timeout_msec", 2500.0, "Maximum detection sample time per yaw"));
         ports.insert(BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each yaw move"));
-        ports.insert(BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model"));
         return ports;
     }
 
@@ -738,7 +671,6 @@ class SweepCheckAction : public BT::StatefulActionNode {
         getInput("attempts", attempts_);
         getInput("sample_timeout_msec", sample_timeout_msec_);
         getInput("move_timeout_msec", move_timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "SweepCheck needs a task port, e.g. <SweepCheck task=\"gate\"/>.");
@@ -748,32 +680,23 @@ class SweepCheckAction : public BT::StatefulActionNode {
             RCLCPP_ERROR(logger_, "SweepCheck attempts must be positive.");
             return BT::NodeStatus::FAILURE;
         }
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "SweepCheck: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
-        phase_ = Phase::LOAD_MODEL;
+        phase_ = Phase::YAW_MOVE;
         angle_index_ = 0;
         detection_count_ = 0;
         detection_sum_ = 0.0;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
-        deadline_ = last_processed_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickImpl();
+        beginYawMove();
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
     void onHalted() override {
-        dropPendingRequest();
         RCLCPP_INFO(logger_, "SweepCheck halted.");
     }
 
    private:
     enum class Phase {
-        LOAD_MODEL,
         YAW_MOVE,
         SAMPLE_DETECTIONS,
         FINAL_ALIGN,
@@ -784,12 +707,9 @@ class SweepCheckAction : public BT::StatefulActionNode {
     BT::NodeStatus tickImpl() {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "SweepCheck failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
         }
         switch (phase_) {
-            case Phase::LOAD_MODEL:
-                return tickLoadModel();
             case Phase::YAW_MOVE:
                 return tickYawMove();
             case Phase::SAMPLE_DETECTIONS:
@@ -798,45 +718,6 @@ class SweepCheckAction : public BT::StatefulActionNode {
                 return tickFinalAlign();
         }
         return BT::NodeStatus::FAILURE;
-    }
-
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "SweepCheck: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "SweepCheck model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "SweepCheck load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            beginYawMove();
-            return BT::NodeStatus::RUNNING;
-        }
-        if (SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "SweepCheck model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
     }
 
     void beginYawMove() {
@@ -920,14 +801,6 @@ class SweepCheckAction : public BT::StatefulActionNode {
         return true;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     static constexpr std::size_t SWEEP_COUNT = 6;
 
     MissionNode &node_;
@@ -935,21 +808,16 @@ class SweepCheckAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
-    Phase phase_ = Phase::LOAD_MODEL;
+    Phase phase_ = Phase::YAW_MOVE;
     std::array<std::uint64_t, 12> start_updates_ = {};
     SteadyClock::time_point last_processed_;
     SteadyClock::time_point deadline_;
     int attempts_ = 4;
     std::size_t angle_index_ = 0;
     int move_timeout_msec_ = 20000;
-    int load_timeout_msec_ = 20000;
     double sample_timeout_msec_ = 2500.0;
     int detection_count_ = 0;
     double detection_sum_ = 0.0;
-    bool sent_load_request_ = false;
 };
 
 class SweepAngleAction : public BT::StatefulActionNode {
@@ -968,7 +836,6 @@ class SweepAngleAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<int>("attempts", 4, "Detection frames sampled at each yaw"));
         ports.insert(BT::InputPort<double>("sample_timeout_msec", 2500.0, "Maximum detection sample time per yaw"));
         ports.insert(BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each yaw move"));
-        ports.insert(BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model"));
         ports.insert(BT::OutputPort<double>("yaw", "Absolute mission yaw toward the detected object"));
         return ports;
     }
@@ -978,7 +845,6 @@ class SweepAngleAction : public BT::StatefulActionNode {
         getInput("attempts", attempts_);
         getInput("sample_timeout_msec", sample_timeout_msec_);
         getInput("move_timeout_msec", move_timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "SweepAngle needs a task port, e.g. <SweepAngle task=\"slalom\"/>.");
@@ -988,32 +854,23 @@ class SweepAngleAction : public BT::StatefulActionNode {
             RCLCPP_ERROR(logger_, "SweepAngle attempts must be positive.");
             return BT::NodeStatus::FAILURE;
         }
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "SweepAngle: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
-        phase_ = Phase::LOAD_MODEL;
+        phase_ = Phase::YAW_MOVE;
         angle_index_ = 0;
         detection_count_ = 0;
         detection_sum_ = 0.0;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
-        deadline_ = last_processed_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickImpl();
+        beginYawMove();
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
     void onHalted() override {
-        dropPendingRequest();
         RCLCPP_INFO(logger_, "SweepAngle halted.");
     }
 
    private:
     enum class Phase {
-        LOAD_MODEL,
         YAW_MOVE,
         SAMPLE_DETECTIONS,
     };
@@ -1021,57 +878,15 @@ class SweepAngleAction : public BT::StatefulActionNode {
     BT::NodeStatus tickImpl() {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "SweepAngle failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
         }
         switch (phase_) {
-            case Phase::LOAD_MODEL:
-                return tickLoadModel();
             case Phase::YAW_MOVE:
                 return tickYawMove();
             case Phase::SAMPLE_DETECTIONS:
                 return tickSampleDetections();
         }
         return BT::NodeStatus::FAILURE;
-    }
-
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "SweepAngle: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "SweepAngle model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "SweepAngle load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            beginYawMove();
-            return BT::NodeStatus::RUNNING;
-        }
-        if (SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "SweepAngle model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
     }
 
     void beginYawMove() {
@@ -1140,14 +955,6 @@ class SweepAngleAction : public BT::StatefulActionNode {
         return true;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     static constexpr std::size_t SWEEP_COUNT = 6;
 
     MissionNode &node_;
@@ -1155,21 +962,16 @@ class SweepAngleAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
-    Phase phase_ = Phase::LOAD_MODEL;
+    Phase phase_ = Phase::YAW_MOVE;
     std::array<std::uint64_t, 12> start_updates_ = {};
     SteadyClock::time_point last_processed_;
     SteadyClock::time_point deadline_;
     int attempts_ = 4;
     std::size_t angle_index_ = 0;
     int move_timeout_msec_ = 20000;
-    int load_timeout_msec_ = 20000;
     double sample_timeout_msec_ = 2500.0;
     int detection_count_ = 0;
     double detection_sum_ = 0.0;
-    bool sent_load_request_ = false;
 };
 
 class ForwardAlignAction : public BT::StatefulActionNode {
@@ -1189,13 +991,11 @@ class ForwardAlignAction : public BT::StatefulActionNode {
         BT::PortsList ports = DetectionFilter::ports();
         ports.insert(BT::InputPort<double>("max_dist", 10.0, "Maximum forward travel before SUCCESS"));
         ports.insert(BT::InputPort<double>("forward_step", 2.0, "Forward target extension per update in meters"));
-        ports.insert(BT::InputPort<double>("close_distance", 3.0, "Distance that triggers final pass-through target"));
-        ports.insert(BT::InputPort<double>("through_distance", 1.5, "Extra travel after the detected object"));
+        ports.insert(BT::InputPort<double>("close_distance", 3.0, "Distance that completes the approach"));
         ports.insert(BT::InputPort<double>("depth_offset", 0.25, "Extra depth added when tracking a gate-like target"));
         ports.insert(BT::InputPort<bool>("align_depth", true, "Adjust depth from vertical bearing and distance"));
         ports.insert(BT::InputPort<int>("update_msec", 300, "Minimum time between forward target updates"));
         ports.insert(BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS"));
-        ports.insert(BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model"));
         return ports;
     }
 
@@ -1204,12 +1004,10 @@ class ForwardAlignAction : public BT::StatefulActionNode {
         getInput("max_dist", max_dist_);
         getInput("forward_step", forward_step_);
         getInput("close_distance", close_distance_);
-        getInput("through_distance", through_distance_);
         getInput("depth_offset", depth_offset_);
         getInput("align_depth", align_depth_);
         getInput("update_msec", update_msec_);
         getInput("timeout_msec", timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "ForwardAlign needs a task port, e.g. <ForwardAlign task=\"gate\"/>.");
@@ -1220,86 +1018,25 @@ class ForwardAlignAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
 
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "ForwardAlign: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
         initial_pos_ = actualPosition();
-        final_move_ = false;
-        final_sent_ = false;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
         last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
         started_at_ = last_processed_;
-        deadline_ = started_at_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickLoadModel();
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "ForwardAlign failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
-        }
-        if (!sent_load_request_ || future_.valid()) {
-            return tickLoadModel();
-        }
-        if (final_move_) {
-            return tickFinalMove();
         }
         return tickActive();
     }
 
-    void onHalted() override {
-        dropPendingRequest();
-        RCLCPP_INFO(logger_, "ForwardAlign halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "ForwardAlign halted."); }
 
    private:
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "ForwardAlign: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "ForwardAlign model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "ForwardAlign load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            started_at_ = SteadyClock::now();
-            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
-            RCLCPP_INFO(logger_, "ForwardAlign: model ready, moving while aligned to %s.", filter_.describe().c_str());
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "ForwardAlign model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
-    }
-
     BT::NodeStatus tickActive() {
         const std::array<double, 3> actual_pos = actualPosition();
         if (horizontalDistance(initial_pos_, actual_pos) >= max_dist_) {
@@ -1316,8 +1053,8 @@ class ForwardAlignAction : public BT::StatefulActionNode {
             last_processed_ = match.received_at;
             steerFromDetection(*match.detection);
             if (validDistance(match.detection->distance_m) && match.detection->distance_m <= close_distance_) {
-                beginFinalMove(match.detection->distance_m + through_distance_);
-                return BT::NodeStatus::RUNNING;
+                RCLCPP_INFO(logger_, "ForwardAlign: close target detected at %.2fm.", match.detection->distance_m);
+                return BT::NodeStatus::SUCCESS;
             }
         }
 
@@ -1337,30 +1074,6 @@ class ForwardAlignAction : public BT::StatefulActionNode {
             const double z_offset = std::sin(detection.bearing_vertical) * detection.distance_m;
             node_.commanded_pos[2] = actual_z + z_offset + depth_offset_;
         }
-    }
-
-    void beginFinalMove(const double distance) {
-        commandForward(distance);
-        final_move_ = true;
-        final_sent_ = true;
-        start_updates_ = node_.control_error_updates;
-        final_deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec_);
-        RCLCPP_INFO(logger_, "ForwardAlign: close target detected, final pass-through %.2fm.", distance);
-    }
-
-    BT::NodeStatus tickFinalMove() {
-        if (!final_sent_) {
-            return BT::NodeStatus::FAILURE;
-        }
-        if (freshAndWithinTolerance(0, POSITION_TOLERANCE) && freshAndWithinTolerance(1, POSITION_TOLERANCE)) {
-            RCLCPP_INFO(logger_, "ForwardAlign: final pass-through reached.");
-            return BT::NodeStatus::SUCCESS;
-        }
-        if (SteadyClock::now() >= final_deadline_) {
-            RCLCPP_WARN(logger_, "ForwardAlign: final pass-through timed out.");
-            return BT::NodeStatus::SUCCESS;
-        }
-        return BT::NodeStatus::RUNNING;
     }
 
     void commandForward(const double distance) {
@@ -1383,47 +1096,24 @@ class ForwardAlignAction : public BT::StatefulActionNode {
         return std::hypot(a[0] - b[0], a[1] - b[1]);
     }
 
-    bool freshAndWithinTolerance(const std::size_t index, const double tolerance) const {
-        return node_.control_error_updates[index] > start_updates_[index] &&
-               std::fabs(node_.control_errors[index]) <= tolerance;
-    }
-
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
     QuaternionCmdPublisher::SharedPtr attitude_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
     std::array<double, 3> initial_pos_ = {};
-    std::array<std::uint64_t, 12> start_updates_ = {};
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
-    SteadyClock::time_point final_deadline_;
     SteadyClock::time_point last_processed_;
     SteadyClock::time_point last_commanded_;
     double max_dist_ = 10.0;
     double forward_step_ = 2.0;
     double close_distance_ = 3.0;
-    double through_distance_ = 1.5;
     double depth_offset_ = 0.25;
     bool align_depth_ = true;
     int update_msec_ = 300;
     int timeout_msec_ = 30000;
-    int load_timeout_msec_ = 20000;
-    bool sent_load_request_ = false;
-    bool final_move_ = false;
-    bool final_sent_ = false;
 };
 
 class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
@@ -1448,7 +1138,6 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<int>("min_msec", 6500, "Minimum closed-loop alignment time"));
         ports.insert(BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before FAILURE"));
         ports.insert(BT::InputPort<int>("update_msec", 300, "Minimum time between movement corrections"));
-        ports.insert(BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model"));
         return ports;
     }
 
@@ -1461,7 +1150,6 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         getInput("min_msec", min_msec_);
         getInput("timeout_msec", timeout_msec_);
         getInput("update_msec", update_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_,
@@ -1473,82 +1161,24 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
 
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "OrientToDetectionAtDist: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
-        model_ready_ = false;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
         last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
         started_at_ = last_processed_;
-        deadline_ = started_at_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickLoadModel();
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "OrientToDetectionAtDist failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
-        }
-        if (!model_ready_) {
-            return tickLoadModel();
         }
         return tickActive();
     }
 
-    void onHalted() override {
-        dropPendingRequest();
-        RCLCPP_INFO(logger_, "OrientToDetectionAtDist halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "OrientToDetectionAtDist halted."); }
 
    private:
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "OrientToDetectionAtDist: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "OrientToDetectionAtDist model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            future_ = {};
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "OrientToDetectionAtDist load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            started_at_ = SteadyClock::now();
-            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
-            model_ready_ = true;
-            RCLCPP_INFO(logger_, "OrientToDetectionAtDist: model ready, orienting to %s.", filter_.describe().c_str());
-        }
-
-        if (!model_ready_ && SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "OrientToDetectionAtDist model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
-    }
-
     BT::NodeStatus tickActive() {
         if (SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "OrientToDetectionAtDist timed out: %s.", filter_.describe().c_str());
@@ -1599,23 +1229,12 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         return BT::NodeStatus::RUNNING;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
     QuaternionCmdPublisher::SharedPtr attitude_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
     SteadyClock::time_point last_processed_;
@@ -1627,9 +1246,6 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     int min_msec_ = 6500;
     int timeout_msec_ = 30000;
     int update_msec_ = 300;
-    int load_timeout_msec_ = 20000;
-    bool sent_load_request_ = false;
-    bool model_ready_ = false;
 };
 
 class DownForwardAlignAction : public BT::StatefulActionNode {
@@ -1645,7 +1261,7 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
           sweep_when_missing_(sweep_when_missing) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<std::string>("task", "", "Task model to load and align to"),
+        return {BT::InputPort<std::string>("task", "", "Only accept detections from this task"),
                 BT::InputPort<std::string>("class_id", "", "Only accept this class id (empty = any)"),
                 BT::InputPort<double>("min_score", 0.0, "Minimum detection confidence"),
                 BT::InputPort<double>("max_dist", 10.0, "Maximum forward travel before SUCCESS"),
@@ -1655,8 +1271,7 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("lateral_sweep_step", 1.0,
                                       "Right/left search step when no down-camera detection is visible"),
                 BT::InputPort<int>("update_msec", 300, "Minimum time between movement corrections"),
-                BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS"),
-                BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model")};
+                BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS")};
     }
 
     BT::NodeStatus onStart() override {
@@ -1671,7 +1286,6 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         getInput("lateral_sweep_step", lateral_sweep_step_);
         getInput("update_msec", update_msec_);
         getInput("timeout_msec", timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "DownForwardAlign needs a task port, e.g. <DownForwardAlign task=\"bins\"/>.");
@@ -1685,85 +1299,26 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
 
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "DownForwardAlign: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
         initial_pos_ = actualPosition(node_);
-        model_ready_ = false;
         sweep_direction_ = 1.0;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
         last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
         started_at_ = last_processed_;
-        deadline_ = started_at_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickLoadModel();
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "DownForwardAlign failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
-        }
-        if (!model_ready_) {
-            return tickLoadModel();
         }
         return tickActive();
     }
 
-    void onHalted() override {
-        dropPendingRequest();
-        RCLCPP_INFO(logger_, "DownForwardAlign halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "DownForwardAlign halted."); }
 
    private:
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "DownForwardAlign: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "DownForwardAlign model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            future_ = {};
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "DownForwardAlign load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            started_at_ = SteadyClock::now();
-            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
-            model_ready_ = true;
-            RCLCPP_INFO(logger_, "DownForwardAlign: model ready, moving while centered on %s.",
-                        filter_.describe().c_str());
-        }
-
-        if (!model_ready_ && SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "DownForwardAlign model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
-    }
-
     BT::NodeStatus tickActive() {
         const std::array<double, 3> pos = actualPosition(node_);
         if (std::hypot(pos[0] - initial_pos_[0], pos[1] - initial_pos_[1]) >= max_dist_) {
@@ -1801,22 +1356,11 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         return BT::NodeStatus::RUNNING;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
     std::array<double, 3> initial_pos_ = {};
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
@@ -1830,9 +1374,6 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
     double sweep_direction_ = 1.0;
     int update_msec_ = 300;
     int timeout_msec_ = 30000;
-    int load_timeout_msec_ = 20000;
-    bool sent_load_request_ = false;
-    bool model_ready_ = false;
     bool sweep_when_missing_ = false;
 };
 
@@ -1850,7 +1391,7 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<std::string>("task", "", "Task model to load and align to with the down camera"),
+        return {BT::InputPort<std::string>("task", "", "Only accept down-camera detections from this task"),
                 BT::InputPort<std::string>("class_id", "", "Only accept this class id (empty = any)"),
                 BT::InputPort<double>("min_score", 0.0, "Minimum detection confidence"),
                 BT::InputPort<double>("tolerance", 0.35, "Centered when both bearings are within tolerance (rad)"),
@@ -1863,8 +1404,7 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("orient_tolerance_deg", 5.0, "Orientation error allowed at completion"),
                 BT::InputPort<int>("min_msec", 3000, "Minimum closed-loop alignment time"),
                 BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before FAILURE"),
-                BT::InputPort<int>("update_msec", 200, "Minimum time between movement corrections"),
-                BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model")};
+                BT::InputPort<int>("update_msec", 200, "Minimum time between movement corrections")};
     }
 
     BT::NodeStatus onStart() override {
@@ -1882,7 +1422,6 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         getInput("min_msec", min_msec_);
         getInput("timeout_msec", timeout_msec_);
         getInput("update_msec", update_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "DownAlignToDetection needs a task port, e.g. <DownAlignToDetection task=\"bin\"/>.");
@@ -1894,82 +1433,24 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
 
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "DownAlignToDetection: unknown camera '%s'.", filter_.camera.c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-
-        model_ready_ = false;
-        sent_load_request_ = false;
         last_processed_ = SteadyClock::now();
         last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
         started_at_ = last_processed_;
-        deadline_ = started_at_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickLoadModel();
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "DownAlignToDetection failed because kill switch is engaged.");
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
-        }
-        if (!model_ready_) {
-            return tickLoadModel();
         }
         return tickActive();
     }
 
-    void onHalted() override {
-        dropPendingRequest();
-        RCLCPP_INFO(logger_, "DownAlignToDetection halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "DownAlignToDetection halted."); }
 
    private:
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "DownAlignToDetection: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "DownAlignToDetection model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            future_ = {};
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "DownAlignToDetection load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            started_at_ = SteadyClock::now();
-            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
-            model_ready_ = true;
-            RCLCPP_INFO(logger_, "DownAlignToDetection: model ready, aligning to %s.", filter_.describe().c_str());
-        }
-
-        if (!model_ready_ && SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "DownAlignToDetection model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
-    }
-
     BT::NodeStatus tickActive() {
         if (SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "DownAlignToDetection timed out: %s.", filter_.describe().c_str());
@@ -2019,23 +1500,12 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         return BT::NodeStatus::RUNNING;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
     QuaternionCmdPublisher::SharedPtr attitude_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
     SteadyClock::time_point last_processed_;
@@ -2049,10 +1519,7 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
     int min_msec_ = 3000;
     int timeout_msec_ = 30000;
     int update_msec_ = 200;
-    int load_timeout_msec_ = 20000;
     bool orient_ = true;
-    bool sent_load_request_ = false;
-    bool model_ready_ = false;
 };
 
 class DownPatternScanAction : public BT::StatefulActionNode {
@@ -2072,8 +1539,7 @@ class DownPatternScanAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("min_score", 0.0, "Minimum detection confidence"),
                 BT::InputPort<double>("movement_dist", 1.65, "Search-pattern movement distance in meters"),
                 BT::InputPort<int>("sample_timeout_msec", 2500, "Maximum detection sample time at each point"),
-                BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each pattern move"),
-                BT::InputPort<int>("load_timeout_msec", 20000, "Maximum wait for load_model")};
+                BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each pattern move")};
     }
 
     BT::NodeStatus onStart() override {
@@ -2084,40 +1550,29 @@ class DownPatternScanAction : public BT::StatefulActionNode {
         getInput("movement_dist", movement_dist_);
         getInput("sample_timeout_msec", sample_timeout_msec_);
         getInput("move_timeout_msec", move_timeout_msec_);
-        getInput("load_timeout_msec", load_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "DownPatternScan needs a task port, e.g. <DownPatternScan task=\"bin\"/>.");
             return BT::NodeStatus::FAILURE;
         }
-        if (movement_dist_ <= 0.0 || sample_timeout_msec_ <= 0 || move_timeout_msec_ <= 0 || load_timeout_msec_ <= 0) {
+        if (movement_dist_ <= 0.0 || sample_timeout_msec_ <= 0 || move_timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_, "DownPatternScan movement_dist and timeouts must be positive.");
-            return BT::NodeStatus::FAILURE;
-        }
-        client_ = node_.vision().loadModelClient(filter_.camera);
-        if (!client_) {
-            RCLCPP_ERROR(logger_, "DownPatternScan: unknown camera '%s'.", filter_.camera.c_str());
             return BT::NodeStatus::FAILURE;
         }
 
         initial_pos_ = actualPosition(node_);
         initial_yaw_ = actualYaw(node_);
         pattern_index_ = 0;
-        sent_load_request_ = false;
-        model_ready_ = false;
         returning_home_ = false;
         last_processed_ = SteadyClock::now();
-        deadline_ = last_processed_ + std::chrono::milliseconds(load_timeout_msec_);
-        return tickLoadModel();
+        phase_ = Phase::SAMPLE;
+        deadline_ = last_processed_ + std::chrono::milliseconds(sample_timeout_msec_);
+        return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
-            dropPendingRequest();
             return BT::NodeStatus::FAILURE;
-        }
-        if (!model_ready_) {
-            return tickLoadModel();
         }
         if (phase_ == Phase::MOVE) {
             return tickMove();
@@ -2125,10 +1580,7 @@ class DownPatternScanAction : public BT::StatefulActionNode {
         return tickSample();
     }
 
-    void onHalted() override {
-        dropPendingRequest();
-        RCLCPP_INFO(logger_, "DownPatternScan halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "DownPatternScan halted."); }
 
    private:
     enum class Phase {
@@ -2139,49 +1591,6 @@ class DownPatternScanAction : public BT::StatefulActionNode {
     static constexpr std::array<std::array<double, 2>, 6> PATTERN = {
         std::array<double, 2>{0.0, 0.0}, std::array<double, 2>{-1.0, 1.0}, std::array<double, 2>{0.0, -2.0},
         std::array<double, 2>{2.0, 0.0}, std::array<double, 2>{0.0, 2.0},  std::array<double, 2>{-1.0, -1.0}};
-
-    BT::NodeStatus tickLoadModel() {
-        if (!sent_load_request_) {
-            if (client_->service_is_ready()) {
-                auto request = std::make_shared<LoadModel::Request>();
-                request->task = node_.visionModelTask(filter_.task);
-                auto future_and_id = client_->async_send_request(request);
-                request_id_ = future_and_id.request_id;
-                future_ = future_and_id.future.share();
-                sent_load_request_ = true;
-                RCLCPP_INFO(logger_, "DownPatternScan: requested model '%s' for %s.", request->task.c_str(),
-                            filter_.describe().c_str());
-            } else if (SteadyClock::now() >= deadline_) {
-                RCLCPP_ERROR(logger_, "DownPatternScan model '%s' for %s: vision service unavailable.",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-
-        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            const auto response = future_.get();
-            future_ = {};
-            if (!response->success) {
-                RCLCPP_ERROR(logger_, "DownPatternScan load_model '%s' for %s failed: %s",
-                             node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str(),
-                             response->message.c_str());
-                return BT::NodeStatus::FAILURE;
-            }
-            model_ready_ = true;
-            phase_ = Phase::SAMPLE;
-            deadline_ = SteadyClock::now() + std::chrono::milliseconds(sample_timeout_msec_);
-            RCLCPP_INFO(logger_, "DownPatternScan: model ready, searching for %s.", filter_.describe().c_str());
-        }
-
-        if (!model_ready_ && SteadyClock::now() >= deadline_) {
-            RCLCPP_ERROR(logger_, "DownPatternScan model '%s' for %s timed out waiting for load_model.",
-                         node_.visionModelTask(filter_.task).c_str(), filter_.describe().c_str());
-            dropPendingRequest();
-            return BT::NodeStatus::FAILURE;
-        }
-        return BT::NodeStatus::RUNNING;
-    }
 
     BT::NodeStatus tickSample() {
         const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
@@ -2248,22 +1657,11 @@ class DownPatternScanAction : public BT::StatefulActionNode {
                std::fabs(node_.control_errors[index]) <= tolerance;
     }
 
-    void dropPendingRequest() {
-        if (sent_load_request_ && client_ && future_.valid() &&
-            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            client_->remove_pending_request(request_id_);
-        }
-        sent_load_request_ = false;
-    }
-
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    rclcpp::Client<LoadModel>::SharedPtr client_;
-    std::shared_future<LoadModel::Response::SharedPtr> future_;
-    std::int64_t request_id_ = 0;
     std::array<double, 3> initial_pos_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
     SteadyClock::time_point last_processed_;
@@ -2274,9 +1672,6 @@ class DownPatternScanAction : public BT::StatefulActionNode {
     double movement_dist_ = 1.65;
     int sample_timeout_msec_ = 2500;
     int move_timeout_msec_ = 20000;
-    int load_timeout_msec_ = 20000;
-    bool sent_load_request_ = false;
-    bool model_ready_ = false;
     bool returning_home_ = false;
 };
 

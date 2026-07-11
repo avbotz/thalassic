@@ -85,10 +85,7 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
 }
 
 std::string MissionNode::visionModelTask(const std::string &task) const {
-    if (task.empty()) {
-        return task;
-    }
-    return task + (this->role == "SEARCH" ? "_search" : "_survey");
+    return task;
 }
 
 bool MissionNode::visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const {
@@ -127,7 +124,6 @@ void MissionNode::activate() {
     // Wait for sub to turn on
     RCLCPP_INFO(this->get_logger(), "Wait for unkill");
     while (rclcpp::ok() && !this->subAlive()) {
-        rclcpp::spin_some(this->get_node_base_interface());
         RCLCPP_INFO(this->get_logger(), "Sub is killed, waiting...");
         std::this_thread::sleep_for(0.5s);
     }

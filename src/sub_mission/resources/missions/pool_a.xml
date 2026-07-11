@@ -14,8 +14,8 @@
     octagon_search_yaw  heading to face while searching the octagon     (rad)
 
   Mission-wide role selection comes from the sub_mission `role` ROS parameter:
-    SURVEY or SEARCH. Vision tasks load role-specific models such as
-    gate_survey or gate_search.
+    SURVEY or SEARCH. Vision load requests use task-agnostic model names such
+    as gate.
 -->
 <root BTCPP_format="4" main_tree_to_execute="CompetitionPoolA">
   <BehaviorTree ID="CompetitionPoolA">

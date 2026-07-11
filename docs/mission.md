@@ -9,8 +9,8 @@ movement primitives and typed interfaces for mission-specific features.
 
 Mission selection uses the `mission` ROS parameter. The value may be the basename
 of a packaged file under `resources/missions/` without `.xml`, or an explicit XML
-path. The `role` ROS parameter selects the vision model family and must be
-`SURVEY` or `SEARCH`; it defaults to `SURVEY`.
+path. The `role` ROS parameter must be `SURVEY` or `SEARCH`; it defaults to
+`SURVEY`.
 
 ```bash
 ros2 launch sub_bringup sim_launch.py mission:=pool_a
@@ -25,9 +25,9 @@ the same namespace yourself. Otherwise it publishes root-level topics such as
 The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`,
 `pool_d`, `prelim`, `pool_test`, `vision_test`, and `pid_tuning`.
 
-Vision BT XML uses logical task names such as `task="gate"`. At runtime,
-`sub_mission` maps those to role-specific sub_vision model names:
-`gate_survey` for `SURVEY`, `gate_search` for `SEARCH`.
+Vision BT XML uses task-agnostic model names such as `task="gate"`.
+`sub_mission` sends those names unchanged in `LoadModel` requests to
+`sub_vision`.
 
 ## Restart Supervisor
 
@@ -86,7 +86,7 @@ Movement-related XML nodes currently implemented in C++:
 | `Spin` | Angular-velocity spin until measured yaw travel reaches the target |
 | `WaitUntilHit` | Wait for velocity feedback to drop after a velocity command |
 | `SweepCheck` | Sweep the old yaw pattern and align to the first valid front-camera detection |
-| `ForwardSweepAlign` | Load a vision model, sweep yaw, move forward between sweeps, and align to the first valid detection |
+| `ForwardSweepAlign` | Sweep yaw, move forward between sweeps, and align to the first valid detection |
 | `ForwardAlign` | Move forward while continuously yaw/depth-aligning to a front-camera detection |
 | `OrientToDetectionAtDist` | Use vision orientation metadata to square up to an object while holding distance |
 | `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection with x/y position offsets |

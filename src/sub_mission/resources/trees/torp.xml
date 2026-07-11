@@ -18,7 +18,7 @@
         <AlignToDetection task="torp" tolerance="0.3" timeout_msec="10000"/>
         <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
       </Fallback>
-      <ForwardAlign task="torp" max_dist="4.0" close_distance="2.0" through_distance="0.0" align_depth="false" timeout_msec="30000"/>
+      <ForwardAlign task="torp" max_dist="4.0" close_distance="2.0" align_depth="false" timeout_msec="30000"/>
       <ForceSuccess>
         <OrientToDetectionAtDist task="torp" desired_distance="2.0" min_msec="6500" timeout_msec="30000"/>
       </ForceSuccess>

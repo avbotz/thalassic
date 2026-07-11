@@ -370,6 +370,29 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         ],
     )
 
+    sub_vision_down_node = Node(
+        package="sub_vision",
+        executable="sub_vision",
+        name="sub_vision_down",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_vision"),
+                    "config/sub_vision_down.yaml",
+                ]
+            ),
+            # Stonefish publishes the front camera as rgb8 on image_color;
+            # cv_bridge converts to bgr8 in the node, so no bridge is needed.
+            {
+                "rgb_topic": "down_camera/image_color",
+                "camera_info_topic": "down_camera/camera_info",
+                "image_transport": "raw",
+            },
+        ],
+    )
+
     sub_annotation_node = Node(
         package="sub_vision",
         executable="annotation_visualizer",
@@ -380,6 +403,7 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
 
     return [
         sub_vision_node,
+        sub_vision_down_node,
         sub_annotation_node,
         # deepseecolor_node,
     ]
