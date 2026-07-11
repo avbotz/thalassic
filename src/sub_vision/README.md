@@ -84,6 +84,11 @@ Models live in `model_dir` as exported graphs:
   the Jetson it runs on).
 * `<task>.onnx` — exported **ONNX** graph for ONNX Runtime.
 
+`sub_mission` requests role-agnostic model names. For example,
+mission XML `task="gate"` calls `LoadModel` with `task: 'gate'`. Task
+post-processors also tolerate `_survey` and `_search` suffixed task names from
+other loaders by falling back to the base task processor when one is registered.
+
 Selection, per the `backend` param:
 
 1. `auto` (default) prefers `<task>.engine` (TensorRT) and falls back to

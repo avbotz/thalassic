@@ -1,15 +1,135 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="CoinFlipMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="CoinFlipMission">
   <BehaviorTree ID="CoinFlipMission">
     <Sequence name="coin_flip_mission">
-      <PosSetpoint z="1.0"/>
-      <Fallback name="find_gate_or_abort">
-        <Sequence name="gate_found">
-          <SearchGateAfterCoinFlip/>
-          <SetYawZero/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="1.0"/>
+      <LoadModel camera="front"
+                 task="gate"
+                 timeout_msec="30000"/>
+      <Sleep msec="4000"/>
+      <Fallback name="search_gate_after_coin_flip">
+        <Sequence name="gate_at_current_heading">
+          <AttSetpoint roll="nan"
+                       pitch="nan"
+                       yaw="0.0"/>
+          <WaitForDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.0"
+                            timeout_msec="7500"/>
+          <AlignToDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.2"
+                            yaw="true"
+                            depth="false"
+                            tolerance="0.05"
+                            depth_gain="1.5"
+                            max_depth_step="0.5"
+                            timeout_msec="10000"/>
         </Sequence>
-        <AbortMission/>
+        <Sequence name="gate_after_quarter_turn">
+          <AttSetpoint roll="nan"
+                       pitch="nan"
+                       yaw="1.57079633"/>
+          <WaitForDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.0"
+                            timeout_msec="9500"/>
+          <AlignToDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.0"
+                            yaw="true"
+                            depth="false"
+                            tolerance="0.05"
+                            depth_gain="1.5"
+                            max_depth_step="0.5"
+                            timeout_msec="10000"/>
+        </Sequence>
+        <Sequence name="gate_after_half_turn">
+          <AttSetpoint roll="nan"
+                       pitch="nan"
+                       yaw="3.14159265"/>
+          <WaitForDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.0"
+                            timeout_msec="3000"/>
+          <AlignToDetection camera="front"
+                            task="gate"
+                            class_id="1"
+                            min_score="0.0"
+                            yaw="true"
+                            depth="false"
+                            tolerance="0.05"
+                            depth_gain="1.5"
+                            max_depth_step="0.5"
+                            timeout_msec="10000"/>
+        </Sequence>
       </Fallback>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AlignToDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="yaw"
+                  default="true">Steer yaw to zero the horizontal bearing</input_port>
+      <input_port name="depth"
+                  default="false">Steer depth to zero the vertical bearing</input_port>
+      <input_port name="tolerance"
+                  default="0.05">Aligned when |bearing| &lt;= tolerance (rad)</input_port>
+      <input_port name="depth_gain"
+                  default="1.5">Meters of depth change per radian of bearing</input_port>
+      <input_port name="max_depth_step"
+                  default="0.5">Depth correction clamp per frame (m)</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+    </Action>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="LoadModel">
+      <input_port name="camera"
+                  default="front">Camera whose vision node loads the model</input_port>
+      <input_port name="task">Task model to load, e.g. gate</input_port>
+      <input_port name="timeout_msec"
+                  default="20000">Maximum wait for service + load</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Down/depth position setpoint</input_port>
+    </Action>
+    <Action ID="WaitForDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="timeout_msec"
+                  default="15000">Maximum wait before returning FAILURE</input_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>

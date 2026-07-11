@@ -4,22 +4,44 @@
     <Sequence name="octagon_mission">
       <PosSetpoint z="1.5"/>
       <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
-      <SearchDhdFront/>
-      <ApproachDhdFront/>
+      <LoadModel camera="front" task="octagon" timeout_msec="30000"/>
+      <Fallback name="find_octagon_front">
+        <SweepCheck task="octagon" attempts="4"/>
+        <Sequence name="recover_octagon_front">
+          <MoveRelative x="1.0"/>
+          <ForwardSweepAlign task="octagon" attempts="4" num_sweeps="4"/>
+        </Sequence>
+      </Fallback>
+      <ForwardAlign task="octagon" max_dist="4.0" close_distance="3.0" timeout_msec="30000"/>
       <PosSetpoint z="0.5"/>
-      <PosSetpoint x="1.0" velocity="true"/>
-      <FindDhdDown/>
-      <AlignOverDhd/>
-      <SurfaceForOctagonPoints/>
-      <Sequence name="grab_and_drop_objects">
-        <GrabYellowObject/>
-        <DropYellowObject/>
-        <GrabRedObject/>
-        <DropRedObject/>
-      </Sequence>
-      <ReturnToDhdCenter/>
-      <SurfaceAtOctagon/>
+      <MoveRelative x="1.0"/>
+      <LoadModel camera="down" task="octagon" timeout_msec="30000"/>
+      <Fallback name="find_octagon_down">
+        <DownForwardSweepAlign task="octagon" max_dist="15.0" forward_step="1.0" timeout_msec="30000"/>
+        <DownPatternScan task="octagon" movement_dist="1.75"/>
+      </Fallback>
+      <DownContinuousAlign task="octagon" tolerance="0.25" desired_distance="1.0" min_msec="3000" timeout_msec="30000"/>
+      <DownContinuousAlign task="octagon" tolerance="0.25" min_msec="10000" timeout_msec="30000"/>
       <PosSetpoint z="0.0"/>
+      <Sleep msec="3000"/>
+      <PosSetpoint z="1.0"/>
+      <MoveRelative x="-1.0"/>
+      <PosSetpoint y="{@gate_home_y}"/>
+      <AddAttSetpoint yaw="1.57079633"/>
+      <LoadModel camera="front" task="gate" timeout_msec="30000"/>
+      <ForceSuccess>
+        <AlignToDetection camera="front"
+                          task="gate"
+                          class_id=""
+                          min_score="0.0"
+                          yaw="true"
+                          depth="false"
+                          tolerance="0.05"
+                          depth_gain="1.5"
+                          max_depth_step="0.5"
+                          timeout_msec="30000"/>
+      </ForceSuccess>
+      <PosSetpoint x="{@gate_home_x}"/>
     </Sequence>
   </BehaviorTree>
 </root>
