@@ -29,7 +29,7 @@ RUN apt-get update \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3-pip python3-numpy python3-opencv ros-jazzy-rtabmap-ros \
-    && python3 -m pip install --break-system-packages --no-cache-dir kornia torch \
+    && python3 -m pip install --break-system-packages --no-cache-dir kornia torch onnxruntime ultralytics \
     && rm -rf /var/lib/apt/lists/*
 
 # Install updated mesa drivers
