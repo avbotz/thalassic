@@ -1,11 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="PrelimMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="PrelimMission">
   <BehaviorTree ID="PrelimMission">
     <Sequence name="prelim_mission">
-      <PosSetpoint x="-3.0" y="-1.0"/>
-      <PosSetpoint x="3.0" y="1.0"/>
-      <PosSetpoint x="1.0" y="0.0"/>
-      <PosSetpoint x="-1.0" y="0.0"/>
+      <MoveRelative x="0.0"
+                    y="0.0"
+                    z="1.0"/>
+      <MoveRelative x="4.0"
+                    y="0.0"
+                    z="0.0"/>
+      <MoveRelative x="0.0"
+                    y="1.5"
+                    z="0.0"/>
+      <AttSetpoint roll="nan"
+                   pitch="nan"
+                   yaw="3.14159265"/>
+      <MoveRelative x="3.3"
+                    y="0.0"
+                    z="0.0"/>
+      <PosSetpoint x="0.0"
+                   y="0.0"
+                   z="1.0"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Down/depth offset in meters</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Down/depth position setpoint</input_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>
