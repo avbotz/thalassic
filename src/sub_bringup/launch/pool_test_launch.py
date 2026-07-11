@@ -24,7 +24,7 @@ def camera_entities():
         executable="camera_driver_node",
         namespace=LaunchConfiguration("robot_name"),
         output="both",
-        name="blackfly",
+        name="down_camera",
         parameters=[
             {
                 "buffer_queue_size": 1,
@@ -72,7 +72,7 @@ def camera_entities():
         package="usb_cam",
         executable="usb_cam_node_exe",
         output="log",
-        name="logitech_c922_driver",
+        name="front_camera",
         namespace=[LaunchConfiguration("robot_name"), "/front_camera"],
         parameters=[
             PathJoinSubstitution(
@@ -178,45 +178,45 @@ def control_and_state_entities():
         ],
     )
 
-    sub_control_node = Node(
-        package="sub_control",
-        executable="sub_control",
-        name="sub_control",
-        output="both",
-        namespace=LaunchConfiguration("robot_name"),
-        parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config/control_gains.yaml",
-                ]
-            ),
-            {"robot_name": LaunchConfiguration("robot_name")}
-        ],
-    )
-
-
-    # sub_control_mcu_node = Node(
-    #     package="sub_control_mcu",
-    #     executable="sub_control_mcu",
-    #     name="sub_control_mcu",
+    # sub_control_node = Node(
+    #     package="sub_control",
+    #     executable="sub_control",
+    #     name="sub_control",
     #     output="both",
     #     namespace=LaunchConfiguration("robot_name"),
     #     parameters=[
     #         PathJoinSubstitution(
     #             [
-    #                 FindPackageShare("sub_control_mcu"),
-    #                 "config/control_gains_mcu.yaml",
+    #                 FindPackageShare("sub_bringup"),
+    #                 "config/control_gains.yaml",
     #             ]
     #         ),
     #         {"robot_name": LaunchConfiguration("robot_name")}
     #     ],
     # )
 
+
+    sub_control_mcu_node = Node(
+        package="sub_control_mcu",
+        executable="sub_control_mcu",
+        name="sub_control_mcu",
+        output="both",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_control_mcu"),
+                    "config/control_gains_mcu.yaml",
+                ]
+            ),
+            {"robot_name": LaunchConfiguration("robot_name")}
+        ],
+    )
+
     return [
         robot_localization_node,
-        sub_control_node,
-        # sub_control_mcu_node,
+        # sub_control_node,
+        sub_control_mcu_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),
         *lifecycle_startup(naviguider_imu_driver_node),
         *lifecycle_startup(sub_low_node),

@@ -40,7 +40,7 @@ All topics are relative to the node namespace (e.g. `/marlin_v2`):
 
 | Launch file | Camera | Parameter override |
 | --- | --- | --- |
-| `sim_launch.py` | Stonefish `front_camera` | `rgb_topic: front_camera/image_color` (rgb8) |
+| `sim_launch.py` | Stonefish `front_camera` | `rgb_topic: front_camera/image_raw` (rgb8) |
 | `pool_test_launch.py` | Logitech C922 via `usb_cam` | `rgb_topic: front_camera/image_raw` (OAK-D driver block present but commented out) |
 
 The depth camera is **not** used: `sub_vision` subscribes to RGB only.

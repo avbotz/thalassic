@@ -538,20 +538,19 @@
       <ros_publisher topic="/marlin_v2/sim/pressure" />
     </sensor>
 
-    <sensor name="front_camera" rate="30.0" type="camera">
+    <sensor name="front_camera" rate="24.0" type="camera">
       <link name="base_link_ned" />
 
-      <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" />
+      <specs resolution_x="1920" resolution_y="1080" horizontal_fov="70.4" />
       <origin xyz="0.0 -0.42 -0.16631" rpy="{{ -PI/2 }} {{ PI }} {{ PI }}" />
       <ros_publisher topic="/marlin_v2/front_camera" />
     </sensor>
 
-
-    <sensor name="down_camera" rate="30.0" type="camera">
+    <sensor name="down_camera" rate="5.0" type="camera">
       <link name="base_link_ned" />
 
       <specs resolution_x="1440" resolution_y="1080" horizontal_fov="69.0" />
-      <origin xyz="0.0 -0.72 -0.3" rpy="{{ -PI }} {{ PI }} {{ PI }}" />
+      <origin xyz="0.078914 0.22841 0.12" rpy="{{ -PI }} {{ PI }} {{ PI }}" />
       <ros_publisher topic="/marlin_v2/down_camera" />
     </sensor>
 

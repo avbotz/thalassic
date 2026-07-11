@@ -8,6 +8,7 @@ from launch.actions import (
     OpaqueFunction,
     RegisterEventHandler,
     SetLaunchConfiguration,
+    GroupAction,
 )
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
@@ -18,6 +19,7 @@ from launch.substitutions import (
 )
 from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.actions.node import ExecuteProcess
+from launch_ros.actions.set_remap import SetRemap
 from launch_ros.descriptions import ComposableNode
 from launch_ros.substitutions import FindPackageShare
 from sub_sim.generate_robot import render_robot_scenario
@@ -88,24 +90,40 @@ def sim_entities() -> list:
 
     render = OpaqueFunction(function=_render_scn)
 
-    include_stonefish = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [
-                FindPackageShare("stonefish_ros2"),
-                "launch",
-                "stonefish_simulator.launch.py",
-            ]
-        ),
-        launch_arguments={
-            "simulation_data": PathJoinSubstitution(
-                [FindPackageShare("sub_sim"), "data"]
+    include_stonefish = GroupAction(
+        actions=[
+            SetRemap(src="/marlin_v2/front_camera/image_color", dst="/marlin_v2/front_camera/image_raw"),
+            SetRemap(src="/marlin_v2/front_camera/image_color/compressed", dst="/marlin_v2/front_camera/image_raw/compressed"),
+            SetRemap(src="/marlin_v2/front_camera/image_color/compressedDepth", dst="/marlin_v2/front_camera/image_raw/compressedDepth"),
+            SetRemap(src="/marlin_v2/front_camera/image_color/theora", dst="/marlin_v2/front_camera/image_raw/theora"),
+            SetRemap(src="/marlin_v2/front_camera/image_color/zstd", dst="/marlin_v2/front_camera/image_raw/zstd"),
+
+            SetRemap(src="/marlin_v2/down_camera/image_color", dst="/marlin_v2/down_camera/image_raw"),
+            SetRemap(src="/marlin_v2/down_camera/image_color/compressed", dst="/marlin_v2/down_camera/image_raw/compressed"),
+            SetRemap(src="/marlin_v2/down_camera/image_color/compressedDepth", dst="/marlin_v2/down_camera/image_raw/compressedDepth"),
+            SetRemap(src="/marlin_v2/down_camera/image_color/theora", dst="/marlin_v2/down_camera/image_raw/theora"),
+            SetRemap(src="/marlin_v2/down_camera/image_color/zstd", dst="/marlin_v2/down_camera/image_raw/zstd"),
+
+            IncludeLaunchDescription(
+                PathJoinSubstitution(
+                    [
+                        FindPackageShare("stonefish_ros2"),
+                        "launch",
+                        "stonefish_simulator.launch.py",
+                    ]
+                ),
+                launch_arguments={
+                    "simulation_data": PathJoinSubstitution(
+                        [FindPackageShare("sub_sim"), "data"]
+                    ),
+                    "scenario_desc": LaunchConfiguration("scenario_file"),
+                    "simulation_rate": "500.0",
+                    "window_res_x": "1900",
+                    "window_res_y": "1000",
+                    "rendering_quality": "medium",
+                }.items(),
             ),
-            "scenario_desc": LaunchConfiguration("scenario_file"),
-            "simulation_rate": "500.0",
-            "window_res_x": "1900",
-            "window_res_y": "1000",
-            "rendering_quality": "medium",
-        }.items(),
+        ]
     )
 
     def sim_component(executable, plugin, **kwargs):
@@ -360,10 +378,10 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
                     "config/sub_vision.yaml",
                 ]
             ),
-            # Stonefish publishes the front camera as rgb8 on image_color;
+            # Sim publishes the front camera as rgb8 on image_raw;
             # cv_bridge converts to bgr8 in the node, so no bridge is needed.
             {
-                "rgb_topic": "front_camera/image_color",
+                "rgb_topic": "front_camera/image_raw",
                 "camera_info_topic": "front_camera/camera_info",
                 "image_transport": "raw",
             },
@@ -383,10 +401,10 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
                     "config/sub_vision_down.yaml",
                 ]
             ),
-            # Stonefish publishes the front camera as rgb8 on image_color;
+            # Sim publishes the front camera as rgb8 on image_raw;
             # cv_bridge converts to bgr8 in the node, so no bridge is needed.
             {
-                "rgb_topic": "down_camera/image_color",
+                "rgb_topic": "down_camera/image_raw",
                 "camera_info_topic": "down_camera/camera_info",
                 "image_transport": "raw",
             },
