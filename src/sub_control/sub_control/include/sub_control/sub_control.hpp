@@ -33,6 +33,8 @@ class SubControl : public rclcpp::Node {
 
     void publish_zero_thrusters();
 
+    void reset_pid();
+
     rcl_interfaces::msg::SetParametersResult on_parameters_set(const std::vector<rclcpp::Parameter>& params);
     PID_Controller* pid_for_parameter(const std::string& name);
 

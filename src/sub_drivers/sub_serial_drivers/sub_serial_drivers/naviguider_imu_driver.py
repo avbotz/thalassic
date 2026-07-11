@@ -134,7 +134,7 @@ class NaviGuiderIMUDriver(LifecycleNode):
         if self._serial is None:
             return
         # Commands are case-sensitive and terminated by a carriage return (0x0D).
-        self._write("M1\r")  # non-verbose: emit numeric sensor IDs in the stream
+        self._write("M1\r")  # set mounting orientation
         self._write("V0\r")  # non-verbose: emit numeric sensor IDs in the stream
         self._write("J4\r")  # ENU orientation frame (ROS convention)
 
