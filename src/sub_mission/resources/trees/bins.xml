@@ -2,15 +2,34 @@
 <root BTCPP_format="4" main_tree_to_execute="BinsMission">
   <BehaviorTree ID="BinsMission">
     <Sequence name="bins_mission">
-      <FindPathMarkerForBins/>
-      <AlignAboveBinsPathMarker/>
+      <LoadModel camera="down" task="path" timeout_msec="30000"/>
+      <Fallback name="find_bins_path_marker">
+        <DownForwardSweepAlign task="path" max_dist="8.0" forward_step="2.0" timeout_msec="30000"/>
+        <DownPatternScan task="path" movement_dist="2.0"/>
+      </Fallback>
+      <DownContinuousAlign task="path" tolerance="0.4" min_msec="10000" timeout_msec="30000"/>
       <PosSetpoint z="0.5"/>
-      <PosSetpoint x="2.2" velocity="true"/>
-      <FindBins/>
-      <AlignOverBins/>
-      <!-- Center over the {@target_animal} half before dropping. -->
-      <AlignOverBinTarget/>
-      <PosSetpoint z="0.6" use_altitude="true"/>
+      <MoveRelative x="2.2"/>
+      <LoadModel camera="down" task="bin" timeout_msec="30000"/>
+      <Fallback name="find_bins">
+        <DownForwardSweepAlign task="bin" max_dist="20.0" forward_step="0.5" timeout_msec="15000"/>
+        <DownPatternScan task="bin" movement_dist="1.65"/>
+      </Fallback>
+      <DownContinuousAlign task="bin" tolerance="0.3" desired_distance="2.3" min_msec="3000" timeout_msec="30000"/>
+      <DownContinuousAlign task="bin" tolerance="0.35" min_msec="3000" timeout_msec="30000"/>
+      <!-- Center over the selected role target before dropping. -->
+      <LoadModel camera="down" task="bin" timeout_msec="30000"/>
+      <Fallback name="align_over_role_bin_target">
+        <DownContinuousAlign task="bin" tolerance="0.35" min_msec="8500" timeout_msec="30000"/>
+        <Sequence name="retry_role_bin_target_at_depth">
+          <PosSetpoint z="1.0"/>
+          <DownContinuousAlign task="bin" tolerance="0.35" min_msec="6000" timeout_msec="30000"/>
+          <PosSetpoint z="2.0"/>
+          <DownContinuousAlign task="bin" tolerance="0.35" min_msec="6000" timeout_msec="30000"/>
+        </Sequence>
+      </Fallback>
+      <AltitudeSetpoint z="0.6"/>
+      <MoveRelative x="0.178" y="0.071"/>
       <DropBalls/>
     </Sequence>
   </BehaviorTree>

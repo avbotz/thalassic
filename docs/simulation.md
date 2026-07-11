@@ -81,10 +81,10 @@ Hardcoded in `sim_launch.py`:
 
 | Task | Objects |
 |---|---|
-| Gate | gate (sawfish / shark side images) |
+| Gate | gate (SURVEY / SEARCH role variants) |
 | Slalom | slalom poles |
 | Bin | bin with images |
-| Torpedoes | board (sawfish and shark variants) |
+| Torpedoes | board (SURVEY / SEARCH role variants) |
 | Octagon | octagon, table, bottles, ladles |
 | Path | orange path markers |
 | Pools | woollett, natatorium |

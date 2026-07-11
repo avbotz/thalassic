@@ -370,8 +370,41 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         ],
     )
 
+    sub_vision_down_node = Node(
+        package="sub_vision",
+        executable="sub_vision",
+        name="sub_vision_down",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_vision"),
+                    "config/sub_vision_down.yaml",
+                ]
+            ),
+            # Stonefish publishes the front camera as rgb8 on image_color;
+            # cv_bridge converts to bgr8 in the node, so no bridge is needed.
+            {
+                "rgb_topic": "down_camera/image_color",
+                "camera_info_topic": "down_camera/camera_info",
+                "image_transport": "raw",
+            },
+        ],
+    )
+
+    sub_annotation_node = Node(
+        package="sub_vision",
+        executable="annotation_visualizer",
+        name="annotation_visualizer",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+    )
+
     return [
         sub_vision_node,
+        sub_vision_down_node,
+        sub_annotation_node,
         # deepseecolor_node,
     ]
 
@@ -387,6 +420,11 @@ def generate_launch_description():
         default_value="",
         description="Mission tree to execute (resources/missions/<name>.xml or a path); empty skips sub_mission",
     )
+    declare_role = DeclareLaunchArgument(
+        "role",
+        default_value="SURVEY",
+        description="Mission vision role: SURVEY or SEARCH",
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -401,9 +439,15 @@ def generate_launch_description():
     sub_mission_node = Node(
         package="sub_mission",
         executable="mission",
+        name="sub_mission",
         output="screen",
         namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"mission": LaunchConfiguration("mission")}],
+        parameters=[
+            {
+                "mission": LaunchConfiguration("mission"),
+                "role": LaunchConfiguration("role"),
+            }
+        ],
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
@@ -411,6 +455,7 @@ def generate_launch_description():
         [
             declare_robot_name,
             declare_mission,
+            declare_role,
             include_transforms,
             sub_mission_node,
             *sim_entities(),

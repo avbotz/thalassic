@@ -22,6 +22,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
+find_package(sub_driver_interfaces REQUIRED)
 find_package(sub_vision_interfaces REQUIRED)
 
 if(BUILD_TESTING)
@@ -37,22 +38,37 @@ endif()
 
 # add nodes
 
+set(MISSION_ACTION_SOURCES
+    src/nodes/actions/add_att_setpoint.cpp
+    src/nodes/actions/actuators.cpp
+    src/nodes/actions/altitude_setpoint.cpp
+    src/nodes/actions/angular_velocity_setpoint.cpp
+    src/nodes/actions/att_setpoint.cpp
+    src/nodes/actions/average_angles.cpp
+    src/nodes/actions/move_relative.cpp
+    src/nodes/actions/pos_setpoint.cpp
+    src/nodes/actions/save_gate_home.cpp
+    src/nodes/actions/spin.cpp
+    src/nodes/actions/velocity_setpoint.cpp
+    src/nodes/actions/wait_until_hit.cpp
+)
+
 add_executable(mission
     src/nodes/mission.cpp
     src/nodes/node.cpp
+    ${MISSION_ACTION_SOURCES}
     src/nodes/vision.cpp
     src/utils.cpp
     src/vision_client.cpp
-    src/blackbox.cpp
 )
 
 add_executable(restart
     src/nodes/restart.cpp
     src/nodes/node.cpp
+    ${MISSION_ACTION_SOURCES}
     src/nodes/vision.cpp
     src/utils.cpp
     src/vision_client.cpp
-    src/blackbox.cpp
 )
 
 foreach(node IN ITEMS mission restart)
@@ -66,6 +82,7 @@ foreach(node IN ITEMS mission restart)
         "rclcpp"
         "geometry_msgs"
         "sub_control_interfaces"
+        "sub_driver_interfaces"
         "sub_vision_interfaces"
     )
 

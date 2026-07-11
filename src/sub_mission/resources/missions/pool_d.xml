@@ -6,8 +6,7 @@
     <Sequence name="pool_d">
       <Script code="@gate_exit_yaw := -0.34906585;
                     @torp_search_yaw := 2.35619449;
-                    @octagon_search_yaw := 0.61086524;
-                    @target_animal := 1"/>
+                    @octagon_search_yaw := 0.61086524"/>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
   </BehaviorTree>

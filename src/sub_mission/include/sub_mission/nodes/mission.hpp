@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -11,22 +11,14 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
 #include "sub_mission/vision_client.hpp"
-#include "std_msgs/msg/bool.hpp"
 
 using namespace std::chrono_literals;
 
-namespace service_client
-{
-void init_clients();
-bool alive();
-void write(const std::string &command);
-}  // namespace service_client
-
-class MissionNode : public rclcpp::Node
-{
-public:
+class MissionNode : public rclcpp::Node {
+   public:
     MissionNode();
 
     bool load_mission();
@@ -39,6 +31,12 @@ public:
 
     // Name (resources/missions/<name>.xml) or path of the mission tree to run.
     std::string mission;
+    std::string role;
+
+    // Logical BT task name -> sub_vision model task name.
+    std::string visionModelTask(const std::string &task) const;
+    bool visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const;
+    bool subAlive() const { return !killed; }
 
     // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
     VisionClient &vision() { return *vision_client; }
@@ -51,7 +49,7 @@ public:
     std::array<double, 3> last_velocity_setpoint = {};
     std::array<double, 3> last_angvel_setpoint = {};
 
-private:
+   private:
     // Built by load_mission() so XML mistakes surface at launch, ticked by execute().
     std::optional<BT::Tree> tree;
 

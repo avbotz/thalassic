@@ -2,19 +2,30 @@
 <root BTCPP_format="4" main_tree_to_execute="TorpMission">
   <BehaviorTree ID="TorpMission">
     <Sequence name="torp_mission">
-      <PosSetpoint z="1.0" use_altitude="true"/>
+      <AltitudeSetpoint z="1.0"/>
       <AttSetpoint name="torp_search_heading" yaw="{@torp_search_yaw}"/>
+      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
       <Fallback name="find_torp_board">
-        <SearchTorpBoard/>
-        <RecoverTorpBoardSearch/>
+        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
+        <Sequence name="recover_torp_board_search">
+          <MoveRelative y="-2.0"/>
+          <ForwardSweepAlign task="torp" attempts="4" num_sweeps="2"/>
+        </Sequence>
       </Fallback>
-      <VerifyTorpBoard/>
-      <ApproachTorpBoard/>
-      <OrientToTorpBoard/>
-      <ShootChosenTorpHole/>
-      <PosSetpoint x="-1.5" velocity="true"/>
-      <ShootOtherTorpHole/>
-      <PosSetpoint x="-1.5" velocity="true"/>
+      <MoveRelative x="0.5"/>
+      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
+      <Fallback name="verify_torp_board">
+        <AlignToDetection task="torp" tolerance="0.3" timeout_msec="10000"/>
+        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
+      </Fallback>
+      <ForwardAlign task="torp" max_dist="4.0" close_distance="2.0" align_depth="false" timeout_msec="30000"/>
+      <ForceSuccess>
+        <OrientToDetectionAtDist task="torp" desired_distance="2.0" min_msec="6500" timeout_msec="30000"/>
+      </ForceSuccess>
+      <ShootTorpedo torpedo_id="0"/>
+      <VelocitySetpoint x="-1.5"/>
+      <ShootTorpedo torpedo_id="1"/>
+      <VelocitySetpoint x="-1.5"/>
       <PosSetpoint z="1.0"/>
     </Sequence>
   </BehaviorTree>

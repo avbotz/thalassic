@@ -7,13 +7,54 @@
 <root BTCPP_format="4" main_tree_to_execute="SlalomMission">
   <BehaviorTree ID="SlalomMission">
     <Sequence name="slalom_mission">
+      <LoadModel camera="down" task="path" timeout_msec="30000"/>
+      <DownContinuousAlign task="path" tolerance="0.4" min_msec="6000" timeout_msec="30000"/>
+      <MoveRelative x="1.0"/>
       <PosSetpoint z="1.2"/>
-      <Fallback name="acquire_slalom">
-        <SearchForSlalom/>
-        <RecoverSlalomSearch/>
-      </Fallback>
-      <PassSlalomChannel/>
+
+      <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
+      <ForwardSweepAlign camera="front"
+                         task="slalom"
+                         class_id="red"
+                         attempts="4"
+                         num_sweeps="3"
+                         forward_step="1.0"
+                         sample_timeout_msec="2500.0"
+                         move_timeout_msec="20000"/>
+      <ForwardAlign camera="front"
+                    task="slalom"
+                    class_id="red"
+                    max_dist="2.0"
+                    forward_step="0.5"
+                    close_distance="1.5"
+                    align_depth="false"
+                    timeout_msec="30000"/>
+      <MoveRelative y="-1.0"/>
+
+      <SubTree ID="SlalomPipePass"/>
+      <SubTree ID="SlalomPipePass"/>
+      <SubTree ID="SlalomPipePass"/>
       <PosSetpoint z="1.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="SlalomPipePass">
+    <Sequence name="slalom_pipe_pass">
+      <SweepAngle camera="front"
+                  task="slalom"
+                  class_id="red"
+                  attempts="4"
+                  yaw="{@slalom_red_yaw}"/>
+      <SweepAngle camera="front"
+                  task="slalom"
+                  class_id="white"
+                  attempts="4"
+                  yaw="{@slalom_white_yaw}"/>
+      <AverageAngles a="{@slalom_red_yaw}"
+                     b="{@slalom_white_yaw}"
+                     out="{@slalom_mid_yaw}"/>
+      <AttSetpoint yaw="{@slalom_mid_yaw}"/>
+      <MoveRelative x="2.0"/>
     </Sequence>
   </BehaviorTree>
 </root>

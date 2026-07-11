@@ -14,6 +14,7 @@
   <depend>behaviortree_cpp</depend>
   <depend>geometry_msgs</depend>
   <depend>sub_control_interfaces</depend>
+  <depend>sub_driver_interfaces</depend>
   <depend>sub_vision_interfaces</depend>
 
   <test_depend>ament_lint_auto</test_depend>

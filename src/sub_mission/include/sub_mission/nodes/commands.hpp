@@ -2,29 +2,28 @@
 
 #include <array>
 #include <cmath>
-#include <string>
+#include <limits>
 
-#include "behaviortree_cpp/tree_node.h"
-#include "geometry_msgs/msg/point_stamped.hpp"
-#include "geometry_msgs/msg/quaternion_stamped.hpp"
-#include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sub_control_interfaces/msg/setpoint.hpp"
 
 // Shared helpers for the BT action nodes (node.cpp, vision.cpp): conversion
 // from the mission frame (x forward, y right, z down, yaw clockwise-positive)
 // to the ENU/FLU command messages sub_control consumes. Keep every mission ->
 // control conversion here so the sign flips live in exactly one place.
 
-using PointCmdMsg = geometry_msgs::msg::PointStamped;
-using QuaternionCmdMsg = geometry_msgs::msg::QuaternionStamped;
-using VectorCmdMsg = geometry_msgs::msg::Vector3Stamped;
-using PointCmdPublisher = rclcpp::Publisher<PointCmdMsg>;
-using QuaternionCmdPublisher = rclcpp::Publisher<QuaternionCmdMsg>;
-using VectorCmdPublisher = rclcpp::Publisher<VectorCmdMsg>;
+using SetpointMsg = sub_control_interfaces::msg::Setpoint;
+using SetpointPublisher = rclcpp::Publisher<SetpointMsg>;
+using PointCmdMsg = SetpointMsg;
+using QuaternionCmdMsg = SetpointMsg;
+using VectorCmdMsg = SetpointMsg;
+using PointCmdPublisher = SetpointPublisher;
+using QuaternionCmdPublisher = SetpointPublisher;
+using VectorCmdPublisher = SetpointPublisher;
 
 constexpr double POSITION_TOLERANCE = 0.25;
 constexpr double ANGLE_TOLERANCE = 0.0872665;
-constexpr const char *ALTITUDE_FRAME = "altitude";
+constexpr double UNSPECIFIED_PORT = std::numeric_limits<double>::quiet_NaN();
 
 inline double normalizeAngle(double angle) {
     while (angle > M_PI) {
@@ -36,46 +35,42 @@ inline double normalizeAngle(double angle) {
     return angle;
 }
 
-inline bool portProvided(const BT::TreeNode &node, const std::string &port) {
-    return node.config().input_ports.find(port) != node.config().input_ports.end();
-}
-
-inline QuaternionCmdMsg quaternionCommand(const rclcpp::Clock &clock, const double roll, const double pitch,
-                                          const double yaw) {
-    const double cy = std::cos(yaw * 0.5);
-    const double sy = std::sin(yaw * 0.5);
-    const double cp = std::cos(pitch * 0.5);
-    const double sp = std::sin(pitch * 0.5);
-    const double cr = std::cos(roll * 0.5);
-    const double sr = std::sin(roll * 0.5);
-
-    QuaternionCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = "base_link";
-    msg.quaternion.w = cr * cp * cy + sr * sp * sy;
-    msg.quaternion.x = sr * cp * cy - cr * sp * sy;
-    msg.quaternion.y = cr * sp * cy + sr * cp * sy;
-    msg.quaternion.z = cr * cp * sy - sr * sp * cy;
+inline SetpointMsg positionCommand(const rclcpp::Clock &, const std::array<double, 3> &target, const bool altitude) {
+    SetpointMsg msg;
+    msg.velocity = false;
+    msg.altitude = altitude;
+    msg.setpoint.x = target[0];
+    msg.setpoint.y = -target[1];
+    msg.setpoint.z = altitude ? target[2] : -target[2];
     return msg;
 }
 
-inline PointCmdMsg positionCommand(const rclcpp::Clock &clock, const std::array<double, 3> &target,
-                                   const bool use_altitude) {
-    PointCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = use_altitude ? ALTITUDE_FRAME : "base_link";
-    msg.point.x = target[0];
-    msg.point.y = -target[1];
-    msg.point.z = use_altitude ? target[2] : -target[2];
+inline SetpointMsg linearVelocityCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
+    SetpointMsg msg;
+    msg.velocity = true;
+    msg.altitude = false;
+    msg.setpoint.x = target[0];
+    msg.setpoint.y = -target[1];
+    msg.setpoint.z = -target[2];
     return msg;
 }
 
-inline VectorCmdMsg vectorCommand(const rclcpp::Clock &clock, const std::array<double, 3> &target) {
-    VectorCmdMsg msg;
-    msg.header.stamp = clock.now();
-    msg.header.frame_id = "base_link";
-    msg.vector.x = target[0];
-    msg.vector.y = -target[1];
-    msg.vector.z = -target[2];
+inline SetpointMsg attitudeCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
+    SetpointMsg msg;
+    msg.velocity = false;
+    msg.altitude = false;
+    msg.setpoint.roll = target[0];
+    msg.setpoint.pitch = -target[1];
+    msg.setpoint.yaw = -target[2];
+    return msg;
+}
+
+inline SetpointMsg angularVelocityCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
+    SetpointMsg msg;
+    msg.velocity = true;
+    msg.altitude = false;
+    msg.setpoint.roll = target[0];
+    msg.setpoint.pitch = -target[1];
+    msg.setpoint.yaw = -target[2];
     return msg;
 }
