@@ -26,7 +26,7 @@ class AnnotatedNode(Node):
 
         self.create_subscription(
             Image,
-            "front_camera/image_color",
+            "front_camera/image_raw",
             self.image_callback,
             qos_profile_sensor_data,
         )

@@ -15,7 +15,7 @@ def generate_launch_description():
             BASE_NED, f"{ROBOT}/front_camera", y=-0.33, z=-0.16631, roll=math.pi / 2
         ),
         static_tf(
-            BASE_NED, f"{ROBOT}/down_camera", x=-0.071, y=0.194, z=0.05
+            BASE_NED, f"{ROBOT}/down_camera", x=-0.078914, y=0.22841, z=0.12
         ),
         static_tf(BASE_NED, f"{ROBOT}/dvl_link", z=0.015797, yaw=-math.pi / 2),
         static_tf(BASE_NED, f"{ROBOT}/pressure_link", y=0.34012, z=-0.19384),
@@ -28,6 +28,8 @@ def generate_launch_description():
         static_tf(
             BASE_NED, f"{ROBOT}/right_grabber_link", x=0.091319, y=0.35087, z=0.13636
         ),
+        static_tf(BASE_NED, f"{ROBOT}/torps_left", x=0.009676, y=0.35, z=0.05146),
+        static_tf(BASE_NED, f"{ROBOT}/torps_right", x=-0.010095, y=-0.35, z=0.05146)
     ]
 
     thrusters = [
