@@ -33,7 +33,7 @@ class MissionNode : public rclcpp::Node {
     std::string mission;
     std::string role;
 
-    // Logical BT task name -> role-specific sub_vision model task name.
+    // Logical BT task name -> sub_vision model task name.
     std::string visionModelTask(const std::string &task) const;
     bool visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const;
     bool subAlive() const { return !killed; }
@@ -41,7 +41,7 @@ class MissionNode : public rclcpp::Node {
     // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
     VisionClient &vision() { return *vision_client; }
 
-    bool killed = false;
+    bool killed = true;
     std::array<double, 12> control_errors = {};
     std::array<std::uint64_t, 12> control_error_updates = {};
     std::array<double, 3> commanded_pos = {};

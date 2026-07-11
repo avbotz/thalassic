@@ -36,58 +36,23 @@
       <LoadModel camera="front"
                  task="gate"
                  timeout_msec="30000"/>
-      <PosSetpoint x="4.0"
-                   y="0.0"
-                   z="nan"/>
-      <ForceSuccess>
-        <ForwardSweepAlign camera="front"
-                           task="gate"
-                           class_id=""
-                           min_score="0.0"
-                           attempts="4"
-                           num_sweeps="3"
-                           forward_step="2.0"
-                           sample_timeout_msec="2500.0"
-                           move_timeout_msec="20000"
-                           load_timeout_msec="20000"/>
-      </ForceSuccess>
-      <ForceSuccess>
-        <SweepCheck camera="front"
-                    task="gate"
-                    class_id=""
-                    min_score="0.0"
-                    attempts="4"
-                    sample_timeout_msec="2500.0"
-                    move_timeout_msec="20000"
-                    load_timeout_msec="20000"/>
-      </ForceSuccess>
-      <ForceSuccess>
-        <AlignToDetection camera="front"
-                          task="gate"
-                          class_id=""
-                          min_score="0.0"
-                          yaw="true"
-                          depth="false"
-                          tolerance="0.05"
-                          depth_gain="1.5"
-                          max_depth_step="0.5"
-                          timeout_msec="30000"/>
-      </ForceSuccess>
       <ForwardAlign camera="front"
                     task="gate"
-                    class_id=""
-                    min_score="0.0"
+                    class_id="1"
+                    min_score="0.2"
                     max_dist="10.0"
                     forward_step="2.0"
                     close_distance="3.0"
                     through_distance="1.5"
                     depth_offset="0.25"
-                    align_depth="true"
+                    align_depth="false"
                     update_msec="300"
-                    timeout_msec="30000"
-                    load_timeout_msec="20000"/>
+                    timeout_msec="30000"/>
       <Spin yaw="12.56637061"
             rate="3.14159265"/>
+      <MoveRelative x="1.0"
+                    y="nan"
+                    z="nan"/>
       <PosSetpoint x="nan"
                    y="nan"
                    z="0.5"/>
@@ -131,7 +96,7 @@
     <Action ID="ForwardAlign">
       <input_port name="camera"
                   default="front">Detection source: front or down</input_port>
-      <input_port name="task">Task model to load and align to</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
       <input_port name="class_id">Only accept this class id (empty = any)</input_port>
       <input_port name="min_score"
                   default="0.0">Minimum detection confidence</input_port>
@@ -151,28 +116,6 @@
                   default="300">Minimum time between forward target updates</input_port>
       <input_port name="timeout_msec"
                   default="30000">Maximum align time before SUCCESS</input_port>
-      <input_port name="load_timeout_msec"
-                  default="20000">Maximum wait for load_model</input_port>
-    </Action>
-    <Action ID="ForwardSweepAlign">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Task model to load and align to</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="attempts"
-                  default="4">Detection frames sampled at each yaw</input_port>
-      <input_port name="num_sweeps"
-                  default="3">Forward sweep passes before FAILURE</input_port>
-      <input_port name="forward_step"
-                  default="2.0">Forward move between sweeps in meters</input_port>
-      <input_port name="sample_timeout_msec"
-                  default="2500.0">Maximum detection sample time per yaw</input_port>
-      <input_port name="move_timeout_msec"
-                  default="20000">Maximum wait for each commanded movement</input_port>
-      <input_port name="load_timeout_msec"
-                  default="20000">Maximum wait for load_model</input_port>
     </Action>
     <Action ID="LoadModel">
       <input_port name="camera"
@@ -180,6 +123,14 @@
       <input_port name="task">Task model to load, e.g. gate</input_port>
       <input_port name="timeout_msec"
                   default="20000">Maximum wait for service + load</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Down/depth offset in meters</input_port>
     </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
@@ -198,22 +149,6 @@
                   default="12.56637061">Yaw distance to spin in radians</input_port>
       <input_port name="rate"
                   default="3.14159265">Yaw rate in radians per second</input_port>
-    </Action>
-    <Action ID="SweepCheck">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Task model to load and sweep for</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="attempts"
-                  default="4">Detection frames sampled at each yaw</input_port>
-      <input_port name="sample_timeout_msec"
-                  default="2500.0">Maximum detection sample time per yaw</input_port>
-      <input_port name="move_timeout_msec"
-                  default="20000">Maximum wait for each yaw move</input_port>
-      <input_port name="load_timeout_msec"
-                  default="20000">Maximum wait for load_model</input_port>
     </Action>
     <Action ID="WaitForDetection">
       <input_port name="camera"
