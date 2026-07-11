@@ -18,7 +18,7 @@ RUN usermod -aG dialout,video ${USERNAME} \
 # Install stonefish
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libglm-dev libsdl2-dev libfreetype6-dev git cmake build-essential \
-    && git clone --depth 1 --single-branch -b fixes-merged https://github.com/kethan1/stonefish /tmp/stonefish \
+    && git clone --depth 1 --single-branch -b fixes-merged https://github.com/avbotz/stonefish /tmp/stonefish \
     && cd /tmp/stonefish \
     && mkdir build && cd build \
     && cmake .. -DCMAKE_BUILD_TYPE=Release \

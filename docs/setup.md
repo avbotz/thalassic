@@ -15,7 +15,7 @@ Run once on a new machine. This installs all apt dependencies, builds Stonefish 
 ./install.sh
 ```
 
-The script clones Stonefish from `https://github.com/kethan1/stonefish` (branch `fixes-merged`) and builds it into `/usr/local`. If Stonefish is already installed, skip the relevant section manually.
+The script clones Stonefish from `https://github.com/avbotz/stonefish` (branch `fixes-merged`) and builds it into `/usr/local`. If Stonefish is already installed, skip the relevant section manually.
 
 ## Every New Shell
 
