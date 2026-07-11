@@ -370,8 +370,17 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         ],
     )
 
+    sub_annotation_node = Node(
+        package="sub_vision",
+        executable="annotation_visualizer",
+        name="annotation_visualizer",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+    )
+
     return [
         sub_vision_node,
+        sub_annotation_node,
         # deepseecolor_node,
     ]
 
