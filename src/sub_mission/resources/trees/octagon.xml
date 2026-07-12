@@ -12,7 +12,7 @@
           <ForwardSweepAlign task="octagon" attempts="4" num_sweeps="4"/>
         </Sequence>
       </Fallback>
-      <ForwardAlign task="octagon" max_dist="4.0" forward_velocity="1.0" close_distance="3.0" timeout_msec="30000"/>
+      <ForwardContinuousAlign task="octagon" max_dist="4.0" forward_velocity="1.0" close_distance="3.0" detection_loss_msec="3000" timeout_msec="30000"/>
       <PosSetpoint z="-0.5"/>
       <MoveRelative x="1.0"/>
       <LoadModel camera="down" task="octagon" timeout_msec="30000"/>

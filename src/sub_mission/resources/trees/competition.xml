@@ -9,7 +9,7 @@
         <PosSetpoint x="nan"
                      y="nan"
                      z="-1.2"/>
-        <MoveRelative x="4.0"
+        <MoveRelative x="3.0"
                       y="0.0"
                       z="0.0"/>
         <SubTree ID="SlalomMission"/>
@@ -41,9 +41,12 @@
           <SubTree ID="OctagonMission"/>
         </ForceSuccess>
       </Sequence>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="0.0"/>
+      <Sequence>
+        <PosSetpoint x="nan"
+                     y="nan"
+                     z="0.0"/>
+        <AlwaysFailure/>
+      </Sequence>
     </Fallback>
   </BehaviorTree>
 
