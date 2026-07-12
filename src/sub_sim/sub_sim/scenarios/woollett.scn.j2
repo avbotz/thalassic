@@ -37,7 +37,7 @@
       z=0.25,
       roll=0.0,
       pitch=0.0,
-      yaw=PI
+      yaw=choose([PI/2, PI])
   ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
@@ -53,12 +53,15 @@
   <!-- Gate Task -->
 
   <include file="models/gate_task/gate/gate.scn">
+    {% set survey_left = choose([true, false]) %}
     <arg name="x" value="{{ fuzz(17.25, DX) }}" />
     <arg name="y" value="{{ fuzz(-7, DY) }}" />
     <arg name="z" value="{{ fuzz_z(0.2, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(PI/2, DYAW) }}" />
+    <arg name="left_image_look" value="{{ 'gate_sawfish' if survey_left else 'gate_shark' }}" />
+    <arg name="right_image_look" value="{{ 'gate_shark' if survey_left else 'gate_sawfish' }}" />
   </include>
 
   <include file="models/path/path.scn">

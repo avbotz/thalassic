@@ -34,7 +34,7 @@ Examples:
 | Node | Align behavior |
 |---|---|
 | `AlignToDetection` | Front-style yaw alignment, optionally depth |
-| `ForwardAlign` | Move forward while yaw/depth-aligning to front detections |
+| `ForwardContinuousAlign` | Move forward at fixed velocity while yaw-aligning to front detections |
 | `DownAlignToDetection` | Center over a down-camera target |
 | `DownForwardAlign` | Move forward while applying down-camera centering offsets |
 

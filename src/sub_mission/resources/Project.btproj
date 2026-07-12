@@ -99,7 +99,7 @@
             <input_port name="open" default="true">Dropper state to command</input_port>
             <input_port name="timeout_msec" default="5000">Maximum wait for set_dropper response</input_port>
         </Action>
-        <Action ID="ForwardAlign">
+        <Action ID="ForwardContinuousAlign">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
             <input_port name="task">Only accept detections from this task</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
@@ -107,6 +107,7 @@
             <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS</input_port>
             <input_port name="forward_velocity" default="1.0">Fixed body-forward velocity in meters per second</input_port>
             <input_port name="close_distance" default="3.0">Distance that completes the approach</input_port>
+            <input_port name="detection_loss_msec" default="3000">Target-loss time that completes the approach</input_port>
             <input_port name="timeout_msec" default="30000">Maximum align time before SUCCESS</input_port>
         </Action>
         <Action ID="ForwardSweepAlign">
@@ -145,6 +146,7 @@
             <input_port name="tolerance" default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
             <input_port name="distance_tolerance" default="0.5">Distance error allowed at completion (m)</input_port>
             <input_port name="orient_tolerance_deg" default="5.0">Orientation error allowed at completion</input_port>
+            <input_port name="max_position_step" default="0.5">Maximum translation correction per update (m)</input_port>
             <input_port name="min_msec" default="6500">Minimum closed-loop alignment time</input_port>
             <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
             <input_port name="update_msec" default="300">Minimum time between movement corrections</input_port>

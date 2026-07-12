@@ -87,7 +87,7 @@ Movement-related XML nodes currently implemented in C++:
 | `WaitUntilHit` | Wait for velocity feedback to drop after a velocity command |
 | `SweepCheck` | Sweep the old yaw pattern and align to the first valid front-camera detection |
 | `ForwardSweepAlign` | Sweep yaw, move forward between sweeps, and align to the first valid detection |
-| `ForwardAlign` | Hold a fixed body-forward velocity while yaw-aligning; succeed after close range or target loss and stop velocity on exit |
+| `ForwardContinuousAlign` | Hold a fixed body-forward velocity while yaw-aligning; succeed after close range or target loss and stop velocity on exit |
 | `OrientToDetectionAtDist` | Use vision orientation metadata to square up to an object while holding distance |
 | `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection with x/y position offsets |
 | `DownAlignToDetection` | Center a down-camera detection, optionally hold distance/depth, and yaw to orientation metadata |

@@ -48,7 +48,7 @@
     </physical>
 
     <material name="plastic" />
-    <look name="gate_sawfish" />
+    <look name="$(arg left_image_look)" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
@@ -59,7 +59,7 @@
     </physical>
 
     <material name="plastic" />
-    <look name="gate_shark" />
+    <look name="$(arg right_image_look)" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

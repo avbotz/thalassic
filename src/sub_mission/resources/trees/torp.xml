@@ -65,13 +65,14 @@
                            sample_timeout_msec="2500.0"
                            move_timeout_msec="20000"/>
       </Fallback>
-      <ForwardAlign camera="front"
+      <ForwardContinuousAlign camera="front"
                     task="torp"
                     class_id=""
                     min_score="0.0"
                     max_dist="4.0"
                     forward_velocity="1.0"
                     close_distance="2.0"
+                    detection_loss_msec="3000"
                     timeout_msec="30000"/>
       <ForceSuccess>
         <OrientToDetectionAtDist camera="front"
@@ -82,6 +83,7 @@
                                  tolerance="0.35"
                                  distance_tolerance="0.5"
                                  orient_tolerance_deg="5.0"
+                                 max_position_step="0.5"
                                  min_msec="6500"
                                  timeout_msec="30000"
                                  update_msec="300"/>
@@ -137,7 +139,7 @@
       <input_port name="yaw"
                   default="nan">Yaw setpoint in radians</input_port>
     </Action>
-    <Action ID="ForwardAlign">
+    <Action ID="ForwardContinuousAlign">
       <input_port name="camera"
                   default="front">Detection source: front or down</input_port>
       <input_port name="task">Only accept detections from this task</input_port>
@@ -150,6 +152,8 @@
                   default="1.0">Fixed body-forward velocity in meters per second</input_port>
       <input_port name="close_distance"
                   default="3.0">Distance that completes the approach</input_port>
+      <input_port name="detection_loss_msec"
+                  default="3000">Target-loss time that completes the approach</input_port>
       <input_port name="timeout_msec"
                   default="30000">Maximum align time before SUCCESS</input_port>
     </Action>
@@ -207,6 +211,8 @@
                   default="0.5">Distance error allowed at completion (m)</input_port>
       <input_port name="orient_tolerance_deg"
                   default="5.0">Orientation error allowed at completion</input_port>
+      <input_port name="max_position_step"
+                  default="0.5">Maximum translation correction per update (m)</input_port>
       <input_port name="min_msec"
                   default="6500">Minimum closed-loop alignment time</input_port>
       <input_port name="timeout_msec"
