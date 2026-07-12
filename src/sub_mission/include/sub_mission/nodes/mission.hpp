@@ -44,6 +44,12 @@ class MissionNode : public rclcpp::Node {
     bool killed = true;
     std::array<double, 12> control_errors = {};
     std::array<std::uint64_t, 12> control_error_updates = {};
+    // True while sub_control is executing a Spin command; control_errors[8]
+    // then reports the remaining unwrapped spin angle.
+    bool control_spin_active = false;
+    // Count of error messages seen with spin_active set. Sampling the bool can
+    // miss a short spin's single true tick, so acknowledgment latches on this.
+    std::uint64_t spin_active_updates = 0;
     std::array<double, 3> commanded_pos = {};
     std::array<double, 3> commanded_att = {};
     std::array<double, 3> last_velocity_setpoint = {};

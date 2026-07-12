@@ -26,6 +26,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Error.msg"
   "msg/Setpoint.msg"
   "msg/SetpointAxes.msg"
+  "msg/Spin.msg"
   DEPENDENCIES std_msgs
 )
 

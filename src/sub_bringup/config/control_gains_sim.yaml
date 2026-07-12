@@ -21,4 +21,19 @@
     ang_pid:
       x: [0.75, 0.1, 0.2, 20.0]
       y: [1.0, 0.1, 0.2, 20.0]
-      z: [2.0, 0.2, 0.05, 20.0]
+      # Yaw rate needs a strong P and NO integral: sim yaw drag is ~25 N*m at
+      # 1 rad/s, and a rate integral stores that whole cruise torque, then can
+      # only shed it at ki*|error| -- measured 0.5+ rad of plow-through past
+      # spin targets. P-only trades exact cruise-rate tracking (irrelevant for
+      # spins) for crisp braking; verified zero overshoot on a 10-turn spin.
+      z: [30.0, 0.0, 0.0, 43.0]
+
+    # Spin (relative multi-turn yaw) mode. Spin commands requesting a faster
+    # rate are clamped to spin_max_yaw_rate.
+    spin_max_yaw_rate: 2.0
+    spin_done_angle: 0.05
+    spin_done_rate: 0.1
+    # Max yaw deceleration [rad/s^2] the spin braking profile assumes; the
+    # commanded rate is capped so this deceleration always reaches the target
+    # without overshoot. Raise until slight overshoot appears, then back off.
+    spin_decel: 1.5
