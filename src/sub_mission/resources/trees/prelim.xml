@@ -5,22 +5,22 @@
     <Sequence name="prelim_mission">
       <MoveRelative x="0.0"
                     y="0.0"
-                    z="1.0"/>
+                    z="-1.0"/>
       <MoveRelative x="4.0"
                     y="0.0"
                     z="0.0"/>
       <MoveRelative x="0.0"
-                    y="1.5"
+                    y="-1.5"
                     z="0.0"/>
       <AttSetpoint roll="nan"
                    pitch="nan"
-                   yaw="3.14159265"/>
+                   yaw="-3.14159265"/>
       <MoveRelative x="3.3"
                     y="0.0"
                     z="0.0"/>
       <PosSetpoint x="0.0"
                    y="0.0"
-                   z="1.0"/>
+                   z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 
@@ -36,19 +36,19 @@
     </Action>
     <Action ID="MoveRelative">
       <input_port name="x"
-                  default="0.0">Forward offset in meters</input_port>
+                  default="0.0">Forward offset in meters (FLU)</input_port>
       <input_port name="y"
-                  default="0.0">Right offset in meters</input_port>
+                  default="0.0">Left offset in meters (FLU)</input_port>
       <input_port name="z"
-                  default="0.0">Down/depth offset in meters</input_port>
+                  default="0.0">Up offset in meters (FLU)</input_port>
     </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
+                  default="nan">World x position setpoint (ENU)</input_port>
       <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
+                  default="nan">World y position setpoint (ENU)</input_port>
       <input_port name="z"
-                  default="nan">Down/depth position setpoint</input_port>
+                  default="nan">World z position setpoint (ENU, up; underwater &lt; 0)</input_port>
     </Action>
   </TreeNodesModel>
 

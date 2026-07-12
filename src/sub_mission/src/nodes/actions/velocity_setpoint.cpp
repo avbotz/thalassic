@@ -24,9 +24,9 @@ class VelocitySetpointAction : public BT::SyncActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("x", 0.0, "Forward velocity in meters per second"),
-                BT::InputPort<double>("y", 0.0, "Right velocity in meters per second"),
-                BT::InputPort<double>("z", 0.0, "Down velocity in meters per second")};
+        return {BT::InputPort<double>("x", 0.0, "Forward velocity in meters per second (FLU)"),
+                BT::InputPort<double>("y", 0.0, "Left velocity in meters per second (FLU)"),
+                BT::InputPort<double>("z", 0.0, "Up velocity in meters per second (FLU)")};
     }
 
     BT::NodeStatus tick() override {

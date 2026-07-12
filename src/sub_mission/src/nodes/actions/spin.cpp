@@ -26,7 +26,7 @@ class SpinAction : public BT::StatefulActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("yaw", 12.5663706, "Yaw distance to spin in radians"),
+        return {BT::InputPort<double>("yaw", 12.5663706, "Yaw distance to spin in radians (positive = CCW)"),
                 BT::InputPort<double>("rate", 3.14159265, "Yaw rate in radians per second")};
     }
 

@@ -32,7 +32,7 @@
                     y="{@gate_home_y}"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="1.0"/>
+                   z="-1.0"/>
       <LoadModel camera="front"
                  task="gate"
                  timeout_msec="30000"/>
@@ -48,14 +48,14 @@
                     align_depth="false"
                     update_msec="300"
                     timeout_msec="30000"/>
-      <Spin yaw="12.56637061"
+      <Spin yaw="-12.56637061"
             rate="3.14159265"/>
       <MoveRelative x="1.0"
                     y="nan"
                     z="nan"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="0.5"/>
+                   z="-0.5"/>
       <AttSetpoint name="pool_exit_heading"
                    roll="nan"
                    pitch="nan"
@@ -105,9 +105,9 @@
       <input_port name="forward_step"
                   default="2.0">Forward target extension per update in meters</input_port>
       <input_port name="close_distance"
-                  default="3.0">Distance that triggers final pass-through target</input_port>
+                  default="3.0">Distance that completes the approach or triggers the pass-through</input_port>
       <input_port name="through_distance"
-                  default="1.5">Extra travel after the detected object</input_port>
+                  default="0.0">Extra travel past the detected object; 0 stops at close_distance</input_port>
       <input_port name="depth_offset"
                   default="0.25">Extra depth added when tracking a gate-like target</input_port>
       <input_port name="align_depth"
@@ -126,19 +126,19 @@
     </Action>
     <Action ID="MoveRelative">
       <input_port name="x"
-                  default="0.0">Forward offset in meters</input_port>
+                  default="0.0">Forward offset in meters (FLU)</input_port>
       <input_port name="y"
-                  default="0.0">Right offset in meters</input_port>
+                  default="0.0">Left offset in meters (FLU)</input_port>
       <input_port name="z"
-                  default="0.0">Down/depth offset in meters</input_port>
+                  default="0.0">Up offset in meters (FLU)</input_port>
     </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
+                  default="nan">World x position setpoint (ENU)</input_port>
       <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
+                  default="nan">World y position setpoint (ENU)</input_port>
       <input_port name="z"
-                  default="nan">Down/depth position setpoint</input_port>
+                  default="nan">World z position setpoint (ENU, up; underwater &lt; 0)</input_port>
     </Action>
     <Action ID="SaveGateHome">
       <output_port name="x">Saved gate-home x coordinate</output_port>
@@ -146,7 +146,7 @@
     </Action>
     <Action ID="Spin">
       <input_port name="yaw"
-                  default="12.56637061">Yaw distance to spin in radians</input_port>
+                  default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
       <input_port name="rate"
                   default="3.14159265">Yaw rate in radians per second</input_port>
     </Action>

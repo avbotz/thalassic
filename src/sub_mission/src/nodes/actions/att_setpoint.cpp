@@ -24,9 +24,9 @@ class AttSetpointAction : public BT::StatefulActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll setpoint in radians"),
-                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch setpoint in radians"),
-                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw setpoint in radians")};
+        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll setpoint in radians (REP-103 FLU)"),
+                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch setpoint in radians (REP-103 FLU)"),
+                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw setpoint in radians (ENU, CCW-positive)")};
     }
 
     BT::NodeStatus onStart() override {

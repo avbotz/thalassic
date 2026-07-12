@@ -5,6 +5,24 @@ parameter, `mission`, that names a **BehaviorTree.CPP v4 XML file** — the same
 format Groot2 edits and Nav2 uses for its behaviors. This replaces the old
 pile of boolean task-selection parameters.
 
+## Coordinate frames
+
+Everything in sub_mission — action ports, XML tree values, and internal state —
+is REP-103, the same convention `sub_control` speaks:
+
+- **World (ENU):** z is up, so underwater positions are *negative*
+  (`<PosSetpoint z="-1.0"/>` is 1 m deep); yaw is counter-clockwise-positive
+  with 0 at the sub's initial heading.
+- **Body (FLU):** x forward, y left, z up. `<MoveRelative y="1.0"/>` moves 1 m
+  to port.
+- **Exceptions:** `AltitudeSetpoint z` is height above the bottom (positive
+  up), and `AlignToDetection depth_gain`/`ForwardAlign depth_offset` keep
+  depth semantics (positive = deeper).
+
+Camera bearings from `sub_vision` stay in the optical convention (positive =
+right of / below center); the vision action nodes convert them to ENU/FLU
+steering internally.
+
 ## Running
 
 ```sh
@@ -63,9 +81,9 @@ sync:
   <BehaviorTree ID="CompetitionPoolA">
     <Sequence name="pool_a">
       <!-- Pool-side + strategy values; task trees read them as {@key}. -->
-      <Script code="@gate_exit_yaw := -0.34906585;
-                    @torp_search_yaw := 2.35619449;
-                    @octagon_search_yaw := 0.61086524;
+      <Script code="@gate_exit_yaw := 0.34906585;
+                    @torp_search_yaw := -2.35619449;
+                    @octagon_search_yaw := -0.61086524;
                     @target_animal := 1"/>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
@@ -92,9 +110,9 @@ mission sets them in its `Script` node:
 
 | Entry                | Pools A/D    | Pools B/C    | Used by            |
 |----------------------|--------------|--------------|--------------------|
-| `gate_exit_yaw`      | -0.34906585  | 0.34906585   | gate               |
-| `torp_search_yaw`    | 2.35619449   | -2.35619449  | torp               |
-| `octagon_search_yaw` | 0.61086524   | -0.61086524  | octagon            |
+| `gate_exit_yaw`      | 0.34906585   | -0.34906585  | gate               |
+| `torp_search_yaw`    | -2.35619449  | 2.35619449   | torp               |
+| `octagon_search_yaw` | -0.61086524  | 0.61086524   | octagon            |
 | `target_animal`      | 1 (sawfish)  | 1 (sawfish)  | gate, bins, torp   |
 
 `target_animal` is the RoboSub 2026 gate side choice (`1` = sawfish, `0` = reef

@@ -8,7 +8,7 @@
       <Fallback name="find_torp_board">
         <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
         <Sequence name="recover_torp_board_search">
-          <MoveRelative y="-2.0"/>
+          <MoveRelative y="2.0"/>
           <ForwardSweepAlign task="torp" attempts="4" num_sweeps="2"/>
         </Sequence>
       </Fallback>
@@ -26,7 +26,7 @@
       <VelocitySetpoint x="-1.5"/>
       <ShootTorpedo torpedo_id="1"/>
       <VelocitySetpoint x="-1.5"/>
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 </root>

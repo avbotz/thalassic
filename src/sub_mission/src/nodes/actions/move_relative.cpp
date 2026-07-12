@@ -19,9 +19,9 @@ class MoveRelativeAction : public BT::StatefulActionNode {
         : BT::StatefulActionNode(name, config), node_(node), publisher_(publisher), clock_(clock), logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("x", 0.0, "Forward offset in meters"),
-                BT::InputPort<double>("y", 0.0, "Right offset in meters"),
-                BT::InputPort<double>("z", 0.0, "Down/depth offset in meters")};
+        return {BT::InputPort<double>("x", 0.0, "Forward offset in meters (FLU)"),
+                BT::InputPort<double>("y", 0.0, "Left offset in meters (FLU)"),
+                BT::InputPort<double>("z", 0.0, "Up offset in meters (FLU)")};
     }
 
     BT::NodeStatus onStart() override {
