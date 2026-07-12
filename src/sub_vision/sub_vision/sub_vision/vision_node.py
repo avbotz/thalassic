@@ -25,8 +25,7 @@ class VisionNode(Node):
     def __init__(self):
         super().__init__("sub_vision")
 
-        default_model_dir = os.path.join(os.path.expanduser("~"), ".sub_vision", "models")
-        self.declare_parameter("model_dir", default_model_dir)
+        self.declare_parameter("model_dir", "weights")
         self.declare_parameter("default_task", "")
         self.declare_parameter("backend", "auto")  # auto|tensorrt|onnxruntime
         self.declare_parameter("device", "auto")   # auto|cpu|cuda (onnxruntime only)
