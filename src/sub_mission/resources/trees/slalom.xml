@@ -1,39 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  RoboSub 2026 slalom task: weave through three red/white pipe gates staying
-  within the plane of the pipes (sim: models/slalom_task, z ~1.05-1.35). More
-  points for staying between the pipes, so transit at pipe depth.
--->
-<root BTCPP_format="4" main_tree_to_execute="SlalomMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="SlalomMission">
   <BehaviorTree ID="SlalomMission">
     <Sequence name="slalom_mission">
-      <LoadModel camera="down" task="path" timeout_msec="30000"/>
-      <DownContinuousAlign task="path" tolerance="0.4" min_msec="6000" timeout_msec="30000"/>
-      <MoveRelative x="1.0"/>
-      <PosSetpoint z="-1.2"/>
-
-      <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
+      <LoadModel camera="down"
+                 task="path"
+                 timeout_msec="30000"/>
+      <DownContinuousAlign task="path"
+                           class_id=""
+                           min_score="0.0"
+                           tolerance="0.4"
+                           desired_distance="nan"
+                           distance_tolerance="0.5"
+                           default_distance="1.0"
+                           center_gain="1.0"
+                           orient="true"
+                           orient_tolerance_deg="5.0"
+                           min_msec="6000"
+                           timeout_msec="30000"
+                           update_msec="200"/>
+      <MoveRelative x="1.0"
+                    y="0.0"
+                    z="0.0"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.2"/>
+      <LoadModel camera="front"
+                 task="slalom"
+                 timeout_msec="30000"/>
       <ForwardSweepAlign camera="front"
                          task="slalom"
-                         class_id="red"
+                         class_id="1"
+                         min_score="0.0"
                          attempts="4"
                          num_sweeps="3"
                          forward_step="1.0"
                          sample_timeout_msec="2500.0"
                          move_timeout_msec="20000"/>
       <ForwardAlign camera="front"
-                    task="slalom"
-                    class_id="red"
-                    max_dist="2.0"
-                    forward_velocity="0.5"
-                    close_distance="1.5"
+                    task=""
+                    class_id=""
+                    min_score="0.0"
+                    max_dist="10.0"
+                    forward_velocity="1.0"
+                    close_distance="3.0"
                     timeout_msec="30000"/>
-      <MoveRelative y="1.0"/>
-
+      <MoveRelative x="0.0"
+                    y="1.0"
+                    z="0.0"/>
       <SubTree ID="SlalomPipePass"/>
       <SubTree ID="SlalomPipePass"/>
       <SubTree ID="SlalomPipePass"/>
-      <PosSetpoint z="-1.0"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 
@@ -42,18 +62,144 @@
       <SweepAngle camera="front"
                   task="slalom"
                   class_id="red"
+                  min_score="0.0"
                   attempts="4"
+                  sample_timeout_msec="2500.0"
+                  move_timeout_msec="20000"
                   yaw="{@slalom_red_yaw}"/>
       <SweepAngle camera="front"
                   task="slalom"
                   class_id="white"
+                  min_score="0.0"
                   attempts="4"
+                  sample_timeout_msec="2500.0"
+                  move_timeout_msec="20000"
                   yaw="{@slalom_white_yaw}"/>
       <AverageAngles a="{@slalom_red_yaw}"
                      b="{@slalom_white_yaw}"
                      out="{@slalom_mid_yaw}"/>
-      <AttSetpoint yaw="{@slalom_mid_yaw}"/>
-      <MoveRelative x="2.0"/>
+      <AttSetpoint roll="nan"
+                   pitch="nan"
+                   yaw="{@slalom_mid_yaw}"/>
+      <MoveRelative x="2.0"
+                    y="0.0"
+                    z="0.0"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="AverageAngles">
+      <input_port name="a">First angle in radians</input_port>
+      <input_port name="b">Second angle in radians</input_port>
+      <output_port name="out">Circular mean of a and b in radians</output_port>
+    </Action>
+    <Action ID="DownContinuousAlign">
+      <input_port name="task">Only accept down-camera detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="tolerance"
+                  default="0.35">Centered when both bearings are within tolerance (rad)</input_port>
+      <input_port name="desired_distance"
+                  default="nan">Optional camera-to-object distance to hold in meters</input_port>
+      <input_port name="distance_tolerance"
+                  default="0.5">Distance error allowed at completion (m)</input_port>
+      <input_port name="default_distance"
+                  default="1.0">Distance used when detection distance is unavailable</input_port>
+      <input_port name="center_gain"
+                  default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+      <input_port name="orient"
+                  default="true">Yaw to detection orientation metadata when present</input_port>
+      <input_port name="orient_tolerance_deg"
+                  default="5.0">Orientation error allowed at completion</input_port>
+      <input_port name="min_msec"
+                  default="3000">Minimum closed-loop alignment time</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+      <input_port name="update_msec"
+                  default="200">Minimum time between movement corrections</input_port>
+    </Action>
+    <Action ID="ForwardAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="max_dist"
+                  default="10.0">Maximum forward travel before SUCCESS</input_port>
+      <input_port name="forward_velocity"
+                  default="1.0">Fixed body-forward velocity in meters per second</input_port>
+      <input_port name="close_distance"
+                  default="3.0">Distance that completes the approach</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before SUCCESS</input_port>
+    </Action>
+    <Action ID="ForwardSweepAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="num_sweeps"
+                  default="3">Forward sweep passes before FAILURE</input_port>
+      <input_port name="forward_step"
+                  default="2.0">Forward move between sweeps in meters</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each commanded movement</input_port>
+    </Action>
+    <Action ID="LoadModel">
+      <input_port name="camera"
+                  default="front">Camera whose vision node loads the model</input_port>
+      <input_port name="task">Task model to load, e.g. gate</input_port>
+      <input_port name="timeout_msec"
+                  default="20000">Maximum wait for service + load</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="SweepAngle">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each yaw move</input_port>
+      <output_port name="yaw">Absolute mission yaw toward the detected object</output_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>

@@ -1,5 +1,6 @@
 #include "sub_control/pid_controller.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
+#include "sub_control_interfaces/msg/spin.hpp"
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
 
@@ -24,6 +25,7 @@ class SubControl : public rclcpp::Node {
 
     void pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg);
     void att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg);
+    void spin_setpoint_callback(const sub_control_interfaces::msg::Spin::SharedPtr msg);
     void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
 
     void run();
@@ -63,11 +65,31 @@ class SubControl : public rclcpp::Node {
     std::array<double, 3> angvel_setpoint_{0.0, 0.0, 0.0};
     bool angvel_control_enabled_{false};
 
+    // Spin (relative multi-turn yaw) mode. Yaw is tracked unwrapped (continuous
+    // across +/-pi) so a spin target can be several full turns away.
+    bool spin_active_{false};
+    // Guarantees at least one control/error publish with spin_active = true per
+    // accepted spin, so the mission's acknowledgment never misses a spin that
+    // completes on its first control tick.
+    bool spin_ack_pending_{false};
+    double yaw_unwrapped_{0.0};
+    double prev_wrapped_yaw_{0.0};
+    bool have_yaw_unwrapped_{false};
+    double yaw_target_unwrapped_{0.0};
+    double spin_rate_{0.0};
+    double spin_max_yaw_rate_{2.0};
+    double spin_done_angle_{0.05};
+    double spin_done_rate_{0.10};
+    double spin_decel_{1.0};
+    rclcpp::Time last_odom_time_{0, 0, RCL_ROS_TIME};
+    static constexpr double SPIN_ODOM_TIMEOUT = 0.5;
+
     bool killed_{true};
 
     // State subscribers
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr pos_setpoint_sub_;
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr att_setpoint_sub_;
+    rclcpp::Subscription<sub_control_interfaces::msg::Spin>::SharedPtr spin_setpoint_sub_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
     // Setpoint subscribers

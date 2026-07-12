@@ -29,7 +29,7 @@ void registerAddAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode 
                                   QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                                   rclcpp::Logger logger);
 void registerSpinAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                        PointCmdPublisher::SharedPtr angular_velocity_publisher,
+                        SpinCmdPublisher::SharedPtr spin_publisher,
                         QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                         rclcpp::Logger logger);
 void registerWaitUntilHitAction(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger);

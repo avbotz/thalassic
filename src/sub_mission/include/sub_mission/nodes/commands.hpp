@@ -6,6 +6,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
+#include "sub_control_interfaces/msg/spin.hpp"
 
 // Shared helpers for the BT action nodes (node.cpp, vision.cpp). The mission
 // speaks the workspace's REP-103 convention natively -- world ENU (z up, so
@@ -23,6 +24,8 @@ using VectorCmdMsg = SetpointMsg;
 using PointCmdPublisher = SetpointPublisher;
 using QuaternionCmdPublisher = SetpointPublisher;
 using VectorCmdPublisher = SetpointPublisher;
+using SpinCmdMsg = sub_control_interfaces::msg::Spin;
+using SpinCmdPublisher = rclcpp::Publisher<SpinCmdMsg>;
 
 constexpr double POSITION_TOLERANCE = 0.25;
 constexpr double ANGLE_TOLERANCE = 0.0872665;
@@ -71,5 +74,12 @@ inline SetpointMsg angularVelocityCommand(const rclcpp::Clock &, const std::arra
     msg.setpoint.roll = target[0];
     msg.setpoint.pitch = target[1];
     msg.setpoint.yaw = target[2];
+    return msg;
+}
+
+inline SpinCmdMsg spinCommand(const rclcpp::Clock &, const double yaw, const double max_rate) {
+    SpinCmdMsg msg;
+    msg.yaw = yaw;
+    msg.max_rate = max_rate;
     return msg;
 }

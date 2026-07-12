@@ -14,7 +14,12 @@ class PID_Controller {
     void configure(double kp, double ki, double kd, double output_limit);
     void configure(std::span<const double> gains);
 
-    double update(double measurement, double error, double dt);
+    // output_limit_override > 0 replaces the configured output limit for this
+    // call (clamp and anti-windup), e.g. to cap the yaw rate during a spin.
+    double update(double measurement, double error, double dt, double output_limit_override = 0.0);
+
+    double kp() const { return kp_; }
+    double output_limit() const { return output_limit_; }
 
     void reset();
 
@@ -29,6 +34,7 @@ class PID_Controller {
     double integral_{0.0};
     double prev_measurement_{0.0};
     double smoothed_derivative_{0.0};
+    bool primed_{false};
 };
 
 #endif  // SUB_CONTROL_PID_CONTROLLER_HPP_
