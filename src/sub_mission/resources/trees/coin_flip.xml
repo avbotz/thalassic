@@ -12,7 +12,7 @@
                    task="gate"
                    timeout_msec="30000"/>
       </Parallel>
-      <Sleep msec="4000"/>
+      <Sleep msec="4200"/>
       <Fallback name="search_gate_after_coin_flip">
         <Sequence name="gate_at_current_heading">
           <AttSetpoint roll="nan"
@@ -22,7 +22,7 @@
                             task="gate"
                             class_id="1"
                             min_score="0.0"
-                            timeout_msec="8200"/>
+                            timeout_msec="8400"/>
           <AlignToDetection camera="front"
                             task="gate"
                             class_id="1"

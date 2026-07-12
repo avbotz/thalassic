@@ -164,8 +164,8 @@
             <input_port name="timeout_msec" default="5000">Maximum wait for launch_torpedo response</input_port>
         </Action>
         <Action ID="Spin">
-            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians</input_port>
-            <input_port name="rate" default="3.14159265">Yaw rate in radians per second</input_port>
+            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
+            <input_port name="rate" default="3.14159265">Maximum yaw rate in radians per second</input_port>
         </Action>
         <Action ID="SweepCheck">
             <input_port name="camera" default="front">Detection source: front or down</input_port>

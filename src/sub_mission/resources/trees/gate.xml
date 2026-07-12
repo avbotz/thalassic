@@ -139,7 +139,7 @@
       <input_port name="yaw"
                   default="12.56637061">Yaw distance to spin in radians</input_port>
       <input_port name="rate"
-                  default="3.14159265">Yaw rate in radians per second</input_port>
+                  default="3.14159265">Maximum yaw rate in radians per second</input_port>
     </Action>
     <Action ID="WaitForDetection">
       <input_port name="camera"
