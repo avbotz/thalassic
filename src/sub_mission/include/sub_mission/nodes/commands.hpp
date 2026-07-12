@@ -7,10 +7,13 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
 
-// Shared helpers for the BT action nodes (node.cpp, vision.cpp): conversion
-// from the mission frame (x forward, y right, z down, yaw clockwise-positive)
-// to the ENU/FLU command messages sub_control consumes. Keep every mission ->
-// control conversion here so the sign flips live in exactly one place.
+// Shared helpers for the BT action nodes (node.cpp, vision.cpp). The mission
+// speaks the workspace's REP-103 convention natively -- world ENU (z up, so
+// underwater is negative; yaw counter-clockwise-positive) and body FLU
+// (x forward, y left, z up) -- the same frames sub_control consumes, so these
+// builders fill the Setpoint messages verbatim. The only frame conversion left
+// in sub_mission is camera-optical bearings (positive = right of / below
+// center) into ENU/FLU steering, which lives at the vision call sites.
 
 using SetpointMsg = sub_control_interfaces::msg::Setpoint;
 using SetpointPublisher = rclcpp::Publisher<SetpointMsg>;
@@ -40,8 +43,8 @@ inline SetpointMsg positionCommand(const rclcpp::Clock &, const std::array<doubl
     msg.velocity = false;
     msg.altitude = altitude;
     msg.setpoint.x = target[0];
-    msg.setpoint.y = -target[1];
-    msg.setpoint.z = altitude ? target[2] : -target[2];
+    msg.setpoint.y = target[1];
+    msg.setpoint.z = target[2];
     return msg;
 }
 
@@ -50,8 +53,8 @@ inline SetpointMsg linearVelocityCommand(const rclcpp::Clock &, const std::array
     msg.velocity = true;
     msg.altitude = false;
     msg.setpoint.x = target[0];
-    msg.setpoint.y = -target[1];
-    msg.setpoint.z = -target[2];
+    msg.setpoint.y = target[1];
+    msg.setpoint.z = target[2];
     return msg;
 }
 
@@ -60,8 +63,8 @@ inline SetpointMsg attitudeCommand(const rclcpp::Clock &, const std::array<doubl
     msg.velocity = false;
     msg.altitude = false;
     msg.setpoint.roll = target[0];
-    msg.setpoint.pitch = -target[1];
-    msg.setpoint.yaw = -target[2];
+    msg.setpoint.pitch = target[1];
+    msg.setpoint.yaw = target[2];
     return msg;
 }
 
@@ -70,7 +73,7 @@ inline SetpointMsg angularVelocityCommand(const rclcpp::Clock &, const std::arra
     msg.velocity = true;
     msg.altitude = false;
     msg.setpoint.roll = target[0];
-    msg.setpoint.pitch = -target[1];
-    msg.setpoint.yaw = -target[2];
+    msg.setpoint.pitch = target[1];
+    msg.setpoint.yaw = target[2];
     return msg;
 }

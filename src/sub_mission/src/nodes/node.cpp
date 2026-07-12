@@ -103,10 +103,10 @@ void MissionNode::kill_callback(const std_msgs::msg::Bool &msg) {
 
 void MissionNode::control_error_callback(const sub_control_interfaces::msg::Error &msg) {
     const std::array<std::array<double, 3>, 4> errors = {
-        std::array<double, 3>{msg.pos_error[0], -msg.pos_error[1], -msg.pos_error[2]},
-        std::array<double, 3>{msg.vel_error[0], -msg.vel_error[1], -msg.vel_error[2]},
-        std::array<double, 3>{msg.att_error[0], -msg.att_error[1], -msg.att_error[2]},
-        std::array<double, 3>{msg.angvel_error[0], -msg.angvel_error[1], -msg.angvel_error[2]},
+        std::array<double, 3>{msg.pos_error[0], msg.pos_error[1], msg.pos_error[2]},
+        std::array<double, 3>{msg.vel_error[0], msg.vel_error[1], msg.vel_error[2]},
+        std::array<double, 3>{msg.att_error[0], msg.att_error[1], msg.att_error[2]},
+        std::array<double, 3>{msg.angvel_error[0], msg.angvel_error[1], msg.angvel_error[2]},
     };
 
     for (std::size_t group = 0; group < errors.size(); ++group) {

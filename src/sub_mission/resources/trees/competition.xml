@@ -24,24 +24,24 @@
       <ForceSuccess><SubTree ID="GateMission"/></ForceSuccess>
 
       <!-- Gate (y=-7) -> slalom (y~-2.8): ~4 m ahead. -->
-      <PosSetpoint z="1.2"/>
+      <PosSetpoint z="-1.2"/>
       <MoveRelative x="4.0"/>
       <ForceSuccess><SubTree ID="SlalomMission"/></ForceSuccess>
 
       <!-- Slalom -> bin (y=1.1): ~3 m ahead; the bin sits ~3.6 m to port and
            is reacquired by BinsMission's path-marker search. -->
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
       <MoveRelative x="3.0"/>
       <ForceSuccess><SubTree ID="BinsMission"/></ForceSuccess>
 
       <!-- Bin (y=1.1) -> torpedoes (y=5.0): ~3.9 m ahead. -->
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
       <MoveRelative x="3.9"/>
       <ForceSuccess><SubTree ID="TorpMission"/></ForceSuccess>
 
       <!-- Torpedoes (y=5.0) -> octagon (y=8): ~3 m ahead; the octagon sits
            ~5 m to starboard and is homed by OctagonMission's search. -->
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
       <MoveRelative x="3.0"/>
       <ForceSuccess><SubTree ID="OctagonMission"/></ForceSuccess>
     </Sequence>

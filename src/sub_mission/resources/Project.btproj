@@ -21,9 +21,9 @@
     <!-- Description of Node Models (used by Groot) -->
     <TreeNodesModel>
         <Action ID="AddAttSetpoint">
-            <input_port name="roll" default="nan">Roll offset in radians</input_port>
-            <input_port name="pitch" default="nan">Pitch offset in radians</input_port>
-            <input_port name="yaw" default="nan">Yaw offset in radians</input_port>
+            <input_port name="roll" default="nan">Roll offset in radians (REP-103 FLU)</input_port>
+            <input_port name="pitch" default="nan">Pitch offset in radians (REP-103 FLU)</input_port>
+            <input_port name="yaw" default="nan">Yaw offset in radians (ENU, CCW-positive)</input_port>
         </Action>
         <Action ID="AverageAngles">
             <input_port name="a">First angle in radians</input_port>
@@ -46,15 +46,15 @@
             <input_port name="z">Altitude above bottom in meters</input_port>
         </Action>
         <Action ID="AngularVelocitySetpoint">
-            <input_port name="roll" default="0.0">Roll rate in radians per second</input_port>
-            <input_port name="pitch" default="0.0">Pitch rate in radians per second</input_port>
-            <input_port name="yaw" default="0.0">Yaw rate in radians per second</input_port>
+            <input_port name="roll" default="0.0">Roll rate in radians per second (REP-103 FLU)</input_port>
+            <input_port name="pitch" default="0.0">Pitch rate in radians per second (REP-103 FLU)</input_port>
+            <input_port name="yaw" default="0.0">Yaw rate in radians per second (CCW-positive)</input_port>
         </Action>
         <Action ID="ApproachAbydosSymbol"/>
         <Action ID="AttSetpoint">
-            <input_port name="roll" default="nan">Roll setpoint in radians</input_port>
-            <input_port name="pitch" default="nan">Pitch setpoint in radians</input_port>
-            <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
+            <input_port name="roll" default="nan">Roll setpoint in radians (REP-103 FLU)</input_port>
+            <input_port name="pitch" default="nan">Pitch setpoint in radians (REP-103 FLU)</input_port>
+            <input_port name="yaw" default="nan">Yaw setpoint in radians (ENU, CCW-positive)</input_port>
         </Action>
         <Condition ID="DetectionVisible">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
@@ -109,7 +109,8 @@
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
             <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS</input_port>
             <input_port name="forward_step" default="2.0">Forward target extension per update in meters</input_port>
-            <input_port name="close_distance" default="3.0">Distance that completes the approach</input_port>
+            <input_port name="close_distance" default="3.0">Distance that completes the approach or triggers the pass-through</input_port>
+            <input_port name="through_distance" default="0.0">Extra travel past the detected object; 0 stops at close_distance</input_port>
             <input_port name="depth_offset" default="0.25">Extra depth added when tracking a gate-like target</input_port>
             <input_port name="align_depth" default="true">Adjust depth from vertical bearing and distance</input_port>
             <input_port name="update_msec" default="300">Minimum time between forward target updates</input_port>
@@ -132,9 +133,9 @@
             <input_port name="timeout_msec" default="20000">Maximum wait for service + load</input_port>
         </Action>
         <Action ID="MoveRelative">
-            <input_port name="x" default="0.0">Forward offset in meters</input_port>
-            <input_port name="y" default="0.0">Right offset in meters</input_port>
-            <input_port name="z" default="0.0">Down/depth offset in meters</input_port>
+            <input_port name="x" default="0.0">Forward offset in meters (FLU)</input_port>
+            <input_port name="y" default="0.0">Left offset in meters (FLU)</input_port>
+            <input_port name="z" default="0.0">Up offset in meters (FLU)</input_port>
         </Action>
         <Condition ID="NotKilled"/>
         <Action ID="OrientToDetectionAtDist">
@@ -151,9 +152,9 @@
             <input_port name="update_msec" default="300">Minimum time between movement corrections</input_port>
         </Action>
         <Action ID="PosSetpoint">
-            <input_port name="x" default="nan">North/forward position setpoint</input_port>
-            <input_port name="y" default="nan">East/right position setpoint</input_port>
-            <input_port name="z" default="nan">Down/depth position setpoint</input_port>
+            <input_port name="x" default="nan">World x position setpoint (ENU)</input_port>
+            <input_port name="y" default="nan">World y position setpoint (ENU)</input_port>
+            <input_port name="z" default="nan">World z position setpoint (ENU, up; underwater &lt; 0)</input_port>
         </Action>
         <Action ID="SaveGateHome">
             <output_port name="x">Saved gate-home x coordinate</output_port>
@@ -165,7 +166,7 @@
             <input_port name="timeout_msec" default="5000">Maximum wait for launch_torpedo response</input_port>
         </Action>
         <Action ID="Spin">
-            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians</input_port>
+            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
             <input_port name="rate" default="3.14159265">Yaw rate in radians per second</input_port>
         </Action>
         <Action ID="SweepCheck">
@@ -188,9 +189,9 @@
             <output_port name="yaw">Absolute mission yaw toward the detected object</output_port>
         </Action>
         <Action ID="VelocitySetpoint">
-            <input_port name="x" default="0.0">Forward velocity in meters per second</input_port>
-            <input_port name="y" default="0.0">Right velocity in meters per second</input_port>
-            <input_port name="z" default="0.0">Down velocity in meters per second</input_port>
+            <input_port name="x" default="0.0">Forward velocity in meters per second (FLU)</input_port>
+            <input_port name="y" default="0.0">Left velocity in meters per second (FLU)</input_port>
+            <input_port name="z" default="0.0">Up velocity in meters per second (FLU)</input_port>
         </Action>
         <Action ID="WaitForDetection">
             <input_port name="camera" default="front">Detection source: front or down</input_port>

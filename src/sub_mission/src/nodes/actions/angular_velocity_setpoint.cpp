@@ -24,9 +24,9 @@ class AngularVelocitySetpointAction : public BT::SyncActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("roll", 0.0, "Roll rate in radians per second"),
-                BT::InputPort<double>("pitch", 0.0, "Pitch rate in radians per second"),
-                BT::InputPort<double>("yaw", 0.0, "Yaw rate in radians per second")};
+        return {BT::InputPort<double>("roll", 0.0, "Roll rate in radians per second (REP-103 FLU)"),
+                BT::InputPort<double>("pitch", 0.0, "Pitch rate in radians per second (REP-103 FLU)"),
+                BT::InputPort<double>("yaw", 0.0, "Yaw rate in radians per second (CCW-positive)")};
     }
 
     BT::NodeStatus tick() override {

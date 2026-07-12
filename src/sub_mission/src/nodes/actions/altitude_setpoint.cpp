@@ -26,10 +26,18 @@ class AltitudeSetpointAction : public BT::StatefulActionNode {
     static BT::PortsList providedPorts() { return {BT::InputPort<double>("z", "Altitude above bottom in meters")}; }
 
     BT::NodeStatus onStart() override {
-        getInput("z", node_.commanded_pos[2]);
+        // Altitude is positive-up above the bottom, not an ENU world z, so it
+        // must not persist into commanded_pos[2]: a later absolute position
+        // command would replay it as a world z above the surface. Track the
+        // measured z instead so the next non-altitude command holds depth.
+        double altitude = 0.0;
+        getInput("z", altitude);
+        std::array<double, 3> target = node_.commanded_pos;
+        target[2] = altitude;
+        node_.commanded_pos[2] -= node_.control_errors[2];
         start_updates_ = node_.control_error_updates;
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, true));
-        RCLCPP_INFO(logger_, "Published altitude command: z=%.3f", node_.commanded_pos[2]);
+        position_publisher_->publish(positionCommand(*clock_, target, true));
+        RCLCPP_INFO(logger_, "Published altitude command: z=%.3f", altitude);
         return checkErrors();
     }
 

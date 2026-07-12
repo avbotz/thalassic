@@ -10,7 +10,7 @@
       <LoadModel camera="down" task="path" timeout_msec="30000"/>
       <DownContinuousAlign task="path" tolerance="0.4" min_msec="6000" timeout_msec="30000"/>
       <MoveRelative x="1.0"/>
-      <PosSetpoint z="1.2"/>
+      <PosSetpoint z="-1.2"/>
 
       <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
       <ForwardSweepAlign camera="front"
@@ -29,12 +29,12 @@
                     close_distance="1.5"
                     align_depth="false"
                     timeout_msec="30000"/>
-      <MoveRelative y="-1.0"/>
+      <MoveRelative y="1.0"/>
 
       <SubTree ID="SlalomPipePass"/>
       <SubTree ID="SlalomPipePass"/>
       <SubTree ID="SlalomPipePass"/>
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 

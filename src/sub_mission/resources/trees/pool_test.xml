@@ -2,12 +2,12 @@
 <root BTCPP_format="4" main_tree_to_execute="PoolTestMission">
   <BehaviorTree ID="PoolTestMission">
     <Sequence name="pool_test_mission">
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
       <SubTree ID="AlignWithGate"/>
       <VelocitySetpoint x="0.25"/>
       <Sleep msec="10000"/>
-      <Spin yaw="12.56637061"/>
-      <PosSetpoint z="1.0"/>
+      <Spin yaw="-12.56637061"/>
+      <PosSetpoint z="-1.0"/>
       <PosSetpoint z="0.0"/>
     </Sequence>
   </BehaviorTree>

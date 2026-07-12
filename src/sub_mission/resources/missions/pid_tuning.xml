@@ -8,13 +8,13 @@
 <root BTCPP_format="4" main_tree_to_execute="PidTuningRun">
   <BehaviorTree ID="PidTuningRun">
     <Sequence name="pid_tuning">
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
       <Sleep msec="8000"/>
       <MoveRelative x="2.0"/>
       <Sleep msec="8000"/>
       <AddAttSetpoint yaw="1.57079633"/>
       <Sleep msec="8000"/>
-      <PosSetpoint z="0.5"/>
+      <PosSetpoint z="-0.5"/>
       <Sleep msec="8000"/>
       <PosSetpoint z="0.0"/>
     </Sequence>

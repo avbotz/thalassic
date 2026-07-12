@@ -20,9 +20,9 @@ class AddAttSetpointAction : public BT::StatefulActionNode {
         : BT::StatefulActionNode(name, config), node_(node), publisher_(publisher), clock_(clock), logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll offset in radians"),
-                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch offset in radians"),
-                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw offset in radians")};
+        return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll offset in radians (REP-103 FLU)"),
+                BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch offset in radians (REP-103 FLU)"),
+                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw offset in radians (ENU, CCW-positive)")};
     }
 
     BT::NodeStatus onStart() override {
