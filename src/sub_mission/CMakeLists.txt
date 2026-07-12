@@ -24,6 +24,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
 find_package(sub_vision_interfaces REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 if(BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
@@ -41,11 +43,11 @@ endif()
 set(MISSION_ACTION_SOURCES
     src/nodes/actions/add_att_setpoint.cpp
     src/nodes/actions/actuators.cpp
-    src/nodes/actions/altitude_setpoint.cpp
     src/nodes/actions/angular_velocity_setpoint.cpp
     src/nodes/actions/att_setpoint.cpp
     src/nodes/actions/average_angles.cpp
     src/nodes/actions/move_relative.cpp
+    src/nodes/actions/navigate_to_transform.cpp
     src/nodes/actions/pos_setpoint.cpp
     src/nodes/actions/save_gate_home.cpp
     src/nodes/actions/spin.cpp
@@ -84,6 +86,8 @@ foreach(node IN ITEMS mission restart)
         "sub_control_interfaces"
         "sub_driver_interfaces"
         "sub_vision_interfaces"
+        "tf2"
+        "tf2_ros"
     )
 
     install(TARGETS

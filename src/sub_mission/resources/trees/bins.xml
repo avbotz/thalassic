@@ -28,8 +28,8 @@
           <DownContinuousAlign task="bin" tolerance="0.35" min_msec="6000" timeout_msec="30000"/>
         </Sequence>
       </Fallback>
-      <AltitudeSetpoint z="0.6"/>
-      <MoveRelative x="0.178" y="-0.071"/>
+      <PosSetpoint x="nan" y="nan" z="-0.6"/>
+      <MoveRelative x="0.178" y="0.071"/>
       <DropBalls/>
     </Sequence>
   </BehaviorTree>

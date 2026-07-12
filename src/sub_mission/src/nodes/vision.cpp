@@ -110,8 +110,6 @@ std::optional<double> extraDouble(const Detection &detection, const std::string 
     return std::nullopt;
 }
 
-// Object yaw relative to the sub's heading, CCW-positive (REP-103) like every
-// other angle in the mission.
 std::optional<double> orientationYaw(const Detection &detection) {
     if (const auto yaw_deg = extraDouble(detection, "yaw_deg")) {
         return radians(*yaw_deg);
@@ -133,12 +131,10 @@ std::array<double, 3> actualPosition(const MissionNode &node) {
 
 double actualYaw(const MissionNode &node) { return node.commanded_att[2] - node.control_errors[8]; }
 
-// Rotates a body-frame FLU offset (forward, left) by yaw into the ENU world
-// frame and retargets the position command from the measured position.
-void addBodyOffsetToCommand(MissionNode &node, const double forward, const double left, const double yaw) {
+void addBodyOffsetToCommand(MissionNode &node, const double forward, const double right, const double yaw) {
     const std::array<double, 3> pos = actualPosition(node);
-    node.commanded_pos[0] = pos[0] + std::cos(yaw) * forward - std::sin(yaw) * left;
-    node.commanded_pos[1] = pos[1] + std::sin(yaw) * forward + std::cos(yaw) * left;
+    node.commanded_pos[0] = pos[0] + std::cos(yaw) * forward - std::sin(yaw) * right;
+    node.commanded_pos[1] = pos[1] + std::sin(yaw) * forward + std::cos(yaw) * right;
 }
 
 class LoadModelAction : public BT::StatefulActionNode {
@@ -395,19 +391,17 @@ class AlignToDetectionAction : public BT::StatefulActionNode {
 
         // Absolute targets referenced to the *measured* state (commanded minus
         // tracking error), so re-issuing on every frame stays convergent
-        // instead of integrating the correction. Bearings are camera-optical
-        // (positive = right of / below center), so ENU yaw and z move opposite
-        // to the bearing sign.
+        // instead of integrating the correction.
         if (align_yaw_ && !yaw_aligned) {
             const double actual_yaw = node_.commanded_att[2] - node_.control_errors[8];
-            node_.commanded_att[2] = normalizeAngle(actual_yaw - bearing_h);
+            node_.commanded_att[2] = normalizeAngle(actual_yaw + bearing_h);
             attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
         }
         if (align_depth_ && !depth_aligned) {
             const double actual_z = node_.commanded_pos[2] - node_.control_errors[2];
-            const double step = std::clamp(depth_gain_ * bearing_v, -max_depth_step_, max_depth_step_);
-            node_.commanded_pos[2] = actual_z - step;
-            position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+            const double step = std::clamp(-depth_gain_ * bearing_v, -max_depth_step_, max_depth_step_);
+            node_.commanded_pos[2] = actual_z + step;
+            position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         }
         return BT::NodeStatus::RUNNING;
     }
@@ -524,7 +518,7 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
         start_updates_ = node_.control_error_updates;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
         phase_ = Phase::FORWARD_MOVE;
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         RCLCPP_INFO(logger_, "ForwardSweepAlign: sweep %d/%d moving forward %.2fm.", sweep_index_ + 1, num_sweeps_,
                     forward_step_);
     }
@@ -541,8 +535,7 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
     }
 
     void beginYawMove() {
-        // Starboard-first sweep; ENU yaw is CCW-positive, so turning right is negative.
-        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, -40.0, -40.0, 160.0, -40.0, -40.0};
+        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, 40.0, 40.0, -160.0, 40.0, 40.0};
         node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + radians(SWEEP_DEGREES[angle_index_]));
         start_updates_ = node_.control_error_updates;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
@@ -575,7 +568,7 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
             if (detection_count_ >= attempts_) {
                 const double average_bearing = detection_sum_ / static_cast<double>(detection_count_);
                 const double actual_yaw = node_.commanded_att[2] - node_.control_errors[8];
-                node_.commanded_att[2] = normalizeAngle(actual_yaw - average_bearing);
+                node_.commanded_att[2] = normalizeAngle(actual_yaw + average_bearing);
                 start_updates_ = node_.control_error_updates;
                 deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
                 phase_ = Phase::FINAL_ALIGN;
@@ -728,8 +721,7 @@ class SweepCheckAction : public BT::StatefulActionNode {
     }
 
     void beginYawMove() {
-        // Starboard-first sweep; ENU yaw is CCW-positive, so turning right is negative.
-        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, -40.0, -40.0, 160.0, -40.0, -40.0};
+        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, 40.0, 40.0, -160.0, 40.0, 40.0};
         node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + radians(SWEEP_DEGREES[angle_index_]));
         start_updates_ = node_.control_error_updates;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
@@ -761,7 +753,7 @@ class SweepCheckAction : public BT::StatefulActionNode {
             if (detection_count_ >= attempts_) {
                 const double average_bearing = detection_sum_ / static_cast<double>(detection_count_);
                 const double actual_yaw = node_.commanded_att[2] - node_.control_errors[8];
-                node_.commanded_att[2] = normalizeAngle(actual_yaw - average_bearing);
+                node_.commanded_att[2] = normalizeAngle(actual_yaw + average_bearing);
                 start_updates_ = node_.control_error_updates;
                 deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
                 phase_ = Phase::FINAL_ALIGN;
@@ -898,8 +890,7 @@ class SweepAngleAction : public BT::StatefulActionNode {
     }
 
     void beginYawMove() {
-        // Starboard-first sweep; ENU yaw is CCW-positive, so turning right is negative.
-        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, -40.0, -40.0, 160.0, -40.0, -40.0};
+        static constexpr std::array<double, 6> SWEEP_DEGREES = {0.0, 40.0, 40.0, -160.0, 40.0, 40.0};
         node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + radians(SWEEP_DEGREES[angle_index_]));
         start_updates_ = node_.control_error_updates;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
@@ -930,7 +921,7 @@ class SweepAngleAction : public BT::StatefulActionNode {
             ++detection_count_;
             if (detection_count_ >= attempts_) {
                 const double average_bearing = detection_sum_ / static_cast<double>(detection_count_);
-                const double target_yaw = normalizeAngle(actualYaw(node_) - average_bearing);
+                const double target_yaw = normalizeAngle(actualYaw(node_) + average_bearing);
                 setOutput("yaw", target_yaw);
                 RCLCPP_INFO(logger_, "SweepAngle: found %s, yaw %.3f rad.", filter_.describe().c_str(), target_yaw);
                 return BT::NodeStatus::SUCCESS;
@@ -986,12 +977,12 @@ class SweepAngleAction : public BT::StatefulActionNode {
 class ForwardAlignAction : public BT::StatefulActionNode {
    public:
     ForwardAlignAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
-                       PointCmdPublisher::SharedPtr position_publisher,
+                       PointCmdPublisher::SharedPtr velocity_publisher,
                        QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                        rclcpp::Logger logger)
         : BT::StatefulActionNode(name, config),
           node_(node),
-          position_publisher_(position_publisher),
+          velocity_publisher_(velocity_publisher),
           attitude_publisher_(attitude_publisher),
           clock_(clock),
           logger_(logger) {}
@@ -999,14 +990,11 @@ class ForwardAlignAction : public BT::StatefulActionNode {
     static BT::PortsList providedPorts() {
         BT::PortsList ports = DetectionFilter::ports();
         ports.insert(BT::InputPort<double>("max_dist", 10.0, "Maximum forward travel before SUCCESS"));
-        ports.insert(BT::InputPort<double>("forward_step", 2.0, "Forward target extension per update in meters"));
-        ports.insert(BT::InputPort<double>("close_distance", 3.0,
-                                           "Distance that completes the approach or triggers the pass-through"));
-        ports.insert(BT::InputPort<double>("through_distance", 0.0,
-                                           "Extra travel past the detected object; 0 stops at close_distance"));
-        ports.insert(BT::InputPort<double>("depth_offset", 0.25, "Extra depth added when tracking a gate-like target"));
-        ports.insert(BT::InputPort<bool>("align_depth", true, "Adjust depth from vertical bearing and distance"));
-        ports.insert(BT::InputPort<int>("update_msec", 300, "Minimum time between forward target updates"));
+        ports.insert(
+            BT::InputPort<double>("forward_velocity", 1.0, "Fixed body-forward velocity in meters per second"));
+        ports.insert(BT::InputPort<double>("close_distance", 3.0, "Distance that completes the approach"));
+        ports.insert(
+            BT::InputPort<int>("detection_loss_msec", 3000, "Target-loss time that completes the approach"));
         ports.insert(BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS"));
         return ports;
     }
@@ -1014,92 +1002,89 @@ class ForwardAlignAction : public BT::StatefulActionNode {
     BT::NodeStatus onStart() override {
         filter_ = DetectionFilter::read(*this);
         getInput("max_dist", max_dist_);
-        getInput("forward_step", forward_step_);
+        getInput("forward_velocity", forward_velocity_);
         getInput("close_distance", close_distance_);
-        getInput("through_distance", through_distance_);
-        getInput("depth_offset", depth_offset_);
-        getInput("align_depth", align_depth_);
-        getInput("update_msec", update_msec_);
+        getInput("detection_loss_msec", detection_loss_msec_);
         getInput("timeout_msec", timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "ForwardAlign needs a task port, e.g. <ForwardAlign task=\"gate\"/>.");
+            stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
-        if (max_dist_ <= 0.0 || forward_step_ <= 0.0 || update_msec_ <= 0) {
-            RCLCPP_ERROR(logger_, "ForwardAlign max_dist, forward_step, and update_msec must be positive.");
+        if (max_dist_ <= 0.0 || forward_velocity_ <= 0.0 || detection_loss_msec_ <= 0 || timeout_msec_ <= 0) {
+            RCLCPP_ERROR(logger_,
+                         "ForwardAlign max_dist, forward_velocity, detection_loss_msec, and timeout_msec must be "
+                         "positive.");
+            stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
 
-        final_move_ = false;
-        initial_pos_ = actualPosition();
+        const auto initial_pos = horizontalPosition();
+        if (!initial_pos) {
+            stopVelocity();
+            return BT::NodeStatus::FAILURE;
+        }
+        initial_pos_ = *initial_pos;
         last_processed_ = SteadyClock::now();
-        last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
+        seen_detection_ = false;
         started_at_ = last_processed_;
         deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        node_.last_velocity_setpoint = {forward_velocity_, 0.0, 0.0};
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_active_ = true;
+        RCLCPP_INFO(logger_, "ForwardAlign: moving forward at %.2fm/s toward %s.", forward_velocity_,
+                    filter_.describe().c_str());
         return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
         if (node_.killed) {
             RCLCPP_WARN(logger_, "ForwardAlign failed because kill switch is engaged.");
+            stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
-        return final_move_ ? tickFinalMove() : tickActive();
+        return tickActive();
     }
 
-    void onHalted() override { RCLCPP_INFO(logger_, "ForwardAlign halted."); }
+    void onHalted() override {
+        stopVelocity();
+        RCLCPP_INFO(logger_, "ForwardAlign halted.");
+    }
 
    private:
     BT::NodeStatus tickActive() {
-        const std::array<double, 3> actual_pos = actualPosition();
-        if (horizontalDistance(initial_pos_, actual_pos) >= max_dist_) {
+        const auto actual_pos = horizontalPosition();
+        if (!actual_pos) {
+            stopVelocity();
+            return BT::NodeStatus::FAILURE;
+        }
+        if (std::hypot((*actual_pos)[0] - initial_pos_[0], (*actual_pos)[1] - initial_pos_[1]) >= max_dist_) {
             RCLCPP_INFO(logger_, "ForwardAlign: max distance %.2fm reached.", max_dist_);
+            stopVelocity();
             return BT::NodeStatus::SUCCESS;
         }
         if (SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "ForwardAlign: timeout reached after %dms.", timeout_msec_);
+            stopVelocity();
             return BT::NodeStatus::SUCCESS;
         }
 
         const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
         if (match.detection != nullptr) {
             last_processed_ = match.received_at;
+            last_detection_ = SteadyClock::now();
+            seen_detection_ = true;
             steerFromDetection(*match.detection);
             if (validDistance(match.detection->distance_m) && match.detection->distance_m <= close_distance_) {
-                if (through_distance_ > 0.0) {
-                    beginFinalMove(match.detection->distance_m + through_distance_);
-                    return BT::NodeStatus::RUNNING;
-                }
                 RCLCPP_INFO(logger_, "ForwardAlign: close target detected at %.2fm.", match.detection->distance_m);
+                stopVelocity();
                 return BT::NodeStatus::SUCCESS;
             }
-        }
-
-        if (SteadyClock::now() - last_commanded_ >= std::chrono::milliseconds(update_msec_)) {
-            commandForward(forward_step_);
-        }
-        return BT::NodeStatus::RUNNING;
-    }
-
-    // Blind pass-through: one absolute target through_distance past the
-    // detected object, then wait for convergence. The camera loses the target
-    // at close range, so this leg cannot keep steering from detections.
-    void beginFinalMove(const double distance) {
-        commandForward(distance);
-        final_move_ = true;
-        start_updates_ = node_.control_error_updates;
-        deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec_);
-        RCLCPP_INFO(logger_, "ForwardAlign: close target detected, final pass-through %.2fm.", distance);
-    }
-
-    BT::NodeStatus tickFinalMove() {
-        if (freshAndWithinTolerance(0, POSITION_TOLERANCE) && freshAndWithinTolerance(1, POSITION_TOLERANCE)) {
-            RCLCPP_INFO(logger_, "ForwardAlign: final pass-through reached.");
-            return BT::NodeStatus::SUCCESS;
-        }
-        if (SteadyClock::now() >= deadline_) {
-            RCLCPP_WARN(logger_, "ForwardAlign: final pass-through timed out.");
+        } else if (seen_detection_ &&
+                   SteadyClock::now() - last_detection_ >= std::chrono::milliseconds(detection_loss_msec_)) {
+            RCLCPP_INFO(logger_, "ForwardAlign: target no longer detected; approach complete.");
+            stopVelocity();
             return BT::NodeStatus::SUCCESS;
         }
         return BT::NodeStatus::RUNNING;
@@ -1107,63 +1092,52 @@ class ForwardAlignAction : public BT::StatefulActionNode {
 
     void steerFromDetection(const Detection &detection) {
         const double actual_yaw = node_.commanded_att[2] - node_.control_errors[8];
-        node_.commanded_att[2] = normalizeAngle(actual_yaw - detection.bearing_horizontal);
+        node_.commanded_att[2] = normalizeAngle(actual_yaw + detection.bearing_horizontal);
         attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
+    }
 
-        if (align_depth_ && validDistance(detection.distance_m)) {
-            const double actual_z = node_.commanded_pos[2] - node_.control_errors[2];
-            // Positive vertical bearing = target below center; ENU z drops.
-            const double z_offset = std::sin(detection.bearing_vertical) * detection.distance_m;
-            node_.commanded_pos[2] = actual_z - z_offset - depth_offset_;
+    std::optional<std::array<double, 2>> horizontalPosition() const {
+        const std::string ns = node_.get_namespace();
+        const std::string prefix = ns.empty() || ns == "/" ? "" : (ns.front() == '/' ? ns.substr(1) : ns) + "/";
+        try {
+            const auto transform =
+                node_.tfBuffer().lookupTransform(prefix + "odom", prefix + "base_link", tf2::TimePointZero);
+            return std::array<double, 2>{transform.transform.translation.x, transform.transform.translation.y};
+        } catch (const tf2::TransformException &error) {
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000, "ForwardAlign waiting for odom TF: %s", error.what());
+            return std::nullopt;
         }
-    }
-
-    void commandForward(const double distance) {
-        const double yaw = node_.commanded_att[2];
-        const std::array<double, 3> actual_pos = actualPosition();
-        node_.commanded_pos[0] = actual_pos[0] + std::cos(yaw) * distance;
-        node_.commanded_pos[1] = actual_pos[1] + std::sin(yaw) * distance;
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
-        last_commanded_ = SteadyClock::now();
-    }
-
-    std::array<double, 3> actualPosition() const {
-        return {node_.commanded_pos[0] - node_.control_errors[0], node_.commanded_pos[1] - node_.control_errors[1],
-                node_.commanded_pos[2] - node_.control_errors[2]};
     }
 
     static bool validDistance(const double distance) { return std::isfinite(distance) && distance > 0.0; }
 
-    static double horizontalDistance(const std::array<double, 3> &a, const std::array<double, 3> &b) {
-        return std::hypot(a[0] - b[0], a[1] - b[1]);
-    }
-
-    bool freshAndWithinTolerance(const std::size_t index, const double tolerance) const {
-        return node_.control_error_updates[index] > start_updates_[index] &&
-               std::fabs(node_.control_errors[index]) <= tolerance;
+    void stopVelocity() {
+        if (!velocity_active_ && node_.last_velocity_setpoint == std::array<double, 3>{0.0, 0.0, 0.0}) {
+            return;
+        }
+        node_.last_velocity_setpoint = {0.0, 0.0, 0.0};
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_active_ = false;
     }
 
     MissionNode &node_;
-    PointCmdPublisher::SharedPtr position_publisher_;
+    PointCmdPublisher::SharedPtr velocity_publisher_;
     QuaternionCmdPublisher::SharedPtr attitude_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
-    std::array<double, 3> initial_pos_ = {};
-    std::array<std::uint64_t, 12> start_updates_ = {};
+    std::array<double, 2> initial_pos_ = {};
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
     SteadyClock::time_point last_processed_;
-    SteadyClock::time_point last_commanded_;
+    SteadyClock::time_point last_detection_;
     double max_dist_ = 10.0;
-    double forward_step_ = 2.0;
+    double forward_velocity_ = 1.0;
     double close_distance_ = 3.0;
-    double through_distance_ = 0.0;
-    double depth_offset_ = 0.25;
-    bool align_depth_ = true;
-    bool final_move_ = false;
-    int update_msec_ = 300;
+    int detection_loss_msec_ = 3000;
     int timeout_msec_ = 30000;
+    bool velocity_active_ = false;
+    bool seen_detection_ = false;
 };
 
 class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
@@ -1263,9 +1237,8 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         }
 
         const double yaw = actualYaw(node_);
-        // Positive horizontal bearing = target to the right = negative FLU left offset.
         const double lateral = std::sin(detection.bearing_horizontal) * std::cos(detection.bearing_vertical) * distance;
-        addBodyOffsetToCommand(node_, 0.0, -lateral, yaw);
+        addBodyOffsetToCommand(node_, 0.0, lateral, yaw);
 
         const double theta = *orient > 0.0 ? *orient - M_PI_2 : *orient + M_PI_2;
         const double triangle_forward = std::sin(std::fabs(*orient)) * distance;
@@ -1274,7 +1247,7 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         addBodyOffsetToCommand(node_, distance - desired_distance_, 0.0, yaw + *orient);
         node_.commanded_att[2] = normalizeAngle(yaw + *orient);
 
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
         last_commanded_ = SteadyClock::now();
         return BT::NodeStatus::RUNNING;
@@ -1382,7 +1355,7 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         }
 
         double forward = forward_step_;
-        double left = 0.0;
+        double right = 0.0;
         const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
         if (match.detection != nullptr) {
             if (sweep_when_missing_) {
@@ -1392,18 +1365,16 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
             last_processed_ = match.received_at;
             const double distance =
                 validDistanceValue(match.detection->distance_m) ? match.detection->distance_m : default_distance_;
-            // Down-camera bearings: positive vertical = ahead of center, positive
-            // horizontal = right of center = negative FLU left offset.
             forward += center_gain_ * std::tan(match.detection->bearing_vertical) * distance;
-            left = -center_gain_ * std::tan(match.detection->bearing_horizontal) * distance;
+            right = center_gain_ * std::tan(match.detection->bearing_horizontal) * distance;
         } else if (sweep_when_missing_) {
-            left = sweep_direction_ * lateral_sweep_step_;
+            right = sweep_direction_ * lateral_sweep_step_;
             sweep_direction_ *= -1.0;
         }
 
         if (SteadyClock::now() - last_commanded_ >= std::chrono::milliseconds(update_msec_)) {
-            addBodyOffsetToCommand(node_, forward, left, node_.commanded_att[2]);
-            position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+            addBodyOffsetToCommand(node_, forward, right, node_.commanded_att[2]);
+            position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
             last_commanded_ = SteadyClock::now();
         }
         return BT::NodeStatus::RUNNING;
@@ -1535,17 +1506,14 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         }
 
         const double yaw = actualYaw(node_);
-        // Down-camera bearings: positive vertical = ahead of center, positive
-        // horizontal = right of center = negative FLU left offset.
         const double forward = center_gain_ * std::tan(detection.bearing_vertical) * distance;
-        const double left = -center_gain_ * std::tan(detection.bearing_horizontal) * distance;
-        addBodyOffsetToCommand(node_, forward, left, yaw);
+        const double right = center_gain_ * std::tan(detection.bearing_horizontal) * distance;
+        addBodyOffsetToCommand(node_, forward, right, yaw);
         if (hold_distance) {
-            // Farther above the object than desired -> descend (ENU z down is negative).
             const double actual_z = node_.commanded_pos[2] - node_.control_errors[2];
-            node_.commanded_pos[2] = actual_z - (distance - desired_distance_);
+            node_.commanded_pos[2] = actual_z - distance + desired_distance_;
         }
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
 
         if (orient_ && orient_error) {
             node_.commanded_att[2] = normalizeAngle(yaw + *orient_error);
@@ -1644,11 +1612,9 @@ class DownPatternScanAction : public BT::StatefulActionNode {
         MOVE,
     };
 
-    // (forward, left) FLU multipliers of movement_dist; same physical loop as
-    // the pre-ENU (forward, right) pattern.
     static constexpr std::array<std::array<double, 2>, 6> PATTERN = {
-        std::array<double, 2>{0.0, 0.0}, std::array<double, 2>{-1.0, -1.0}, std::array<double, 2>{0.0, 2.0},
-        std::array<double, 2>{2.0, 0.0}, std::array<double, 2>{0.0, -2.0},  std::array<double, 2>{-1.0, 1.0}};
+        std::array<double, 2>{0.0, 0.0}, std::array<double, 2>{-1.0, 1.0}, std::array<double, 2>{0.0, -2.0},
+        std::array<double, 2>{2.0, 0.0}, std::array<double, 2>{0.0, 2.0},  std::array<double, 2>{-1.0, -1.0}};
 
     BT::NodeStatus tickSample() {
         const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
@@ -1694,9 +1660,9 @@ class DownPatternScanAction : public BT::StatefulActionNode {
 
     std::array<double, 3> patternTarget(const std::size_t index) const {
         const double forward = PATTERN[index][0] * movement_dist_;
-        const double left = PATTERN[index][1] * movement_dist_;
-        return {initial_pos_[0] + std::cos(initial_yaw_) * forward - std::sin(initial_yaw_) * left,
-                initial_pos_[1] + std::sin(initial_yaw_) * forward + std::cos(initial_yaw_) * left,
+        const double right = PATTERN[index][1] * movement_dist_;
+        return {initial_pos_[0] + std::cos(initial_yaw_) * forward - std::sin(initial_yaw_) * right,
+                initial_pos_[1] + std::sin(initial_yaw_) * forward + std::cos(initial_yaw_) * right,
                 node_.commanded_pos[2]};
     }
 
@@ -1706,7 +1672,7 @@ class DownPatternScanAction : public BT::StatefulActionNode {
         start_updates_ = node_.control_error_updates;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
         phase_ = Phase::MOVE;
-        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         RCLCPP_INFO(logger_, "DownPatternScan: moving to pattern point %zu.", pattern_index_);
     }
 
@@ -1737,6 +1703,7 @@ class DownPatternScanAction : public BT::StatefulActionNode {
 
 void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, const rclcpp::Logger logger,
                          PointCmdPublisher::SharedPtr position_publisher,
+                         PointCmdPublisher::SharedPtr linear_velocity_publisher,
                          QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock) {
     factory.registerBuilder<LoadModelAction>("LoadModel",
                                              [&node, logger](const std::string &name, const BT::NodeConfig &config) {
@@ -1768,10 +1735,10 @@ void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, co
         });
 
     factory.registerBuilder<ForwardAlignAction>(
-        "ForwardAlign", [&node, position_publisher, attitude_publisher, clock, logger](const std::string &name,
-                                                                                       const BT::NodeConfig &config) {
-            return std::make_unique<ForwardAlignAction>(name, config, node, position_publisher, attitude_publisher,
-                                                        clock, logger);
+        "ForwardAlign", [&node, linear_velocity_publisher, attitude_publisher, clock, logger](
+                            const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<ForwardAlignAction>(name, config, node, linear_velocity_publisher,
+                                                        attitude_publisher, clock, logger);
         });
 
     factory.registerBuilder<OrientToDetectionAtDistAction>(

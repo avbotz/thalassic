@@ -25,9 +25,8 @@
                     task="slalom"
                     class_id="red"
                     max_dist="2.0"
-                    forward_step="0.5"
+                    forward_velocity="0.5"
                     close_distance="1.5"
-                    align_depth="false"
                     timeout_msec="30000"/>
       <MoveRelative y="1.0"/>
 

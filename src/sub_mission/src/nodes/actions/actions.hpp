@@ -13,9 +13,6 @@ void registerPosSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &no
 void registerVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                     PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
                                     rclcpp::Logger logger);
-void registerAltitudeSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                                    PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
-                                    rclcpp::Logger logger);
 void registerAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                                rclcpp::Logger logger);
@@ -25,6 +22,9 @@ void registerAngularVelocitySetpointAction(BT::BehaviorTreeFactory &factory, Mis
 void registerMoveRelativeAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                 PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
                                 rclcpp::Logger logger);
+void registerNavigateToTransformAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
+                                       PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
+                                       rclcpp::Logger logger);
 void registerAddAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                   QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                                   rclcpp::Logger logger);

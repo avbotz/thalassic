@@ -78,16 +78,16 @@ Movement-related XML nodes currently implemented in C++:
 |---|---|
 | `PosSetpoint` | Position or depth command that waits for the controller to reach tolerance |
 | `VelocitySetpoint` | Body-frame linear velocity command |
-| `AltitudeSetpoint` | DVL altitude command that waits for the controller to reach tolerance |
 | `AttSetpoint` | Attitude command that waits for the controller to reach tolerance |
 | `AngularVelocitySetpoint` | Body-frame angular velocity command |
 | `MoveRelative` | Relative x/y/z movement using the current commanded yaw |
+| `NavigateToTransform` | Move a vehicle-mounted source frame to an externally supplied target pose |
 | `AddAttSetpoint` | Relative roll/pitch/yaw target |
 | `Spin` | Angular-velocity spin until measured yaw travel reaches the target |
 | `WaitUntilHit` | Wait for velocity feedback to drop after a velocity command |
 | `SweepCheck` | Sweep the old yaw pattern and align to the first valid front-camera detection |
 | `ForwardSweepAlign` | Sweep yaw, move forward between sweeps, and align to the first valid detection |
-| `ForwardAlign` | Move forward while continuously yaw/depth-aligning to a front-camera detection |
+| `ForwardAlign` | Hold a fixed body-forward velocity while yaw-aligning; succeed after close range or target loss and stop velocity on exit |
 | `OrientToDetectionAtDist` | Use vision orientation metadata to square up to an object while holding distance |
 | `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection with x/y position offsets |
 | `DownAlignToDetection` | Center a down-camera detection, optionally hold distance/depth, and yaw to orientation metadata |
@@ -108,20 +108,31 @@ published to `sub_control`:
 
 | Topic | Type | Use |
 |---|---|---|
-| `pos_setpoint` | `sub_control_interfaces/Setpoint` | Position/depth/altitude target, or body-frame linear velocity |
+| `pos_setpoint` | `sub_control_interfaces/Setpoint` | Position/depth target, or body-frame linear velocity |
 | `att_setpoint` | `sub_control_interfaces/Setpoint` | Absolute attitude target, or body-frame angular velocity |
 | `control/error` | `sub_control_interfaces/Error` | Position, velocity, attitude, and angular-rate tracking error |
 | `kill_switch` | `std_msgs/Bool` | Low-level kill state, published by `sub_low` |
 
 The control topics use REP-103 FLU at the ROS boundary: x forward, y left, z
-up. Existing mission XML was migrated from the old convention: x forward, y
-right, z down/depth. The mission C++ preserves current XML behavior by
-converting signs before publishing to `sub_control`, and converting
-`control/error` back before evaluating movement tolerances.
+up. Mission XML uses the same vertical convention, so underwater position and
+downward velocity values are negative. Mission XML retains right-positive y
+and clockwise-positive yaw; mission C++ converts those two axes when publishing
+to `sub_control` and converts their `control/error` values back for movement
+tolerances.
 
-For altitude commands, `AltitudeSetpoint` publishes `pos_setpoint` with
-`altitude=true`; the z value is interpreted as height above the bottom from DVL
-altitude feedback.
+### Transform Navigation
+
+`NavigateToTransform` applies the fixed positional offset between two
+vehicle-mounted frames as a one-shot relative move. It snapshots both frames in
+`base_link`, then moves by `source_frame - target_frame`, placing the target
+frame at the source frame's previous position. It does not command attitude or
+continue tracking TF updates.
+
+The torpedo mission uses `front_camera -> torps_right` after visual alignment,
+which moves the right shooter onto the camera's established aim point. It then
+uses `torps_right -> torps_left` so the left shooter occupies that same aim
+point. These attached frames are supplied externally; this package does not
+publish them.
 
 ## Completion Semantics
 

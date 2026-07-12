@@ -24,9 +24,9 @@ class PosSetpointAction : public BT::StatefulActionNode {
           logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("x", UNSPECIFIED_PORT, "World x position setpoint (ENU)"),
-                BT::InputPort<double>("y", UNSPECIFIED_PORT, "World y position setpoint (ENU)"),
-                BT::InputPort<double>("z", UNSPECIFIED_PORT, "World z position setpoint (ENU, up; underwater < 0)")};
+        return {BT::InputPort<double>("x", UNSPECIFIED_PORT, "North/forward position setpoint"),
+                BT::InputPort<double>("y", UNSPECIFIED_PORT, "East/right position setpoint"),
+                BT::InputPort<double>("z", UNSPECIFIED_PORT, "Vertical position setpoint; negative is down")};
     }
 
     BT::NodeStatus onStart() override {
@@ -47,7 +47,7 @@ class PosSetpointAction : public BT::StatefulActionNode {
             target[2] = inputs[2];
         }
         node_.commanded_pos = target;
-        position_publisher_->publish(positionCommand(*clock_, target, false));
+        position_publisher_->publish(positionCommand(*clock_, target));
 
         start_updates_ = node_.control_error_updates;
 

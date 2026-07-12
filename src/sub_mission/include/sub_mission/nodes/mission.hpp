@@ -14,6 +14,8 @@
 #include "std_msgs/msg/bool.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
 #include "sub_mission/vision_client.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
 using namespace std::chrono_literals;
 
@@ -40,6 +42,7 @@ class MissionNode : public rclcpp::Node {
 
     // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
     VisionClient &vision() { return *vision_client; }
+    tf2_ros::Buffer &tfBuffer() { return *tf_buffer; }
 
     bool killed = true;
     std::array<double, 12> control_errors = {};
@@ -56,4 +59,6 @@ class MissionNode : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub;
     rclcpp::Subscription<sub_control_interfaces::msg::Error>::SharedPtr control_error_sub;
     std::unique_ptr<VisionClient> vision_client;
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener;
 };
