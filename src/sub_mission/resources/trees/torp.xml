@@ -1,32 +1,242 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="TorpMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="TorpMission">
   <BehaviorTree ID="TorpMission">
     <Sequence name="torp_mission">
-      <AltitudeSetpoint z="1.0"/>
-      <AttSetpoint name="torp_search_heading" yaw="{@torp_search_yaw}"/>
-      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
+      <AttSetpoint name="torp_search_heading"
+                   roll="nan"
+                   pitch="nan"
+                   yaw="{@torp_search_yaw}"/>
+      <LoadModel camera="front"
+                 task="torp"
+                 timeout_msec="30000"/>
       <Fallback name="find_torp_board">
-        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
+        <ForwardSweepAlign camera="front"
+                           task="torp"
+                           class_id=""
+                           min_score="0.0"
+                           attempts="4"
+                           num_sweeps="4"
+                           forward_step="2.0"
+                           sample_timeout_msec="2500.0"
+                           move_timeout_msec="20000"/>
         <Sequence name="recover_torp_board_search">
-          <MoveRelative y="2.0"/>
-          <ForwardSweepAlign task="torp" attempts="4" num_sweeps="2"/>
+          <MoveRelative x="0.0"
+                        y="-2.0"
+                        z="0.0"/>
+          <ForwardSweepAlign camera="front"
+                             task="torp"
+                             class_id=""
+                             min_score="0.0"
+                             attempts="4"
+                             num_sweeps="2"
+                             forward_step="2.0"
+                             sample_timeout_msec="2500.0"
+                             move_timeout_msec="20000"/>
         </Sequence>
       </Fallback>
-      <MoveRelative x="0.5"/>
-      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
+      <MoveRelative x="0.5"
+                    y="0.0"
+                    z="0.0"/>
+      <LoadModel camera="front"
+                 task="torp"
+                 timeout_msec="30000"/>
       <Fallback name="verify_torp_board">
-        <AlignToDetection task="torp" tolerance="0.3" timeout_msec="10000"/>
-        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
+        <AlignToDetection camera="front"
+                          task="torp"
+                          class_id=""
+                          min_score="0.0"
+                          yaw="true"
+                          depth="false"
+                          tolerance="0.3"
+                          depth_gain="1.5"
+                          max_depth_step="0.5"
+                          timeout_msec="10000"/>
+        <ForwardSweepAlign camera="front"
+                           task="torp"
+                           class_id=""
+                           min_score="0.0"
+                           attempts="4"
+                           num_sweeps="4"
+                           forward_step="2.0"
+                           sample_timeout_msec="2500.0"
+                           move_timeout_msec="20000"/>
       </Fallback>
-      <ForwardAlign task="torp" max_dist="4.0" close_distance="2.0" align_depth="false" timeout_msec="30000"/>
+      <ForwardAlign camera="front"
+                    task="torp"
+                    class_id=""
+                    min_score="0.0"
+                    max_dist="4.0"
+                    forward_velocity="1.0"
+                    close_distance="2.0"
+                    timeout_msec="30000"/>
       <ForceSuccess>
-        <OrientToDetectionAtDist task="torp" desired_distance="2.0" min_msec="6500" timeout_msec="30000"/>
+        <OrientToDetectionAtDist camera="front"
+                                 task="torp"
+                                 class_id=""
+                                 min_score="0.0"
+                                 desired_distance="2.0"
+                                 tolerance="0.35"
+                                 distance_tolerance="0.5"
+                                 orient_tolerance_deg="5.0"
+                                 min_msec="6500"
+                                 timeout_msec="30000"
+                                 update_msec="300"/>
       </ForceSuccess>
-      <ShootTorpedo torpedo_id="0"/>
-      <VelocitySetpoint x="-1.5"/>
-      <ShootTorpedo torpedo_id="1"/>
-      <VelocitySetpoint x="-1.5"/>
-      <PosSetpoint z="-1.0"/>
+      <NavigateToTransform source_frame="front_camera"
+                           target_frame="torps_right"
+                           timeout_msec="30000"/>
+      <ShootTorpedo torpedo_id="0"
+                    open="true"
+                    timeout_msec="5000"/>
+      <NavigateToTransform source_frame="torps_right"
+                           target_frame="torps_left"
+                           timeout_msec="30000"/>
+      <ShootTorpedo torpedo_id="1"
+                    open="true"
+                    timeout_msec="5000"/>
+      <VelocitySetpoint x="-1.5"
+                        y="0.0"
+                        z="0.0"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AlignToDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="yaw"
+                  default="true">Steer yaw to zero the horizontal bearing</input_port>
+      <input_port name="depth"
+                  default="false">Steer depth to zero the vertical bearing</input_port>
+      <input_port name="tolerance"
+                  default="0.05">Aligned when |bearing| &lt;= tolerance (rad)</input_port>
+      <input_port name="depth_gain"
+                  default="1.5">Meters of depth change per radian of bearing</input_port>
+      <input_port name="max_depth_step"
+                  default="0.5">Depth correction clamp per frame (m)</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+    </Action>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="ForwardAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="max_dist"
+                  default="10.0">Maximum forward travel before SUCCESS</input_port>
+      <input_port name="forward_velocity"
+                  default="1.0">Fixed body-forward velocity in meters per second</input_port>
+      <input_port name="close_distance"
+                  default="3.0">Distance that completes the approach</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before SUCCESS</input_port>
+    </Action>
+    <Action ID="ForwardSweepAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="num_sweeps"
+                  default="3">Forward sweep passes before FAILURE</input_port>
+      <input_port name="forward_step"
+                  default="2.0">Forward move between sweeps in meters</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each commanded movement</input_port>
+    </Action>
+    <Action ID="LoadModel">
+      <input_port name="camera"
+                  default="front">Camera whose vision node loads the model</input_port>
+      <input_port name="task">Task model to load, e.g. gate</input_port>
+      <input_port name="timeout_msec"
+                  default="20000">Maximum wait for service + load</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="NavigateToTransform">
+      <input_port name="source_frame">Frame whose current position is the aim point</input_port>
+      <input_port name="target_frame">Attached frame to move into the source position</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
+    </Action>
+    <Action ID="OrientToDetectionAtDist">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="desired_distance"
+                  default="2.0">Distance to hold from the target in meters</input_port>
+      <input_port name="tolerance"
+                  default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
+      <input_port name="distance_tolerance"
+                  default="0.5">Distance error allowed at completion (m)</input_port>
+      <input_port name="orient_tolerance_deg"
+                  default="5.0">Orientation error allowed at completion</input_port>
+      <input_port name="min_msec"
+                  default="6500">Minimum closed-loop alignment time</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+      <input_port name="update_msec"
+                  default="300">Minimum time between movement corrections</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="ShootTorpedo">
+      <input_port name="torpedo_id">Torpedo id to command</input_port>
+      <input_port name="open"
+                  default="true">Torpedo thruster state to command</input_port>
+      <input_port name="timeout_msec"
+                  default="5000">Maximum wait for launch_torpedo response</input_port>
+    </Action>
+    <Action ID="VelocitySetpoint">
+      <input_port name="x"
+                  default="0.0">Forward velocity in meters per second</input_port>
+      <input_port name="y"
+                  default="0.0">Right velocity in meters per second</input_port>
+      <input_port name="z"
+                  default="0.0">Up velocity in meters per second</input_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>

@@ -19,9 +19,9 @@ class MoveRelativeAction : public BT::StatefulActionNode {
         : BT::StatefulActionNode(name, config), node_(node), publisher_(publisher), clock_(clock), logger_(logger) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<double>("x", 0.0, "Forward offset in meters (FLU)"),
-                BT::InputPort<double>("y", 0.0, "Left offset in meters (FLU)"),
-                BT::InputPort<double>("z", 0.0, "Up offset in meters (FLU)")};
+        return {BT::InputPort<double>("x", 0.0, "Forward offset in meters"),
+                BT::InputPort<double>("y", 0.0, "Right offset in meters"),
+                BT::InputPort<double>("z", 0.0, "Vertical offset in meters; negative is down")};
     }
 
     BT::NodeStatus onStart() override {
@@ -31,6 +31,12 @@ class MoveRelativeAction : public BT::StatefulActionNode {
         getInput("x", x);
         getInput("y", y);
         getInput("z", z);
+        if (std::isnan(x))
+            x = 0.0;
+        if (std::isnan(y))
+            y = 0.0;
+        if (std::isnan(z))
+            z = 0.0;
 
         const double yaw = node_.commanded_att[2];
         const double dx = std::cos(yaw) * x - std::sin(yaw) * y;
@@ -43,7 +49,7 @@ class MoveRelativeAction : public BT::StatefulActionNode {
         active_axes_ = {std::fabs(x) > 0.0 || std::fabs(y) > 0.0, std::fabs(x) > 0.0 || std::fabs(y) > 0.0,
                         std::fabs(z) > 0.0};
         start_updates_ = node_.control_error_updates;
-        publisher_->publish(positionCommand(*clock_, node_.commanded_pos, false));
+        publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
 
         RCLCPP_INFO(logger_, "Published relative move: offset=(%.3f, %.3f, %.3f) target=(%.3f, %.3f, %.3f)", x, y, z,
                     node_.commanded_pos[0], node_.commanded_pos[1], node_.commanded_pos[2]);

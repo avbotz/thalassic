@@ -3,12 +3,15 @@
       main_tree_to_execute="CoinFlipMission">
   <BehaviorTree ID="CoinFlipMission">
     <Sequence name="coin_flip_mission">
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-1.0"/>
-      <LoadModel camera="front"
-                 task="gate"
-                 timeout_msec="30000"/>
+      <Parallel failure_count="1"
+                success_count="-1">
+        <PosSetpoint x="nan"
+                     y="nan"
+                     z="-0.7"/>
+        <LoadModel camera="front"
+                   task="gate"
+                   timeout_msec="30000"/>
+      </Parallel>
       <Sleep msec="4000"/>
       <Fallback name="search_gate_after_coin_flip">
         <Sequence name="gate_at_current_heading">
@@ -19,7 +22,7 @@
                             task="gate"
                             class_id="1"
                             min_score="0.0"
-                            timeout_msec="7500"/>
+                            timeout_msec="8200"/>
           <AlignToDetection camera="front"
                             task="gate"
                             class_id="1"
@@ -34,7 +37,7 @@
         <Sequence name="gate_after_quarter_turn">
           <AttSetpoint roll="nan"
                        pitch="nan"
-                       yaw="-1.57079633"/>
+                       yaw="1.57079633"/>
           <WaitForDetection camera="front"
                             task="gate"
                             class_id="1"
@@ -54,7 +57,7 @@
         <Sequence name="gate_after_half_turn">
           <AttSetpoint roll="nan"
                        pitch="nan"
-                       yaw="-3.14159265"/>
+                       yaw="3.14159265"/>
           <WaitForDetection camera="front"
                             task="gate"
                             class_id="1"
@@ -114,11 +117,11 @@
     </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
-                  default="nan">World x position setpoint (ENU)</input_port>
+                  default="nan">North/forward position setpoint</input_port>
       <input_port name="y"
-                  default="nan">World y position setpoint (ENU)</input_port>
+                  default="nan">East/right position setpoint</input_port>
       <input_port name="z"
-                  default="nan">World z position setpoint (ENU, up; underwater &lt; 0)</input_port>
+                  default="nan">Vertical position setpoint; negative is down</input_port>
     </Action>
     <Action ID="WaitForDetection">
       <input_port name="camera"

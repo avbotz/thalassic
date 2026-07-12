@@ -47,10 +47,10 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
 
     registerPosSetpointAction(factory, node, position_publisher, clock, logger);
     registerVelocitySetpointAction(factory, node, linear_velocity_publisher, clock, logger);
-    registerAltitudeSetpointAction(factory, node, position_publisher, clock, logger);
     registerAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);
+    registerNavigateToTransformAction(factory, node, position_publisher, clock, logger);
     registerAddAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerSpinAction(factory, node, angular_velocity_publisher, attitude_publisher, clock, logger);
     registerWaitUntilHitAction(factory, node, logger);
@@ -71,6 +71,10 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         "control/error", 10, std::bind(&MissionNode::control_error_callback, this, std::placeholders::_1));
 
     this->vision_client = std::make_unique<VisionClient>(*this);
+    this->tf_buffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    this->tf_listener = std::make_shared<tf2_ros::TransformListener>(
+        *this->tf_buffer, this->get_node_base_interface(), this->get_node_logging_interface(),
+        this->get_node_parameters_interface(), this->get_node_topics_interface(), false);
 
     // Mission config name (resources/missions/<name>.xml) or file path
     this->declare_parameter<std::string>("mission", "");
@@ -103,10 +107,10 @@ void MissionNode::kill_callback(const std_msgs::msg::Bool &msg) {
 
 void MissionNode::control_error_callback(const sub_control_interfaces::msg::Error &msg) {
     const std::array<std::array<double, 3>, 4> errors = {
-        std::array<double, 3>{msg.pos_error[0], msg.pos_error[1], msg.pos_error[2]},
-        std::array<double, 3>{msg.vel_error[0], msg.vel_error[1], msg.vel_error[2]},
-        std::array<double, 3>{msg.att_error[0], msg.att_error[1], msg.att_error[2]},
-        std::array<double, 3>{msg.angvel_error[0], msg.angvel_error[1], msg.angvel_error[2]},
+        std::array<double, 3>{msg.pos_error[0], -msg.pos_error[1], msg.pos_error[2]},
+        std::array<double, 3>{msg.vel_error[0], -msg.vel_error[1], msg.vel_error[2]},
+        std::array<double, 3>{msg.att_error[0], -msg.att_error[1], -msg.att_error[2]},
+        std::array<double, 3>{msg.angvel_error[0], -msg.angvel_error[1], -msg.angvel_error[2]},
     };
 
     for (std::size_t group = 0; group < errors.size(); ++group) {
@@ -161,8 +165,8 @@ bool MissionNode::load_mission() {
         const auto angular_velocity_publisher = attitude_publisher;
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
                              linear_velocity_publisher, angular_velocity_publisher, this->get_clock());
-        registerVisionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
-                            this->get_clock());
+        registerVisionNodes(factory, *this, this->get_logger(), position_publisher, linear_velocity_publisher,
+                            attitude_publisher, this->get_clock());
 
         for (const std::string &tree_file : treeFiles()) {
             factory.registerBehaviorTreeFromFile(tree_file);

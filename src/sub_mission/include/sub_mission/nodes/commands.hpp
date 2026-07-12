@@ -38,10 +38,9 @@ inline double normalizeAngle(double angle) {
     return angle;
 }
 
-inline SetpointMsg positionCommand(const rclcpp::Clock &, const std::array<double, 3> &target, const bool altitude) {
+inline SetpointMsg positionCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
     SetpointMsg msg;
     msg.velocity = false;
-    msg.altitude = altitude;
     msg.setpoint.x = target[0];
     msg.setpoint.y = target[1];
     msg.setpoint.z = target[2];
@@ -51,7 +50,6 @@ inline SetpointMsg positionCommand(const rclcpp::Clock &, const std::array<doubl
 inline SetpointMsg linearVelocityCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
     SetpointMsg msg;
     msg.velocity = true;
-    msg.altitude = false;
     msg.setpoint.x = target[0];
     msg.setpoint.y = target[1];
     msg.setpoint.z = target[2];
@@ -61,7 +59,6 @@ inline SetpointMsg linearVelocityCommand(const rclcpp::Clock &, const std::array
 inline SetpointMsg attitudeCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
     SetpointMsg msg;
     msg.velocity = false;
-    msg.altitude = false;
     msg.setpoint.roll = target[0];
     msg.setpoint.pitch = target[1];
     msg.setpoint.yaw = target[2];
@@ -71,7 +68,6 @@ inline SetpointMsg attitudeCommand(const rclcpp::Clock &, const std::array<doubl
 inline SetpointMsg angularVelocityCommand(const rclcpp::Clock &, const std::array<double, 3> &target) {
     SetpointMsg msg;
     msg.velocity = true;
-    msg.altitude = false;
     msg.setpoint.roll = target[0];
     msg.setpoint.pitch = target[1];
     msg.setpoint.yaw = target[2];
