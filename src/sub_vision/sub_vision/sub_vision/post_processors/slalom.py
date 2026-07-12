@@ -17,7 +17,10 @@ from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
 RAW_POLE_CLASS_IDS = {0, 1}
-SLALOM_PAIR_CLASS_ID = "2"
+SLALOM_PAIR_CLASS_ID = "2
+GATE_WIDTH_M = 3
+
+
 
 
 def _class_id(det) -> int:
@@ -47,6 +50,12 @@ def _bbox_xyxy(det) -> tuple[float, float, float, float]:
     cy = bbox.center.position.y
     return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
 
+def estimate_slalom_distance_m(bbox_width_px: float, camera_k: np.ndarray) -> float:
+    """Estimate camera-to-gate range from the known physical gate width."""
+    fx = float(camera_k[0, 0])
+    if bbox_width_px <= 0.0 or fx <= 0.0:
+        return float("nan")
+    return float((GATE_WIDTH_M * fx) / bbox_width_px)
 
 def _bbox_center_x(det) -> float:
     return float(det.detection.bbox.center.position.x)
