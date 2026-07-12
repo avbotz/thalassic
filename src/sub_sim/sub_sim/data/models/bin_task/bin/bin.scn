@@ -22,10 +22,7 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
     <visual>
-      <!-- The exported blood panel has malformed geometry that crashes
-           Stonefish. The fire panel has the same panel layout and is safe;
-           its blood texture supplies the task-specific artwork. -->
-      <mesh filename="models/bin_task/bin/bins_v2_fire.obj" scale="1.0" />
+      <mesh filename="models/bin_task/bin/bins_v2_blood.obj" scale="1.0" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
     <material name="plastic" />
