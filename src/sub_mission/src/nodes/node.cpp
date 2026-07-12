@@ -40,7 +40,8 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
                           PointCmdPublisher::SharedPtr position_publisher,
                           QuaternionCmdPublisher::SharedPtr attitude_publisher,
                           PointCmdPublisher::SharedPtr linear_velocity_publisher,
-                          PointCmdPublisher::SharedPtr angular_velocity_publisher, rclcpp::Clock::SharedPtr clock) {
+                          PointCmdPublisher::SharedPtr angular_velocity_publisher,
+                          SpinCmdPublisher::SharedPtr spin_publisher, rclcpp::Clock::SharedPtr clock) {
     factory.registerSimpleCondition("NotKilled", [&node](BT::TreeNode &) {
         return node.subAlive() ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
@@ -52,7 +53,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);
     registerAddAttSetpointAction(factory, node, attitude_publisher, clock, logger);
-    registerSpinAction(factory, node, angular_velocity_publisher, attitude_publisher, clock, logger);
+    registerSpinAction(factory, node, spin_publisher, attitude_publisher, clock, logger);
     registerWaitUntilHitAction(factory, node, logger);
     registerSaveGateHomeAction(factory, node, logger);
     registerAverageAnglesAction(factory, logger);
@@ -116,6 +117,11 @@ void MissionNode::control_error_callback(const sub_control_interfaces::msg::Erro
             ++this->control_error_updates[index];
         }
     }
+
+    this->control_spin_active = msg.spin_active;
+    if (msg.spin_active) {
+        ++this->spin_active_updates;
+    }
 }
 
 void MissionNode::activate() {
@@ -159,8 +165,10 @@ bool MissionNode::load_mission() {
         const auto attitude_publisher = this->create_publisher<QuaternionCmdMsg>("att_setpoint", 10);
         const auto linear_velocity_publisher = position_publisher;
         const auto angular_velocity_publisher = attitude_publisher;
+        const auto spin_publisher = this->create_publisher<SpinCmdMsg>("spin_setpoint", 10);
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
-                             linear_velocity_publisher, angular_velocity_publisher, this->get_clock());
+                             linear_velocity_publisher, angular_velocity_publisher, spin_publisher,
+                             this->get_clock());
         registerVisionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
                             this->get_clock());
 

@@ -58,10 +58,15 @@ void PID_Controller::configure(std::span<const double> params) {
 }
 
 
-double PID_Controller::update(double measurement, double error, double dt) {
+double PID_Controller::update(double measurement, double error, double dt, double output_limit_override) {
     dt = std::max(0.0, dt);
 
-    integral_ += error * dt;
+    // Seed the measurement history after a reset so the derivative does not
+    // see a spurious jump from 0 to the current measurement.
+    if (!primed_) {
+        prev_measurement_ = measurement;
+        primed_ = true;
+    }
 
     // Derivative on measurement (d(-PV) / dt) to avoid derivative kick
     // Derivative term is smoothed to avoid sudden changes in output
@@ -70,22 +75,31 @@ double PID_Controller::update(double measurement, double error, double dt) {
     }
     prev_measurement_ = measurement;
 
-    const double raw = kp_ * error + ki_ * integral_ + kd_ * smoothed_derivative_;
-    if (output_limit_ <= 0.0) {
+    const double limit = output_limit_override > 0.0 ? output_limit_override : output_limit_;
+
+    const double candidate_integral = integral_ + error * dt;
+    double raw = kp_ * error + ki_ * candidate_integral + kd_ * smoothed_derivative_;
+    if (limit <= 0.0) {
+        integral_ = candidate_integral;
         return raw;
     }
 
-    const double clamped = std::clamp(raw, -output_limit_, output_limit_);
-
-    if (raw != clamped && ki_ > 0.0) {
-        integral_ -= (raw - clamped) / ki_;
+    // Conditional-integration anti-windup: hold the integral while the output
+    // is saturated in the error's direction, so a large setpoint step neither
+    // winds the integral up nor (as one-shot back-calculation did) injects a
+    // correction that outlives the saturation and starves the output after.
+    if (std::fabs(raw) <= limit || (raw > 0.0) != (error > 0.0)) {
+        integral_ = candidate_integral;
+    } else {
+        raw = kp_ * error + ki_ * integral_ + kd_ * smoothed_derivative_;
     }
 
-    return clamped;
+    return std::clamp(raw, -limit, limit);
 }
 
 void PID_Controller::reset() {
     integral_ = 0.0;
     prev_measurement_ = 0.0;
     smoothed_derivative_ = 0.0;
+    primed_ = false;
 }

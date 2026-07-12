@@ -1,14 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="PoolTestMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="PoolTestMission">
   <BehaviorTree ID="PoolTestMission">
     <Sequence name="pool_test_mission">
-      <PosSetpoint z="-1.0"/>
-      <SubTree ID="AlignWithGate"/>
-      <VelocitySetpoint x="0.25"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
       <Sleep msec="10000"/>
-      <Spin yaw="-12.56637061"/>
-      <PosSetpoint z="-1.0"/>
-      <PosSetpoint z="0.0"/>
+      <Spin yaw="-6.28"
+            rate="3.14159265"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">World x position setpoint (ENU)</input_port>
+      <input_port name="y"
+                  default="nan">World y position setpoint (ENU)</input_port>
+      <input_port name="z"
+                  default="nan">World z position setpoint (ENU, up; underwater &lt; 0)</input_port>
+    </Action>
+    <Action ID="Spin">
+      <input_port name="yaw"
+                  default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
+      <input_port name="rate"
+                  default="3.14159265">Maximum yaw rate in radians per second</input_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>
