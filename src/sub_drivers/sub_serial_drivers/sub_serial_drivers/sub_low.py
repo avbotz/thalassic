@@ -288,13 +288,13 @@ class SubLow(LifecycleNode):
             response.message = "sub_low is not active."
             return response
 
-        if not self._write(f"d {int(request.open)}\n"):
+        if not self._write(f"d {request.dropper_id} {int(request.open)}\n"):
             response.success = False
             response.message = "serial write failed"
             return response
 
         response.success = True
-        response.message = f"Dropper {'opened' if request.open else 'closed'}."
+        response.message = f"Dropper {request.dropper_id} {'opened' if request.open else 'closed'}."
         return response
 
 
