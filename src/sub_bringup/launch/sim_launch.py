@@ -419,10 +419,24 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         namespace=LaunchConfiguration("robot_name"),
     )
 
+    sub_annotation_down_node = Node(
+        package="sub_vision",
+        executable="annotation_visualizer",
+        name="annotation_visualizer_down",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+        remappings=[
+            ("front_camera/image_raw", "down_camera/image_raw"),
+            ("vision/detections", "vision/detections_down"),
+            ("vision/debug_image", "vision/debug_image_down"),
+        ],
+    )
+
     return [
         sub_vision_node,
         sub_vision_down_node,
         sub_annotation_node,
+        sub_annotation_down_node,
         # deepseecolor_node,
     ]
 
