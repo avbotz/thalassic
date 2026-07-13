@@ -10,7 +10,7 @@ declare -A sim_models=(
     ["bins_fire"]="https://drive.google.com/file/d/1Ls-4B011pH3gqthPT8Ppgnmjf74c1qOn/view"
     ["path_marker"]="https://drive.google.com/file/d/1Z48v2QMXTAKXQeYasLrr7ppSr43AZk7q/view"
     ["slalom"]="https://drive.google.com/file/d/1fpKPookhjDVDDNKeEgshl0-yfyH-V0jp/view"
-    ["octagon_images"]="https://drive.google.com/file/d/1syv_VMwoPr9ugpACBvf9PaHqhQtNTHWb/view"
+    ["octagon_gate_images"]="https://drive.google.com/drive/u/0/folders/1bESRgUH0ChXFrFy241ReqvT3KSzyoTIK"
 )
 
 declare -A models=(
@@ -21,7 +21,7 @@ declare -A models=(
     ["bins_fire"]=""
     ["path_marker"]=""
     ["slalom"]=""
-    ["octagon_images"]=""
+    ["octagon_gate_images"]=""
 )
 
 if [[ " $* " =~ " --sim " ]]; then

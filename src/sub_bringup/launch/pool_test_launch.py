@@ -268,7 +268,7 @@ def generate_launch_description():
         description="Start the browser ROS debugging dashboard on port 8080",
     )
     declare_dashboard_host = DeclareLaunchArgument(
-        "dashboard_host", default_value="127.0.0.1"
+        "dashboard_host", default_value="0.0.0.0"
     )
     declare_dashboard_port = DeclareLaunchArgument(
         "dashboard_port", default_value="8080"
@@ -286,7 +286,7 @@ def generate_launch_description():
 
     sub_mission_node = Node(
         package="sub_mission",
-        executable="mission",
+        executable="restart",
         output="screen",
         namespace=LaunchConfiguration("robot_name"),
         parameters=[{"mission": LaunchConfiguration("mission")}],
