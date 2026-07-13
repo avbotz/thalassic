@@ -17,7 +17,7 @@ from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
 RAW_POLE_CLASS_IDS = {0, 1}
-SLALOM_PAIR_CLASS_ID = "2
+SLALOM_PAIR_CLASS_ID = "2"
 GATE_WIDTH_M = 3
 
 
