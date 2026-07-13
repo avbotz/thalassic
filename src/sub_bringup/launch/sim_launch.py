@@ -186,7 +186,15 @@ def sim_entities() -> list:
             sim_component(
                 "sim_dvl_remapper",
                 "SimDVLRemapper",
-                parameters=[{"dvl_link": [LaunchConfiguration("robot_name"), "/dvl_link"]}],
+                parameters=[
+                    {
+                        "dvl_link": [LaunchConfiguration("robot_name"), "/dvl_link"],
+                        "odom_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
+                        # The woollett scenario floor is 2.146 m below the surface
+                        # (data/models/pools/woollett/parts/bottom.obj).
+                        "pool_height": 2.146,
+                    }
+                ],
             ),
             sim_component(
                 "sim_imu_remapper",

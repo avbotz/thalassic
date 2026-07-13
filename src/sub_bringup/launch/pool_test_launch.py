@@ -136,6 +136,8 @@ def control_and_state_entities():
         ],
         remappings=[
             ("~/odom", "odometry/dvl"),
+            # sub_control_mcu and the dashboard read the floor altitude here.
+            ("~/altitude", "altitude"),
         ],
     )
 

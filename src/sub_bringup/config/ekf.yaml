@@ -31,19 +31,25 @@
                       true, true, false,
                       false, false, false]
 
+        # Body velocities plus absolute z; the driver derives z from the DVL
+        # altitude and its pool_height parameter (z = altitude - pool_height).
+        # x/y are integrated from the velocities, never fused from the DVL's
+        # dead reckoning.
         odom0: odometry/dvl
-        odom0_config: [false, false, false,
+        odom0_config: [false, false, true,
                       false, false, false,
                       true, true, true,
                       false, false, false,
                       false, false, false]
 
-        odom1: odometry/depth
-        odom1_config: [false, false, true,
-                      false, false, false,
-                      false, false, false,
-                      false, false, false,
-                      false, false, false]
+        # Pressure depth is superseded by the DVL altitude z above; re-enable
+        # to fuse the pressure sensor again.
+        # odom1: odometry/depth
+        # odom1_config: [false, false, true,
+        #               false, false, false,
+        #               false, false, false,
+        #               false, false, false,
+        #               false, false, false]
 
         # Depth camera not on marlin
         # odom2: odom/depth_camera

@@ -20,6 +20,18 @@
     # This can be rotated using the mounting_rotation_offset parameter.
     frame_id: "marlin_v2/dvl_link"
 
+    # World frame for the odometry pose (z derived from altitude).
+    odom_frame_id: "marlin_v2/odom"
+
+    # Depth of the pool floor below the surface (m). The driver reports
+    # z = altitude - pool_height (ENU, negative underwater), so this must be
+    # calibrated per pool: read the altitude with the sub floating at the
+    # surface. 2.15 m is the Woollett competition area.
+    pool_height: 2.15
+
+    # Variance of the altitude-derived z measurement (m^2)
+    z_variance: 0.01
+
     speed_of_sound: 1481 # m/s
 
     # Rotate the DVL measurements about the z-axis. This is useful if the DVL
