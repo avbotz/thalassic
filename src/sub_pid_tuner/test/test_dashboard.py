@@ -216,6 +216,33 @@ def test_ros_adapter_runs_and_completes_a_tracking_profile():
         rclpy.shutdown()
 
 
+def test_tracking_rejects_duplicate_controller_or_sim_publishers():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        adapter._source_counts = {"control/error": 2}
+        adapter._refresh_source_health = lambda: None
+        with pytest.raises(RuntimeError, match="multiple ROS control/sim sources"):
+            adapter.start_tracking("minimum_jerk", "position", "x", 0.1, 0.5, 0.2, 1)
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_active_tracking_aborts_if_a_duplicate_source_appears():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        adapter._refresh_source_health = lambda: None
+        adapter.start_tracking("minimum_jerk", "position", "x", 0.1, 0.5, 0.2, 1)
+        adapter._source_counts = {"odometry/filtered": 2}
+        adapter._tracking_tick()
+        assert adapter.tracking_snapshot()["status"] == "aborted"
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
 def test_server_shutdown_stops_an_active_tracking_profile(tmp_path):
     ros = FakeRos()
     ros.tracking = {"active": True}

@@ -23,6 +23,10 @@ const state = {
 };
 let toastTimer;
 
+function duplicateSources(server = state.server) {
+  return Array.isArray(server.duplicate_sources) ? server.duplicate_sources : [];
+}
+
 function toast(message, error) {
   const el = $("toast");
   el.textContent = message;
@@ -83,8 +87,11 @@ function handleMessage(message) {
     }
     state.feedTimes.push(receivedAt);
     while (state.feedTimes.length && state.feedTimes[0] < receivedAt - 2) state.feedTimes.shift();
+    const wasUnsafe = duplicateSources().length > 0;
     const hadParameters = Object.prototype.hasOwnProperty.call(message, "parameters");
     state.server = Object.assign({}, state.server, message);
+    const topologyUnsafe = duplicateSources().length > 0;
+    if (topologyUnsafe !== wasUnsafe) state.history = [];
     updateStatus();
     updateNodeSelect();
     if (hadParameters && state.staged.size === 0 && !$("parameter-list").contains(document.activeElement)) {
@@ -117,10 +124,22 @@ function handleMessage(message) {
 function updateStatus() {
   const s = state.server;
   setPill("robot", "/" + (s.robot_name || "—"), s.demo ? "warn" : "");
-  const live = s.telemetry_age !== null && s.telemetry_age !== undefined && s.telemetry_age < 1;
-  setPill("telemetry", live ? "Telemetry live" : "Telemetry stale", live ? "good" : "bad");
+  const duplicates = duplicateSources(s);
+  const live = s.telemetry_age !== null && s.telemetry_age !== undefined &&
+    s.telemetry_age < 1 && duplicates.length === 0;
+  const telemetryText = duplicates.length ? "Duplicate ROS sources" :
+    live ? "Telemetry live" : "Telemetry stale";
+  setPill("telemetry", telemetryText, live ? "good" : "bad");
+  $("telemetry").title = duplicates.length ?
+    "Multiple publishers: " + duplicates.join(", ") :
+    "Odometry age: " + formatAge(s.odometry_age) + "; controller error age: " +
+      formatAge(s.control_error_age);
   setPill("kill", s.killed === null || s.killed === undefined ? "Kill unknown" : s.killed ? "Killed" : "Armed",
     s.killed === null || s.killed === undefined ? "warn" : s.killed ? "good" : "warn");
+}
+
+function formatAge(value) {
+  return Number.isFinite(value) ? Math.round(value * 1000) + " ms" : "unavailable";
 }
 
 function updateNodeSelect() {
@@ -435,7 +454,7 @@ async function reloadConfiguration() {
 }
 
 function recordTelemetry(receivedAt, serverTime) {
-  if (state.paused) return;
+  if (state.paused || duplicateSources().length) return;
   const time = Number.isFinite(serverTime) && state.serverClockOffset !== null ?
     serverTime + state.serverClockOffset : receivedAt;
   state.history.push({time: time, wallTime: Date.now(), signals: Object.assign({}, state.server.signals || {})});
@@ -466,6 +485,14 @@ function graphNow() {
 }
 
 function renderFeedRate() {
+  if (duplicateSources().length) {
+    $("feed-rate").textContent = "Blocked · duplicate ROS sources";
+    return;
+  }
+  if (!Number.isFinite(state.server.telemetry_age) || state.server.telemetry_age >= 1) {
+    $("feed-rate").textContent = "Telemetry stale";
+    return;
+  }
   if (state.feedTimes.length < 2) {
     $("feed-rate").textContent = "Waiting for data";
     return;
@@ -816,21 +843,27 @@ async function stopTracking() {
 function renderTracking() {
   const tracking = state.server.tracking || {active: false, status: "idle", message: "Ready"};
   const active = Boolean(tracking.active);
-  const statusKind = active ? "warn" : tracking.status === "aborted" ? "bad" :
+  const duplicates = duplicateSources();
+  const telemetryReady = Number.isFinite(state.server.telemetry_age) && state.server.telemetry_age < 1;
+  const topologyReady = duplicates.length === 0;
+  const robotReady = state.server.killed === false && telemetryReady && topologyReady;
+  const statusKind = active ? "warn" : !topologyReady || !telemetryReady ? "bad" :
+    tracking.status === "aborted" ? "bad" :
     tracking.status === "complete" ? "good" : "";
-  setPill("tracking-status", active ? "Running" :
-    tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1), statusKind);
+  const inactiveStatus = !topologyReady ? "Conflict" : !telemetryReady ? "Telemetry stale" :
+    state.server.killed !== false ? "Killed" : tracking.status === "stopped" ? "Ready" :
+      tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1);
+  setPill("tracking-status", active ? "Running" : inactiveStatus, statusKind);
   document.querySelectorAll(".tracking-form input, .tracking-form select").forEach(control => {
     control.disabled = active;
   });
-  const telemetryReady = Number.isFinite(state.server.telemetry_age) && state.server.telemetry_age < 1;
-  const robotReady = state.server.killed === false && telemetryReady;
   $("start-tracking").disabled = active || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   $("stop-tracking").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   const progress = Number.isFinite(tracking.progress) ? Math.round(tracking.progress * 100) : 0;
   $("tracking-progress").textContent = active ?
     progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
-    !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
+    !topologyReady ? "Stop the duplicate sim/controller launch: " + duplicates.join(", ") :
+      !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
       "Release kill switch to tune" : tracking.message || "Ready";
 }
 

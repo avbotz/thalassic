@@ -27,6 +27,30 @@ from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
 
+def _stonefish_processes(proc_root=Path("/proc")) -> list[int]:
+    """Return running Stonefish PIDs without depending on ROS discovery."""
+    processes = []
+    for entry in proc_root.glob("[0-9]*"):
+        try:
+            command = entry.joinpath("cmdline").read_bytes().split(b"\0", 1)[0]
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+        if command and Path(command.decode(errors="replace")).name == "stonefish_simulator":
+            processes.append(int(entry.name))
+    return processes
+
+
+def _reject_second_sim(_context, *_, **__):
+    processes = _stonefish_processes()
+    if processes:
+        pids = ", ".join(str(pid) for pid in processes)
+        raise RuntimeError(
+            "Stonefish is already running "
+            f"(PID {pids}). Stop the existing sim before launching another one."
+        )
+    return []
+
+
 def _render_scn(context, *_, **__):
     DX = float(LaunchConfiguration("DX").perform(context))
     DY = float(LaunchConfiguration("DY").perform(context))
@@ -535,6 +559,7 @@ def generate_launch_description():
             declare_dashboard,
             declare_dashboard_host,
             declare_dashboard_port,
+            OpaqueFunction(function=_reject_second_sim),
             include_transforms,
             sub_mission_node,
             dashboard_node,

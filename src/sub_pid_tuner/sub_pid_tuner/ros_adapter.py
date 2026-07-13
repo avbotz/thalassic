@@ -117,6 +117,7 @@ class RosAdapter(Node):
         self._last_odom = 0.0
         self._last_error = 0.0
         self._kill = None
+        self._source_counts: dict[str, int] = {}
         self._tracking_run: dict | None = None
         self._tracking_state = {
             "active": False,
@@ -142,6 +143,7 @@ class RosAdapter(Node):
         self._pos_pub = self.create_publisher(Setpoint, "pos_setpoint", 10)
         self._att_pub = self.create_publisher(Setpoint, "att_setpoint", 10)
         self.create_timer(2.0, self.refresh_parameters)
+        self.create_timer(1.0, self._refresh_source_health)
         self.create_timer(1.0 / 30.0, self._tracking_tick)
 
         if demo:
@@ -268,6 +270,18 @@ class RosAdapter(Node):
                         self._signals[name] = 0.0
         if stop_tracking:
             self._finish_tracking("aborted", "Kill switch engaged", publish_hold=False)
+
+    def _refresh_source_health(self) -> None:
+        counts = {
+            "odometry/filtered": self.count_publishers("odometry/filtered"),
+            "control/error": self.count_publishers("control/error"),
+            "control/thruster_0": self.count_publishers("control/thruster_0"),
+        }
+        with self._lock:
+            self._source_counts = counts
+
+    def _duplicate_sources(self) -> list[str]:
+        return sorted(name for name, count in self._source_counts.items() if count > 1)
 
     def refresh_parameters(self) -> None:
         if self.demo:
@@ -465,10 +479,18 @@ class RosAdapter(Node):
         profile = TrackingProfile.from_values(
             experiment, mode, axis, amplitude, ramp_time, hold_time, cycles
         )
+        self._refresh_source_health()
         now = time.monotonic()
         with self._lock:
             if self._tracking_run is not None:
                 raise RuntimeError("a tracking routine is already running")
+            duplicate_sources = self._duplicate_sources()
+            if duplicate_sources:
+                raise RuntimeError(
+                    "multiple ROS control/sim sources detected on "
+                    + ", ".join(duplicate_sources)
+                    + "; stop the duplicate launch before tuning"
+                )
             telemetry_age = (
                 max(now - self._last_odom, now - self._last_error)
                 if self._last_odom and self._last_error
@@ -541,6 +563,7 @@ class RosAdapter(Node):
         with self._lock:
             run = self._tracking_run
             killed = self._kill
+            duplicate_sources = self._duplicate_sources()
             measurement_age = (
                 max(
                     time.monotonic() - self._last_odom,
@@ -553,6 +576,13 @@ class RosAdapter(Node):
             return
         if killed:
             self._finish_tracking("aborted", "Kill switch engaged", publish_hold=False)
+            return
+        if duplicate_sources:
+            self._finish_tracking(
+                "aborted",
+                "Multiple ROS control/sim sources detected",
+                publish_hold=True,
+            )
             return
         if measurement_age is None or measurement_age > 1.0:
             self._finish_tracking("aborted", "Telemetry became stale", publish_hold=True)
@@ -597,18 +627,22 @@ class RosAdapter(Node):
 
     def snapshot(self, include_parameters: bool = True) -> dict:
         with self._lock:
+            now = time.monotonic()
+            odom_age = now - self._last_odom if self._last_odom else None
+            error_age = now - self._last_error if self._last_error else None
             result = {
                 "robot_name": self.robot_name,
                 "demo": self.demo,
                 "signals": dict(self._signals),
                 "telemetry_age": (
-                    max(
-                        time.monotonic() - self._last_odom,
-                        time.monotonic() - self._last_error,
-                    )
-                    if self._last_odom and self._last_error
+                    max(odom_age, error_age)
+                    if odom_age is not None and error_age is not None
                     else None
                 ),
+                "odometry_age": odom_age,
+                "control_error_age": error_age,
+                "source_counts": dict(self._source_counts),
+                "duplicate_sources": self._duplicate_sources(),
                 "killed": self._kill,
                 "tracking": dict(self._tracking_state),
                 "nodes": sorted(self._known_nodes | set(self._remote_parameters)),
