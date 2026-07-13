@@ -16,6 +16,7 @@
 images/*
 videos/*
 weights/*
+*.onnx
 !**/.gitkeep
 
 .catkin_workspace
