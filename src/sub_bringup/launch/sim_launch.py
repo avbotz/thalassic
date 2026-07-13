@@ -32,6 +32,11 @@ def _render_scn(context, *_, **__):
     DY = float(LaunchConfiguration("DY").perform(context))
     DZ = float(LaunchConfiguration("DZ").perform(context))
     DYAW = float(LaunchConfiguration("DYAW").perform(context))
+    ROBOT_X = float(LaunchConfiguration("robot_x").perform(context))
+    ROBOT_Y = float(LaunchConfiguration("robot_y").perform(context))
+    ROBOT_Z = float(LaunchConfiguration("robot_z").perform(context))
+    robot_yaw_value = LaunchConfiguration("robot_yaw").perform(context)
+    ROBOT_YAW = float(robot_yaw_value) if robot_yaw_value else None
 
     try:
         SEED = int(LaunchConfiguration("seed").perform(context))
@@ -58,6 +63,10 @@ def _render_scn(context, *_, **__):
         DY=DY,
         DZ=DZ,
         DYAW=DYAW,
+        ROBOT_X=ROBOT_X,
+        ROBOT_Y=ROBOT_Y,
+        ROBOT_Z=ROBOT_Z,
+        ROBOT_YAW=ROBOT_YAW,
         seed=SEED,
         render_robot=render_robot,
     )
@@ -86,6 +95,13 @@ def sim_entities() -> list:
         DeclareLaunchArgument("DY", default_value="0.25"),
         DeclareLaunchArgument("DZ", default_value="0.10"),
         DeclareLaunchArgument("DYAW", default_value="0.10"),
+        DeclareLaunchArgument("robot_x", default_value="17.25"),
+        DeclareLaunchArgument("robot_y", default_value="-10.25"),
+        DeclareLaunchArgument("robot_z", default_value="0.25"),
+        DeclareLaunchArgument("robot_yaw", default_value=""),
+        DeclareLaunchArgument("sim_window_res_x", default_value="1900"),
+        DeclareLaunchArgument("sim_window_res_y", default_value="1000"),
+        DeclareLaunchArgument("sim_rendering_quality", default_value="medium"),
     ]
 
     render = OpaqueFunction(function=_render_scn)
@@ -118,9 +134,9 @@ def sim_entities() -> list:
                     ),
                     "scenario_desc": LaunchConfiguration("scenario_file"),
                     "simulation_rate": "500.0",
-                    "window_res_x": "1900",
-                    "window_res_y": "1000",
-                    "rendering_quality": "medium",
+                    "window_res_x": LaunchConfiguration("sim_window_res_x"),
+                    "window_res_y": LaunchConfiguration("sim_window_res_y"),
+                    "rendering_quality": LaunchConfiguration("sim_rendering_quality"),
                 }.items(),
             ),
         ]

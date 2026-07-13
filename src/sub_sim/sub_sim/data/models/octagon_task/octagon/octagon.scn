@@ -2,6 +2,10 @@
 <scenario>
   <looks>
     <look name="octagon_white" gray="1.0" roughness="0.7"/>
+    <look name="octagon_survey" gray="1.0" roughness="0.1" texture="models/octagon_task/octagon/Survey.png" />
+    <look name="octagon_search" gray="1.0" roughness="0.1" texture="models/octagon_task/octagon/Search.png" />
+    <look name="octagon_repair" gray="1.0" roughness="0.1" texture="models/octagon_task/octagon/Repair.png" />
+    <look name="octagon_rescue" gray="1.0" roughness="0.1" texture="models/octagon_task/octagon/Rescue.png" />
   </looks>
 
   <static name="octagon" type="model">
@@ -13,6 +17,47 @@
     <material name="plastic" />
     <look name="octagon_white" />
 
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+
+  <static name="octagon_survey" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_survey.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_survey" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_survey_outer" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_survey_outer.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_white" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_search" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_search.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_search" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_search_outer" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_search_outer.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_white" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_repair" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_repair.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_repair" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_repair_outer" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_repair_outer.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_white" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_rescue" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_rescue.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_rescue" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+  <static name="octagon_rescue_outer" type="model">
+    <physical><mesh filename="models/octagon_task/octagon/panel_rescue_outer.obj" scale="1.0" convex="false" /><origin xyz="0 0 0" rpy="0 0 0" /></physical>
+    <material name="plastic" /><look name="octagon_white" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

@@ -32,12 +32,12 @@
        Jinja and returns the rendered file's path. Use fuzz()/fuzz_z() to
        randomize, e.g. y=fuzz(-10.35, DY), yaw=fuzz(PI, DYAW). -->
   <include file="{{ render_robot(
-      x=17.25,
-      y=-10.25,
-      z=0.25,
+      x=ROBOT_X,
+      y=ROBOT_Y,
+      z=ROBOT_Z,
       roll=0.0,
       pitch=0.0,
-      yaw=choose([PI/2, PI])
+      yaw=ROBOT_YAW if ROBOT_YAW is not none else choose([PI/2, PI])
   ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
@@ -143,6 +143,10 @@
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(0, DYAW / 5) }}" />
+    <arg name="img1_look" value="octagon_survey" />
+    <arg name="img2_look" value="octagon_search" />
+    <arg name="img3_look" value="octagon_repair" />
+    <arg name="img4_look" value="octagon_rescue" />
   </include>
 
   <include file="models/octagon_task/table/table.scn">
