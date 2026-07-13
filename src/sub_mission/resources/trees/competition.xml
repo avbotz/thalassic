@@ -9,9 +9,6 @@
         <PosSetpoint x="nan"
                      y="nan"
                      z="-1.2"/>
-        <MoveRelative x="3.0"
-                      y="0.0"
-                      z="0.0"/>
         <SubTree ID="SlalomMission"/>
         <PosSetpoint x="nan"
                      y="nan"

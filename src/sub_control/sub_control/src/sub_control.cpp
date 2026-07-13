@@ -235,7 +235,6 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         velocity_setpoint_[1] = msg->setpoint.y;
         velocity_setpoint_[2] = msg->setpoint.z;
 
-        reset_pid();
     } else {
         if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
             RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
@@ -245,7 +244,6 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         position_setpoint_[1] = msg->setpoint.y;
         position_setpoint_[2] = msg->setpoint.z;
 
-        reset_pid();
     }
 }
 
@@ -261,7 +259,6 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         angvel_setpoint_[1] = msg->setpoint.pitch;
         angvel_setpoint_[2] = msg->setpoint.yaw;
 
-        reset_pid();
     } else {
         if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
             RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
@@ -271,7 +268,6 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
         attitude_setpoint_[1] = angles::normalize_angle(msg->setpoint.pitch);
         attitude_setpoint_[2] = angles::normalize_angle(msg->setpoint.yaw);
 
-        reset_pid();
     }
 }
 
