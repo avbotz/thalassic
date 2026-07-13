@@ -1,0 +1,154 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+import math
+
+
+MODE_LIMITS = {
+    "position": {"unit": "m", "max_amplitude": 2.0},
+    "velocity": {"unit": "m/s", "max_amplitude": 1.0},
+    "attitude": {"unit": "rad", "max_amplitude": math.radians(30.0)},
+    "angular_velocity": {"unit": "rad/s", "max_amplitude": 1.0},
+}
+
+EXPERIMENTS = {"minimum_jerk", "step", "sine", "hold"}
+
+
+@dataclass(frozen=True)
+class TrackingProfile:
+    """A repeatable, bounded reference for manual controller tuning.
+
+    The experiment shapes are deliberately separate. A minimum-jerk move tests
+    an outer pose loop without the acceleration impulses of a linear ramp. A
+    step always returns to zero and settles before testing the opposite
+    direction. A windowed sine starts and ends at zero amplitude and exposes
+    phase lag without abrupt reversals. Hold captures the pose for a manual
+    disturbance test.
+    """
+
+    experiment: str
+    mode: str
+    axis: str
+    amplitude: float
+    ramp_time: float
+    hold_time: float
+    cycles: int
+
+    @classmethod
+    def from_values(
+        cls,
+        experiment: str,
+        mode: str,
+        axis: str,
+        amplitude: float,
+        ramp_time: float,
+        hold_time: float,
+        cycles: int,
+    ) -> "TrackingProfile":
+        cycles_value = float(cycles)
+        if not math.isfinite(cycles_value) or not cycles_value.is_integer():
+            raise ValueError("cycles must be a whole number")
+        profile = cls(
+            experiment=str(experiment),
+            mode=str(mode),
+            axis=str(axis),
+            amplitude=float(amplitude),
+            ramp_time=float(ramp_time),
+            hold_time=float(hold_time),
+            cycles=int(cycles_value),
+        )
+        profile.validate()
+        return profile
+
+    def validate(self) -> None:
+        if self.experiment not in EXPERIMENTS:
+            raise ValueError(f"unknown tuning experiment: {self.experiment}")
+        if self.mode not in MODE_LIMITS:
+            raise ValueError(f"unknown tuning mode: {self.mode}")
+        if self.axis not in "xyz" or len(self.axis) != 1:
+            raise ValueError("axis must be x, y, or z")
+        values = (self.amplitude, self.ramp_time, self.hold_time)
+        if any(not math.isfinite(value) for value in values):
+            raise ValueError("tracking routine values must be finite")
+        limit = MODE_LIMITS[self.mode]["max_amplitude"]
+        if self.experiment == "minimum_jerk" and not self.outer_loop:
+            raise ValueError("minimum-jerk tracking is for position and attitude loops")
+        if self.experiment == "hold" and not self.outer_loop:
+            raise ValueError("disturbance hold is for position and attitude loops")
+        if self.experiment != "hold" and (
+            self.amplitude == 0.0 or abs(self.amplitude) > limit
+        ):
+            raise ValueError(
+                f"{self.mode.replace('_', ' ')} amplitude must be non-zero and at most "
+                f"{limit:g} {MODE_LIMITS[self.mode]['unit']}"
+            )
+        if not 0.5 <= self.ramp_time <= 30.0:
+            raise ValueError("ramp time must be between 0.5 and 30 seconds")
+        if not 0.2 <= self.hold_time <= 30.0:
+            raise ValueError("hold time must be between 0.2 and 30 seconds")
+        if not 1 <= self.cycles <= 20:
+            raise ValueError("cycles must be between 1 and 20")
+
+    @property
+    def outer_loop(self) -> bool:
+        return self.mode in ("position", "attitude")
+
+    @property
+    def segment_time(self) -> float:
+        return self.ramp_time + self.hold_time
+
+    @property
+    def cycle_duration(self) -> float:
+        if self.experiment == "minimum_jerk":
+            return 2.0 * self.segment_time
+        if self.experiment == "step":
+            return 2.0 * self.segment_time
+        if self.experiment == "sine":
+            return self.ramp_time
+        return self.hold_time
+
+    @property
+    def duration(self) -> float:
+        duration = self.cycle_duration * self.cycles
+        return duration + self.hold_time if self.experiment == "sine" else duration
+
+    def value_at(self, elapsed: float) -> float:
+        """Return the reference offset/rate at elapsed monotonic seconds."""
+        elapsed = max(0.0, min(float(elapsed), self.duration))
+        if elapsed >= self.duration:
+            return 0.0
+        if self.experiment == "hold":
+            return 0.0
+
+        if self.experiment == "sine":
+            wave_duration = self.ramp_time * self.cycles
+            if elapsed >= wave_duration:
+                return 0.0
+            fade = min(self.ramp_time * 0.5, wave_duration * 0.5)
+            edge = min(elapsed, wave_duration - elapsed)
+            envelope = 1.0 if edge >= fade else 0.5 - 0.5 * math.cos(math.pi * edge / fade)
+            return self.amplitude * envelope * math.sin(2.0 * math.pi * elapsed / self.ramp_time)
+
+        if self.experiment == "step":
+            # +command -> zero/settle -> -command -> zero/settle. Momentum
+            # from one direction is never carried directly into the other.
+            local = elapsed % self.cycle_duration
+            if local < self.ramp_time:
+                return self.amplitude
+            if local < self.segment_time:
+                return 0.0
+            if local < self.segment_time + self.ramp_time:
+                return -self.amplitude
+            return 0.0
+
+        # Quintic smoothstep: position, velocity, and acceleration are all
+        # continuous and zero at the endpoints.
+        segment = int((elapsed % self.cycle_duration) / self.segment_time)
+        local = elapsed % self.segment_time
+        u = min(local / self.ramp_time, 1.0)
+        smooth = u * u * u * (10.0 + u * (-15.0 + 6.0 * u))
+        fraction = smooth if segment == 0 else 1.0 - smooth
+        return self.amplitude * fraction
+
+    def public_state(self) -> dict:
+        return {**asdict(self), "duration": self.duration}

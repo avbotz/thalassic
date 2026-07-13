@@ -411,8 +411,10 @@ void SubControlMcu::run() {
         position_controller_update(&pos_controller_, &position_, &attitude_, &velocity_body_sp_, dt_f);
         velocity_controller_update_sp(&vel_controller_, &velocity_body_sp_);
 
-        // Recompute the body-frame position error for the Error message
-        // (position_controller_update keeps it internal).
+        // Recompute the position error for telemetry. Publish it in the same
+        // world ENU frame as odometry and the position setpoint so dashboard
+        // target/current/error traces are directly comparable. The controller
+        // still performs its own body-frame conversion internally.
         struct mec_vehicle_position ned_error;
         ned_error.north = pos_controller_.position_sp.north - position_.north;
         ned_error.east = pos_controller_.position_sp.east - position_.east;
@@ -421,11 +423,9 @@ void SubControlMcu::run() {
         } else {
             ned_error.down = pos_controller_.position_sp.down - position_.down;
         }
-        struct mec_vehicle_position_body body_error;
-        position_ned_to_body(&body_error, &ned_error, &attitude_);
-        error_msg.pos_error[0] = body_error.forward;
-        error_msg.pos_error[1] = -body_error.right;
-        error_msg.pos_error[2] = -body_error.down;
+        error_msg.pos_error[0] = ned_error.north;
+        error_msg.pos_error[1] = -ned_error.east;
+        error_msg.pos_error[2] = -ned_error.down;
     }
 
     // Body velocity PID -> force, with anti-reset windup.

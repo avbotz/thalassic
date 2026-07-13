@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AVBotz Dashboard</title>
-  <link rel="stylesheet" href="/static/styles.css?v=4">
-  <link rel="stylesheet" href="/static/theme.css?v=4">
+  <link rel="stylesheet" href="/static/styles.css?v=5">
+  <link rel="stylesheet" href="/static/theme.css?v=5">
 </head>
 <body>
   <header>
@@ -63,17 +63,33 @@
     </section>
 
     <section class="tile" id="setpoint-panel" data-w="7" data-h="4">
-      <div class="tile-title" draggable="true"><strong>Setpoint</strong><span>⋮⋮ drag</span></div>
-      <div class="setpoint-form">
-        <label>Mode<select id="setpoint-mode"><option value="position">Position hold</option><option value="velocity">Body velocity</option><option value="attitude">Attitude hold</option><option value="angular_velocity">Angular rate</option></select></label>
-        <label><span id="axis-a">X</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
-        <label><span id="axis-b">Y</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
-        <label><span id="axis-c">Z</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
-        <label class="check" id="altitude-wrap"><input type="checkbox" id="altitude-mode"> Z is altitude</label>
-        <button id="publish-setpoint">Publish setpoint</button>
+      <div class="tile-title" draggable="true"><strong>Control</strong><span>⋮⋮ drag</span></div>
+      <div class="section-heading"><strong>Tracking routine</strong><span class="pill" id="tracking-status">Idle</span></div>
+      <div class="tracking-form">
+        <label>Experiment<select id="tracking-experiment" aria-label="Tuning experiment"></select></label>
+        <label>Controller<select id="tracking-mode"><option value="position">Position</option><option value="velocity">Velocity</option><option value="attitude">Attitude</option><option value="angular_velocity">Angular rate</option></select></label>
+        <label>Axis<select id="tracking-axis"><option value="x">X</option><option value="y">Y</option><option value="z" selected>Z</option></select></label>
+        <label id="tracking-amplitude-wrap"><span id="tracking-amplitude-label">Travel (m)</span><input id="tracking-amplitude" type="number" step="0.01" value="0.5"></label>
+        <label id="tracking-primary-wrap"><span id="tracking-primary-label">Move (s)</span><input id="tracking-ramp" type="number" min="0.5" max="30" step="0.1" value="4"></label>
+        <label><span id="tracking-secondary-label">Hold (s)</span><input id="tracking-hold" type="number" min="0.2" max="30" step="0.1" value="2"></label>
+        <label id="tracking-cycles-wrap">Cycles<input id="tracking-cycles" type="number" min="1" max="20" step="1" value="3"></label>
+        <button id="start-tracking">Start tracking</button>
+        <button class="secondary stop-button" id="stop-tracking" disabled>Stop</button>
       </div>
-      <p class="hint" id="setpoint-hint">Controller convention: world x/y/z, z up. Values are metres.</p>
-      <div class="last-command" id="last-command">No setpoint published from this dashboard.</div>
+      <div class="tracking-summary"><span id="tracking-hint">Moves from the measured start position with a smooth, bounded reference.</span><span id="tracking-progress">Ready</span></div>
+      <details class="manual-command">
+        <summary><strong>Manual setpoint</strong><span>For normal commands, not tuning</span></summary>
+        <div class="setpoint-form">
+          <label>Mode<select id="setpoint-mode"><option value="position">Position hold</option><option value="velocity">Body velocity</option><option value="attitude">Attitude hold</option><option value="angular_velocity">Angular rate</option></select></label>
+          <label><span id="axis-a">X</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+          <label><span id="axis-b">Y</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+          <label><span id="axis-c">Z</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+          <label class="check" id="altitude-wrap"><input type="checkbox" id="altitude-mode"> Z is altitude</label>
+          <button id="publish-setpoint">Publish setpoint</button>
+        </div>
+        <p class="hint" id="setpoint-hint">Controller convention: world x/y/z, z up. Values are metres.</p>
+        <div class="last-command" id="last-command">No setpoint published from this dashboard.</div>
+      </details>
       <div class="resize-handle" title="Resize"></div>
     </section>
 
@@ -86,6 +102,6 @@
   </main>
 
   <div id="toast" role="status"></div>
-  <script src="/static/app.js?v=4"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>

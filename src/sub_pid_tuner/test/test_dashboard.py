@@ -8,6 +8,7 @@ from rcl_interfaces.msg import ParameterType
 
 from sub_pid_tuner.ros_adapter import RosAdapter, coerce_parameter
 from sub_pid_tuner.server import BROADCAST_HZ, DashboardServer
+from sub_pid_tuner.tracking_profile import TrackingProfile
 
 
 class FakeRos:
@@ -27,6 +28,23 @@ class FakeRos:
 
     def publish_setpoint(self, mode, values, altitude=False):
         return {"mode": mode, "values": values, "altitude": altitude}
+
+    def start_tracking(self, experiment, mode, axis, amplitude, ramp_time, hold_time, cycles):
+        self.tracking = {
+            "active": True,
+            "experiment": experiment,
+            "mode": mode,
+            "axis": axis,
+            "amplitude": amplitude,
+            "ramp_time": ramp_time,
+            "hold_time": hold_time,
+            "cycles": cycles,
+        }
+        return self.tracking
+
+    def stop_tracking(self):
+        self.tracking = {"active": False, "status": "stopped"}
+        return self.tracking
 
     def refresh_parameters(self):
         pass
@@ -75,6 +93,68 @@ def test_setpoint_request():
     assert result["values"] == [1.0, 2.0, -1.0]
 
 
+def test_minimum_jerk_profile_moves_holds_and_returns_smoothly():
+    profile = TrackingProfile.from_values("minimum_jerk", "position", "x", 2.0, 2.0, 1.0, 1)
+    assert profile.duration == 6.0
+    assert profile.value_at(0.0) == pytest.approx(0.0)
+    assert profile.value_at(1.0) == pytest.approx(1.0)
+    assert profile.value_at(2.5) == pytest.approx(2.0)
+    assert profile.value_at(4.0) == pytest.approx(1.0)
+    assert profile.value_at(5.5) == pytest.approx(0.0)
+    assert profile.value_at(6.0) == pytest.approx(0.0)
+
+
+def test_step_profile_settles_at_zero_between_directions():
+    profile = TrackingProfile.from_values("step", "velocity", "y", 0.5, 1.0, 1.0, 1)
+    assert profile.duration == 4.0
+    assert profile.value_at(0.5) == pytest.approx(0.5)
+    assert profile.value_at(1.5) == pytest.approx(0.0)
+    assert profile.value_at(2.5) == pytest.approx(-0.5)
+    assert profile.value_at(3.5) == pytest.approx(0.0)
+
+
+def test_windowed_sine_starts_and_ends_at_zero():
+    profile = TrackingProfile.from_values("sine", "angular_velocity", "z", 0.5, 4.0, 1.0, 3)
+    assert profile.duration == 13.0
+    assert profile.value_at(0.0) == pytest.approx(0.0)
+    assert abs(profile.value_at(1.0)) <= 0.5
+    assert profile.value_at(12.0) == pytest.approx(0.0)
+    assert profile.value_at(12.5) == pytest.approx(0.0)
+
+
+def test_tracking_profile_enforces_pool_safety_bounds():
+    with pytest.raises(ValueError, match="at most"):
+        TrackingProfile.from_values("minimum_jerk", "attitude", "z", 1.0, 2.0, 1.0, 1)
+    with pytest.raises(ValueError, match="ramp time"):
+        TrackingProfile.from_values("minimum_jerk", "position", "x", 0.5, 0.1, 1.0, 1)
+    with pytest.raises(ValueError, match="whole number"):
+        TrackingProfile.from_values("minimum_jerk", "position", "x", 0.5, 1.0, 1.0, 1.5)
+    with pytest.raises(ValueError, match="for position and attitude"):
+        TrackingProfile.from_values("minimum_jerk", "velocity", "x", 0.2, 1.0, 1.0, 1)
+
+
+def test_tracking_start_and_stop_requests():
+    server = DashboardServer(FakeRos(), None)
+    start = asyncio.run(
+        server.handle(
+            {
+                "type": "start_tracking",
+                "experiment": "step",
+                "mode": "velocity",
+                "axis": "x",
+                "amplitude": 0.3,
+                "ramp_time": 2.0,
+                "hold_time": 3.0,
+                "cycles": 2,
+            }
+        )
+    )
+    assert start["tracking"]["active"] is True
+    assert start["tracking"]["mode"] == "velocity"
+    stop = asyncio.run(server.handle({"type": "stop_tracking"}))
+    assert stop["tracking"] == {"active": False, "status": "stopped"}
+
+
 def test_dashboard_assets_are_not_cached(tmp_path):
     server = DashboardServer(FakeRos(), tmp_path)
 
@@ -101,6 +181,47 @@ def test_remote_parameter_cache_does_not_replace_rclpy_parameter_store():
     finally:
         adapter.destroy_node()
         rclpy.shutdown()
+
+
+def test_pool_controller_node_is_discovered_and_editable_in_demo():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", controller_node="sub_control_mcu", demo=True)
+    try:
+        assert adapter.controller_fqn == "/test_robot/sub_control_mcu"
+        assert adapter.controller_fqn in adapter._watched_nodes
+        assert adapter.controller_fqn in adapter._remote_parameters
+        assert adapter._remote_parameters[adapter.controller_fqn]["vel_pid.z"]["read_only"] is False
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_ros_adapter_runs_and_completes_a_tracking_profile():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        adapter._last_odom = 0.0
+        with pytest.raises(RuntimeError, match="live odometry"):
+            adapter.start_tracking("minimum_jerk", "position", "x", 0.1, 0.5, 0.2, 1)
+        adapter._last_odom = adapter._last_error
+        started = adapter.start_tracking("minimum_jerk", "position", "x", 0.1, 0.5, 0.2, 1)
+        assert started["active"] is True
+        adapter._tracking_run["started_at"] -= started["duration"] + 0.1
+        adapter._tracking_tick()
+        completed = adapter.tracking_snapshot()
+        assert completed["active"] is False
+        assert completed["status"] == "complete"
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_server_shutdown_stops_an_active_tracking_profile(tmp_path):
+    ros = FakeRos()
+    ros.tracking = {"active": True}
+    server = DashboardServer(ros, tmp_path)
+    asyncio.run(server.on_shutdown(web.Application()))
+    assert ros.tracking == {"active": False, "status": "stopped"}
 
 
 

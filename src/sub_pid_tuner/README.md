@@ -2,14 +2,14 @@
 
 A focused, FTC Dashboard-style browser interface for the running ROS 2 stack. It discovers active nodes and their declared parameters, stages and applies runtime configuration changes with ROS readback, shows core control telemetry, publishes tuning setpoints, and graphs PID target/current/error together.
 
-It intentionally does not own the controller, run automatic trials, or change the low-level firmware. Runtime Apply changes the running ROS node immediately; Save profile separately persists verified controller values to the launch YAML.
+It does not replace the controller or change the low-level firmware. Runtime Apply changes the running ROS node immediately; Save profile separately persists verified controller values to the launch YAML. A bounded tracking routine can publish repeatable controller references for manual tuning.
 
 ## Panels
 
 - **Configuration:** select any discovered ROS node, search its parameters, edit writable values, and apply one or many changes. PID arrays on `sub_control` are shown as Kp/Ki/Kd/Limit. `Ctrl+S` applies staged values to the running nodes and verifies them by readback. `Ctrl+Shift+S` applies them and atomically saves the verified controller values to the sim or pool profile.
 - **Graph:** select live signals or use the target/current/error PID preset, choose an automatic, fixed, or custom Y range, zoom, pause, clear, resize the time window, and export CSV. Live graph data is streamed at 30 Hz.
 - **Telemetry:** searchable latest values for controller errors, state, setpoints, thrusters, altitude, and kill state.
-- **Setpoint:** publish position, velocity, attitude, or angular-rate targets to the existing controller topics.
+- **Control:** choose a minimum-jerk move, separated step/settle test, windowed sine, or pose-hold disturbance test. The graph automatically switches to that loop's target/current/error overlay. See [TUNING.md](TUNING.md) for the short inner-first workflow. The separate manual setpoint row remains available for normal one-shot commands.
 
 Tiles can be dragged and resized. Layout and graph selections are stored in the browser.
 
@@ -44,6 +44,8 @@ The dashboard can also attach to an already-running stack:
 ```bash
 ros2 run sub_pid_tuner dashboard --robot-name marlin_v2 --profile install/share/sub_bringup/config/control_gains_sim.yaml
 ```
+
+When attaching to the pool controller directly, add `--controller-node sub_control_mcu` and use the MCU gains profile.
 
 
 ## Saving configuration

@@ -45,7 +45,7 @@ function request(type, payload) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       state.pending.delete(requestId);
-      reject(new Error("The robot did not acknowledge the save in time"));
+      reject(new Error("The robot did not acknowledge the request in time"));
     }, 10000);
     state.pending.set(requestId, {resolve: resolve, reject: reject, timeout: timeout});
     state.socket.send(JSON.stringify(Object.assign({
@@ -98,6 +98,7 @@ function handleMessage(message) {
     }
     renderFeedRate();
     updateSaveControls();
+    renderTracking();
     return;
   }
 
@@ -139,7 +140,8 @@ function updateNodeSelect() {
     option.textContent = node;
     select.append(option);
   }
-  const controller = "/" + (state.server.robot_name || "marlin_v2") + "/sub_control";
+  const controller = state.server.profile?.controller ||
+    "/" + (state.server.robot_name || "marlin_v2") + "/sub_control";
   if (nodes.includes(previous)) select.value = previous;
   else if (nodes.includes(controller)) select.value = controller;
   state.parameterKey = "";
@@ -692,6 +694,146 @@ function updateSetpointLabels() {
     "Controller convention: x forward/world x, y left/world y, z up. Values are metres or m/s.";
 }
 
+const experimentNames = {
+  minimum_jerk: "Smooth move",
+  step: "Step + settle",
+  sine: "Windowed sine",
+  hold: "Hold / disturbance"
+};
+
+const trackingDefaults = {
+  position: {
+    minimum_jerk: {amplitude: 0.5, ramp: 4, hold: 2, cycles: 2},
+    step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
+    sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3},
+    hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1}
+  },
+  velocity: {
+    step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
+    sine: {amplitude: 0.2, ramp: 8, hold: 3, cycles: 3}
+  },
+  attitude: {
+    minimum_jerk: {amplitude: 0.2, ramp: 4, hold: 2, cycles: 2},
+    step: {amplitude: 0.12, ramp: 3, hold: 3, cycles: 1},
+    sine: {amplitude: 0.12, ramp: 8, hold: 3, cycles: 3},
+    hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1}
+  },
+  angular_velocity: {
+    step: {amplitude: 0.35, ramp: 3, hold: 3, cycles: 1},
+    sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3}
+  }
+};
+
+function updateTrackingLabels(loadDefaults) {
+  const mode = $("tracking-mode").value;
+  const experimentSelect = $("tracking-experiment");
+  const previousExperiment = experimentSelect.value;
+  const experiments = Object.keys(trackingDefaults[mode]);
+  experimentSelect.innerHTML = experiments.map(value =>
+    '<option value="' + value + '">' + experimentNames[value] + "</option>"
+  ).join("");
+  experimentSelect.value = experiments.includes(previousExperiment) ? previousExperiment : experiments[0];
+  const experiment = experimentSelect.value;
+  const rotational = mode === "attitude" || mode === "angular_velocity";
+  const labels = rotational ? ["Roll", "Pitch", "Yaw"] : ["X", "Y", "Z"];
+  [...$("tracking-axis").options].forEach((option, index) => {
+    option.value = ["x", "y", "z"][index];
+    option.textContent = labels[index];
+  });
+  const unit = {position: "m", velocity: "m/s", attitude: "rad", angular_velocity: "rad/s"}[mode];
+  const limit = {position: 2, velocity: 1, attitude: 0.523598, angular_velocity: 1}[mode];
+  $("tracking-amplitude").min = -limit;
+  $("tracking-amplitude").max = limit;
+  $("tracking-amplitude-label").textContent = (mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
+  $("tracking-amplitude-wrap").hidden = experiment === "hold";
+  $("tracking-primary-wrap").hidden = experiment === "hold";
+  $("tracking-cycles-wrap").hidden = experiment === "hold";
+  $("tracking-primary-label").textContent = experiment === "minimum_jerk" ? "Move (s)" : experiment === "step" ? "Step (s)" : "Period (s)";
+  $("tracking-secondary-label").textContent = experiment === "step" ? "Settle (s)" : experiment === "sine" ? "Final settle (s)" : experiment === "hold" ? "Duration (s)" : "Hold (s)";
+  const hints = {
+    minimum_jerk: "Quintic out-and-back move with zero velocity and acceleration at each endpoint.",
+    step: "Tests positive and negative commands separately, returning to zero to settle between them.",
+    sine: "Smooth zero-mean tracking with a fade-in/out; use a longer period first, then shorten it to expose phase lag.",
+    hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move."
+  };
+  $("tracking-hint").textContent = hints[experiment];
+  if (loadDefaults) {
+    const defaults = trackingDefaults[mode][experiment];
+    $("tracking-amplitude").value = defaults.amplitude;
+    $("tracking-ramp").value = defaults.ramp;
+    $("tracking-hold").value = defaults.hold;
+    $("tracking-cycles").value = defaults.cycles;
+  }
+}
+
+function selectTrackingGraph() {
+  $("loop-select").value = $("tracking-mode").value;
+  updateGraphAxisLabels();
+  $("axis-select").value = $("tracking-axis").value;
+  selectPidPreset();
+  state.history = [];
+  state.paused = false;
+  $("pause").textContent = "Pause";
+  scheduleGraphDraw();
+}
+
+async function startTracking() {
+  const values = {
+    experiment: $("tracking-experiment").value,
+    mode: $("tracking-mode").value,
+    axis: $("tracking-axis").value,
+    amplitude: Number($("tracking-amplitude").value),
+    ramp_time: Number($("tracking-ramp").value),
+    hold_time: Number($("tracking-hold").value),
+    cycles: Number($("tracking-cycles").value)
+  };
+  if (![values.amplitude, values.ramp_time, values.hold_time, values.cycles].every(Number.isFinite)) {
+    toast("Enter finite tracking routine values", true);
+    return;
+  }
+  try {
+    const result = await request("start_tracking", values);
+    state.server.tracking = result.tracking;
+    selectTrackingGraph();
+    renderTracking();
+    toast("Tracking routine started");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function stopTracking() {
+  try {
+    const result = await request("stop_tracking");
+    state.server.tracking = result.tracking;
+    renderTracking();
+    toast("Tracking routine stopped; holding measured pose");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderTracking() {
+  const tracking = state.server.tracking || {active: false, status: "idle", message: "Ready"};
+  const active = Boolean(tracking.active);
+  const statusKind = active ? "warn" : tracking.status === "aborted" ? "bad" :
+    tracking.status === "complete" ? "good" : "";
+  setPill("tracking-status", active ? "Running" :
+    tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1), statusKind);
+  document.querySelectorAll(".tracking-form input, .tracking-form select").forEach(control => {
+    control.disabled = active;
+  });
+  const telemetryReady = Number.isFinite(state.server.telemetry_age) && state.server.telemetry_age < 1;
+  const robotReady = state.server.killed === false && telemetryReady;
+  $("start-tracking").disabled = active || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  $("stop-tracking").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  const progress = Number.isFinite(tracking.progress) ? Math.round(tracking.progress * 100) : 0;
+  $("tracking-progress").textContent = active ?
+    progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
+    !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
+      "Release kill switch to tune" : tracking.message || "Ready";
+}
+
 async function publishSetpoint() {
   const values = [...document.querySelectorAll(".setpoint-value")].map(input => Number(input.value));
   if (values.some(value => !Number.isFinite(value))) {
@@ -734,7 +876,7 @@ function saveLayout() {
   const layout = [...document.querySelectorAll(".tile")].map(tile => ({
     id: tile.id, width: tile.dataset.w, height: tile.dataset.h
   }));
-  localStorage.setItem("avbotz-layout-v2", JSON.stringify(layout));
+  localStorage.setItem("avbotz-layout-v3", JSON.stringify(layout));
 }
 
 function sizeTile(tile) {
@@ -744,7 +886,7 @@ function sizeTile(tile) {
 
 function setupLayout() {
   const root = $("dashboard");
-  const saved = JSON.parse(localStorage.getItem("avbotz-layout-v2") || "null");
+  const saved = JSON.parse(localStorage.getItem("avbotz-layout-v3") || "null");
   if (saved) {
     for (const item of saved) {
       const tile = $(item.id);
@@ -863,9 +1005,13 @@ $("zoom-out").addEventListener("click", () => zoomGraph(1.5));
 $("telemetry-filter").addEventListener("input", renderTelemetry);
 $("setpoint-mode").addEventListener("change", updateSetpointLabels);
 $("publish-setpoint").addEventListener("click", publishSetpoint);
+$("tracking-mode").addEventListener("change", () => updateTrackingLabels(true));
+$("tracking-experiment").addEventListener("change", () => updateTrackingLabels(true));
+$("start-tracking").addEventListener("click", startTracking);
+$("stop-tracking").addEventListener("click", stopTracking);
 $("export").addEventListener("click", exportCsv);
 $("reset-layout").addEventListener("click", () => {
-  localStorage.removeItem("avbotz-layout-v2");
+  localStorage.removeItem("avbotz-layout-v3");
   location.reload();
 });
 document.addEventListener("keydown", event => {
@@ -880,5 +1026,7 @@ window.addEventListener("resize", scheduleGraphDraw);
 setupLayout();
 updateGraphAxisLabels();
 updateSetpointLabels();
+updateTrackingLabels(true);
+renderTracking();
 updateSaveControls();
 connect();

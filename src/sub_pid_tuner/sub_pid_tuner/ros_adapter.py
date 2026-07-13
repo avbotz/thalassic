@@ -12,8 +12,11 @@ from rcl_interfaces.msg import ParameterType
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.parameter_client import AsyncParameterClient
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool, Float64
 from sub_control_interfaces.msg import Error, Setpoint
+
+from .tracking_profile import TrackingProfile
 
 
 TYPE_NAMES = {
@@ -95,9 +98,11 @@ def coerce_parameter(value: Any, type_id: int) -> Any:
 
 
 class RosAdapter(Node):
-    def __init__(self, robot_name: str, demo: bool = False):
+    def __init__(self, robot_name: str, controller_node: str = "sub_control", demo: bool = False):
         super().__init__("dashboard", namespace=robot_name)
         self.robot_name = robot_name.strip("/")
+        self.controller_node = controller_node.strip("/")
+        self.controller_fqn = f"/{self.robot_name}/{self.controller_node}"
         self.demo = demo
         self._lock = threading.RLock()
         # Do not use Node._parameters: rclpy owns that attribute for this
@@ -106,17 +111,26 @@ class RosAdapter(Node):
         self._parameter_clients: dict[str, AsyncParameterClient] = {}
         self._pending_nodes: set[str] = set()
         self._known_nodes: set[str] = set()
-        self._watched_nodes: set[str] = {f"/{self.robot_name}/sub_control"}
+        self._watched_nodes: set[str] = {self.controller_fqn}
         self._signals: dict[str, float] = {}
         self._last_signal = 0.0
+        self._last_odom = 0.0
+        self._last_error = 0.0
         self._kill = None
+        self._tracking_run: dict | None = None
+        self._tracking_state = {
+            "active": False,
+            "status": "idle",
+            "message": "Ready for a tracking routine",
+        }
 
         self.create_subscription(Error, "control/error", self._error_cb, 10)
         self.create_subscription(Odometry, "odometry/filtered", self._odom_cb, 10)
         self.create_subscription(Setpoint, "pos_setpoint", self._pos_setpoint_cb, 10)
         self.create_subscription(Setpoint, "att_setpoint", self._att_setpoint_cb, 10)
         self.create_subscription(Twist, "cmd_vel", self._cmd_vel_cb, 10)
-        self.create_subscription(Bool, "kill_switch", self._kill_cb, 10)
+        kill_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(Bool, "kill_switch", self._kill_cb, kill_qos)
         self.create_subscription(Float64, "altitude", lambda msg: self._signal("altitude.current", msg.data), 10)
         for index in range(8):
             self.create_subscription(
@@ -128,6 +142,7 @@ class RosAdapter(Node):
         self._pos_pub = self.create_publisher(Setpoint, "pos_setpoint", 10)
         self._att_pub = self.create_publisher(Setpoint, "att_setpoint", 10)
         self.create_timer(2.0, self.refresh_parameters)
+        self.create_timer(1.0 / 30.0, self._tracking_tick)
 
         if demo:
             self._install_demo_data()
@@ -150,18 +165,33 @@ class RosAdapter(Node):
             "read_only": True,
             "description": "",
         }
-        self._remote_parameters[f"/{self.robot_name}/sub_control"] = gains
+        self._remote_parameters[self.controller_fqn] = gains
+        self._kill = False
+        for group in ("position", "velocity", "attitude", "angular_velocity"):
+            for axis in "xyz":
+                self._signals[f"pid.{group}.{axis}.current"] = 0.0
+                self._signals[f"pid.{group}.{axis}.error"] = 0.0
+                self._signals[f"pid.{group}.{axis}.target"] = 0.0
+        self._last_odom = time.monotonic()
+        self._last_error = self._last_odom
         self.create_timer(0.05, self._demo_tick)
 
     def _demo_tick(self) -> None:
-        now = time.monotonic()
-        target = 1.0
-        current = target * (1.0 - math.exp(-(now % 8.0) / 1.8))
-        error = target - current
-        self._signal("pid.position.z.target", target)
-        self._signal("pid.position.z.current", current)
-        self._signal("pid.position.z.error", error)
-        self._signal("thruster.0", max(-0.6, min(0.6, error * 0.9)))
+        with self._lock:
+            for group in ("position", "velocity", "attitude", "angular_velocity"):
+                for axis in "xyz":
+                    target = self._signals.get(f"pid.{group}.{axis}.target", 0.0)
+                    current_name = f"pid.{group}.{axis}.current"
+                    current = self._signals.get(current_name, 0.0)
+                    current += (target - current) * 0.08
+                    self._signals[current_name] = current
+                    self._signals[f"pid.{group}.{axis}.error"] = target - current
+            self._signals["thruster.0"] = max(
+                -0.6, min(0.6, self._signals["pid.position.z.error"] * 0.9)
+            )
+            self._last_odom = time.monotonic()
+            self._last_error = self._last_odom
+            self._last_signal = self._last_odom
 
     def _signal(self, name: str, value: float) -> None:
         try:
@@ -175,6 +205,8 @@ class RosAdapter(Node):
             self._last_signal = time.monotonic()
 
     def _odom_cb(self, msg: Odometry) -> None:
+        with self._lock:
+            self._last_odom = time.monotonic()
         q = msg.pose.pose.orientation
         roll = math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y))
         pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
@@ -194,6 +226,8 @@ class RosAdapter(Node):
                 self._signal(f"pid.{group}.{axis}.current", value)
 
     def _error_cb(self, msg: Error) -> None:
+        with self._lock:
+            self._last_error = time.monotonic()
         groups = {
             "position": msg.pos_error,
             "velocity": msg.vel_error,
@@ -223,13 +257,17 @@ class RosAdapter(Node):
             self._signal(f"pid.angular_velocity.{axis}.target", getattr(msg.angular, axis))
 
     def _kill_cb(self, msg: Bool) -> None:
+        stop_tracking = False
         with self._lock:
             was_killed = self._kill
             self._kill = bool(msg.data)
+            stop_tracking = self._kill and self._tracking_run is not None
             if was_killed is True and self._kill is False:
                 for name in list(self._signals):
                     if name.startswith("pid.") and name.endswith(".target"):
                         self._signals[name] = 0.0
+        if stop_tracking:
+            self._finish_tracking("aborted", "Kill switch engaged", publish_hold=False)
 
     def refresh_parameters(self) -> None:
         if self.demo:
@@ -409,6 +447,154 @@ class RosAdapter(Node):
             raise ValueError(f"unknown setpoint mode: {mode}")
         return {"mode": mode, "values": values, "altitude": msg.altitude}
 
+    def _current_triplet(self, group: str) -> list[float] | None:
+        with self._lock:
+            values = [self._signals.get(f"pid.{group}.{axis}.current") for axis in "xyz"]
+        return [float(value) for value in values] if all(value is not None for value in values) else None
+
+    def start_tracking(
+        self,
+        experiment: str,
+        mode: str,
+        axis: str,
+        amplitude: float,
+        ramp_time: float,
+        hold_time: float,
+        cycles: int,
+    ) -> dict:
+        profile = TrackingProfile.from_values(
+            experiment, mode, axis, amplitude, ramp_time, hold_time, cycles
+        )
+        now = time.monotonic()
+        with self._lock:
+            if self._tracking_run is not None:
+                raise RuntimeError("a tracking routine is already running")
+            telemetry_age = (
+                max(now - self._last_odom, now - self._last_error)
+                if self._last_odom and self._last_error
+                else None
+            )
+            if self._kill is not False:
+                raise RuntimeError("release the kill switch before starting a tracking routine")
+            if telemetry_age is None or telemetry_age > 1.0:
+                raise RuntimeError("live odometry/control telemetry is required")
+            position = [
+                self._signals.get(f"pid.position.{axis_name}.current")
+                for axis_name in "xyz"
+            ]
+            attitude = [
+                self._signals.get(f"pid.attitude.{axis_name}.current")
+                for axis_name in "xyz"
+            ]
+            if any(value is None for value in position + attitude):
+                raise RuntimeError("position and attitude measurements are not ready")
+            position = [float(value) for value in position]
+            attitude = [float(value) for value in attitude]
+            run = {
+                "profile": profile,
+                "started_at": now,
+                "position_hold": position,
+                "attitude_hold": attitude,
+            }
+            self._tracking_run = run
+            self._tracking_state = {
+                "active": True,
+                "status": "running",
+                "message": "Tracking profile running",
+                "elapsed": 0.0,
+                "progress": 0.0,
+                **profile.public_state(),
+            }
+
+        # Hold the companion loop once; only the selected command needs to be
+        # streamed while its reference changes.
+        if mode in ("position", "velocity"):
+            self.publish_setpoint("attitude", attitude)
+        else:
+            self.publish_setpoint("position", position)
+        self._publish_tracking_reference(run, 0.0)
+        return self.tracking_snapshot()
+
+    def stop_tracking(self) -> dict:
+        with self._lock:
+            active = self._tracking_run is not None
+        if active:
+            self._finish_tracking("stopped", "Stopped by operator", publish_hold=True)
+        return self.tracking_snapshot()
+
+    def _publish_tracking_reference(self, run: dict, elapsed: float) -> None:
+        profile: TrackingProfile = run["profile"]
+        value = profile.value_at(elapsed)
+        axis = "xyz".index(profile.axis)
+        if profile.mode == "position":
+            command = list(run["position_hold"])
+            command[axis] += value
+        elif profile.mode == "attitude":
+            command = list(run["attitude_hold"])
+            command[axis] += value
+        else:
+            command = [0.0, 0.0, 0.0]
+            command[axis] = value
+        self.publish_setpoint(profile.mode, command)
+
+    def _tracking_tick(self) -> None:
+        with self._lock:
+            run = self._tracking_run
+            killed = self._kill
+            measurement_age = (
+                max(
+                    time.monotonic() - self._last_odom,
+                    time.monotonic() - self._last_error,
+                )
+                if self._last_odom and self._last_error
+                else None
+            )
+        if run is None:
+            return
+        if killed:
+            self._finish_tracking("aborted", "Kill switch engaged", publish_hold=False)
+            return
+        if measurement_age is None or measurement_age > 1.0:
+            self._finish_tracking("aborted", "Telemetry became stale", publish_hold=True)
+            return
+
+        elapsed = time.monotonic() - run["started_at"]
+        profile: TrackingProfile = run["profile"]
+        if elapsed >= profile.duration:
+            self._finish_tracking("complete", "Tracking routine complete", publish_hold=True)
+            return
+        self._publish_tracking_reference(run, elapsed)
+        with self._lock:
+            if self._tracking_run is run:
+                self._tracking_state["elapsed"] = elapsed
+                self._tracking_state["progress"] = elapsed / profile.duration
+
+    def _finish_tracking(self, status: str, message: str, publish_hold: bool) -> None:
+        with self._lock:
+            run = self._tracking_run
+            if run is None:
+                return
+            self._tracking_run = None
+            profile: TrackingProfile = run["profile"]
+            elapsed = min(time.monotonic() - run["started_at"], profile.duration)
+            self._tracking_state = {
+                "active": False,
+                "status": status,
+                "message": message,
+                "elapsed": elapsed,
+                "progress": min(elapsed / profile.duration, 1.0),
+                **profile.public_state(),
+            }
+        if publish_hold:
+            position = self._current_triplet("position") or run["position_hold"]
+            attitude = self._current_triplet("attitude") or run["attitude_hold"]
+            self.publish_setpoint("position", position)
+            self.publish_setpoint("attitude", attitude)
+
+    def tracking_snapshot(self) -> dict:
+        with self._lock:
+            return dict(self._tracking_state)
+
     def snapshot(self, include_parameters: bool = True) -> dict:
         with self._lock:
             result = {
@@ -416,9 +602,15 @@ class RosAdapter(Node):
                 "demo": self.demo,
                 "signals": dict(self._signals),
                 "telemetry_age": (
-                    time.monotonic() - self._last_signal if self._last_signal else None
+                    max(
+                        time.monotonic() - self._last_odom,
+                        time.monotonic() - self._last_error,
+                    )
+                    if self._last_odom and self._last_error
+                    else None
                 ),
                 "killed": self._kill,
+                "tracking": dict(self._tracking_state),
                 "nodes": sorted(self._known_nodes | set(self._remote_parameters)),
             }
             if include_parameters:

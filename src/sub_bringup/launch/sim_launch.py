@@ -517,6 +517,7 @@ def generate_launch_description():
         output="screen",
         arguments=[
             "--robot-name", LaunchConfiguration("robot_name"),
+            "--controller-node", "sub_control",
             "--profile", PathJoinSubstitution(
                 [FindPackageShare("sub_bringup"), "config", "control_gains_sim.yaml"]
             ),

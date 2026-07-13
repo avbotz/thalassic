@@ -228,7 +228,7 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
     altitude_control_enabled_ = msg->altitude;
     if (velocity_control_enabled_) {
         if (velocity_setpoint_[0] != msg->setpoint.x || velocity_setpoint_[1] != msg->setpoint.y || velocity_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+            RCLCPP_DEBUG(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
         }
 
         velocity_setpoint_[0] = msg->setpoint.x;
@@ -237,7 +237,7 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
 
     } else {
         if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+            RCLCPP_DEBUG(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
         }
 
         position_setpoint_[0] = msg->setpoint.x;
@@ -252,7 +252,7 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
     angvel_control_enabled_ = msg->velocity;
     if (angvel_control_enabled_) {
         if (angvel_setpoint_[0] != msg->setpoint.roll || angvel_setpoint_[1] != msg->setpoint.pitch || angvel_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_INFO(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
+            RCLCPP_DEBUG(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
         }
 
         angvel_setpoint_[0] = msg->setpoint.roll;
@@ -261,7 +261,7 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
 
     } else {
         if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
+            RCLCPP_DEBUG(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
         }
 
         attitude_setpoint_[0] = angles::normalize_angle(msg->setpoint.roll);

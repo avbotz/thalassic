@@ -26,6 +26,7 @@ class DashboardServer:
         self.web_dir = web_dir
         self.profile = profile
         self.clients: set[web.WebSocketResponse] = set()
+        self.tracking_owner: web.WebSocketResponse | None = None
         self.write_lock = asyncio.Lock()
 
     def state(self, include_parameters: bool = True) -> dict:
@@ -66,6 +67,9 @@ class DashboardServer:
         app["broadcast_task"] = asyncio.create_task(self.broadcast_loop())
 
     async def on_shutdown(self, app: web.Application) -> None:
+        # A graceful dashboard shutdown must never leave a rate command active.
+        with contextlib.suppress(Exception):
+            self.ros.stop_tracking()
         for socket in list(self.clients):
             await socket.close(code=WSCloseCode.GOING_AWAY, message=b"dashboard stopping")
         self.clients.clear()
@@ -109,6 +113,10 @@ class DashboardServer:
                 try:
                     payload = json.loads(message.data)
                     response = await self.handle(payload)
+                    if payload.get("type") == "start_tracking":
+                        self.tracking_owner = socket
+                    elif payload.get("type") == "stop_tracking" and self.tracking_owner is socket:
+                        self.tracking_owner = None
                 except Exception as exc:  # noqa: BLE001
                     response = {
                         "type": "error",
@@ -118,6 +126,10 @@ class DashboardServer:
                 await socket.send_json(response)
         finally:
             self.clients.discard(socket)
+            if self.tracking_owner is socket:
+                self.tracking_owner = None
+                with contextlib.suppress(Exception):
+                    self.ros.stop_tracking()
         return socket
 
     async def handle(self, message: dict) -> dict:
@@ -169,6 +181,27 @@ class DashboardServer:
                 "request_id": request_id,
                 **result,
             }
+        if kind == "start_tracking":
+            result = self.ros.start_tracking(
+                str(message.get("experiment", "")),
+                str(message.get("mode", "")),
+                str(message.get("axis", "")),
+                message.get("amplitude"),
+                message.get("ramp_time"),
+                message.get("hold_time"),
+                message.get("cycles"),
+            )
+            return {
+                "type": "tracking_result",
+                "request_id": request_id,
+                "tracking": result,
+            }
+        if kind == "stop_tracking":
+            return {
+                "type": "tracking_result",
+                "request_id": request_id,
+                "tracking": self.ros.stop_tracking(),
+            }
         raise ValueError(f"unknown request type: {kind}")
 
     async def apply_changes(self, changes) -> list[dict]:
@@ -192,6 +225,7 @@ def parse_args(argv=None):
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8080, type=int)
     parser.add_argument("--profile", type=Path)
+    parser.add_argument("--controller-node", default="sub_control")
     parser.add_argument("--demo", action="store_true")
     return parser.parse_known_args(argv)[0]
 
@@ -199,10 +233,10 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     rclpy.init(args=None, signal_handler_options=SignalHandlerOptions.NO)
-    ros = RosAdapter(args.robot_name, demo=args.demo)
+    ros = RosAdapter(args.robot_name, controller_node=args.controller_node, demo=args.demo)
     profile = GainProfile(
         args.profile,
-        controller_name=f"/{args.robot_name.strip('/')}/sub_control",
+        controller_name=ros.controller_fqn,
     )
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(ros)

@@ -300,6 +300,7 @@ def generate_launch_description():
         output="screen",
         arguments=[
             "--robot-name", LaunchConfiguration("robot_name"),
+            "--controller-node", "sub_control_mcu",
             "--profile", PathJoinSubstitution(
                 [
                     FindPackageShare("sub_control_mcu"),

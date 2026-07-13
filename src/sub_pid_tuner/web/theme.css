@@ -59,6 +59,9 @@ input:focus, select:focus { outline: none; border-color: var(--blue-bright); box
 #graph .toolbar { align-content: center; }
 #graph .graph-body { grid-template-columns: minmax(165px, 25%) 1fr; }
 #setpoint-panel .setpoint-form { padding-bottom: 10px; }
+#setpoint-panel .section-heading { background: #0b131f; }
+#setpoint-panel .tracking-form { background: #0b131f; }
+#setpoint-panel .tracking-summary { background: #0b131f; border-color: var(--border); }
 
 @media(max-width:1200px) {
   #configuration, #graph, #setpoint-panel, #telemetry-panel { grid-column: span 12; }
