@@ -4,7 +4,7 @@
     # Documentation: https://docs.waterlinked.com/dvl/dvl-protocol/
 
     # Static IP address setup for the DVL-A50
-    ip_address: "192.168.0.250"
+    ip_address: "192.168.5.250"
 
     # Default port for the DVL-A50 and DVL-125
     port: 16171
