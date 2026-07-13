@@ -1,52 +1,38 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="bin_black" gray="0.0" roughness="0.1" />
-    <look name="bin_white" gray="1.0" roughness="0.1" />
-    <look name="bin_images" gray="1.0" roughness="0.1" texture="models/bin_task/bin/bin.png" />
+    <look name="bin_blood" gray="1.0" roughness="0.1" texture="models/bin_task/bin/Task3_Blood.png" />
+    <look name="bin_fire" gray="1.0" roughness="0.1" texture="models/bin_task/bin/Task3_Fire.png" />
+    <look name="bin_struct" rgb="0.53 0.55 0.59" roughness="0.1" />
   </looks>
 
-  <static name="bin_screws" type="model">
+  <static name="bin_struct" type="model">
     <physical>
-      <mesh filename="models/bin_task/bin/parts/screws.obj" scale="1.0" convex="false" />
+      <mesh filename="models/bin_task/bin/bins_v2_struct.obj" scale="1.0" convex="false" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
-
     <material name="plastic" />
-    <look name="bin_black" />
+    <look name="bin_struct" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
-  <static name="bin_black" type="model">
+  <static name="bin_blood" type="model">
     <physical>
-      <mesh filename="models/bin_task/bin/parts/black.obj" scale="1.0" convex="false" />
+      <mesh filename="models/bin_task/bin/bins_v2_blood.obj" scale="1.0" convex="false" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
-
     <material name="plastic" />
-    <look name="bin_black" />
+    <look name="bin_blood" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 
-  <static name="bin_white" type="model">
+  <static name="bin_fire" type="model">
     <physical>
-      <mesh filename="models/bin_task/bin/parts/white.obj" scale="1.0" convex="false" />
+      <mesh filename="models/bin_task/bin/bins_v2_fire.obj" scale="1.0" convex="false" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
-
     <material name="plastic" />
-    <look name="bin_white" />
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="bin_image" type="model">
-    <physical>
-      <mesh filename="models/bin_task/bin/parts/image.obj" scale="1.0" convex="false" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-
-    <material name="plastic" />
-    <look name="bin_images" />
+    <look name="bin_fire" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

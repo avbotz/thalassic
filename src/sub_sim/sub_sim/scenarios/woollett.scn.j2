@@ -118,8 +118,8 @@
   <include file="models/bin_task/bin/bin.scn">
     <arg name="x" value="{{ fuzz(15.4, DX) }}" />
     <arg name="y" value="{{ fuzz(1.1, DY) }}" />
-    <arg name="z" value="{{ fuzz_z(2.1, DZ) }}" />
-    <arg name="roll" value="0" />
+    <arg name="z" value="{{ fuzz_z(1.15, DZ) }}" />
+    <arg name="roll" value="3.14159" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
   </include>
