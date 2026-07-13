@@ -6,7 +6,7 @@
 /**:
   ros__parameters:
     # Where <task>.onnx / <task>.engine models (and optional <task>.names) live.
-    model_dir: "/home/avbotz/sub_vision/models"
+    model_dir: "weights"
 
     # Pre-load this task on startup ("" = wait for a load_model service call).
     default_task: ""
