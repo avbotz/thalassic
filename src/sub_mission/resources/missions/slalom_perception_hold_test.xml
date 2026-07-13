@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="SlalomPerceptionHoldTest">
+  <!-- Stationary simulator fixture for inspecting the real front-camera
+       slalom detections without allowing mission motion to mask a placement
+       or model problem. The launch harness stops this mission explicitly. -->
+  <BehaviorTree ID="SlalomPerceptionHoldTest">
+    <Sequence name="hold_for_slalom_perception">
+      <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
+      <Sleep msec="180000"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

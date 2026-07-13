@@ -31,19 +31,37 @@
         </Fallback>
       </ForceSuccess>
       <ForceSuccess>
-        <DownContinuousAlign task="path"
-                             class_id=""
-                             min_score="0.0"
-                             tolerance="0.4"
-                             desired_distance="nan"
-                             distance_tolerance="0.5"
-                             default_distance="1.0"
-                             center_gain="1.0"
-                             orient="true"
-                             orient_tolerance_deg="5.0"
-                             min_msec="10000"
-                             timeout_msec="30000"
-                             update_msec="200"/>
+        <Fallback name="path_marker_oriented_then_center_only">
+          <DownContinuousAlign task="path"
+                               class_id=""
+                               min_score="0.0"
+                               tolerance="0.4"
+                               desired_distance="nan"
+                               distance_tolerance="0.5"
+                               default_distance="1.0"
+                               center_gain="1.0"
+                               orient="true"
+                               require_orientation="true"
+                               orientation_settle_frames="3"
+                               orientation_consistency_deg="10.0"
+                               orient_tolerance_deg="5.0"
+                               min_msec="3000"
+                               timeout_msec="12000"
+                               update_msec="200"/>
+          <DownContinuousAlign task="path"
+                               class_id=""
+                               min_score="0.0"
+                               tolerance="0.4"
+                               desired_distance="nan"
+                               distance_tolerance="0.5"
+                               default_distance="1.0"
+                               center_gain="1.0"
+                               orient="false"
+                               min_msec="1000"
+                               timeout_msec="8000"
+                               update_msec="200"/>
+          <AlwaysSuccess/>
+        </Fallback>
       </ForceSuccess>
       <LoadModel camera="front"
                  task="bins_side"
@@ -170,6 +188,12 @@
                   default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
       <input_port name="orient"
                   default="true">Yaw to detection orientation metadata when present</input_port>
+      <input_port name="require_orientation"
+                  default="false">Fail on timeout instead of accepting center-only alignment when orientation is absent</input_port>
+      <input_port name="orientation_settle_frames"
+                  default="3">Consecutive consistent orientation frames required before yawing</input_port>
+      <input_port name="orientation_consistency_deg"
+                  default="10.0">Maximum frame-to-frame axial-angle change accepted as consistent</input_port>
       <input_port name="orient_tolerance_deg"
                   default="5.0">Orientation error allowed at completion</input_port>
       <input_port name="min_msec"
@@ -192,6 +216,8 @@
                   default="1.0">Distance used when detection distance is unavailable</input_port>
       <input_port name="center_gain"
                   default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+      <input_port name="orient"
+                  default="false">Follow detection orientation metadata</input_port>
       <input_port name="lateral_sweep_step"
                   default="1.0">Right/left search step when no down-camera detection is visible</input_port>
       <input_port name="stop_camera">Succeed when this camera sees the stop target</input_port>
@@ -239,6 +265,17 @@
                   default="3000">Target-loss time that completes the approach</input_port>
       <input_port name="timeout_msec"
                   default="30000">Maximum align time before SUCCESS</input_port>
+      <input_port name="confirmation_frames" default="1">Matching frames required before propulsion</input_port>
+      <input_port name="continue_on_loss" default="true">Continue on the last heading after target loss</input_port>
+      <input_port name="stop_on_close" default="true">Stop immediately when the target is close</input_port>
+      <input_port name="loss_is_success" default="false">Accept target loss only after a confirmed close pass</input_port>
+      <input_port name="loss_min_travel" default="0.0">Minimum odom travel before a post-close loss can succeed</input_port>
+      <input_port name="timeout_is_success" default="true">Treat bounded timeout as SUCCESS</input_port>
+      <input_port name="max_dist_is_success" default="true">Treat maximum travel as SUCCESS</input_port>
+      <input_port name="max_yaw_step_deg" default="45.0">Maximum heading correction per frame</input_port>
+      <input_port name="fixed_distance_from_detection" default="false">Lock transit distance from confirmed vision range</input_port>
+      <input_port name="pass_distance" default="0.0">Meters to continue beyond detected gap plane</input_port>
+      <input_port name="min_transit_distance" default="0.0">Minimum safe fixed transit distance</input_port>
     </Action>
     <Action ID="LoadModel">
       <input_port name="camera"

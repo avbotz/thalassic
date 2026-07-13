@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<!-- Lightweight deterministic Stonefish fixture for the three-layer slalom
+     regression.  It keeps the real Marlin, front camera, and slalom meshes,
+     while omitting unrelated course assets that make repeatable CI-style
+     mission tests unnecessarily slow. -->
+<scenario>
+  <environment>
+    <ned latitude="33.701722" longitude="-117.780354" />
+    <ocean>
+      <water density="1025.0" jerlov="0.20" />
+      <waves height="0" />
+      <particles enabled="false" />
+      <current type="uniform">
+        <velocity xyz="0 0 0" />
+      </current>
+    </ocean>
+    <atmosphere>
+      <sun azimuth="120" elevation="50" />
+    </atmosphere>
+  </environment>
+
+  <materials>
+    <material name="air" density="1.2" restitution="0.0" />
+    <material name="aluminum" density="1500.0" restitution="0.7" />
+    <material name="acrylic" density="1000.0" restitution="0.5" />
+    <material name="plastic" density="800.0" restitution="0.2" />
+    <material name="pvc" density="1450.0" restitution="0.2" />
+  </materials>
+
+  <include file="{{ render_robot(
+      x=ROBOT_X,
+      y=ROBOT_Y,
+      z=ROBOT_Z,
+      roll=0.0,
+      pitch=0.0,
+      yaw=ROBOT_YAW if ROBOT_YAW is not none else 0.0
+  ) }}" />
+
+  <!-- Each include is one physical three-pole layer.  Their common centre
+       line and 4 m separation make a successful transit leave the next
+       layer inside the front-camera acquisition range. -->
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="18.65" />
+    <arg name="y" value="-2.00" />
+    <arg name="z" value="1.20" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="{{ PI / 2 }}" />
+  </include>
+
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="18.65" />
+    <arg name="y" value="-6.00" />
+    <arg name="z" value="1.20" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="{{ PI / 2 }}" />
+  </include>
+
+  <include file="models/slalom_task/slalom/slalom.scn">
+    <arg name="x" value="18.65" />
+    <arg name="y" value="-10.00" />
+    <arg name="z" value="1.20" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="{{ PI / 2 }}" />
+  </include>
+</scenario>

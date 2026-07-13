@@ -18,7 +18,7 @@ class TaskPostProcessor(ABC):
     """
 
     @abstractmethod
-    def process(self, detections, rgb_image, depth_image, camera_info):
+    def process(self, detections, rgb_image, depth_image, camera_info, model_masks=None):
         """Enrich and return the detections.
 
         Args:
@@ -29,6 +29,7 @@ class TaskPostProcessor(ABC):
             depth_image: Always ``None`` (the depth camera is not used);
                 kept in the signature for interface stability.
             camera_info: ``sensor_msgs/CameraInfo`` for the frame.
+            model_masks: Optional YOLO instance masks, one per raw detection.
 
         Returns:
             The (possibly mutated) ``DetectionArray``.

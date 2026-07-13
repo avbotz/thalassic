@@ -12,7 +12,11 @@ def generate_launch_description():
         static_tf("map", f"{ROBOT}/odom"),
         static_tf(f"{ROBOT}/base_link", BASE_NED, roll=math.pi, yaw=-math.pi / 2),
         static_tf(
-            BASE_NED, f"{ROBOT}/front_camera", y=-0.33, z=-0.16631, roll=math.pi / 2
+            # Keep the navigation TF at the optical camera origin used by the
+            # Stonefish camera sensor.  A 9 cm disagreement here becomes a
+            # 9 cm firing-ray error when a launcher is moved to the camera aim
+            # point.
+            BASE_NED, f"{ROBOT}/front_camera", y=-0.42, z=-0.16631, roll=math.pi / 2
         ),
         static_tf(
             BASE_NED, f"{ROBOT}/down_camera", x=-0.078914, y=0.22841, z=0.12

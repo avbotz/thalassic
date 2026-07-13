@@ -155,7 +155,7 @@ def _deproject_pixel(
 class GatePostProcessor(TaskPostProcessor):
     """Keep gate detections and add aim/range/layout metadata."""
 
-    def process(self, detections, rgb_image, depth_image, camera_info):
+    def process(self, detections, rgb_image, depth_image, camera_info, model_masks=None):
         k = np.array(camera_info.k, dtype=np.float64).reshape(3, 3)
         gates = [
             det for det in detections.detections if _class_id(det) == GATE_CLASS_ID

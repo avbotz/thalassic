@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -68,10 +69,25 @@ def _render_scn(context, *_, **__):
         SEED = None
 
     robot_name = LaunchConfiguration("robot_name").perform(context)
+    requested_torp_board_type = LaunchConfiguration("torp_board_type").perform(context)
+    if requested_torp_board_type == "random":
+        torp_board_type = random.Random(SEED).choice(("v1", "v2"))
+    elif requested_torp_board_type in {"v1", "v2"}:
+        torp_board_type = requested_torp_board_type
+    else:
+        raise RuntimeError("torp_board_type must be random, v1, or v2")
 
     sub_sim_share = Path(get_package_share_directory("sub_sim"))
+    scenario_name = LaunchConfiguration("scenario").perform(context)
+    scenario_templates = {
+        "woollett": "woollett.scn.j2",
+        "slalom_regression": "slalom_regression.scn.j2",
+    }
+    if scenario_name not in scenario_templates:
+        choices = ", ".join(sorted(scenario_templates))
+        raise RuntimeError(f"unknown simulator scenario '{scenario_name}' (choose: {choices})")
 
-    scenario_file = sub_sim_share / "scenarios" / "woollett.scn.j2"
+    scenario_file = sub_sim_share / "scenarios" / scenario_templates[scenario_name]
     robot_scenario_file = sub_sim_share / "data" / "robots" / robot_name / "layout.scn.j2"
 
     rendered_robot_path = None
@@ -91,6 +107,7 @@ def _render_scn(context, *_, **__):
         ROBOT_Y=ROBOT_Y,
         ROBOT_Z=ROBOT_Z,
         ROBOT_YAW=ROBOT_YAW,
+        TORP_BOARD_TYPE=torp_board_type,
         seed=SEED,
         render_robot=render_robot,
     )
@@ -109,11 +126,17 @@ def _render_scn(context, *_, **__):
     return [
         SetLaunchConfiguration("scenario_file", temp_path.as_posix()),
         SetLaunchConfiguration("robot_description", robot_description),
+        SetLaunchConfiguration("resolved_torp_board_type", torp_board_type),
     ]
 
 
 def sim_entities() -> list:
     args = [
+        DeclareLaunchArgument(
+            "scenario",
+            default_value="woollett",
+            description="Simulator scene: woollett or slalom_regression",
+        ),
         DeclareLaunchArgument("seed", default_value=""),
         DeclareLaunchArgument("DX", default_value="0.25"),
         DeclareLaunchArgument("DY", default_value="0.25"),
@@ -123,6 +146,11 @@ def sim_entities() -> list:
         DeclareLaunchArgument("robot_y", default_value="-10.25"),
         DeclareLaunchArgument("robot_z", default_value="0.25"),
         DeclareLaunchArgument("robot_yaw", default_value=""),
+        DeclareLaunchArgument(
+            "sim_rate",
+            default_value="500.0",
+            description="Stonefish physics/update rate in Hz",
+        ),
         DeclareLaunchArgument("sim_window_res_x", default_value="1900"),
         DeclareLaunchArgument("sim_window_res_y", default_value="1000"),
         DeclareLaunchArgument("sim_rendering_quality", default_value="medium"),
@@ -157,7 +185,7 @@ def sim_entities() -> list:
                         [FindPackageShare("sub_sim"), "data"]
                     ),
                     "scenario_desc": LaunchConfiguration("scenario_file"),
-                    "simulation_rate": "500.0",
+                    "simulation_rate": LaunchConfiguration("sim_rate"),
                     "window_res_x": LaunchConfiguration("sim_window_res_x"),
                     "window_res_y": LaunchConfiguration("sim_window_res_y"),
                     "rendering_quality": LaunchConfiguration("sim_rendering_quality"),
@@ -497,6 +525,11 @@ def generate_launch_description():
         default_value="SURVEY",
         description="Mission vision role: SURVEY or SEARCH",
     )
+    declare_torp_board_type = DeclareLaunchArgument(
+        "torp_board_type",
+        default_value="random",
+        description="Torpedo-board artwork: v1, v2, or random (the selected layout is passed to the mission)",
+    )
     declare_dashboard = DeclareLaunchArgument(
         "dashboard",
         default_value="false",
@@ -529,6 +562,7 @@ def generate_launch_description():
             {
                 "mission": LaunchConfiguration("mission"),
                 "role": LaunchConfiguration("role"),
+                "torp_board_type": LaunchConfiguration("resolved_torp_board_type"),
             }
         ],
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
@@ -556,14 +590,15 @@ def generate_launch_description():
             declare_robot_name,
             declare_mission,
             declare_role,
+            declare_torp_board_type,
             declare_dashboard,
             declare_dashboard_host,
             declare_dashboard_port,
             OpaqueFunction(function=_reject_second_sim),
             include_transforms,
+            *sim_entities(),
             sub_mission_node,
             dashboard_node,
-            *sim_entities(),
             *control_and_state_entities(),
             *vision_entities(),
             *foxglove_entities(),

@@ -1,8 +1,9 @@
-"""
-Slalom pole post-processing.
+"""Single-pole slalom steering.
 
-Selects the two leftmost poles from the three largest detections and publishes
-one synthetic class-2 detection whose bearing points between the poles.
+Each stationary scan publishes one synthetic target: the image-leftmost
+detected pole, displaced a fixed safe distance to its right.  Mission control
+then compares these targets over the complete spin and selects the globally
+leftmost pole.  No row association or three-pole geometry is needed.
 """
 
 from __future__ import annotations
@@ -16,11 +17,16 @@ import numpy as np
 from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
+
 RAW_POLE_CLASS_IDS = {0, 1}
-SLALOM_PAIR_CLASS_ID = "2"
-GATE_WIDTH_M = 3
-
-
+SLALOM_TARGET_CLASS_ID = '2'
+MIN_POLE_SCORE = 0.10
+MIN_POLE_HEIGHT_PX = 8.0
+POLE_NMS_IOU = 0.70
+# The pole is 0.9 m tall in Stonefish.  Staying 0.9 m to its right clears a
+# pole and the vehicle hull without needing to identify the other poles.
+POLE_HEIGHT_M = 0.90
+RIGHT_CLEARANCE_M = 0.90
 
 
 def _class_id(det) -> int:
@@ -32,93 +38,93 @@ def _class_id(det) -> int:
         return -1
 
 
-def _bbox_width(det) -> float:
-    return float(det.detection.bbox.size_x)
-
-
 def _score(det) -> float:
-    if not det.detection.results:
-        return 0.0
-    return float(det.detection.results[0].hypothesis.score)
+    return float(det.detection.results[0].hypothesis.score) if det.detection.results else 0.0
 
 
-def _bbox_xyxy(det) -> tuple[float, float, float, float]:
-    bbox = det.detection.bbox
-    half_w = bbox.size_x / 2.0
-    half_h = bbox.size_y / 2.0
-    cx = bbox.center.position.x
-    cy = bbox.center.position.y
-    return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
-
-def estimate_slalom_distance_m(bbox_width_px: float, camera_k: np.ndarray) -> float:
-    """Estimate camera-to-gate range from the known physical gate width."""
-    fx = float(camera_k[0, 0])
-    if bbox_width_px <= 0.0 or fx <= 0.0:
-        return float("nan")
-    return float((GATE_WIDTH_M * fx) / bbox_width_px)
-
-def _bbox_center_x(det) -> float:
+def _center_x(det) -> float:
     return float(det.detection.bbox.center.position.x)
 
 
-def _format_pixel(pixel: tuple[float, float]) -> str:
-    return f"{pixel[0]:.1f},{pixel[1]:.1f}"
+def _bbox_xyxy(det) -> tuple[float, float, float, float]:
+    box = det.detection.bbox
+    return (box.center.position.x - box.size_x / 2.0, box.center.position.y - box.size_y / 2.0,
+            box.center.position.x + box.size_x / 2.0, box.center.position.y + box.size_y / 2.0)
 
 
-def _format_bbox(box: tuple[float, float, float, float]) -> str:
-    return ",".join(f"{coordinate:.1f}" for coordinate in box)
+def _iou(first, second) -> float:
+    ax1, ay1, ax2, ay2 = _bbox_xyxy(first)
+    bx1, by1, bx2, by2 = _bbox_xyxy(second)
+    intersection = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * max(0.0, min(ay2, by2) - max(ay1, by1))
+    union = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1) + max(0.0, bx2 - bx1) * max(0.0, by2 - by1) - intersection
+    return intersection / union if union > 0.0 else 0.0
 
 
-@register_post_processor("slalom")
+def _deduplicate(poles) -> list:
+    unique = []
+    for pole in sorted(poles, key=_score, reverse=True):
+        if not any(_iou(pole, kept) >= POLE_NMS_IOU for kept in unique):
+            unique.append(pole)
+    return unique
+
+
+def _right_of_pole_target(pole, k: np.ndarray):
+    """Aim at a point RIGHT_CLEARANCE_M right of one detected pole."""
+    fx, fy = float(k[0, 0]), float(k[1, 1])
+    height_px = float(pole.detection.bbox.size_y)
+    if fx <= 0.0 or fy <= 0.0 or height_px < MIN_POLE_HEIGHT_PX:
+        return None
+
+    pole_bearing = float(pole.bearing_horizontal)
+    pole_range = POLE_HEIGHT_M * fy / height_px
+    forward_range = pole_range * math.cos(pole_bearing)
+    if not math.isfinite(forward_range) or forward_range <= 0.0:
+        return None
+
+    # Optical x is right-positive.  The command conversion below maps that
+    # rightward optical aim into the vehicle's REP-103 yaw convention.
+    desired_bearing = math.atan2(
+        forward_range * math.tan(pole_bearing) + RIGHT_CLEARANCE_M,
+        forward_range,
+    )
+    path_distance = forward_range / math.cos(desired_bearing)
+    if not math.isfinite(path_distance) or path_distance <= 0.0:
+        return None
+
+    target = copy.deepcopy(pole)
+    hypothesis = target.detection.results[0].hypothesis
+    hypothesis.class_id = SLALOM_TARGET_CLASS_ID
+    target.bearing_horizontal = desired_bearing
+    target.distance_m = path_distance
+    target.pose_valid = False
+    target.extra = [
+        KeyValue(key='yaw_deg', value=f'{-math.degrees(desired_bearing):.6f}'),
+        KeyValue(key='target', value='right_of_leftmost_pole'),
+        KeyValue(key='pole_count', value='1'),
+        KeyValue(key='pole_range_m', value=f'{pole_range:.3f}'),
+        KeyValue(key='right_clearance_m', value=f'{RIGHT_CLEARANCE_M:.3f}'),
+        KeyValue(key='source_class', value=str(_class_id(pole))),
+        KeyValue(key='source_pole_x_px', value=f'{_center_x(pole):.1f}'),
+        KeyValue(key='pose_semantics', value='orientation'),
+    ]
+    return target
+
+
+@register_post_processor('slalom_redpoles_osu')
+@register_post_processor('slalom')
 class SlalomPostProcessor(TaskPostProcessor):
-    """Replace raw pole detections with one combined pole-pair target."""
+    """Create one right-clearance target from the image-leftmost raw pole."""
 
-    def process(self, detections, rgb_image, depth_image, camera_info):
-        k = np.array(camera_info.k, dtype=np.float64).reshape(3, 3)
-
-        poles = [det for det in detections.detections if _class_id(det) in RAW_POLE_CLASS_IDS]
-        poles.sort(key=_bbox_width, reverse=True)
-        top_poles = poles[:3]
-
-        top_poles.sort(key=_bbox_center_x)
-        selected = top_poles[:2]
-
-        if len(selected) < 2:
+    def process(self, detections, rgb_image, depth_image, camera_info, model_masks=None):
+        poles = _deduplicate([
+            det for det in detections.detections
+            if _class_id(det) in RAW_POLE_CLASS_IDS and _score(det) >= MIN_POLE_SCORE
+        ])
+        if not poles:
             detections.detections = []
             return detections
 
-        p0 = _bbox_xyxy(selected[0])
-        p1 = _bbox_xyxy(selected[1])
-        mid_u = (p0[0] + p0[2] + p1[0] + p1[2]) / 4.0
-        mid_v = (p0[1] + p0[3] + p1[1] + p1[3]) / 4.0
-
-        fx, fy = k[0, 0], k[1, 1]
-        bearing_h = math.atan2(mid_u - k[0, 2], fx) if fx > 0.0 else 0.0
-        bearing_v = math.atan2(mid_v - k[1, 2], fy) if fy > 0.0 else 0.0
-
-        pair = copy.deepcopy(selected[0])
-        pair_box = pair.detection.bbox
-        x1, y1 = min(p0[0], p1[0]), min(p0[1], p1[1])
-        x2, y2 = max(p0[2], p1[2]), max(p0[3], p1[3])
-        pair_box.center.position.x = (x1 + x2) / 2.0
-        pair_box.center.position.y = (y1 + y2) / 2.0
-        pair_box.size_x = x2 - x1
-        pair_box.size_y = y2 - y1
-
-        hypothesis = pair.detection.results[0].hypothesis
-        hypothesis.class_id = SLALOM_PAIR_CLASS_ID
-        hypothesis.score = min(_score(selected[0]), _score(selected[1]))
-        pair.bearing_horizontal = bearing_h
-        pair.bearing_vertical = bearing_v
-        pair.distance_m = float("nan")
-        pair.pose_valid = False
-        pair.extra = [
-            KeyValue(key="midpoint_px", value=_format_pixel((mid_u, mid_v))),
-            KeyValue(key="source_classes", value=f"{_class_id(selected[0])},{_class_id(selected[1])}"),
-            KeyValue(key="source_boxes_px", value=f"{_format_bbox(p0)};{_format_bbox(p1)}"),
-            KeyValue(key="pose_semantics", value="midpoint"),
-        ]
-
-        detections.detections = [pair]
-
+        leftmost = min(poles, key=_center_x)
+        target = _right_of_pole_target(leftmost, np.array(camera_info.k, dtype=np.float64).reshape(3, 3))
+        detections.detections = [leftmost, target] if target is not None else [leftmost]
         return detections

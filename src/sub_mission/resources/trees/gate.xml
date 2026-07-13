@@ -40,11 +40,14 @@
                                task="gate"
                                class_id="1"
                                min_score="0.2"
-                               desired_distance="8.0"
+                               desired_distance="7.8"
+                               max_detection_distance="0.0"
                                tolerance="0.35"
                                distance_tolerance="0.5"
-                               orient_tolerance_deg="8.0"
-                               max_position_step="0.8"
+                               orient_tolerance_deg="5.0"
+                               max_position_step="0.6"
+                               require_heading="false"
+                               settle_frames="1"
                                min_msec="4500"
                                timeout_msec="30000"
                                update_msec="300"/>
@@ -56,9 +59,10 @@
                     z="0.0"/>
       <Spin yaw="12.56637061"
             rate="3.14159265"/>
-      <MoveRelative x="2"
+      <MoveRelative x="1.2"
                     y="nan"
-                    z="nan"/>
+                    z="nan"
+                    _description="barely enough to pass out of gate if stuck"/>
       <PosSetpoint x="nan"
                    y="nan"
                    z="-0.8"/>
@@ -123,6 +127,8 @@
                   default="0.0">Minimum detection confidence</input_port>
       <input_port name="desired_distance"
                   default="2.0">Distance to hold from the target in meters</input_port>
+      <input_port name="max_detection_distance"
+                  default="0.0">Reject pose observations beyond this range; zero disables the bound</input_port>
       <input_port name="tolerance"
                   default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
       <input_port name="distance_tolerance"
@@ -131,6 +137,10 @@
                   default="5.0">Orientation error allowed at completion</input_port>
       <input_port name="max_position_step"
                   default="0.5">Maximum translation correction per update (m)</input_port>
+      <input_port name="require_heading"
+                  default="false">Fail when no calibrated board-normal heading is available</input_port>
+      <input_port name="settle_frames"
+                  default="1">Consecutive in-tolerance detection frames required before SUCCESS</input_port>
       <input_port name="min_msec"
                   default="6500">Minimum closed-loop alignment time</input_port>
       <input_port name="timeout_msec"

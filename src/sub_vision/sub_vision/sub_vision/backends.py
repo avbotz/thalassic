@@ -1,6 +1,7 @@
 import os
 import ast
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -11,6 +12,14 @@ MatLike = npt.NDArray[np.uint8]
 DEFAULT_INPUT_SIZE = 640
 NMS_IOU_THRESHOLD = 0.45
 _PAD_COLOR = (114, 114, 114)
+
+
+@dataclass(frozen=True)
+class InferenceResult:
+    """Detector boxes plus optional model-derived instance masks."""
+
+    boxes: np.ndarray
+    masks: tuple[np.ndarray | None, ...]
 
 
 class DetectionBackend(ABC):
@@ -40,11 +49,11 @@ class DetectionBackend(ABC):
         pass
 
     @abstractmethod
-    def _run(self, blob: np.ndarray) -> np.ndarray:
+    def _run(self, blob: np.ndarray) -> np.ndarray | list[np.ndarray]:
         """Execute the network on the processed blob. Must be overridden."""
         pass
 
-    def infer(self, image_bgr: MatLike) -> np.ndarray:
+    def infer(self, image_bgr: MatLike) -> InferenceResult:
         """Runs the full inference pipeline on a single image."""
         blob, gain, pad = self._preprocess(image_bgr)
         raw_output = self._run(blob)
@@ -78,13 +87,14 @@ class DetectionBackend(ABC):
 
     def _postprocess(
         self,
-        output: np.ndarray,
+        output: np.ndarray | list[np.ndarray],
         gain: float,
         pad: tuple[int, int],
         orig_hw: tuple[int, int],
-    ) -> np.ndarray:
+    ) -> InferenceResult:
         """Filters detections and scales bounding boxes back to original image size."""
-        out = np.squeeze(output)  # Removes batch dim, e.g. (1, 300, 6) -> (300, 6)
+        outputs = output if isinstance(output, list) else [output]
+        out = np.squeeze(outputs[0])  # Removes batch dim, e.g. (1, 300, 6) -> (300, 6)
 
         if out.ndim != 2:
             raise ValueError(f"Unexpected model output shape {output.shape}")
@@ -96,9 +106,11 @@ class DetectionBackend(ABC):
             dets = self._decode_raw_head(out)
 
         if len(dets) == 0:
-            return np.empty((0, 6), dtype=np.float32)
+            return InferenceResult(np.empty((0, 6), dtype=np.float32), ())
 
-        return self._rescale_boxes(dets, gain, pad, orig_hw)
+        dets = self._rescale_boxes(dets, gain, pad, orig_hw)
+        masks = self._decode_masks(dets, outputs[1], gain, pad, orig_hw) if len(outputs) > 1 else ()
+        return InferenceResult(dets[:, :6], masks or tuple(None for _ in dets))
 
     def _rescale_boxes(
         self, dets: np.ndarray, gain: float, pad: tuple, orig_hw: tuple
@@ -151,9 +163,53 @@ class DetectionBackend(ABC):
         idx = np.asarray(idx).flatten()
         xyxy = np.hstack([x1y1, x1y1 + xywh[:, 2:]])
 
+        extra = out[keep, class_end:][idx] if class_end is not None else np.empty((len(idx), 0))
         return np.hstack(
-            [xyxy[idx], confs[idx, None], cls_ids[idx, None].astype(np.float32)]
+            [xyxy[idx], confs[idx, None], cls_ids[idx, None].astype(np.float32), extra]
         )
+
+    def _decode_masks(
+        self,
+        dets: np.ndarray,
+        prototype: np.ndarray,
+        gain: float,
+        pad: tuple[int, int],
+        orig_hw: tuple[int, int],
+    ) -> tuple[np.ndarray | None, ...]:
+        """Decode Ultralytics segment masks into original-image coordinates.
+
+        Segmentation models expose 32 mask coefficients after the class scores
+        plus a ``[1, 32, H, W]`` prototype tensor.  Other model types retain
+        their normal box-only behavior.
+        """
+        proto = np.squeeze(prototype)
+        if dets.shape[1] <= 6 or proto.ndim != 3 or dets.shape[1] - 6 != proto.shape[0]:
+            return ()
+        coefficients = dets[:, 6:]
+        mask_logits = coefficients @ proto.reshape(proto.shape[0], -1)
+        mask_logits = mask_logits.reshape(-1, proto.shape[1], proto.shape[2])
+        mask_probs = 1.0 / (1.0 + np.exp(-np.clip(mask_logits, -80.0, 80.0)))
+
+        original_height, original_width = orig_hw
+        pad_x, pad_y = pad
+        unpadded_width = int(round(original_width * gain))
+        unpadded_height = int(round(original_height * gain))
+        masks: list[np.ndarray | None] = []
+        for probability, box in zip(mask_probs, dets[:, :4]):
+            model_mask = cv2.resize(probability, (self.input_size, self.input_size), interpolation=cv2.INTER_LINEAR)
+            mask = model_mask[pad_y:pad_y + unpadded_height, pad_x:pad_x + unpadded_width]
+            if mask.shape != (unpadded_height, unpadded_width):
+                masks.append(None)
+                continue
+            mask = cv2.resize(mask, (original_width, original_height), interpolation=cv2.INTER_LINEAR)
+            binary = (mask >= 0.5).astype(np.uint8) * 255
+            x0, y0, x1, y1 = np.round(box).astype(int)
+            binary[:max(0, y0), :] = 0
+            binary[min(original_height, y1):, :] = 0
+            binary[:, :max(0, x0)] = 0
+            binary[:, min(original_width, x1):] = 0
+            masks.append(binary)
+        return tuple(masks)
 
 
 class OnnxBackend(DetectionBackend):
@@ -185,8 +241,8 @@ class OnnxBackend(DetectionBackend):
         if len(shape) == 4 and isinstance(shape[2], int):
             self.input_size = int(shape[2])
 
-    def _run(self, blob: np.ndarray) -> np.ndarray:
-        return self._session.run(None, {self._input_name: blob})[0]
+    def _run(self, blob: np.ndarray) -> list[np.ndarray]:
+        return self._session.run(None, {self._input_name: blob})
 
     @staticmethod
     def _class_count_from_metadata(session) -> int | None:

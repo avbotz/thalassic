@@ -54,26 +54,6 @@
                             max_depth_step="0.5"
                             timeout_msec="10000"/>
         </Sequence>
-        <Sequence name="gate_after_half_turn">
-          <AttSetpoint roll="nan"
-                       pitch="nan"
-                       yaw="-3.14159265"/>
-          <WaitForDetection camera="front"
-                            task="gate"
-                            class_id="1"
-                            min_score="0.1"
-                            timeout_msec="3000"/>
-          <AlignToDetection camera="front"
-                            task="gate"
-                            class_id="1"
-                            min_score="0.2"
-                            yaw="true"
-                            depth="false"
-                            tolerance="0.05"
-                            depth_gain="1.5"
-                            max_depth_step="0.5"
-                            timeout_msec="10000"/>
-        </Sequence>
       </Fallback>
     </Sequence>
   </BehaviorTree>

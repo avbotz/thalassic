@@ -34,6 +34,9 @@ class MissionNode : public rclcpp::Node {
     // Name (resources/missions/<name>.xml) or path of the mission tree to run.
     std::string mission;
     std::string role;
+    // Torpedo-board artwork selected at launch. The second torpedo target is
+    // mirrored between the two layouts.
+    std::string torp_board_type;
 
     // Logical BT task name -> sub_vision model task name.
     std::string visionModelTask(const std::string &task) const;

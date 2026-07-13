@@ -10,12 +10,6 @@
                      y="nan"
                      z="-1.2"/>
         <SubTree ID="SlalomMission"/>
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="-1.0"/>
-        <MoveRelative x="3.0"
-                      y="0.0"
-                      z="0.0"/>
         <ForceSuccess>
           <SubTree ID="BinsMission"/>
         </ForceSuccess>

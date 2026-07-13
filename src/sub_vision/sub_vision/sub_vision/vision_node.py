@@ -139,13 +139,13 @@ class VisionNode(Node):
         if raw is None:
             return
 
-        msg = self._build_detection_array(header, task, raw, self._camera_info)
+        msg = self._build_detection_array(header, task, raw.boxes, self._camera_info)
 
         # Per-task OpenCV enrichment (pose, extra). No-op fallback keeps the 2D
         # metadata when a task has no registered processor.
         processor = post_processors.get_post_processor(task)
         if processor is not None:
-            msg = processor.process(msg, rgb, None, self._camera_info)
+            msg = processor.process(msg, rgb, None, self._camera_info, raw.masks)
 
         self._pub.publish(msg)
 

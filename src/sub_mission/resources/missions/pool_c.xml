@@ -4,9 +4,11 @@
 <root BTCPP_format="4" main_tree_to_execute="CompetitionPoolC">
   <BehaviorTree ID="CompetitionPoolC">
     <Sequence name="pool_c">
-      <Script code="@gate_exit_yaw := -0.34906585;
-                    @torp_search_yaw := 2.35619449;
-                    @octagon_search_yaw := 0.61086524"/>
+      <Sequence name="pool_c_headings">
+        <SetBlackboard output_key="gate_exit_yaw" value="-0.34906585"/>
+        <SetBlackboard output_key="torp_search_yaw" value="2.35619449"/>
+        <SetBlackboard output_key="octagon_search_yaw" value="0.61086524"/>
+      </Sequence>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
   </BehaviorTree>

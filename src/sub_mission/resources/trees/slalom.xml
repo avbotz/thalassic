@@ -1,6 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
       main_tree_to_execute="SlalomMission">
+  <BehaviorTree ID="SlalomLayer">
+    <Fallback>
+      <RetryUntilSuccessful num_attempts="3">
+        <Sequence name="scan_align_and_cross_layer">
+          <StationarySweepAlign camera="front"
+                                task="slalom"
+                                class_id="2"
+                                min_score="0.10"
+                                attempts="3"
+                                num_sweeps="1"
+                                required_pole_count="1"
+                                sample_timeout_msec="1600"
+                                move_timeout_msec="20000"
+                                transit_distance_m="{slalom_transit_distance}"/>
+          <ForwardContinuousAlign camera="front"
+                                  task="slalom"
+                                  class_id="2"
+                                  min_score="0.10"
+                                  max_dist="{max_transit_distance}"
+                                  forward_velocity="0.20"
+                                  close_distance="0.1"
+                                  detection_loss_msec="1000"
+                                  timeout_msec="30000"
+                                  confirmation_frames="3"
+                                  continue_on_loss="false"
+                                  stop_on_close="false"
+                                  loss_is_success="false"
+                                  loss_min_travel="0.0"
+                                  timeout_is_success="false"
+                                  max_dist_is_success="false"
+                                  max_yaw_step_deg="12.0"
+                                  fixed_distance_from_detection="true"
+                                  pass_distance="{pass_distance}"
+                                  min_transit_distance="0.0"/>
+        </Sequence>
+      </RetryUntilSuccessful>
+    </Fallback>
+  </BehaviorTree>
+
   <BehaviorTree ID="SlalomMission">
     <Sequence name="slalom_mission">
       <PosSetpoint x="nan"
@@ -9,115 +48,35 @@
       <LoadModel camera="down"
                  task="path_marker"
                  timeout_msec="30000"/>
-      <DownForwardSweepAlign task="path_marker"
-                             class_id=""
-                             min_score="0.2"
-                             max_dist="10.0"
-                             forward_step="1.0"
-                             default_distance="1.0"
-                             center_gain="1.0"
-                             lateral_sweep_step="1.0"
-                             stop_camera=""
-                             stop_task=""
-                             stop_class_id=""
-                             stop_min_score="0.0"
-                             update_msec="300"
-                             timeout_msec="30000"/>
       <LoadModel camera="front"
                  task="slalom"
                  timeout_msec="30000"/>
-      <Fallback name="find_slalom_after_marker">
-        <DownForwardAlign task="path_marker"
-                          class_id=""
-                          min_score="0.0"
-                          max_dist="10.0"
-                          forward_step="0.5"
-                          default_distance="1.0"
-                          center_gain="1.0"
-                          lateral_sweep_step="1.0"
-                          stop_camera="front"
-                          stop_task="slalom"
-                          stop_class_id="2"
-                          stop_min_score="0.0"
-                          update_msec="300"
-                          timeout_msec="30000"/>
-        <ForwardSweepAlign camera="front"
-                           task="slalom"
-                           class_id="2"
-                           min_score="0.2"
-                           attempts="4"
-                           num_sweeps="3"
-                           forward_step="1.0"
-                           sample_timeout_msec="2500.0"
-                           move_timeout_msec="20000"/>
-      </Fallback>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.5"/>
-      <ForwardContinuousAlign camera="front"
-                              task="slalom"
-                              class_id="2"
-                              min_score="0.0"
-                              max_dist="15.0"
-                              forward_velocity="0.5"
-                              close_distance="0.1"
-                              detection_loss_msec="5000"
-                              timeout_msec="60000"/>
+      <ForwardSweepAlign camera="front"
+                         task="slalom"
+                         class_id="2"
+                         min_score="0.2"
+                         attempts="3"
+                         num_sweeps="3"
+                         forward_step="0.4"
+                         sample_timeout_msec="2500.0"
+                         move_timeout_msec="30000"/>
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_1"
+               max_transit_distance="4.5"
+               pass_distance="0.35"/>
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_2"
+               max_transit_distance="4.5"
+               pass_distance="0.35"/>
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_3"
+               max_transit_distance="3.0"
+               pass_distance="0.35"/>
     </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="DownForwardAlign">
-      <input_port name="task">Only accept down-camera detections from this task</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="max_dist"
-                  default="10.0">Maximum forward travel before SUCCESS</input_port>
-      <input_port name="forward_step"
-                  default="1.0">Forward target extension per update in meters</input_port>
-      <input_port name="default_distance"
-                  default="1.0">Distance used when detection distance is unavailable</input_port>
-      <input_port name="center_gain"
-                  default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
-      <input_port name="lateral_sweep_step"
-                  default="1.0">Right/left search step when no detection is visible</input_port>
-      <input_port name="stop_camera">Succeed when this camera sees the stop target</input_port>
-      <input_port name="stop_task">Succeed when this task is detected (empty disables)</input_port>
-      <input_port name="stop_class_id">Only accept this stop-target class id</input_port>
-      <input_port name="stop_min_score"
-                  default="0.0">Minimum stop-target detection confidence</input_port>
-      <input_port name="update_msec"
-                  default="300">Minimum time between movement corrections</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Maximum align time before SUCCESS</input_port>
-    </Action>
-    <Action ID="DownForwardSweepAlign">
-      <input_port name="task">Only accept detections from this task</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="max_dist"
-                  default="10.0">Maximum forward travel before SUCCESS</input_port>
-      <input_port name="forward_step"
-                  default="1.0">Forward target extension per update in meters</input_port>
-      <input_port name="default_distance"
-                  default="1.0">Distance used when detection distance is unavailable</input_port>
-      <input_port name="center_gain"
-                  default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
-      <input_port name="lateral_sweep_step"
-                  default="1.0">Right/left search step when no down-camera detection is visible</input_port>
-      <input_port name="stop_camera">Succeed when this camera sees the stop target</input_port>
-      <input_port name="stop_task">Succeed when this task is detected (empty disables)</input_port>
-      <input_port name="stop_class_id">Only accept this stop-target class id</input_port>
-      <input_port name="stop_min_score"
-                  default="0.0">Minimum stop-target detection confidence</input_port>
-      <input_port name="update_msec"
-                  default="300">Minimum time between movement corrections</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Maximum scan time before FAILURE</input_port>
-    </Action>
     <Action ID="ForwardContinuousAlign">
       <input_port name="camera"
                   default="front">Detection source: front or down</input_port>
@@ -135,6 +94,28 @@
                   default="3000">Target-loss time that completes the approach</input_port>
       <input_port name="timeout_msec"
                   default="30000">Maximum align time before SUCCESS</input_port>
+      <input_port name="confirmation_frames"
+                  default="1">Matching frames required before propulsion</input_port>
+      <input_port name="continue_on_loss"
+                  default="true">Continue on the last heading after target loss</input_port>
+      <input_port name="stop_on_close"
+                  default="true">Stop immediately when the target is close</input_port>
+      <input_port name="loss_is_success"
+                  default="false">Accept target loss only after a confirmed close pass</input_port>
+      <input_port name="loss_min_travel"
+                  default="0.0">Minimum odom travel before a post-close loss can succeed</input_port>
+      <input_port name="timeout_is_success"
+                  default="true">Treat bounded timeout as SUCCESS</input_port>
+      <input_port name="max_dist_is_success"
+                  default="true">Treat maximum travel as SUCCESS</input_port>
+      <input_port name="max_yaw_step_deg"
+                  default="45.0">Maximum heading correction per frame</input_port>
+      <input_port name="fixed_distance_from_detection"
+                  default="false">Lock transit distance from confirmed vision range</input_port>
+      <input_port name="pass_distance"
+                  default="0.0">Meters to continue beyond detected gap plane</input_port>
+      <input_port name="min_transit_distance"
+                  default="0.0">Minimum safe fixed transit distance</input_port>
     </Action>
     <Action ID="ForwardSweepAlign">
       <input_port name="camera"
@@ -168,6 +149,25 @@
                   default="nan">East/right position setpoint</input_port>
       <input_port name="z"
                   default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="StationarySweepAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="3">Stable matching frames required for an acquisition</input_port>
+      <input_port name="num_sweeps"
+                  default="1">Complete stationary left/right sweeps before acquisition</input_port>
+      <input_port name="required_pole_count"
+                  default="1">Exactly one selected pole is required</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="1800.0">Maximum detection sampling time at each heading</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each in-place yaw command</input_port>
+      <output_port name="transit_distance_m">Vision range to the selected pole's right-clearance path</output_port>
     </Action>
   </TreeNodesModel>
 

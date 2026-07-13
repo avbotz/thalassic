@@ -45,7 +45,7 @@
         <AlignToDetection camera="front"
                           task="torp"
                           class_id=""
-                          min_score="0.0"
+                          min_score="0.01"
                           yaw="true"
                           depth="false"
                           tolerance="0.3"
@@ -55,7 +55,7 @@
         <ForwardSweepAlign camera="front"
                            task="torp"
                            class_id=""
-                           min_score="0.0"
+                           min_score="0.1"
                            attempts="4"
                            num_sweeps="4"
                            forward_step="2.0"
@@ -64,35 +64,83 @@
       </Fallback>
       <ForwardContinuousAlign camera="front"
                               task="torp"
-                              class_id=""
-                              min_score="0.0"
+                              class_id="0"
+                              min_score="0.2"
                               max_dist="4.0"
-                              forward_velocity="1.0"
-                              close_distance="2.0"
+                              forward_velocity="0.6"
+                              close_distance="2.4"
                               detection_loss_msec="3000"
-                              timeout_msec="30000"/>
-      <ForceSuccess>
+                              timeout_msec="15000"
+                              confirmation_frames="1"
+                              continue_on_loss="false"
+                              stop_on_close="true"
+                              loss_is_success="true"
+                              loss_min_travel="0.0"
+                              timeout_is_success="true"
+                              max_dist_is_success="true"
+                              max_yaw_step_deg="35.0"
+                              fixed_distance_from_detection="false"
+                              pass_distance="0.0"
+                              min_transit_distance="0.0"/>
+      <!-- At the nominal stand-off this normally succeeds without moving.
+           If the board has filled or left the camera FOV, retreat once before
+           asking PnP to recover its board-normal pose. -->
+      <Fallback>
+        <WaitForDetection camera="front"
+                          task="torp"
+                          class_id="0"
+                          min_score="0.2"
+                          timeout_msec="1500"/>
+        <Sequence name="backoff_and_reacquire_torp_board">
+          <MoveRelative x="-0.4"
+                        y="0.0"
+                        z="0.0"/>
+          <ForceSuccess>
+            <WaitForDetection camera="front"
+                              task="torp"
+                              class_id="0"
+                              min_score="0.1"
+                              timeout_msec="5000"/>
+          </ForceSuccess>
+        </Sequence>
+      </Fallback>
+      <RetryUntilSuccessful num_attempts="2">
         <OrientToDetectionAtDist camera="front"
                                  task="torp"
-                                 class_id=""
-                                 min_score="0.0"
-                                 desired_distance="2.0"
-                                 tolerance="0.35"
-                                 distance_tolerance="0.5"
+                                 class_id="0"
+                                 min_score="0.1"
+                                 desired_distance="0.95"
+                                 max_detection_distance="4.0"
+                                 tolerance="0.08"
+                                 distance_tolerance="0.08"
                                  orient_tolerance_deg="5.0"
-                                 max_position_step="0.5"
-                                 min_msec="6500"
-                                 timeout_msec="30000"
+                                 max_position_step="0.60"
+                                 require_heading="true"
+                                 settle_frames="3"
+                                 min_msec="3000"
+                                 timeout_msec="40000"
                                  update_msec="300"/>
-      </ForceSuccess>
+      </RetryUntilSuccessful>
+      <!-- Only the board is detectable.  These are fixed competition-board
+           offsets from the visually aligned camera aim point. -->
+      <MoveRelative x="0.5"
+                    y="0.0"
+                    z="0.0"/>
       <NavigateToTransform source_frame="front_camera"
-                           target_frame="torps_right"
+                           target_frame="torps_left"
                            timeout_msec="30000"/>
       <ShootTorpedo torpedo_id="0"
                     open="true"
                     timeout_msec="5000"/>
-      <NavigateToTransform source_frame="torps_right"
-                           target_frame="torps_left"
+      <!-- Restore the camera aim point before applying the second fixed offset. -->
+      <NavigateToTransform source_frame="torps_left"
+                           target_frame="front_camera"
+                           timeout_msec="30000"/>
+      <MoveRelative x="0.0"
+                    y="0.15"
+                    z="0.0"/>
+      <NavigateToTransform source_frame="front_camera"
+                           target_frame="torps_right"
                            timeout_msec="30000"/>
       <ShootTorpedo torpedo_id="1"
                     open="true"
@@ -153,6 +201,28 @@
                   default="3000">Target-loss time that completes the approach</input_port>
       <input_port name="timeout_msec"
                   default="30000">Maximum align time before SUCCESS</input_port>
+      <input_port name="confirmation_frames"
+                  default="1">Matching frames required before propulsion</input_port>
+      <input_port name="continue_on_loss"
+                  default="true">Continue on the last heading after target loss</input_port>
+      <input_port name="stop_on_close"
+                  default="true">Stop immediately when the target is close</input_port>
+      <input_port name="loss_is_success"
+                  default="false">Accept target loss only after a confirmed close pass</input_port>
+      <input_port name="loss_min_travel"
+                  default="0.0">Minimum odom travel before a post-close loss can succeed</input_port>
+      <input_port name="timeout_is_success"
+                  default="true">Treat bounded timeout as SUCCESS</input_port>
+      <input_port name="max_dist_is_success"
+                  default="true">Treat maximum travel as SUCCESS</input_port>
+      <input_port name="max_yaw_step_deg"
+                  default="45.0">Maximum heading correction per frame</input_port>
+      <input_port name="fixed_distance_from_detection"
+                  default="false">Lock transit distance from confirmed vision range</input_port>
+      <input_port name="pass_distance"
+                  default="0.0">Meters to continue beyond detected gap plane</input_port>
+      <input_port name="min_transit_distance"
+                  default="0.0">Minimum safe fixed transit distance</input_port>
     </Action>
     <Action ID="ForwardSweepAlign">
       <input_port name="camera"
@@ -171,6 +241,48 @@
                   default="2500.0">Maximum detection sample time per yaw</input_port>
       <input_port name="move_timeout_msec"
                   default="20000">Maximum wait for each commanded movement</input_port>
+    </Action>
+    <Action ID="WaitForDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="timeout_msec"
+                  default="15000">Maximum wait before returning FAILURE</input_port>
+    </Action>
+    <Action ID="LateralAlignToDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="use_board_aim_bearing"
+                  default="false">Use calibrated fixed-hole bearings published with a board detection</input_port>
+      <input_port name="lock_board_aim"
+                  default="false">Lock three consistent aim rays into an odom-frame lateral/depth target</input_port>
+      <input_port name="target_distance"
+                  default="1.15">Camera-to-target plane distance used to project pixel bearings</input_port>
+      <input_port name="target_offset_right_m"
+                  default="0.0">Fixed target offset to camera-right from the detected item, in meters</input_port>
+      <input_port name="target_offset_down_m"
+                  default="0.0">Fixed target offset downward from the detected item, in meters</input_port>
+      <input_port name="tolerance"
+                  default="0.012">Centered when horizontal and vertical bearing are within this radian bound</input_port>
+      <input_port name="max_lateral_step"
+                  default="0.10">Maximum body-lateral correction per update in meters</input_port>
+      <input_port name="max_depth_step"
+                  default="0.08">Maximum vertical correction per update in meters</input_port>
+      <input_port name="settle_frames"
+                  default="8">Consecutive centered model detections required before SUCCESS</input_port>
+      <input_port name="min_msec"
+                  default="1500">Minimum closed-loop alignment time</input_port>
+      <input_port name="timeout_msec"
+                  default="15000">Maximum alignment time before FAILURE</input_port>
+      <input_port name="update_msec"
+                  default="300">Minimum time between translation corrections</input_port>
     </Action>
     <Action ID="LoadModel">
       <input_port name="camera"
@@ -202,6 +314,8 @@
                   default="0.0">Minimum detection confidence</input_port>
       <input_port name="desired_distance"
                   default="2.0">Distance to hold from the target in meters</input_port>
+      <input_port name="max_detection_distance"
+                  default="0.0">Reject pose observations beyond this range; zero disables the bound</input_port>
       <input_port name="tolerance"
                   default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
       <input_port name="distance_tolerance"
@@ -210,6 +324,10 @@
                   default="5.0">Orientation error allowed at completion</input_port>
       <input_port name="max_position_step"
                   default="0.5">Maximum translation correction per update (m)</input_port>
+      <input_port name="require_heading"
+                  default="false">Fail when no calibrated board-normal heading is available</input_port>
+      <input_port name="settle_frames"
+                  default="1">Consecutive in-tolerance detection frames required before SUCCESS</input_port>
       <input_port name="min_msec"
                   default="6500">Minimum closed-loop alignment time</input_port>
       <input_port name="timeout_msec"
@@ -240,6 +358,7 @@
       <input_port name="z"
                   default="0.0">Up velocity in meters per second</input_port>
     </Action>
+    <Condition ID="TorpBoardV1">Succeeds when launch-time torp_board_type is v1</Condition>
   </TreeNodesModel>
 
 </root>

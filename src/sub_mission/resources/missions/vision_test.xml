@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="VisionTestRun">
+<root BTCPP_format="4"
+      main_tree_to_execute="VisionTestRun">
   <BehaviorTree ID="VisionTestRun">
-    <SubTree ID="VisionTestMission"/>
+    <SubTree ID="TorpMission"
+             _autoremap="true"/>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel/>
+
 </root>

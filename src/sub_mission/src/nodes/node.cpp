@@ -45,6 +45,9 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     factory.registerSimpleCondition("NotKilled", [&node](BT::TreeNode &) {
         return node.subAlive() ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
+    factory.registerSimpleCondition("TorpBoardV1", [&node](BT::TreeNode &) {
+        return node.torp_board_type == "v1" ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    });
 
     registerPosSetpointAction(factory, node, position_publisher, clock, logger);
     registerVelocitySetpointAction(factory, node, linear_velocity_publisher, clock, logger);
@@ -58,6 +61,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     registerSaveGateHomeAction(factory, node, logger);
     registerAverageAnglesAction(factory, logger);
     registerActuatorActions(factory, node, logger);
+    registerOctagonSurfaceSweepAction(factory, node, position_publisher, attitude_publisher, clock, logger);
 }
 
 }  // namespace
@@ -87,6 +91,13 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         throw std::invalid_argument("sub_mission role must be SURVEY or SEARCH");
     }
     RCLCPP_INFO(this->get_logger(), "Mission role: %s", this->role.c_str());
+
+    this->declare_parameter<std::string>("torp_board_type", "v1");
+    this->get_parameter("torp_board_type", this->torp_board_type);
+    if (this->torp_board_type != "v1" && this->torp_board_type != "v2") {
+        throw std::invalid_argument("sub_mission torp_board_type must be v1 or v2");
+    }
+    RCLCPP_INFO(this->get_logger(), "Torpedo-board layout: %s", this->torp_board_type.c_str());
 }
 
 std::string MissionNode::visionModelTask(const std::string &task) const {

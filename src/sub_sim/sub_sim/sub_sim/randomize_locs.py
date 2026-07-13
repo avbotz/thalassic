@@ -19,8 +19,11 @@ def randomize_scenario_locations(
     ROBOT_Y: float = -10.25,
     ROBOT_Z: float = 0.25,
     ROBOT_YAW: None | float = None,
+    TORP_BOARD_TYPE: str = "random",
 ) -> Path:
     scenario_template_file = Path(scenario_template_file)
+    if TORP_BOARD_TYPE not in {"random", "v1", "v2"}:
+        raise ValueError("TORP_BOARD_TYPE must be random, v1, or v2")
 
     rng = random.Random()
     if seed:
@@ -45,7 +48,7 @@ def randomize_scenario_locations(
         fuzz=fuzz, fuzz_z=fuzz_z, rand=rand, choose=choose,
         DX=DX, DY=DY, DZ=DZ, DYAW=DYAW,
         ROBOT_X=ROBOT_X, ROBOT_Y=ROBOT_Y, ROBOT_Z=ROBOT_Z, ROBOT_YAW=ROBOT_YAW,
-        render_robot=render_robot, PI=math.pi
+        TORP_BOARD_TYPE=TORP_BOARD_TYPE, render_robot=render_robot, PI=math.pi
     )
 
     fd, temp_path = tempfile.mkstemp(prefix=scenario_template_file.stem, suffix=".scn")

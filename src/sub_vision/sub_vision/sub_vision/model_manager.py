@@ -120,7 +120,7 @@ class ModelManager:
         self._log(msg)
         return LoadResult(True, msg, self.active_model, load_time)
 
-    def infer(self, image_bgr: np.ndarray) -> np.ndarray | None:
+    def infer(self, image_bgr: np.ndarray) -> backends.InferenceResult | None:
         """Run detection under the lock. ``None`` if no model is loaded."""
         with self._lock:
             if self._backend is None:
