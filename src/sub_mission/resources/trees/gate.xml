@@ -32,7 +32,7 @@
                     y="{@gate_home_y}"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.55"/>
+                   z="-0.65"/>
       <LoadModel camera="front"
                  task="gate"
                  timeout_msec="30000"/>
@@ -61,7 +61,7 @@
                     z="nan"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.5"/>
+                   z="-0.8"/>
       <AttSetpoint name="pool_exit_heading"
                    roll="nan"
                    pitch="nan"

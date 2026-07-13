@@ -11,6 +11,7 @@ from sub_vision.post_processors.base import TaskPostProcessor
 # so that simply importing the registry does not drag in OpenCV / numpy.
 _BUILTIN_MODULES = (
     "sub_vision.post_processors.gate",
+    "sub_vision.post_processors.path_marker",
     "sub_vision.post_processors.slalom",
 )
 
