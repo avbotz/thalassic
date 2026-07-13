@@ -516,9 +516,21 @@ function normalizeSignalSelection(catalog) {
     .filter(Boolean);
   if (parsed.length && parsed.every(match => match[1] === parsed[0][1] && match[2] === parsed[0][2])) {
     $("loop-select").value = parsed[0][1];
+    updateGraphAxisLabels();
     $("axis-select").value = parsed[0][2];
   }
   state.controlsSynced = true;
+}
+
+function updateGraphAxisLabels() {
+  const rotational = $("loop-select").value === "attitude" ||
+    $("loop-select").value === "angular_velocity";
+  const values = ["x", "y", "z"];
+  const labels = rotational ? ["Roll", "Pitch", "Yaw"] : ["X", "Y", "Z"];
+  [...$("axis-select").options].forEach((option, index) => {
+    option.value = values[index];
+    option.textContent = labels[index];
+  });
 }
 
 function selectPidPreset() {
@@ -798,7 +810,10 @@ $("apply-all").addEventListener("click", () => applyRuntime());
 $("permanent-save").addEventListener("click", saveProfile);
 $("signal-filter").addEventListener("input", () => { state.signalKey = ""; renderSignals(); });
 $("pid-preset").addEventListener("click", selectPidPreset);
-$("loop-select").addEventListener("change", selectPidPreset);
+$("loop-select").addEventListener("change", () => {
+  updateGraphAxisLabels();
+  selectPidPreset();
+});
 $("axis-select").addEventListener("change", selectPidPreset);
 $("pause").addEventListener("click", () => {
   state.paused = !state.paused;
@@ -863,6 +878,7 @@ document.addEventListener("keydown", event => {
 window.addEventListener("resize", scheduleGraphDraw);
 
 setupLayout();
+updateGraphAxisLabels();
 updateSetpointLabels();
 updateSaveControls();
 connect();
