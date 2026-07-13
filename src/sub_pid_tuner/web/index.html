@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVBotz Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css?v=4">
+  <link rel="stylesheet" href="/static/theme.css?v=4">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">AV</span><div><strong>AVBotz Dashboard</strong><small>live ROS debugging</small></div></div>
+    <div class="status">
+      <span class="pill bad" id="connection">Disconnected</span>
+      <span class="pill" id="robot">/—</span>
+      <span class="pill" id="telemetry">Telemetry —</span>
+      <span class="pill" id="kill">Kill —</span>
+    </div>
+    <button class="secondary" id="reset-layout">Reset layout</button>
+  </header>
+
+  <main id="dashboard">
+    <section class="tile" id="configuration" data-w="5" data-h="10">
+      <div class="tile-title" draggable="true"><strong>Configuration</strong><span>⋮⋮ drag</span></div>
+      <div class="toolbar">
+        <select id="node-select" aria-label="ROS node"></select>
+        <input id="parameter-filter" placeholder="Filter parameters">
+        <label class="check"><input id="modified-only" type="checkbox"> Modified only</label>
+        <span class="edit-count" id="edit-count">No staged edits</span>
+        <button class="secondary" id="reload" title="Discard staged edits and reload ROS values">Reload</button>
+        <button data-testid="apply-runtime" id="apply-all" title="Apply staged edits to the running ROS nodes (Ctrl+S)" disabled>Apply runtime <kbd>Ctrl S</kbd></button>
+        <button class="permanent" data-testid="save-profile" id="permanent-save" title="Apply staged edits and write controller gains to the launch profile (Ctrl+Shift+S)" disabled>Save profile <kbd>Ctrl Shift S</kbd></button>
+      </div>
+      <div class="config-summary" id="config-summary">Edits are applied to the running system immediately after Apply.</div>
+      <div class="parameter-list" data-testid="parameter-list" id="parameter-list"><div class="empty">Waiting for ROS nodes…</div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="graph" data-w="7" data-h="6">
+      <div class="tile-title" draggable="true"><strong>Graph</strong><span>⋮⋮ drag</span></div>
+      <div class="toolbar">
+        <select id="loop-select" aria-label="PID loop">
+          <option value="position">Position</option>
+          <option value="velocity">Velocity</option>
+          <option value="attitude">Attitude</option>
+          <option value="angular_velocity">Angular rate</option>
+        </select>
+        <select id="axis-select" aria-label="PID axis"><option>x</option><option>y</option><option selected>z</option></select>
+        <button id="pid-preset">Target / current / error</button>
+        <select id="window-select" aria-label="Time window"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select>
+        <label class="scale-control" title="Set the vertical graph limits"><span>Y range</span><select id="scale-select" aria-label="Y range"><option value="auto">Auto fit</option><option value="0.25">−0.25 to +0.25</option><option value="0.5">−0.5 to +0.5</option><option value="1">−1 to +1</option><option value="2">−2 to +2</option><option value="5">−5 to +5</option><option value="10">−10 to +10</option><option value="25">−25 to +25</option><option value="50">−50 to +50</option><option value="custom">Custom…</option></select></label>
+        <div class="custom-scale" id="custom-scale" hidden><label>Min <input id="scale-min" type="number" step="any" value="-1" aria-label="Y minimum"></label><label>Max <input id="scale-max" type="number" step="any" value="1" aria-label="Y maximum"></label></div>
+        <div class="zoom-controls" aria-label="Graph zoom"><button class="secondary icon-button" id="zoom-in" title="Zoom in on Y axis" aria-label="Zoom in">+</button><button class="secondary icon-button" id="zoom-out" title="Zoom out on Y axis" aria-label="Zoom out">−</button></div>
+        <button class="secondary" id="pause">Pause</button>
+        <button class="secondary" id="clear">Clear</button>
+        <button class="secondary" id="export">CSV</button>
+      </div>
+      <div class="graph-body">
+        <aside><input id="signal-filter" placeholder="Filter signals"><div id="signal-list"></div></aside>
+        <div class="chart"><div class="chart-badges"><span id="feed-rate">Waiting for data</span><span id="range-readout" aria-live="polite">Y: auto</span></div><canvas id="chart" data-y-min="-1" data-y-max="1"></canvas><div id="legend"></div></div>
+      </div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="setpoint-panel" data-w="7" data-h="4">
+      <div class="tile-title" draggable="true"><strong>Setpoint</strong><span>⋮⋮ drag</span></div>
+      <div class="setpoint-form">
+        <label>Mode<select id="setpoint-mode"><option value="position">Position hold</option><option value="velocity">Body velocity</option><option value="attitude">Attitude hold</option><option value="angular_velocity">Angular rate</option></select></label>
+        <label><span id="axis-a">X</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+        <label><span id="axis-b">Y</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+        <label><span id="axis-c">Z</span><input class="setpoint-value" type="number" step="0.01" value="0"></label>
+        <label class="check" id="altitude-wrap"><input type="checkbox" id="altitude-mode"> Z is altitude</label>
+        <button id="publish-setpoint">Publish setpoint</button>
+      </div>
+      <p class="hint" id="setpoint-hint">Controller convention: world x/y/z, z up. Values are metres.</p>
+      <div class="last-command" id="last-command">No setpoint published from this dashboard.</div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="telemetry-panel" data-w="12" data-h="5">
+      <div class="tile-title" draggable="true"><strong>Telemetry</strong><span>⋮⋮ drag</span></div>
+      <div class="toolbar"><input id="telemetry-filter" placeholder="Filter live values"></div>
+      <div class="telemetry-list" id="telemetry-list"><div class="empty">Waiting for telemetry…</div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+  </main>
+
+  <div id="toast" role="status"></div>
+  <script src="/static/app.js?v=4"></script>
+</body>
+</html>

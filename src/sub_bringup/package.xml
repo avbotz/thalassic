@@ -22,6 +22,7 @@
   <exec_depend>sub_color_correction</exec_depend>
   <exec_depend>sub_control</exec_depend>
   <exec_depend>sub_control_interfaces</exec_depend>
+  <exec_depend>sub_pid_tuner</exec_depend>
   <exec_depend>sub_serial_drivers</exec_depend>
   <exec_depend>sub_sim_sensors</exec_depend>
   <exec_depend>sub_sim</exec_depend>

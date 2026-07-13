@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+  --bg: #060910;
+  --surface: #0b111c;
+  --surface-2: #111a29;
+  --surface-3: #172338;
+  --border: #1d2a3f;
+  --border-bright: #304766;
+  --text: #f5f8ff;
+  --muted: #8798b3;
+  --blue: #2589ff;
+  --blue-bright: #55a7ff;
+}
+
+html, body { background: radial-gradient(circle at 12% -10%, #102b52 0, transparent 35%), var(--bg); color: var(--text); }
+main { gap: 10px; padding: 10px; }
+header { border-color: var(--border); background: #080e18e8; backdrop-filter: blur(14px); box-shadow: 0 8px 30px #0007; }
+.brand small { color: var(--muted); }
+.logo { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(145deg, #66b1ff, #1765d2); box-shadow: 0 0 24px #2589ff55, inset 0 1px #ffffff55; }
+.pill { border: 1px solid var(--border); background: var(--surface-2); color: #b7c5d9; }
+.pill.good { background: #102f29; border-color: #1d594b; color: #75e6c2; }
+.pill.warn { background: #342b14; border-color: #584820; }
+.pill.bad { background: #3d1d25; border-color: #652d3a; color: #ff9caf; }
+button, select, input { border-color: var(--border-bright); border-radius: 7px; background: var(--surface-2); transition: border-color .15s, background .15s, box-shadow .15s, transform .1s; }
+button { background: linear-gradient(180deg, #3192ff, #1873df); border-color: #3997ff; box-shadow: 0 3px 10px #0005, inset 0 1px #ffffff30; }
+button:hover:not(:disabled) { filter: none; background: linear-gradient(180deg, #55a7ff, #2589ff); border-color: #70b4ff; }
+button:active:not(:disabled) { transform: translateY(1px); }
+.secondary { background: var(--surface-2); border-color: var(--border-bright); color: #dbe7f8; box-shadow: none; }
+.secondary:hover:not(:disabled) { background: var(--surface-3); }
+input:focus, select:focus { outline: none; border-color: var(--blue-bright); box-shadow: 0 0 0 3px #2589ff30; }
+.tile { background: linear-gradient(145deg, #0d1624, #090f19); border-color: var(--border); border-radius: 11px; box-shadow: 0 12px 32px #000a, inset 0 1px #ffffff08; }
+.tile-title { background: linear-gradient(90deg, #14223a, #0e1725); border-color: var(--border); }
+.tile-title strong { letter-spacing: .025em; }
+.tile-title span { color: #667995; }
+.toolbar, .config-summary, .parameter-row, .telemetry-row, .graph-body aside { border-color: var(--border); }
+.parameter-group { background: #152137; border-color: #2c4263; }
+.last-command { background: var(--surface-2); }
+.telemetry-row span:last-child { color: var(--blue-bright); }
+.permanent { background: linear-gradient(180deg, #eef5ff, #c9d9ef); border-color: #fff; color: #10213a; }
+.permanent:hover:not(:disabled) { background: #fff; border-color: #fff; }
+.scale-control { display: flex; align-items: center; gap: 7px; color: #a8b8ce; font-size: 11px; font-weight: 650; white-space: nowrap; }
+.scale-control select { min-width: 116px; }
+.custom-scale { display: flex; align-items: center; gap: 6px; }
+.custom-scale[hidden] { display: none !important; }
+.custom-scale label { display: flex; align-items: center; gap: 4px; color: #a8b8ce; font-size: 11px; font-weight: 650; }
+.custom-scale input { width: 78px; min-width: 0; padding: 7px; }
+.custom-scale.invalid input { border-color: #ff6680; box-shadow: 0 0 0 2px #ff668025; }
+.zoom-controls { display: flex; gap: 4px; }
+.icon-button { width: 32px; min-width: 32px; padding: 7px 0; font-size: 17px; line-height: 1; }
+.chart { background: #080d16; }
+.chart-badges { position: absolute; right: 12px; top: 10px; z-index: 2; display: flex; gap: 6px; pointer-events: none; }
+.chart-badges span { padding: 4px 8px; border: 1px solid #2a4060; border-radius: 999px; background: #0c1626e8; color: #b8c9e0; font: 10px ui-monospace, monospace; }
+#feed-rate { color: #71d9bb; border-color: #245846; }
+#legend { border-top: 1px solid var(--border); background: #0a111d; color: #c6d3e5; }
+.check input, .signal-option input { accent-color: var(--blue); }
+
+#configuration .toolbar #node-select { min-width: 230px; flex: 1; }
+#configuration .toolbar #parameter-filter { flex: 1; }
+#graph .toolbar { align-content: center; }
+#graph .graph-body { grid-template-columns: minmax(165px, 25%) 1fr; }
+#setpoint-panel .setpoint-form { padding-bottom: 10px; }
+
+@media(max-width:1200px) {
+  #configuration, #graph, #setpoint-panel, #telemetry-panel { grid-column: span 12; }
+  #configuration { grid-row: span 7; }
+}
