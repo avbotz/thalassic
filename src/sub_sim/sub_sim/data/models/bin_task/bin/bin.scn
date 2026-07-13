@@ -18,9 +18,13 @@
 
   <static name="bin_blood" type="model">
     <physical>
-      <mesh filename="models/bin_task/bin/bins_v2_blood.obj" scale="1.0" convex="false" />
+      <mesh filename="empty.obj" scale="1.0" convex="true" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
+    <visual>
+      <mesh filename="models/bin_task/bin/bins_v2_blood.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
     <material name="plastic" />
     <look name="bin_blood" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
@@ -28,9 +32,13 @@
 
   <static name="bin_fire" type="model">
     <physical>
-      <mesh filename="models/bin_task/bin/bins_v2_fire.obj" scale="1.0" convex="false" />
+      <mesh filename="empty.obj" scale="1.0" convex="true" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
+    <visual>
+      <mesh filename="models/bin_task/bin/bins_v2_fire.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
     <material name="plastic" />
     <look name="bin_fire" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />

@@ -1,34 +1,126 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4" main_tree_to_execute="OctagonMission">
+<root BTCPP_format="4"
+      main_tree_to_execute="OctagonMission">
   <BehaviorTree ID="OctagonMission">
     <Sequence name="octagon_mission">
-      <PosSetpoint z="-1.5"/>
-      <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
-      <LoadModel camera="front" task="octagon" timeout_msec="30000"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.5"/>
+      <AttSetpoint name="octagon_search_heading"
+                   roll="nan"
+                   pitch="nan"
+                   yaw="{@octagon_search_yaw}"/>
+      <LoadModel camera="front"
+                 task="octagon"
+                 timeout_msec="30000"/>
       <Fallback name="find_octagon_front">
-        <SweepCheck task="octagon" attempts="4"/>
+        <SweepCheck camera="front"
+                    task="octagon"
+                    class_id=""
+                    min_score="0.0"
+                    attempts="4"
+                    sample_timeout_msec="2500.0"
+                    move_timeout_msec="20000"/>
         <Sequence name="recover_octagon_front">
-          <MoveRelative x="1.0"/>
-          <ForwardSweepAlign task="octagon" attempts="4" num_sweeps="4"/>
+          <MoveRelative x="1.0"
+                        y="0.0"
+                        z="0.0"/>
+          <ForwardSweepAlign camera="front"
+                             task="octagon"
+                             class_id=""
+                             min_score="0.0"
+                             attempts="4"
+                             num_sweeps="4"
+                             forward_step="2.0"
+                             sample_timeout_msec="2500.0"
+                             move_timeout_msec="20000"/>
         </Sequence>
       </Fallback>
-      <ForwardContinuousAlign task="octagon" max_dist="4.0" forward_velocity="1.0" close_distance="3.0" detection_loss_msec="3000" timeout_msec="30000"/>
-      <PosSetpoint z="-0.5"/>
-      <MoveRelative x="1.0"/>
-      <LoadModel camera="down" task="octagon" timeout_msec="30000"/>
+      <ForwardContinuousAlign camera="front"
+                              task="octagon"
+                              class_id=""
+                              min_score="0.0"
+                              max_dist="4.0"
+                              forward_velocity="1.0"
+                              close_distance="3.0"
+                              detection_loss_msec="3000"
+                              timeout_msec="30000"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-0.5"/>
+      <MoveRelative x="1.0"
+                    y="0.0"
+                    z="0.0"/>
+      <LoadModel camera="down"
+                 task="octagon"
+                 timeout_msec="30000"/>
       <Fallback name="find_octagon_down">
-        <DownForwardSweepAlign task="octagon" max_dist="15.0" forward_step="1.0" timeout_msec="30000"/>
-        <DownPatternScan task="octagon" movement_dist="1.75"/>
+        <DownForwardSweepAlign task="octagon"
+                               class_id=""
+                               min_score="0.0"
+                               max_dist="15.0"
+                               forward_step="1.0"
+                               default_distance="1.0"
+                               center_gain="1.0"
+                               lateral_sweep_step="1.0"
+                               stop_camera=""
+                               stop_task=""
+                               stop_class_id=""
+                               stop_min_score="0.0"
+                               update_msec="300"
+                               timeout_msec="30000"/>
+        <DownPatternScan task="octagon"
+                         class_id=""
+                         min_score="0.0"
+                         movement_dist="1.75"
+                         sample_timeout_msec="2500"
+                         move_timeout_msec="20000"/>
       </Fallback>
-      <DownContinuousAlign task="octagon" tolerance="0.25" desired_distance="1.0" min_msec="3000" timeout_msec="30000"/>
-      <DownContinuousAlign task="octagon" tolerance="0.25" min_msec="10000" timeout_msec="30000"/>
-      <PosSetpoint z="0.0"/>
+      <DownContinuousAlign task="octagon"
+                           class_id=""
+                           min_score="0.0"
+                           tolerance="0.25"
+                           desired_distance="1.0"
+                           distance_tolerance="0.5"
+                           default_distance="1.0"
+                           center_gain="1.0"
+                           orient="true"
+                           orient_tolerance_deg="5.0"
+                           min_msec="3000"
+                           timeout_msec="30000"
+                           update_msec="200"/>
+      <DownContinuousAlign task="octagon"
+                           class_id=""
+                           min_score="0.0"
+                           tolerance="0.25"
+                           desired_distance="nan"
+                           distance_tolerance="0.5"
+                           default_distance="1.0"
+                           center_gain="1.0"
+                           orient="true"
+                           orient_tolerance_deg="5.0"
+                           min_msec="10000"
+                           timeout_msec="30000"
+                           update_msec="200"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="0.0"/>
       <Sleep msec="3000"/>
-      <PosSetpoint z="-1.0"/>
-      <MoveRelative x="-1.0"/>
-      <PosSetpoint y="{@gate_home_y}"/>
-      <AddAttSetpoint yaw="1.57079633"/>
-      <LoadModel camera="front" task="gate" timeout_msec="30000"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
+      <MoveRelative x="-1.0"
+                    y="0.0"
+                    z="0.0"/>
+      <PosSetpoint x="nan"
+                   y="{@gate_home_y}"
+                   z="nan"/>
+      <AddAttSetpoint roll="nan"
+                      pitch="nan"
+                      yaw="1.57079633"/>
+      <LoadModel camera="front"
+                 task="gate"
+                 timeout_msec="30000"/>
       <ForceSuccess>
         <AlignToDetection camera="front"
                           task="gate"
@@ -41,7 +133,189 @@
                           max_depth_step="0.5"
                           timeout_msec="30000"/>
       </ForceSuccess>
-      <PosSetpoint x="{@gate_home_x}"/>
+      <PosSetpoint x="{@gate_home_x}"
+                   y="nan"
+                   z="nan"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="0"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AddAttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll offset in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch offset in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw offset in radians</input_port>
+    </Action>
+    <Action ID="AlignToDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="yaw"
+                  default="true">Steer yaw to zero the horizontal bearing</input_port>
+      <input_port name="depth"
+                  default="false">Steer depth to zero the vertical bearing</input_port>
+      <input_port name="tolerance"
+                  default="0.05">Aligned when |bearing| &lt;= tolerance (rad)</input_port>
+      <input_port name="depth_gain"
+                  default="1.5">Meters of depth change per radian of bearing</input_port>
+      <input_port name="max_depth_step"
+                  default="0.5">Depth correction clamp per frame (m)</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+    </Action>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="DownContinuousAlign">
+      <input_port name="task">Only accept down-camera detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="tolerance"
+                  default="0.35">Centered when both bearings are within tolerance (rad)</input_port>
+      <input_port name="desired_distance"
+                  default="nan">Optional camera-to-object distance to hold in meters</input_port>
+      <input_port name="distance_tolerance"
+                  default="0.5">Distance error allowed at completion (m)</input_port>
+      <input_port name="default_distance"
+                  default="1.0">Distance used when detection distance is unavailable</input_port>
+      <input_port name="center_gain"
+                  default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+      <input_port name="orient"
+                  default="true">Yaw to detection orientation metadata when present</input_port>
+      <input_port name="orient_tolerance_deg"
+                  default="5.0">Orientation error allowed at completion</input_port>
+      <input_port name="min_msec"
+                  default="3000">Minimum closed-loop alignment time</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before FAILURE</input_port>
+      <input_port name="update_msec"
+                  default="200">Minimum time between movement corrections</input_port>
+    </Action>
+    <Action ID="DownForwardSweepAlign">
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="max_dist"
+                  default="10.0">Maximum forward travel before SUCCESS</input_port>
+      <input_port name="forward_step"
+                  default="1.0">Forward target extension per update in meters</input_port>
+      <input_port name="default_distance"
+                  default="1.0">Distance used when detection distance is unavailable</input_port>
+      <input_port name="center_gain"
+                  default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+      <input_port name="lateral_sweep_step"
+                  default="1.0">Right/left search step when no down-camera detection is visible</input_port>
+      <input_port name="stop_camera">Succeed when this camera sees the stop target</input_port>
+      <input_port name="stop_task">Succeed when this task is detected (empty disables)</input_port>
+      <input_port name="stop_class_id">Only accept this stop-target class id</input_port>
+      <input_port name="stop_min_score"
+                  default="0.0">Minimum stop-target detection confidence</input_port>
+      <input_port name="update_msec"
+                  default="300">Minimum time between movement corrections</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum scan time before FAILURE</input_port>
+    </Action>
+    <Action ID="DownPatternScan">
+      <input_port name="task">Task model to search for with the down camera</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="movement_dist"
+                  default="1.65">Search-pattern movement distance in meters</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500">Maximum detection sample time at each point</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each pattern move</input_port>
+    </Action>
+    <Action ID="ForwardContinuousAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="max_dist"
+                  default="10.0">Maximum forward travel before SUCCESS</input_port>
+      <input_port name="forward_velocity"
+                  default="1.0">Fixed body-forward velocity in meters per second</input_port>
+      <input_port name="close_distance"
+                  default="3.0">Distance that completes the approach</input_port>
+      <input_port name="detection_loss_msec"
+                  default="3000">Target-loss time that completes the approach</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum align time before SUCCESS</input_port>
+    </Action>
+    <Action ID="ForwardSweepAlign">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="num_sweeps"
+                  default="3">Forward sweep passes before FAILURE</input_port>
+      <input_port name="forward_step"
+                  default="2.0">Forward move between sweeps in meters</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each commanded movement</input_port>
+    </Action>
+    <Action ID="LoadModel">
+      <input_port name="camera"
+                  default="front">Camera whose vision node loads the model</input_port>
+      <input_port name="task">Task model to load, e.g. gate</input_port>
+      <input_port name="timeout_msec"
+                  default="20000">Maximum wait for service + load</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="SweepCheck">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each yaw move</input_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>
