@@ -473,6 +473,17 @@ def generate_launch_description():
         default_value="SURVEY",
         description="Mission vision role: SURVEY or SEARCH",
     )
+    declare_dashboard = DeclareLaunchArgument(
+        "dashboard",
+        default_value="false",
+        description="Start the browser ROS debugging dashboard on port 8080",
+    )
+    declare_dashboard_host = DeclareLaunchArgument(
+        "dashboard_host", default_value="127.0.0.1"
+    )
+    declare_dashboard_port = DeclareLaunchArgument(
+        "dashboard_port", default_value="8080"
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -499,13 +510,33 @@ def generate_launch_description():
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
+    dashboard_node = Node(
+        package="sub_pid_tuner",
+        executable="dashboard",
+        name="dashboard_server",
+        output="screen",
+        arguments=[
+            "--robot-name", LaunchConfiguration("robot_name"),
+            "--profile", PathJoinSubstitution(
+                [FindPackageShare("sub_bringup"), "config", "control_gains_sim.yaml"]
+            ),
+            "--host", LaunchConfiguration("dashboard_host"),
+            "--port", LaunchConfiguration("dashboard_port"),
+        ],
+        condition=IfCondition(LaunchConfiguration("dashboard")),
+    )
+
     return LaunchDescription(
         [
             declare_robot_name,
             declare_mission,
             declare_role,
+            declare_dashboard,
+            declare_dashboard_host,
+            declare_dashboard_port,
             include_transforms,
             sub_mission_node,
+            dashboard_node,
             *sim_entities(),
             *control_and_state_entities(),
             *vision_entities(),
