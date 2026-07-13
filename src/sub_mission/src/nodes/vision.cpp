@@ -1206,6 +1206,7 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         last_commanded_ = last_processed_ - std::chrono::milliseconds(update_msec_);
         started_at_ = last_processed_;
         deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        have_filtered_detection_ = false;
         return BT::NodeStatus::RUNNING;
     }
 
@@ -1259,10 +1260,21 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         const Detection &detection = *match.detection;
         const auto orient = orientationYaw(detection);
         const double distance = validDistanceValue(detection.distance_m) ? detection.distance_m : desired_distance_;
+        if (!have_filtered_detection_) {
+            filtered_bearing_ = detection.bearing_horizontal;
+            filtered_distance_ = distance;
+            have_filtered_detection_ = true;
+        } else {
+            // Monocular range and box centers are noisy. Smooth them before
+            // turning each camera frame into a continuously moving reference.
+            static constexpr double FILTER_ALPHA = 0.25;
+            filtered_bearing_ += FILTER_ALPHA * (detection.bearing_horizontal - filtered_bearing_);
+            filtered_distance_ += FILTER_ALPHA * (distance - filtered_distance_);
+        }
         const bool old_enough = SteadyClock::now() - started_at_ >= std::chrono::milliseconds(min_msec_);
-        const bool centered = std::fabs(detection.bearing_horizontal) <= tolerance_;
+        const bool centered = std::fabs(filtered_bearing_) <= tolerance_;
         const bool square = !orient || std::fabs(*orient) <= radians(orient_tolerance_deg_);
-        const bool distance_ok = std::fabs(distance - desired_distance_) <= distance_tolerance_;
+        const bool distance_ok = std::fabs(filtered_distance_ - desired_distance_) <= distance_tolerance_;
         if (old_enough && centered && square && distance_ok) {
             RCLCPP_INFO(logger_, "OrientToDetectionAtDist: aligned to %s.", filter_.describe().c_str());
             return BT::NodeStatus::SUCCESS;
@@ -1281,18 +1293,18 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         // implementation called addBodyOffsetToCommand three times, causing
         // each correction to treat the preceding command as measured state and
         // grow exponentially against stale tracking error.
-        const double target_bearing_yaw = normalizeAngle(pose->yaw - detection.bearing_horizontal);
-        const double range_error = distance - desired_distance_;
+        const double target_bearing_yaw = normalizeAngle(pose->yaw - filtered_bearing_);
+        const double range_error = filtered_distance_ - desired_distance_;
         const double position_step = std::clamp(range_error, -max_position_step_, max_position_step_);
         node_.commanded_pos[0] = pose->x + std::cos(target_bearing_yaw) * position_step;
         node_.commanded_pos[1] = pose->y + std::sin(target_bearing_yaw) * position_step;
-        node_.commanded_att[2] = normalizeAngle(pose->yaw + (orient ? *orient : -detection.bearing_horizontal));
+        node_.commanded_att[2] = normalizeAngle(pose->yaw + (orient ? *orient : -filtered_bearing_));
 
         position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
         RCLCPP_INFO_THROTTLE(logger_, *clock_, 500,
-                             "OrientToDetectionAtDist: bearing=%.3f orient=%s distance=%.2f target=(%.2f, %.2f, %.3f).",
-                             detection.bearing_horizontal, orient ? "available" : "unavailable", distance,
+                             "OrientToDetectionAtDist: bearing=%.3f distance=%.2f orient=%s target=(%.2f, %.2f, %.3f).",
+                             filtered_bearing_, filtered_distance_, orient ? "available" : "unavailable",
                              node_.commanded_pos[0], node_.commanded_pos[1], node_.commanded_att[2]);
         last_commanded_ = SteadyClock::now();
         return BT::NodeStatus::RUNNING;
@@ -1308,6 +1320,8 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     SteadyClock::time_point deadline_;
     SteadyClock::time_point last_processed_;
     SteadyClock::time_point last_commanded_;
+    double filtered_bearing_ = 0.0;
+    double filtered_distance_ = 0.0;
     double desired_distance_ = 2.0;
     double tolerance_ = 0.35;
     double distance_tolerance_ = 0.5;
@@ -1316,6 +1330,7 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     int min_msec_ = 6500;
     int timeout_msec_ = 30000;
     int update_msec_ = 300;
+    bool have_filtered_detection_ = false;
 };
 
 class DownForwardAlignAction : public BT::StatefulActionNode {
@@ -1340,6 +1355,10 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("center_gain", 1.0, "Scale factor for down-camera x/y centering offsets"),
                 BT::InputPort<double>("lateral_sweep_step", 1.0,
                                       "Right/left search step when no down-camera detection is visible"),
+                BT::InputPort<std::string>("stop_camera", "", "Succeed when this camera sees the stop target"),
+                BT::InputPort<std::string>("stop_task", "", "Succeed when this task is detected (empty disables)"),
+                BT::InputPort<std::string>("stop_class_id", "", "Only accept this stop-target class id"),
+                BT::InputPort<double>("stop_min_score", 0.0, "Minimum stop-target detection confidence"),
                 BT::InputPort<int>("update_msec", 300, "Minimum time between movement corrections"),
                 BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS")};
     }
@@ -1354,6 +1373,10 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         getInput("default_distance", default_distance_);
         getInput("center_gain", center_gain_);
         getInput("lateral_sweep_step", lateral_sweep_step_);
+        getInput("stop_camera", stop_filter_.camera);
+        getInput("stop_task", stop_filter_.task);
+        getInput("stop_class_id", stop_filter_.class_id);
+        getInput("stop_min_score", stop_filter_.min_score);
         getInput("update_msec", update_msec_);
         getInput("timeout_msec", timeout_msec_);
 
@@ -1390,14 +1413,24 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
 
    private:
     BT::NodeStatus tickActive() {
+        if (!stop_filter_.task.empty()) {
+            const Match stop_match = latestMatch(node_, stop_filter_, SteadyClock::time_point{});
+            if (stop_match.detection != nullptr) {
+                RCLCPP_INFO(logger_, "DownForwardAlign: stop target found: %s.", stop_filter_.describe().c_str());
+                return BT::NodeStatus::SUCCESS;
+            }
+        }
+
         const std::array<double, 3> pos = actualPosition(node_);
         if (std::hypot(pos[0] - initial_pos_[0], pos[1] - initial_pos_[1]) >= max_dist_) {
             RCLCPP_INFO(logger_, "DownForwardAlign: max distance %.2fm reached.", max_dist_);
-            return sweep_when_missing_ ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+            return sweep_when_missing_ || !stop_filter_.task.empty() ? BT::NodeStatus::FAILURE
+                                                                     : BT::NodeStatus::SUCCESS;
         }
         if (SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "DownForwardAlign: timeout reached after %dms.", timeout_msec_);
-            return sweep_when_missing_ ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+            return sweep_when_missing_ || !stop_filter_.task.empty() ? BT::NodeStatus::FAILURE
+                                                                     : BT::NodeStatus::SUCCESS;
         }
 
         double forward = forward_step_;
@@ -1431,6 +1464,7 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
+    DetectionFilter stop_filter_;
     std::array<double, 3> initial_pos_ = {};
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
