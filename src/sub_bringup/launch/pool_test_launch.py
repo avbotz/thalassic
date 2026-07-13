@@ -195,7 +195,6 @@ def control_and_state_entities():
     #     ],
     # )
 
-
     sub_control_mcu_node = Node(
         package="sub_control_mcu",
         executable="sub_control_mcu",
@@ -209,7 +208,7 @@ def control_and_state_entities():
                     "config/control_gains_mcu.yaml",
                 ]
             ),
-            {"robot_name": LaunchConfiguration("robot_name")}
+            {"robot_name": LaunchConfiguration("robot_name")},
         ],
     )
 
@@ -302,7 +301,11 @@ def generate_launch_description():
         arguments=[
             "--robot-name", LaunchConfiguration("robot_name"),
             "--profile", PathJoinSubstitution(
-                [FindPackageShare("sub_bringup"), "config", "control_gains.yaml"]
+                [
+                    FindPackageShare("sub_control_mcu"),
+                    "config",
+                    "control_gains_mcu.yaml",
+                ]
             ),
             "--host", LaunchConfiguration("dashboard_host"),
             "--port", LaunchConfiguration("dashboard_port"),
