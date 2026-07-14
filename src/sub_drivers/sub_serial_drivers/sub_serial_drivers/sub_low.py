@@ -232,6 +232,8 @@ class SubLow(LifecycleNode):
                 imu.orientation.y = q[1]
                 imu.orientation.z = q[2]
                 imu.orientation.w = q[3]
+
+                self._imu_pub.publish(imu)
             except (IndexError, ValueError):
                 return
 
