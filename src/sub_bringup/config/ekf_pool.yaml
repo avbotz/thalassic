@@ -2,9 +2,9 @@
     ros__parameters:
         debug: false
 
-        frequency: 20.0
+        frequency: 15.0
         # Waterlinked a50 DVL can output measurements at 4 Hz - 15 Hz
-        sensor_timeout: 0.65
+        sensor_timeout: 10.0
 
         map_frame: map
         odom_frame: marlin_v2/odom
@@ -34,16 +34,16 @@
         odom0: odometry/dvl
         odom0_config: [false, false, false,
                       false, false, false,
-                      true, true, true,
+                      true, true, false,
                       false, false, false,
                       false, false, false]
 
-        # odom1: odometry/depth
-        # odom1_config: [false, false, true,
-        #               false, false, false,
-        #               false, false, false,
-        #               false, false, false,
-        #               false, false, false]
+        odom1: odometry/depth
+        odom1_config: [false, false, true,
+                      false, false, false,
+                      false, false, false,
+                      false, false, false,
+                      false, false, false]
 
         # Depth camera not on marlin
         # odom2: odom/depth_camera
