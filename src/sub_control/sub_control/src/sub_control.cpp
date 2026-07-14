@@ -14,9 +14,16 @@
 #include <chrono>
 #include <cmath>
 #include <format>
+#include <memory>
+#include <thread>
 #include <vector>
 
 using namespace std::chrono_literals;
+
+namespace {
+constexpr double POSITION_TOLERANCE = 0.25;
+constexpr double ATTITUDE_TOLERANCE = 0.0872665;
+}
 
 SubControl::SubControl() : Node("sub_control") {
     // control_rate_hz and robot_name are only used to set up the timer and
@@ -92,6 +99,17 @@ SubControl::SubControl() : Node("sub_control") {
     error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
 
     set_pose_client_ = this->create_client<robot_localization::srv::SetPose>("set_pose");
+    setpoint_action_server_ = rclcpp_action::create_server<ControlSetpoint>(
+        this, "control_setpoint",
+        [this](const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const ControlSetpoint::Goal> goal) {
+            return handle_setpoint_goal(uuid, std::move(goal));
+        },
+        [this](const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+            return handle_setpoint_cancel(goal_handle);
+        },
+        [this](const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+            std::thread{[this, goal_handle] { execute_setpoint_goal(goal_handle); }}.detach();
+        });
 
     control_timer_ =
         this->create_timer(std::chrono::microseconds{static_cast<int>(1e6 / control_rate_hz_)}, [this]() { run(); });
@@ -192,6 +210,7 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
 }
 
 void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     position_[0] = msg->pose.pose.position.x;
     position_[1] = msg->pose.pose.position.y;
     position_[2] = msg->pose.pose.position.z;
@@ -221,57 +240,167 @@ void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     angvel_[2] = msg->twist.twist.angular.z;
 }
 
-void SubControl::altitude_callback(const std_msgs::msg::Float64::SharedPtr msg) { altitude_ = msg->data; }
+void SubControl::altitude_callback(const std_msgs::msg::Float64::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    altitude_ = msg->data;
+}
 
-void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
-    velocity_control_enabled_ = msg->velocity;
-    altitude_control_enabled_ = msg->altitude;
+void SubControl::apply_pos_setpoint(const sub_control_interfaces::msg::Setpoint& msg) {
+    velocity_control_enabled_ = msg.velocity;
+    altitude_control_enabled_ = msg.altitude;
     if (velocity_control_enabled_) {
-        if (velocity_setpoint_[0] != msg->setpoint.x || velocity_setpoint_[1] != msg->setpoint.y || velocity_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_DEBUG(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+        if (velocity_setpoint_[0] != msg.setpoint.x || velocity_setpoint_[1] != msg.setpoint.y || velocity_setpoint_[2] != msg.setpoint.z) {
+            RCLCPP_DEBUG(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg.setpoint.x, msg.setpoint.y, msg.setpoint.z);
         }
 
-        velocity_setpoint_[0] = msg->setpoint.x;
-        velocity_setpoint_[1] = msg->setpoint.y;
-        velocity_setpoint_[2] = msg->setpoint.z;
+        velocity_setpoint_[0] = msg.setpoint.x;
+        velocity_setpoint_[1] = msg.setpoint.y;
+        velocity_setpoint_[2] = msg.setpoint.z;
 
     } else {
-        if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_DEBUG(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+        if (position_setpoint_[0] != msg.setpoint.x || position_setpoint_[1] != msg.setpoint.y || position_setpoint_[2] != msg.setpoint.z) {
+            RCLCPP_DEBUG(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg.setpoint.x, msg.setpoint.y, msg.setpoint.z);
         }
 
-        position_setpoint_[0] = msg->setpoint.x;
-        position_setpoint_[1] = msg->setpoint.y;
-        position_setpoint_[2] = msg->setpoint.z;
+        position_setpoint_[0] = msg.setpoint.x;
+        position_setpoint_[1] = msg.setpoint.y;
+        position_setpoint_[2] = msg.setpoint.z;
 
     }
+}
+
+void SubControl::apply_att_setpoint(const sub_control_interfaces::msg::Setpoint& msg) {
+    spin_active_ = false;
+    angvel_control_enabled_ = msg.velocity;
+    if (angvel_control_enabled_) {
+        if (angvel_setpoint_[0] != msg.setpoint.roll || angvel_setpoint_[1] != msg.setpoint.pitch || angvel_setpoint_[2] != msg.setpoint.yaw) {
+            RCLCPP_DEBUG(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg.setpoint.roll, msg.setpoint.pitch, msg.setpoint.yaw);
+        }
+
+        angvel_setpoint_[0] = msg.setpoint.roll;
+        angvel_setpoint_[1] = msg.setpoint.pitch;
+        angvel_setpoint_[2] = msg.setpoint.yaw;
+
+    } else {
+        if (attitude_setpoint_[0] != msg.setpoint.roll || attitude_setpoint_[1] != msg.setpoint.pitch || attitude_setpoint_[2] != msg.setpoint.yaw) {
+            RCLCPP_DEBUG(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg.setpoint.roll, msg.setpoint.pitch, msg.setpoint.yaw);
+        }
+
+        attitude_setpoint_[0] = angles::normalize_angle(msg.setpoint.roll);
+        attitude_setpoint_[1] = angles::normalize_angle(msg.setpoint.pitch);
+        attitude_setpoint_[2] = angles::normalize_angle(msg.setpoint.yaw);
+
+    }
+}
+
+void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    apply_pos_setpoint(*msg);
 }
 
 void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
-    spin_active_ = false;
-    angvel_control_enabled_ = msg->velocity;
-    if (angvel_control_enabled_) {
-        if (angvel_setpoint_[0] != msg->setpoint.roll || angvel_setpoint_[1] != msg->setpoint.pitch || angvel_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_DEBUG(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
-        }
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    apply_att_setpoint(*msg);
+}
 
-        angvel_setpoint_[0] = msg->setpoint.roll;
-        angvel_setpoint_[1] = msg->setpoint.pitch;
-        angvel_setpoint_[2] = msg->setpoint.yaw;
-
-    } else {
-        if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_DEBUG(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
-        }
-
-        attitude_setpoint_[0] = angles::normalize_angle(msg->setpoint.roll);
-        attitude_setpoint_[1] = angles::normalize_angle(msg->setpoint.pitch);
-        attitude_setpoint_[2] = angles::normalize_angle(msg->setpoint.yaw);
-
+rclcpp_action::GoalResponse SubControl::handle_setpoint_goal(
+    const rclcpp_action::GoalUUID&, const std::shared_ptr<const ControlSetpoint::Goal> goal) {
+    if (goal->command_type > ControlSetpoint::Goal::ATTITUDE) {
+        RCLCPP_WARN(this->get_logger(), "Rejecting ControlSetpoint goal with invalid command type %u", goal->command_type);
+        return rclcpp_action::GoalResponse::REJECT;
     }
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse SubControl::handle_setpoint_cancel(
+    const std::shared_ptr<GoalHandleControlSetpoint>) {
+    return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void SubControl::execute_setpoint_goal(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+    const auto goal = goal_handle->get_goal();
+    const auto result = std::make_shared<ControlSetpoint::Result>();
+    std::array<bool, 3> active_axes{};
+
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        if (killed_) {
+            result->message = "kill switch is engaged";
+            goal_handle->abort(result);
+            return;
+        }
+
+        if (goal->command_type == ControlSetpoint::Goal::POSITION) {
+            active_axes = {std::isfinite(goal->setpoint.setpoint.x), std::isfinite(goal->setpoint.setpoint.y),
+                           std::isfinite(goal->setpoint.setpoint.z)};
+            auto command = goal->setpoint;
+            command.velocity = false;
+            if (!active_axes[0]) command.setpoint.x = position_setpoint_[0];
+            if (!active_axes[1]) command.setpoint.y = position_setpoint_[1];
+            if (!active_axes[2]) command.setpoint.z = position_setpoint_[2];
+            apply_pos_setpoint(command);
+        } else if (goal->command_type == ControlSetpoint::Goal::VELOCITY) {
+            auto command = goal->setpoint;
+            command.velocity = true;
+            apply_pos_setpoint(command);
+            result->message = "velocity setpoint accepted";
+            goal_handle->succeed(result);
+            return;
+        } else {
+            active_axes = {std::isfinite(goal->setpoint.setpoint.roll), std::isfinite(goal->setpoint.setpoint.pitch),
+                           std::isfinite(goal->setpoint.setpoint.yaw)};
+            auto command = goal->setpoint;
+            command.velocity = false;
+            if (!active_axes[0]) command.setpoint.roll = attitude_setpoint_[0];
+            if (!active_axes[1]) command.setpoint.pitch = attitude_setpoint_[1];
+            if (!active_axes[2]) command.setpoint.yaw = attitude_setpoint_[2];
+            apply_att_setpoint(command);
+        }
+    }
+
+    while (rclcpp::ok()) {
+        if (goal_handle->is_canceling()) {
+            result->message = "setpoint canceled";
+            goal_handle->canceled(result);
+            return;
+        }
+
+        std::array<double, 3> error{};
+        bool complete = true;
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            if (killed_) {
+                result->message = "kill switch is engaged";
+                goal_handle->abort(result);
+                return;
+            }
+            if (goal->command_type == ControlSetpoint::Goal::POSITION) {
+                error = {position_setpoint_[0] - position_[0], position_setpoint_[1] - position_[1],
+                         position_setpoint_[2] - (altitude_control_enabled_ ? altitude_ : position_[2])};
+                for (size_t i = 0; i < error.size(); ++i) complete &= !active_axes[i] || std::fabs(error[i]) <= POSITION_TOLERANCE;
+            } else {
+                error = attitude_error(attitude_setpoint_, attitude_);
+                for (size_t i = 0; i < error.size(); ++i) complete &= !active_axes[i] || std::fabs(error[i]) <= ATTITUDE_TOLERANCE;
+            }
+        }
+
+        auto feedback = std::make_shared<ControlSetpoint::Feedback>();
+        feedback->error = error;
+        goal_handle->publish_feedback(feedback);
+        result->message = "setpoint reached";
+        if (complete) {
+            goal_handle->succeed(result);
+            return;
+        }
+        std::this_thread::sleep_for(50ms);
+    }
+
+    result->message = "ROS shutdown";
+    goal_handle->abort(result);
 }
 
 void SubControl::spin_setpoint_callback(const sub_control_interfaces::msg::Spin::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     if (killed_ || !have_yaw_unwrapped_) {
         RCLCPP_WARN(this->get_logger(), "Ignoring spin command: %s", killed_ ? "killed" : "no odometry yet");
         return;
@@ -304,6 +433,7 @@ void SubControl::spin_setpoint_callback(const sub_control_interfaces::msg::Spin:
 }
 
 void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     spin_active_ = false;
     velocity_control_enabled_ = true;
     angvel_control_enabled_ = true;
@@ -317,6 +447,7 @@ void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg
 }
 
 void SubControl::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     if (msg->data) {
         // Never resume a spin across a kill.
         spin_active_ = false;
@@ -372,6 +503,7 @@ void SubControl::publish_zero_thrusters() {
 }
 
 void SubControl::run() {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     if (killed_) {
         last_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
         publish_zero_thrusters();

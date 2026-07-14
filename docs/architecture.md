@@ -36,6 +36,7 @@ thruster allocation at 50 Hz. See [control.md](control.md) for details.
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `altitude` | `std_msgs/Float64` |
 | Sub | `kill_switch` | `std_msgs/Bool` |
+| Action server | `control_setpoint` | `sub_control_interfaces/ControlSetpoint` |
 | Pub | `control/thruster_0` ... `thruster_7` | `std_msgs/Float64` (normalized -1...1) |
 | Pub | `control/error` | `sub_control_interfaces/Error` |
 | Client | `set_pose` | `robot_localization/SetPose` |
@@ -65,8 +66,7 @@ implementation boundaries.
 |---|---|---|
 | Sub | `kill_switch` | `std_msgs/Bool` |
 | Sub | `control/error` | `sub_control_interfaces/Error` |
-| Pub | `pos_setpoint` | `sub_control_interfaces/Setpoint` |
-| Pub | `att_setpoint` | `sub_control_interfaces/Setpoint` |
+| Action client | `control_setpoint` | `sub_control_interfaces/ControlSetpoint` |
 
 ### `waterlinked_dvl_driver` (`waterlinked_dvl`) — hardware only
 

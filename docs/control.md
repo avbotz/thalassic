@@ -55,7 +55,8 @@ Each bank's gains are supplied as a `[kp, ki, kd, max_output]` array per axis.
 
 ## Command Interface
 
-Setpoints arrive on three topics. All command frames are REP-103 body **FLU**
+Setpoints arrive on three topics, and mission setpoints also arrive through the
+`control_setpoint` action. All command frames are REP-103 body **FLU**
 (x forward, y left, z up); a downward (dive) command is negative `z`.
 
 | Topic | Type | Meaning |
@@ -63,6 +64,7 @@ Setpoints arrive on three topics. All command frames are REP-103 body **FLU**
 | `pos_setpoint` | `sub_control_interfaces/Setpoint` | position **or** body-velocity hold |
 | `att_setpoint` | `sub_control_interfaces/Setpoint` | attitude **or** body angular-rate hold |
 | `cmd_vel` | `geometry_msgs/Twist` | direct body velocity + angular rate |
+| `control_setpoint` action | `sub_control_interfaces/ControlSetpoint` | monitored position, velocity, or attitude request |
 
 `Setpoint` carries two flags and a `SetpointAxes` payload:
 
@@ -83,6 +85,11 @@ SetpointAxes setpoint
 - `att_setpoint` with `velocity=false` holds an attitude (RPY normalized to
   `[-π, π]`); with `velocity=true` it holds a body angular rate.
 - `cmd_vel` enables both velocity and angular-rate hold at once.
+
+For a `control_setpoint` action, non-finite position or attitude axes retain
+their currently commanded value. Position and attitude goals succeed only when
+their requested axes are within the controller tolerance; velocity goals
+succeed once accepted. A kill aborts an active action goal.
 
 Position and attitude setpoints are expressed relative to the pose captured when
 the kill switch was last released — `x=1.0` is one metre forward of the arm

@@ -10,6 +10,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -32,7 +33,7 @@ add_executable(${PROJECT_NAME}
   src/velocity_controller.c
 )
 target_include_directories(${PROJECT_NAME} PRIVATE include)
-ament_target_dependencies(${PROJECT_NAME} rclcpp sub_control_interfaces std_msgs geometry_msgs nav_msgs robot_localization tf2 tf2_geometry_msgs)
+ament_target_dependencies(${PROJECT_NAME} rclcpp rclcpp_action sub_control_interfaces std_msgs geometry_msgs nav_msgs robot_localization tf2 tf2_geometry_msgs)
 target_link_libraries(${PROJECT_NAME} m)
 
 install(TARGETS

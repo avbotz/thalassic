@@ -3,7 +3,9 @@
 #include "sub_control_interfaces/msg/spin.hpp"
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
+#include "sub_control_interfaces/action/control_setpoint.hpp"
 
+#include <rclcpp_action/rclcpp_action.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -13,6 +15,7 @@
 #include <robot_localization/srv/set_pose.hpp>
 
 #include <array>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -31,11 +34,20 @@ class SubControl : public rclcpp::Node {
     void run();
 
    private:
+    using ControlSetpoint = sub_control_interfaces::action::ControlSetpoint;
+    using GoalHandleControlSetpoint = rclcpp_action::ServerGoalHandle<ControlSetpoint>;
+
     static constexpr size_t NUM_THRUSTERS = 8;
 
     void publish_zero_thrusters();
 
     void reset_pid();
+    void apply_pos_setpoint(const sub_control_interfaces::msg::Setpoint& msg);
+    void apply_att_setpoint(const sub_control_interfaces::msg::Setpoint& msg);
+    rclcpp_action::GoalResponse handle_setpoint_goal(const rclcpp_action::GoalUUID& uuid,
+                                                     std::shared_ptr<const ControlSetpoint::Goal> goal);
+    rclcpp_action::CancelResponse handle_setpoint_cancel(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle);
+    void execute_setpoint_goal(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle);
 
     rcl_interfaces::msg::SetParametersResult on_parameters_set(const std::vector<rclcpp::Parameter>& params);
     PID_Controller* pid_for_parameter(const std::string& name);
@@ -85,6 +97,7 @@ class SubControl : public rclcpp::Node {
     static constexpr double SPIN_ODOM_TIMEOUT = 0.5;
 
     bool killed_{true};
+    std::mutex state_mutex_;
 
     // State subscribers
     rclcpp::Subscription<sub_control_interfaces::msg::Setpoint>::SharedPtr pos_setpoint_sub_;
@@ -102,6 +115,7 @@ class SubControl : public rclcpp::Node {
     rclcpp::Publisher<sub_control_interfaces::msg::Error>::SharedPtr error_pub_;
 
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr set_pose_client_;
+    rclcpp_action::Server<ControlSetpoint>::SharedPtr setpoint_action_server_;
 
     rclcpp::TimerBase::SharedPtr control_timer_;
     rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};

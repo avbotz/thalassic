@@ -3,7 +3,9 @@
 
 #include "sub_control_interfaces/msg/error.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
+#include "sub_control_interfaces/action/control_setpoint.hpp"
 
+#include <rclcpp_action/rclcpp_action.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -20,6 +22,7 @@ extern "C" {
 }
 
 #include <array>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -43,8 +46,17 @@ class SubControlMcu : public rclcpp::Node {
     void run();
 
    private:
+    using ControlSetpoint = sub_control_interfaces::action::ControlSetpoint;
+    using GoalHandleControlSetpoint = rclcpp_action::ServerGoalHandle<ControlSetpoint>;
+
     void publish_zero_thrusters();
     void reset_state_on_revive();
+    void apply_pos_setpoint(const sub_control_interfaces::msg::Setpoint& msg);
+    void apply_att_setpoint(const sub_control_interfaces::msg::Setpoint& msg);
+    rclcpp_action::GoalResponse handle_setpoint_goal(const rclcpp_action::GoalUUID& uuid,
+                                                     std::shared_ptr<const ControlSetpoint::Goal> goal);
+    rclcpp_action::CancelResponse handle_setpoint_cancel(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle);
+    void execute_setpoint_goal(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle);
 
     rcl_interfaces::msg::SetParametersResult on_parameters_set(const std::vector<rclcpp::Parameter>& params);
     struct pid_controller* pid_for_parameter(const std::string& name);
@@ -77,6 +89,7 @@ class SubControlMcu : public rclcpp::Node {
     float mix_[8][6];
 
     bool killed_{true};
+    std::mutex state_mutex_;
     bool pause_{false};
     rclcpp::Time pause_end_{0, 0, RCL_ROS_TIME};
 
@@ -92,6 +105,7 @@ class SubControlMcu : public rclcpp::Node {
     rclcpp::Publisher<sub_control_interfaces::msg::Error>::SharedPtr error_pub_;
 
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr set_pose_client_;
+    rclcpp_action::Server<ControlSetpoint>::SharedPtr setpoint_action_server_;
 
     rclcpp::TimerBase::SharedPtr control_timer_;
     rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};

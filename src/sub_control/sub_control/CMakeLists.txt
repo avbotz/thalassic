@@ -9,6 +9,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -19,7 +20,7 @@ find_package(angles REQUIRED)
 
 add_executable(${PROJECT_NAME} src/sub_control.cpp src/pid_controller.cpp src/utils.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE include)
-ament_target_dependencies(${PROJECT_NAME} rclcpp sub_control_interfaces tf2 tf2_geometry_msgs nav_msgs robot_localization angles)
+ament_target_dependencies(${PROJECT_NAME} rclcpp rclcpp_action sub_control_interfaces tf2 tf2_geometry_msgs nav_msgs robot_localization angles)
 
 install(TARGETS
   ${PROJECT_NAME}
