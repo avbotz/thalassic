@@ -7,6 +7,8 @@
     <include path="missions/pool_d.xml"/>
     <include path="missions/pool_test.xml"/>
     <include path="missions/prelim.xml"/>
+    <include path="missions/hard_coded_torp.xml"/>
+    <include path="missions/hard_coded_competition.xml"/>
     <include path="missions/slalom_perception_hold_test.xml"/>
     <include path="missions/slalom_three_test.xml"/>
     <include path="missions/vision_test.xml"/>
@@ -16,6 +18,8 @@
     <include path="trees/gate.xml"/>
     <include path="trees/hard_coded_gate.xml"/>
     <include path="trees/hard_coded_slalom.xml"/>
+    <include path="trees/hard_coded_competition.xml"/>
+    <include path="trees/hard_coded_torp.xml"/>
     <include path="trees/octagon.xml"/>
     <include path="trees/pool_test.xml"/>
     <include path="trees/prelim.xml"/>

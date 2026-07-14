@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedCompetitionMission">
+  <BehaviorTree ID="HardCodedCompetitionMission">
+    <Sequence name="hard_coded_competition_mission">
+      <SubTree ID="HardCodedGateMission"/>
+      <SubTree ID="HardCodedSlalomMission"/>
+      <SubTree ID="HardCodedTorpMission"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <TreeNodesModel/>
+</root>

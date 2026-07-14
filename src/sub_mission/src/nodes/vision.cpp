@@ -2199,10 +2199,14 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     }
 
     bool advanceCandidate(const double bearing, const double distance, const double heading) {
-        static constexpr int REQUIRED_CANDIDATE_FRAMES = 3;
+        // A contour/PnP pose arrives at camera rate, but the simulator can
+        // occasionally drop frames. Two mutually-consistent observations are
+        // enough to reject a one-frame contour error without starving the
+        // close-range alignment loop.
+        static constexpr int REQUIRED_CANDIDATE_FRAMES = 2;
         static constexpr double MAX_CANDIDATE_RANGE_SPREAD_M = 0.35;
         static constexpr double MAX_CANDIDATE_BEARING_SPREAD_RAD = 0.12;
-        static const double MAX_CANDIDATE_HEADING_SPREAD_RAD = radians(8.0);
+        static const double MAX_CANDIDATE_HEADING_SPREAD_RAD = radians(15.0);
         const bool consistent =
             have_candidate_ && std::fabs(distance - candidate_distance_) <= MAX_CANDIDATE_RANGE_SPREAD_M &&
             std::fabs(normalizeAngle(bearing - candidate_bearing_)) <= MAX_CANDIDATE_BEARING_SPREAD_RAD &&

@@ -129,7 +129,8 @@
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(1.2, DYAW) }}" />
+    <!-- Face the default sub spawn head-on (south); keep the board square. -->
+    <arg name="yaw" value="{{ -PI / 2 }}" />
   </include>
 
 

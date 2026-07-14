@@ -27,6 +27,7 @@ _AIM_HOLE_BOARD_Y_M = -0.18
 # but only reject clearly implausible fits.
 MAX_REPROJECTION_ERROR_PX = 50.0
 MIN_YOLO_MASK_QUALITY = 0.45
+MIN_OPENCV_CORNER_QUALITY = 0.25
 
 # Clockwise in the same order as the image bounding-box corners: top-left,
 # bottom-left, bottom-right, top-right.  The board lies in Z=0 and its origin
@@ -193,6 +194,55 @@ def yolo_mask_corners(mask: np.ndarray | None, detection) -> tuple[np.ndarray, f
     return quad, quality
 
 
+def opencv_board_corners(rgb_image: np.ndarray | None, detection) -> tuple[np.ndarray, float] | None:
+    """Recover the board quadrilateral from its coloured face inside a YOLO box.
+
+    ``torp_find`` is a box-only model, so it has no YOLO segmentation mask.
+    This is the same HSV/contour approach used by the team's earlier torpedo
+    detector, constrained to the detector's box to avoid selecting pool props.
+    """
+    if rgb_image is None or rgb_image.ndim != 3:
+        return None
+    bbox = detection.detection.bbox
+    image_h, image_w = rgb_image.shape[:2]
+    pad_x = int(max(8.0, 0.20 * float(bbox.size_x)))
+    pad_y = int(max(8.0, 0.20 * float(bbox.size_y)))
+    x0 = max(0, int(round(bbox.center.position.x - bbox.size_x / 2.0)) - pad_x)
+    x1 = min(image_w, int(round(bbox.center.position.x + bbox.size_x / 2.0)) + pad_x)
+    y0 = max(0, int(round(bbox.center.position.y - bbox.size_y / 2.0)) - pad_y)
+    y1 = min(image_h, int(round(bbox.center.position.y + bbox.size_y / 2.0)) + pad_y)
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return None
+
+    # ROS OpenCV images are BGR. This broad warm/green range matches the
+    # painted simulator board and the previous working detector.
+    crop = rgb_image[y0:y1, x0:x1]
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array([0, 30, 80], dtype=np.uint8), np.array([95, 245, 255], dtype=np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = [contour for contour in contours if cv2.contourArea(contour) >= 0.05 * bbox.size_x * bbox.size_y]
+    if not contours:
+        return None
+    hull = cv2.convexHull(np.vstack(contours))
+    perimeter = cv2.arcLength(hull, True)
+    quad = cv2.approxPolyDP(hull, 0.045 * perimeter, True).reshape(-1, 2).astype(np.float64)
+    if len(quad) != 4:
+        return None
+    quad[:, 0] += x0
+    quad[:, 1] += y0
+    # Match _OBJECT_CORNERS: top-left, bottom-left, bottom-right, top-right.
+    by_y = quad[np.argsort(quad[:, 1])]
+    top = by_y[:2][np.argsort(by_y[:2, 0])]
+    bottom = by_y[2:][np.argsort(by_y[2:, 0])]
+    ordered = np.array([top[0], bottom[0], bottom[1], top[1]], dtype=np.float64)
+    area_ratio = abs(float(cv2.contourArea(ordered.astype(np.float32)))) / max(float(bbox.size_x * bbox.size_y), 1.0)
+    if area_ratio < MIN_OPENCV_CORNER_QUALITY or area_ratio > 2.0:
+        return None
+    return ordered, min(1.0, area_ratio)
+
+
 def _camera_matrix(camera_info) -> np.ndarray:
     matrix = np.asarray(camera_info.k, dtype=np.float64).reshape(3, 3)
     if matrix[0, 0] <= 0.0 or matrix[1, 1] <= 0.0:
@@ -286,6 +336,7 @@ def solve_torp_pose(image_points: np.ndarray, camera_info) -> tuple[np.ndarray, 
 
 @register_post_processor("torpedo")
 @register_post_processor("torp")
+@register_post_processor("torp_find")
 class TorpPostProcessor(TaskPostProcessor):
     """Estimate board range from boxes and board normal from YOLO segmentation."""
 
@@ -305,9 +356,12 @@ class TorpPostProcessor(TaskPostProcessor):
 
         for board_index, (board, model_mask) in enumerate(boards):
             corners = yolo_mask_corners(model_mask, board)
+            corner_source = "yolo_segment"
+            if corners is None:
+                corners = opencv_board_corners(rgb_image, board)
+                corner_source = "opencv_contour" if corners is not None else "bbox_fallback"
             image_points = corners[0] if corners is not None else bbox_corners(board)
             corner_quality = corners[1] if corners is not None else 0.0
-            corner_source = "yolo_segment" if corners is not None else "bbox_fallback"
             try:
                 rvec, tvec, reprojection_error = solve_torp_pose(image_points, camera_info)
             except (ValueError, cv2.error) as error:
@@ -335,8 +389,8 @@ class TorpPostProcessor(TaskPostProcessor):
             board.pose_valid = True
             # A standard YOLO box cannot determine board facing. Only the
             # model-derived segment polygon is allowed to steer perpendicular.
-            heading_yaw_deg = _heading_yaw_deg(rvec) if corner_quality >= MIN_YOLO_MASK_QUALITY else None
-            aim_bearings = _aim_hole_bearings(rvec, tvec) if corner_quality >= MIN_YOLO_MASK_QUALITY else None
+            heading_yaw_deg = _heading_yaw_deg(rvec) if corner_source != "bbox_fallback" else None
+            aim_bearings = _aim_hole_bearings(rvec, tvec) if corner_source != "bbox_fallback" else None
             board.extra.extend(
                 [
                     KeyValue(key="image_roll_deg", value=f"{_image_roll_deg(rvec):.6f}"),
