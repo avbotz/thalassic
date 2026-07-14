@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AVBotz Dashboard</title>
-  <link rel="stylesheet" href="/static/styles.css?v=5">
-  <link rel="stylesheet" href="/static/theme.css?v=5">
+  <link rel="stylesheet" href="/static/styles.css?v=6">
+  <link rel="stylesheet" href="/static/theme.css?v=6">
 </head>
 <body>
   <header>
@@ -66,7 +66,7 @@
       <div class="tile-title" draggable="true"><strong>Control</strong><span>⋮⋮ drag</span></div>
       <div class="section-heading"><strong>Tracking routine</strong><span class="pill" id="tracking-status">Idle</span></div>
       <div class="tracking-form">
-        <label>Experiment<select id="tracking-experiment" aria-label="Tuning experiment"></select></label>
+        <label>Op mode<select id="tracking-experiment" aria-label="Tuning op mode"></select></label>
         <label>Controller<select id="tracking-mode"><option value="position">Position</option><option value="velocity">Velocity</option><option value="attitude">Attitude</option><option value="angular_velocity">Angular rate</option></select></label>
         <label>Axis<select id="tracking-axis"><option value="x">X</option><option value="y">Y</option><option value="z" selected>Z</option></select></label>
         <label id="tracking-amplitude-wrap"><span id="tracking-amplitude-label">Travel (m)</span><input id="tracking-amplitude" type="number" step="0.01" value="0.5"></label>
@@ -93,7 +93,23 @@
       <div class="resize-handle" title="Resize"></div>
     </section>
 
-    <section class="tile" id="telemetry-panel" data-w="12" data-h="5">
+    <section class="tile" id="path-panel" data-w="7" data-h="5">
+      <div class="tile-title" draggable="true"><strong>3D Path</strong><span>⋮⋮ drag</span></div>
+      <div class="toolbar path-toolbar">
+        <span class="path-status" id="path-status">Waiting for position</span>
+        <div class="view-buttons" aria-label="Path view">
+          <button class="secondary active" data-path-view="iso">3D</button>
+          <button class="secondary" data-path-view="xy">XY</button>
+          <button class="secondary" data-path-view="xz">XZ</button>
+          <button class="secondary" data-path-view="yz">YZ</button>
+        </div>
+        <button class="secondary" id="clear-path">Clear trail</button>
+      </div>
+      <div class="path-view"><canvas id="path-canvas"></canvas><div class="path-legend"><span><i class="planned"></i>planned</span><span><i class="target"></i>target</span><span><i class="actual"></i>actual</span></div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="telemetry-panel" data-w="5" data-h="5">
       <div class="tile-title" draggable="true"><strong>Telemetry</strong><span>⋮⋮ drag</span></div>
       <div class="toolbar"><input id="telemetry-filter" placeholder="Filter live values"></div>
       <div class="telemetry-list" id="telemetry-list"><div class="empty">Waiting for telemetry…</div></div>
@@ -102,6 +118,6 @@
   </main>
 
   <div id="toast" role="status"></div>
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

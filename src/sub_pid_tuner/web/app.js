@@ -19,7 +19,10 @@ const state = {
   serverClockOffset: null,
   lastServerTime: null,
   lastArrivalTime: null,
-  controlsSynced: false
+  controlsSynced: false,
+  pathTrail: [],
+  pathTargetTrail: [],
+  pathView: localStorage.getItem("avbotz-path-view") || "iso"
 };
 let toastTimer;
 
@@ -95,6 +98,10 @@ function handleMessage(message) {
     }
     state.feedTimes.push(receivedAt);
     while (state.feedTimes.length && state.feedTimes[0] < receivedAt - 2) state.feedTimes.shift();
+    if (message.tracking && !Object.prototype.hasOwnProperty.call(message.tracking, "path_preview") &&
+        Array.isArray(state.server.tracking?.path_preview)) {
+      message.tracking.path_preview = state.server.tracking.path_preview;
+    }
     const wasUnsafe = duplicateSources().length > 0;
     const hadParameters = Object.prototype.hasOwnProperty.call(message, "parameters");
     state.server = Object.assign({}, state.server, message);
@@ -181,6 +188,16 @@ function stableValue(value) {
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+}
+
+const rotationNames = {x: "roll", y: "pitch", z: "yaw"};
+
+function displayName(raw) {
+  const parameter = String(raw).match(/^(att_pid|ang_pid)\.([xyz])$/);
+  if (parameter) return parameter[1] + "." + rotationNames[parameter[2]];
+  const signal = String(raw).match(/^pid\.(attitude|angular_velocity)\.([xyz])\.(.+)$/);
+  if (signal) return "pid." + signal[1] + "." + rotationNames[signal[2]] + "." + signal[3];
+  return String(raw);
 }
 
 function isPid(name, metadata) {
@@ -311,7 +328,7 @@ function renderParameters(force) {
   })) {
     const key = node + "|" + name;
     const dirty = state.staged.has(key);
-    if (!name.toLowerCase().includes(filter) || (modifiedOnly && !dirty)) continue;
+    if (!displayName(name).toLowerCase().includes(filter) || (modifiedOnly && !dirty)) continue;
     const group = groupName(name);
     if (group !== lastGroup) {
       const heading = document.createElement("div");
@@ -330,7 +347,7 @@ function renderParameters(force) {
     row.dataset.name = name;
     row.dataset.testid = "parameter-" + name;
     row.innerHTML =
-      '<div class="parameter-name"><strong title="' + escapeHtml(name) + '">' + escapeHtml(name) +
+      '<div class="parameter-name"><strong title="' + escapeHtml(displayName(name)) + '">' + escapeHtml(displayName(name)) +
       '</strong><small>' + escapeHtml(metadata.type) +
       (metadata.read_only ? " · read only" : "") +
       (differs ? " · differs from profile" : "") +
@@ -468,6 +485,23 @@ function recordTelemetry(receivedAt, serverTime) {
   state.history.push({time: time, wallTime: Date.now(), signals: Object.assign({}, state.server.signals || {})});
   const cutoff = time - 65;
   while (state.history.length && state.history[0].time < cutoff) state.history.shift();
+  const signals = state.server.signals || {};
+  const point = [signals["pid.position.x.current"], signals["pid.position.y.current"], signals["pid.position.z.current"]];
+  if (point.every(Number.isFinite)) {
+    const previous = state.pathTrail[state.pathTrail.length - 1];
+    const moved = !previous || point.some((value, index) => Math.abs(value - previous[index]) > 0.001);
+    if (moved) state.pathTrail.push(point);
+    if (state.pathTrail.length > 1200) state.pathTrail.splice(0, state.pathTrail.length - 1200);
+  }
+  const trackingTarget = state.server.tracking?.current_reference;
+  const targetPoint = Array.isArray(trackingTarget) ? trackingTarget :
+    [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
+  if (targetPoint.every(Number.isFinite)) {
+    const previousTarget = state.pathTargetTrail[state.pathTargetTrail.length - 1];
+    const moved = !previousTarget || targetPoint.some((value, index) => Math.abs(value - previousTarget[index]) > 0.001);
+    if (moved) state.pathTargetTrail.push([...targetPoint]);
+    if (state.pathTargetTrail.length > 1200) state.pathTargetTrail.splice(0, state.pathTargetTrail.length - 1200);
+  }
   scheduleGraphDraw();
 }
 
@@ -480,6 +514,7 @@ function scheduleGraphDraw() {
     completed = true;
     state.drawPending = false;
     drawGraph();
+    drawPathViewer();
   };
   requestAnimationFrame(run);
   setTimeout(run, 34);
@@ -519,11 +554,11 @@ function renderSignals() {
   state.signalKey = key;
   const root = $("signal-list");
   root.innerHTML = "";
-  for (const name of catalog.filter(item => item.includes(filter))) {
+  for (const name of catalog.filter(item => displayName(item).toLowerCase().includes(filter))) {
     const label = document.createElement("label");
     label.className = "signal-option";
     label.innerHTML = '<input type="checkbox" ' + (state.selected.has(name) ? "checked" : "") +
-      '><span title="' + escapeHtml(name) + '">' + escapeHtml(name) + "</span>";
+      '><span title="' + escapeHtml(displayName(name)) + '">' + escapeHtml(displayName(name)) + "</span>";
     label.querySelector("input").addEventListener("change", event => {
       if (event.target.checked) state.selected.add(name);
       else state.selected.delete(name);
@@ -691,7 +726,7 @@ function drawGraph() {
     state.legendKey = legendKey;
     $("legend").innerHTML = names.map((name, index) =>
       '<span><i class="legend-dot" style="background:' + colors[index % colors.length] +
-      '"></i>' + escapeHtml(name) + "</span>").join("");
+      '"></i>' + escapeHtml(displayName(name)) + "</span>").join("");
   }
 }
 
@@ -702,15 +737,129 @@ function formatAxisValue(value) {
   return Number(value.toFixed(3)).toString();
 }
 
+function projectPathPoint(point, view) {
+  const [x, y, z] = point;
+  if (view === "xy") return [x, -y];
+  if (view === "xz") return [x, -z];
+  if (view === "yz") return [y, -z];
+  return [(x - y) * 0.7071, (x + y) * 0.3536 - z * 0.82];
+}
+
+function drawPathViewer() {
+  const canvas = $("path-canvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = devicePixelRatio || 1;
+  const width = Math.max(1, rect.width);
+  const height = Math.max(1, rect.height);
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#080d16";
+  ctx.fillRect(0, 0, width, height);
+
+  const tracking = state.server.tracking || {};
+  const planned = Array.isArray(tracking.path_preview) ? tracking.path_preview : [];
+  const signals = state.server.signals || {};
+  const current = [signals["pid.position.x.current"], signals["pid.position.y.current"], signals["pid.position.z.current"]];
+  const target = Array.isArray(tracking.current_reference) ? tracking.current_reference :
+    [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
+  const validCurrent = current.every(Number.isFinite) ? current : null;
+  const validTarget = target.every(Number.isFinite) ? target : null;
+  const all = [...planned, ...state.pathTargetTrail, ...state.pathTrail];
+  if (validCurrent) all.push(validCurrent);
+  if (validTarget) all.push(validTarget);
+
+  if (!all.length) {
+    ctx.fillStyle = "#8798b3";
+    ctx.font = "13px system-ui";
+    ctx.fillText("Waiting for live position telemetry", 20, 30);
+    $("path-status").textContent = "Waiting for position";
+    return;
+  }
+
+  const projected = all.map(point => projectPathPoint(point, state.pathView));
+  let minX = Math.min(...projected.map(point => point[0]));
+  let maxX = Math.max(...projected.map(point => point[0]));
+  let minY = Math.min(...projected.map(point => point[1]));
+  let maxY = Math.max(...projected.map(point => point[1]));
+  if (maxX - minX < 0.2) { minX -= 0.1; maxX += 0.1; }
+  if (maxY - minY < 0.2) { minY -= 0.1; maxY += 0.1; }
+  const pad = 34;
+  const scale = Math.max(1, Math.min((width - 2 * pad) / (maxX - minX), (height - 2 * pad) / (maxY - minY)));
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const screen = point => {
+    const projectedPoint = projectPathPoint(point, state.pathView);
+    return [width / 2 + (projectedPoint[0] - centerX) * scale, height / 2 + (projectedPoint[1] - centerY) * scale];
+  };
+
+  ctx.strokeStyle = "#172842";
+  ctx.lineWidth = 1;
+  for (let index = 1; index < 5; index++) {
+    const y = pad + (height - 2 * pad) * index / 5;
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
+  }
+
+  const strokePath = (points, color, lineWidth, dashed) => {
+    if (points.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash(dashed || []);
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      const [x, y] = screen(point);
+      if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  };
+  strokePath(planned, "#78e6b2", 2, [6, 5]);
+  strokePath(state.pathTargetTrail, "#2589ff", 2);
+  strokePath(state.pathTrail, "#f5f8ff", 2.2);
+
+  if (validTarget) {
+    const [x, y] = screen(validTarget);
+    ctx.fillStyle = "#2589ff";
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
+  }
+  if (validCurrent) {
+    const [x, y] = screen(validCurrent);
+    ctx.fillStyle = "#f5f8ff";
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
+    const yaw = signals["pid.attitude.z.current"];
+    if (Number.isFinite(yaw)) {
+      const arrowLength = Math.max(0.08, 18 / scale);
+      const tip = [validCurrent[0] + Math.cos(yaw) * arrowLength, validCurrent[1] + Math.sin(yaw) * arrowLength, validCurrent[2]];
+      const [tipX, tipY] = screen(tip);
+      ctx.strokeStyle = "#f5f8ff"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tipX, tipY); ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = "#8798b3";
+  ctx.font = "11px ui-monospace";
+  const axes = state.pathView === "xy" ? "X / Y · metres" : state.pathView === "xz" ? "X / Z(up) · metres" :
+    state.pathView === "yz" ? "Y / Z(up) · metres" : "isometric X / Y / Z(up) · metres";
+  ctx.fillText(axes, 12, height - 10);
+  $("path-status").textContent = tracking.active && ["follower_pid", "spline_test"].includes(tracking.experiment) ?
+    (tracking.experiment === "follower_pid" ? "Follower PID" : "Spline Test") + " · " + Math.round((tracking.progress || 0) * 100) + "%" :
+    planned.length ? "Last planned path" : "Live pose trail";
+}
+
 function renderTelemetry() {
   const filter = $("telemetry-filter").value.toLowerCase();
   const signals = state.server.signals || {};
   const root = $("telemetry-list");
   root.innerHTML = "";
-  for (const name of Object.keys(signals).sort().filter(item => item.includes(filter))) {
+  for (const name of Object.keys(signals).sort().filter(item => displayName(item).toLowerCase().includes(filter))) {
     const row = document.createElement("div");
     row.className = "telemetry-row";
-    row.innerHTML = "<span>" + escapeHtml(name) + "</span><span>" +
+    row.innerHTML = "<span>" + escapeHtml(displayName(name)) + "</span><span>" +
       Number(signals[name]).toPrecision(7) + "</span>";
     root.append(row);
   }
@@ -731,9 +880,12 @@ function updateSetpointLabels() {
 
 const experimentNames = {
   minimum_jerk: "Smooth move",
+  trapezoid: "Trapezoid cruise",
   step: "Step + settle",
   sine: "Windowed sine",
-  hold: "Hold / disturbance"
+  hold: "Hold / disturbance",
+  follower_pid: "Follower PID loop",
+  spline_test: "Spline Test"
 };
 
 const trackingDefaults = {
@@ -741,9 +893,12 @@ const trackingDefaults = {
     minimum_jerk: {amplitude: 0.5, ramp: 4, hold: 2, cycles: 2},
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3},
-    hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1}
+    hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1},
+    follower_pid: {amplitude: 0.5, ramp: 12, hold: 3, cycles: 2},
+    spline_test: {amplitude: 0.6, ramp: 12, hold: 3, cycles: 2}
   },
   velocity: {
+    trapezoid: {amplitude: 0.25, ramp: 2, hold: 2, cycles: 2},
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.2, ramp: 8, hold: 3, cycles: 3}
   },
@@ -754,6 +909,7 @@ const trackingDefaults = {
     hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1}
   },
   angular_velocity: {
+    trapezoid: {amplitude: 0.3, ramp: 2, hold: 2, cycles: 2},
     step: {amplitude: 0.35, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3}
   }
@@ -769,27 +925,35 @@ function updateTrackingLabels(loadDefaults) {
   ).join("");
   experimentSelect.value = experiments.includes(previousExperiment) ? previousExperiment : experiments[0];
   const experiment = experimentSelect.value;
+  const pathExperiment = experiment === "follower_pid" || experiment === "spline_test";
   const rotational = mode === "attitude" || mode === "angular_velocity";
-  const labels = rotational ? ["Roll", "Pitch", "Yaw"] : ["X", "Y", "Z"];
-  [...$("tracking-axis").options].forEach((option, index) => {
-    option.value = ["x", "y", "z"][index];
-    option.textContent = labels[index];
-  });
+  const previousAxis = $("tracking-axis").value;
+  if (pathExperiment) {
+    $("tracking-axis").innerHTML = '<option value="xyz">XYZ · 3D</option><option value="xy">XY · horizontal</option><option value="xz">XZ · vertical</option><option value="yz">YZ · vertical</option>';
+  } else {
+    const labels = rotational ? ["Roll", "Pitch", "Yaw"] : ["X", "Y", "Z"];
+    $("tracking-axis").innerHTML = labels.map((label, index) =>
+      '<option value="' + ["x", "y", "z"][index] + '">' + label + "</option>").join("");
+  }
+  if ([...$("tracking-axis").options].some(option => option.value === previousAxis)) $("tracking-axis").value = previousAxis;
   const unit = {position: "m", velocity: "m/s", attitude: "rad", angular_velocity: "rad/s"}[mode];
   const limit = {position: 2, velocity: 1, attitude: 0.523598, angular_velocity: 1}[mode];
   $("tracking-amplitude").min = -limit;
   $("tracking-amplitude").max = limit;
-  $("tracking-amplitude-label").textContent = (mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
+  $("tracking-amplitude-label").textContent = (pathExperiment ? "Path span" : mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
   $("tracking-amplitude-wrap").hidden = experiment === "hold";
   $("tracking-primary-wrap").hidden = experiment === "hold";
   $("tracking-cycles-wrap").hidden = experiment === "hold";
-  $("tracking-primary-label").textContent = experiment === "minimum_jerk" ? "Move (s)" : experiment === "step" ? "Step (s)" : "Period (s)";
-  $("tracking-secondary-label").textContent = experiment === "step" ? "Settle (s)" : experiment === "sine" ? "Final settle (s)" : experiment === "hold" ? "Duration (s)" : "Hold (s)";
+  $("tracking-primary-label").textContent = pathExperiment ? "Traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp (s)" : experiment === "step" ? "Step (s)" : "Period (s)";
+  $("tracking-secondary-label").textContent = experiment === "trapezoid" ? "Cruise / settle (s)" : experiment === "step" ? "Settle (s)" : experiment === "sine" ? "Final settle (s)" : experiment === "hold" ? "Duration (s)" : pathExperiment ? "Home settle (s)" : "Hold (s)";
   const hints = {
     minimum_jerk: "Quintic out-and-back move with zero velocity and acceleration at each endpoint.",
+    trapezoid: "Ramps to a steady rate, cruises, ramps to zero, settles, then repeats in the opposite direction.",
     step: "Tests positive and negative commands separately, returning to zero to settle between them.",
     sine: "Smooth zero-mean tracking with a fade-in/out; use a longer period first, then shorten it to expose phase lag.",
-    hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move."
+    hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move.",
+    follower_pid: "Repeats a smooth closed path from the measured pose. Tune outer position gains from XYZ error and the 3D trail.",
+    spline_test: "Runs a smooth 3D Bezier out and back to validate the finished follower without target jumps."
   };
   $("tracking-hint").textContent = hints[experiment];
   if (loadDefaults) {
@@ -804,8 +968,18 @@ function updateTrackingLabels(loadDefaults) {
 function selectTrackingGraph() {
   $("loop-select").value = $("tracking-mode").value;
   updateGraphAxisLabels();
-  $("axis-select").value = $("tracking-axis").value;
-  selectPidPreset();
+  const experiment = $("tracking-experiment").value;
+  if (experiment === "follower_pid" || experiment === "spline_test") {
+    const plane = $("tracking-axis").value;
+    const axes = plane === "xyz" ? ["x", "y", "z"] : plane.split("");
+    state.selected = new Set(axes.map(axis => "pid.position." + axis + ".error"));
+    localStorage.setItem("avbotz-signals", JSON.stringify([...state.selected]));
+    state.signalKey = "";
+    renderSignals();
+  } else {
+    $("axis-select").value = $("tracking-axis").value;
+    selectPidPreset();
+  }
   state.history = [];
   state.paused = false;
   $("pause").textContent = "Pause";
@@ -829,6 +1003,8 @@ async function startTracking() {
   try {
     const result = await request("start_tracking", values);
     state.server.tracking = result.tracking;
+    state.pathTrail = [];
+    state.pathTargetTrail = [];
     selectTrackingGraph();
     renderTracking();
     toast("Tracking routine started");
@@ -900,7 +1076,7 @@ async function publishSetpoint() {
 
 function exportCsv() {
   const names = [...state.selected];
-  const rows = [["time", ...names].join(",")];
+  const rows = [["time", ...names.map(displayName)].join(",")];
   for (const sample of state.history) {
     rows.push([new Date(sample.wallTime).toISOString(),
       ...names.map(name => sample.signals[name] ?? "")].join(","));
@@ -917,7 +1093,7 @@ function saveLayout() {
   const layout = [...document.querySelectorAll(".tile")].map(tile => ({
     id: tile.id, width: tile.dataset.w, height: tile.dataset.h
   }));
-  localStorage.setItem("avbotz-layout-v3", JSON.stringify(layout));
+  localStorage.setItem("avbotz-layout-v4", JSON.stringify(layout));
 }
 
 function sizeTile(tile) {
@@ -927,7 +1103,7 @@ function sizeTile(tile) {
 
 function setupLayout() {
   const root = $("dashboard");
-  const saved = JSON.parse(localStorage.getItem("avbotz-layout-v3") || "null");
+  const saved = JSON.parse(localStorage.getItem("avbotz-layout-v4") || "null");
   if (saved) {
     for (const item of saved) {
       const tile = $(item.id);
@@ -1044,6 +1220,21 @@ function zoomGraph(factor) {
 $("zoom-in").addEventListener("click", () => zoomGraph(0.67));
 $("zoom-out").addEventListener("click", () => zoomGraph(1.5));
 $("telemetry-filter").addEventListener("input", renderTelemetry);
+document.querySelectorAll("[data-path-view]").forEach(button => {
+  button.classList.toggle("active", button.dataset.pathView === state.pathView);
+  button.addEventListener("click", () => {
+    state.pathView = button.dataset.pathView;
+    localStorage.setItem("avbotz-path-view", state.pathView);
+    document.querySelectorAll("[data-path-view]").forEach(item =>
+      item.classList.toggle("active", item === button));
+    scheduleGraphDraw();
+  });
+});
+$("clear-path").addEventListener("click", () => {
+  state.pathTrail = [];
+  state.pathTargetTrail = [];
+  scheduleGraphDraw();
+});
 $("setpoint-mode").addEventListener("change", updateSetpointLabels);
 $("publish-setpoint").addEventListener("click", publishSetpoint);
 $("tracking-mode").addEventListener("change", () => updateTrackingLabels(true));
@@ -1052,7 +1243,7 @@ $("start-tracking").addEventListener("click", startTracking);
 $("stop-tracking").addEventListener("click", stopTracking);
 $("export").addEventListener("click", exportCsv);
 $("reset-layout").addEventListener("click", () => {
-  localStorage.removeItem("avbotz-layout-v3");
+  localStorage.removeItem("avbotz-layout-v4");
   location.reload();
 });
 document.addEventListener("keydown", event => {

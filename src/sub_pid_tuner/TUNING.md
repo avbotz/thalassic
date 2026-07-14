@@ -8,6 +8,10 @@ switch within reach in the pool, and begin at a low `power_limit`.
 Tune velocity x/y/z, then angular rate roll/pitch/yaw. Select the controller and
 axis in **Control**, then use:
 
+- **Trapezoid cruise** first. It ramps to a constant rate, cruises, ramps back
+  to zero, settles, then tests the opposite direction. Set the ramp long enough
+  to avoid saturating the thrusters. The zero dwell is intentional: unlike a
+  wheeled robot, the AUV should shed momentum before reversing.
 - **Step + settle** for rise time, overshoot, steady error, and positive/negative
   asymmetry. Each direction returns to zero and settles before the next one, so
   momentum from a reversal is not mistaken for bad PID.
@@ -34,7 +38,24 @@ With inner gains fixed, tune position x/y/z and attitude roll/pitch/yaw.
 - **Step + settle** is an optional small-signal transient check. Keep its travel
   much smaller than a normal mission setpoint.
 
-## 3. Apply and save
+## 3. Validate the follower
+
+Keep the inner gains fixed and select the position controller.
+
+- **Follower PID loop** repeatedly follows a compact closed path relative to
+  the measured starting pose. Start in **XY horizontal**, then use a vertical
+  plane, and only then try **XYZ 3D**. Tune from the three error traces and the
+  planned/target/actual trails in **3D Path**.
+- **Spline Test** is the final coupled check. It follows a smooth 3D Bezier out
+  and back with zero endpoint velocity and a home settle between cycles.
+
+These are feedback-follower tests, not feedforward identification. The current
+AUV cascade accepts pose targets but no trajectory velocity feedforward, so a
+moving pose target must retain some error to create velocity demand. Judge
+bounded lag, repeatability, overshoot, and cross-axis error rather than expecting
+perfect target/current overlap during motion.
+
+## 4. Apply and save
 
 - Edit a gain and click its row **Apply**, or use **Apply runtime** / `Ctrl+S`.
   The running controller changes immediately after verified ROS readback.
@@ -51,6 +72,9 @@ off-axis motion, persistent thruster saturation, or oscillation. The dashboard
 stops and holds measured pose when the initiating browser disconnects, telemetry
 goes stale, the operator presses Stop, or the routine finishes. A kill aborts
 without publishing another command.
+
+Rotational controls are always displayed as **Roll**, **Pitch**, and **Yaw**.
+Their ROS/YAML backing keys remain x, y, and z respectively for compatibility.
 
 Road Runner-style feedforward fitting is not exposed as a dashboard tuner yet.
 The AUV first needs body effort telemetry and a controller feedforward path; a

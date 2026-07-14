@@ -276,6 +276,11 @@ class RosAdapter(Node):
             "odometry/filtered": self.count_publishers("odometry/filtered"),
             "control/error": self.count_publishers("control/error"),
             "control/thruster_0": self.count_publishers("control/thruster_0"),
+            # The dashboard itself owns one publisher on each setpoint topic.
+            # A second publisher means a mission or teleop process can fight a
+            # tuning routine for command ownership.
+            "pos_setpoint": self.count_publishers("pos_setpoint"),
+            "att_setpoint": self.count_publishers("att_setpoint"),
         }
         with self._lock:
             self._source_counts = counts
@@ -518,6 +523,11 @@ class RosAdapter(Node):
                 "position_hold": position,
                 "attitude_hold": attitude,
             }
+            if profile.path_experiment:
+                run["path_preview"] = [
+                    [position[index] + offset[index] for index in range(3)]
+                    for offset in profile.preview()
+                ]
             self._tracking_run = run
             self._tracking_state = {
                 "active": True,
@@ -525,6 +535,8 @@ class RosAdapter(Node):
                 "message": "Tracking profile running",
                 "elapsed": 0.0,
                 "progress": 0.0,
+                "path_preview": run.get("path_preview", []),
+                "current_reference": position if profile.path_experiment else None,
                 **profile.public_state(),
             }
 
@@ -546,6 +558,15 @@ class RosAdapter(Node):
 
     def _publish_tracking_reference(self, run: dict, elapsed: float) -> None:
         profile: TrackingProfile = run["profile"]
+        if profile.path_experiment:
+            offset = profile.vector_at(elapsed)
+            command = [run["position_hold"][index] + offset[index] for index in range(3)]
+            self.publish_setpoint("position", command)
+            with self._lock:
+                if self._tracking_run is run:
+                    self._tracking_state["current_reference"] = command
+            return
+
         value = profile.value_at(elapsed)
         axis = "xyz".index(profile.axis)
         if profile.mode == "position":
@@ -613,6 +634,8 @@ class RosAdapter(Node):
                 "message": message,
                 "elapsed": elapsed,
                 "progress": min(elapsed / profile.duration, 1.0),
+                "path_preview": run.get("path_preview", []),
+                "current_reference": None,
                 **profile.public_state(),
             }
         if publish_hold:

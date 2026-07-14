@@ -31,6 +31,10 @@ class DashboardServer:
 
     def state(self, include_parameters: bool = True) -> dict:
         state = self.ros.snapshot(include_parameters=include_parameters)
+        if not include_parameters and state.get("tracking"):
+            # The sampled path is static. Send it on connect/start and with the
+            # occasional full state, not in every 30 Hz telemetry frame.
+            state["tracking"].pop("path_preview", None)
         state["server_time"] = time.monotonic()
         state["profile"] = {
             "available": bool(self.profile and self.profile.available),

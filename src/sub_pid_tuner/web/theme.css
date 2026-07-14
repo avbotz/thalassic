@@ -62,8 +62,21 @@ input:focus, select:focus { outline: none; border-color: var(--blue-bright); box
 #setpoint-panel .section-heading { background: #0b131f; }
 #setpoint-panel .tracking-form { background: #0b131f; }
 #setpoint-panel .tracking-summary { background: #0b131f; border-color: var(--border); }
+.path-toolbar { justify-content: flex-end; }
+.path-status { color: #a9bad2; margin-right: auto; font-size: 12px; }
+.view-buttons { display: flex; gap: 4px; }
+.view-buttons button { padding: 6px 10px; }
+.view-buttons button.active { color: #fff; border-color: var(--blue-bright); background: #193f6f; box-shadow: 0 0 0 2px #2589ff25; }
+.path-view { position: relative; flex: 1; min-height: 0; background: #080d16; }
+.path-view canvas { width: 100%; height: 100%; display: block; }
+.path-legend { position: absolute; left: 12px; top: 10px; display: flex; gap: 12px; padding: 5px 8px; border: 1px solid #203552; border-radius: 7px; background: #0c1626dc; color: #aebed4; font: 10px ui-monospace, monospace; }
+.path-legend span { display: flex; align-items: center; gap: 5px; }
+.path-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 3px; }
+.path-legend .planned { background: #78e6b2; }
+.path-legend .target { background: #2589ff; }
+.path-legend .actual { background: #f5f8ff; }
 
 @media(max-width:1200px) {
-  #configuration, #graph, #setpoint-panel, #telemetry-panel { grid-column: span 12; }
+  #configuration, #graph, #setpoint-panel, #path-panel, #telemetry-panel { grid-column: span 12; }
   #configuration { grid-row: span 7; }
 }

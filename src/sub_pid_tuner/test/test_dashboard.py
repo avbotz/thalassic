@@ -113,6 +113,52 @@ def test_step_profile_settles_at_zero_between_directions():
     assert profile.value_at(3.5) == pytest.approx(0.0)
 
 
+def test_trapezoid_profile_ramps_cruises_and_settles_before_reversing():
+    profile = TrackingProfile.from_values("trapezoid", "velocity", "x", 0.4, 2.0, 1.0, 1)
+    assert profile.duration == 12.0
+    assert profile.value_at(0.0) == pytest.approx(0.0)
+    assert profile.value_at(1.0) == pytest.approx(0.2)
+    assert profile.value_at(2.5) == pytest.approx(0.4)
+    assert profile.value_at(4.0) == pytest.approx(0.2)
+    assert profile.value_at(5.5) == pytest.approx(0.0)
+    assert profile.value_at(7.0) == pytest.approx(-0.2)
+    assert profile.value_at(8.5) == pytest.approx(-0.4)
+    assert profile.value_at(10.0) == pytest.approx(-0.2)
+    assert profile.value_at(11.5) == pytest.approx(0.0)
+
+
+def test_trapezoid_profile_is_only_available_for_inner_loops():
+    with pytest.raises(ValueError, match="velocity and angular-rate"):
+        TrackingProfile.from_values("trapezoid", "position", "x", 0.4, 2.0, 1.0, 1)
+
+
+def test_follower_pid_profile_is_a_bounded_closed_3d_path():
+    profile = TrackingProfile.from_values("follower_pid", "position", "xyz", 0.5, 8.0, 2.0, 1)
+    preview = profile.preview()
+    assert preview[0] == pytest.approx([0.0, 0.0, 0.0])
+    assert preview[-1] == pytest.approx([0.0, 0.0, 0.0])
+    assert max(abs(point[0]) for point in preview) <= 0.5
+    assert max(abs(point[1]) for point in preview) <= 0.65
+    assert any(abs(point[2]) > 0.05 for point in preview)
+    assert profile.vector_at(profile.ramp_time + 0.5) == pytest.approx((0.0, 0.0, 0.0))
+
+
+def test_spline_test_returns_home_and_respects_selected_plane():
+    profile = TrackingProfile.from_values("spline_test", "position", "xz", 0.6, 8.0, 2.0, 1)
+    preview = profile.preview()
+    assert preview[0] == pytest.approx([0.0, 0.0, 0.0])
+    assert preview[-1] == pytest.approx([0.0, 0.0, 0.0])
+    assert all(point[1] == pytest.approx(0.0) for point in preview)
+    assert any(abs(point[2]) > 0.05 for point in preview)
+
+
+def test_path_op_modes_require_position_and_a_valid_plane():
+    with pytest.raises(ValueError, match="position controller"):
+        TrackingProfile.from_values("follower_pid", "velocity", "xyz", 0.4, 4.0, 1.0, 1)
+    with pytest.raises(ValueError, match="path plane"):
+        TrackingProfile.from_values("spline_test", "position", "x", 0.4, 4.0, 1.0, 1)
+
+
 def test_windowed_sine_starts_and_ends_at_zero():
     profile = TrackingProfile.from_values("sine", "angular_velocity", "z", 0.5, 4.0, 1.0, 3)
     assert profile.duration == 13.0
@@ -212,6 +258,29 @@ def test_ros_adapter_runs_and_completes_a_tracking_profile():
         assert completed["active"] is False
         assert completed["status"] == "complete"
     finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_ros_adapter_exposes_path_preview_and_streams_full_position_reference():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    published = []
+    original_publish = adapter.publish_setpoint
+    adapter.publish_setpoint = lambda mode, values, altitude=False: (
+        published.append((mode, list(values))), original_publish(mode, values, altitude)
+    )[1]
+    try:
+        started = adapter.start_tracking("follower_pid", "position", "xyz", 0.2, 4.0, 0.5, 1)
+        assert started["active"] is True
+        assert len(started["path_preview"]) > 100
+        assert started["path_preview"][0] == pytest.approx([0.0, 0.0, 0.0])
+        adapter._publish_tracking_reference(adapter._tracking_run, 1.0)
+        assert published[-1][0] == "position"
+        assert published[-1][1] != pytest.approx([0.0, 0.0, 0.0])
+        assert adapter.tracking_snapshot()["current_reference"] == pytest.approx(published[-1][1])
+    finally:
+        adapter.stop_tracking()
         adapter.destroy_node()
         rclpy.shutdown()
 
