@@ -19,38 +19,38 @@ from sub_bringup.launch_utils import lifecycle_startup
 
 
 def camera_entities():
-    blackfly_camera_driver = Node(
-        package="spinnaker_camera_driver",
-        executable="camera_driver_node",
-        namespace=LaunchConfiguration("robot_name"),
-        output="both",
-        name="down_camera",
-        parameters=[
-            {
-                "buffer_queue_size": 1,
-                "serial_number": "16359776",
-                "gain_auto": "Continuous",
-                "pixel_format": "BayerBG8",
-                "exposure_auto": "Off",
-                "exposure_time": 2e3,
-                "frame_rate_enable": True,
-                "frame_rate": 5.0,
-                "trigger_mode": "Off",
-                "stream_buffer_handling_mode": "NewestOnly",
-                # TODO: Figure out how to get everything working with packet size of 9000
-                "gev_scps_packet_size": 1500,
+    # blackfly_camera_driver = Node(
+    #     package="spinnaker_camera_driver",
+    #     executable="camera_driver_node",
+    #     namespace=LaunchConfiguration("robot_name"),
+    #     output="both",
+    #     name="down_camera",
+    #     parameters=[
+    #         {
+    #             "buffer_queue_size": 1,
+    #             "serial_number": "16359776",
+    #             "gain_auto": "Continuous",
+    #             "pixel_format": "BayerBG8",
+    #             "exposure_auto": "Off",
+    #             "exposure_time": 2e3,
+    #             "frame_rate_enable": True,
+    #             "frame_rate": 5.0,
+    #             "trigger_mode": "Off",
+    #             "stream_buffer_handling_mode": "NewestOnly",
+    #             # TODO: Figure out how to get everything working with packet size of 9000
+    #             "gev_scps_packet_size": 1500,
 
-                "frame_id": [LaunchConfiguration("robot_name"), "/down_camera"],
-                "parameter_file": PathJoinSubstitution(
-                    [
-                        FindPackageShare("spinnaker_camera_driver"),
-                        "config",
-                        "blackfly.yaml",
-                    ]
-                ),
-            },
-        ],
-    )
+    #         "frame_id": [LaunchConfiguration("robot_name"), "/down_camera"],
+    #         "parameter_file": PathJoinSubstitution(
+    #             [
+    #                 FindPackageShare("spinnaker_camera_driver"),
+    #                 "config",
+    #                 "blackfly.yaml",
+    #             ]
+    #         ),
+    #         },
+    #     ],
+    # )
 
     # oak_driver_node = Node(
     #     package="depthai_ros_driver_v3",
@@ -85,7 +85,7 @@ def camera_entities():
     )
 
     return [
-        blackfly_camera_driver,
+        # blackfly_camera_driver,
         # Depth camera not on marlin
         # oak_driver_node,
         logitech_c922_driver,
@@ -115,8 +115,16 @@ def vision_entities():
             },
         ],
     )
+    
+    sub_annotation_node = Node(
+        package="sub_vision",
+        executable="annotation_visualizer",
+        name="annotation_visualizer",
+        output="screen",
+        namespace=LaunchConfiguration("robot_name"),
+    )
 
-    return [sub_vision_node]
+    return [sub_vision_node, sub_annotation_node]
 
 
 def control_and_state_entities():
