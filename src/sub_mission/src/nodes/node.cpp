@@ -48,6 +48,12 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     factory.registerSimpleCondition("TorpBoardV1", [&node](BT::TreeNode &) {
         return node.torp_board_type == "v1" ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
+    factory.registerSimpleCondition("SurveyRole", [&node](BT::TreeNode &) {
+        return node.role == "SURVEY" ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    });
+    factory.registerSimpleCondition("SearchRole", [&node](BT::TreeNode &) {
+        return node.role == "SEARCH" ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    });
 
     registerPosSetpointAction(factory, node, position_publisher, clock, logger);
     registerVelocitySetpointAction(factory, node, linear_velocity_publisher, clock, logger);

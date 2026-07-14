@@ -9,113 +9,78 @@
       <LoadModel camera="down"
                  task="torp_fire_blood"
                  timeout_msec="30000"/>
-      <Fallback name="find_bins">
-        <DownForwardSweepAlign task="torp_fire_blood"
-                               class_id="0"
-                               min_score="0.0"
-                               max_dist="20.0"
-                               forward_step="0.5"
-                               default_distance="1.0"
-                               center_gain="1.0"
-                               orient="false"
-                               lateral_sweep_step="1.0"
-                               stop_camera=""
-                               stop_task=""
-                               stop_class_id=""
-                               update_msec="300"
-                               timeout_msec="15000"/>
-        <DownPatternScan task="torp_fire_blood"
-                         class_id="0"
-                         min_score="0.0"
-                         movement_dist="1.65"
-                         sample_timeout_msec="2500"
-                         move_timeout_msec="20000"/>
+      <!-- Survey & Repair: fire (0); Search & Rescue: blood (1). -->
+      <Fallback name="service_role_bins">
+        <Sequence name="service_survey_bins">
+          <SurveyRole/>
+          <SubTree ID="DropMarkerInBin" class_id="0" dropper_id="0"/>
+          <!-- Advance past the first bin before locating the second. -->
+          <PosSetpoint x="nan" y="nan" z="-0.5"/>
+          <MoveRelative x="2.0" y="0.0" z="0.0"/>
+          <SubTree ID="DropMarkerInBin" class_id="0" dropper_id="1"/>
+        </Sequence>
+        <Sequence name="service_search_bins">
+          <SearchRole/>
+          <SubTree ID="DropMarkerInBin" class_id="1" dropper_id="0"/>
+          <!-- Advance past the first bin before locating the second. -->
+          <PosSetpoint x="nan" y="nan" z="-0.5"/>
+          <MoveRelative x="2.0" y="0.0" z="0.0"/>
+          <SubTree ID="DropMarkerInBin" class_id="1" dropper_id="1"/>
+        </Sequence>
       </Fallback>
-      <DownContinuousAlign task="torp_fire_blood"
-                           class_id="0"
-                           min_score="0.0"
-                           tolerance="0.3"
-                           desired_distance="1.0"
-                           distance_tolerance="0.5"
-                           default_distance="1.0"
-                           center_gain="1.0"
-                           orient="true"
-                           require_orientation="false"
-                           orientation_settle_frames="3"
-                           orientation_consistency_deg="10.0"
-                           orient_tolerance_deg="5.0"
-                           min_msec="3000"
-                           timeout_msec="30000"
-                           update_msec="200"/>
-      <NavigateToTransform source_frame="dropper_link"
-                           target_frame="down_camera"
-                           timeout_msec="30000"/>
-      <DropBalls open="true"
-                 timeout_msec="5000"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.5"/>
-      <MoveRelative x="2.0"
-                    y="0.0"
-                    z="0.0"/>
-      <Sleep msec="3000"/>
-      <VelocitySetpoint x="0.0"
-                        y="0.0"
-                        z="0.0"/>
-      <Fallback>
-        <DownForwardSweepAlign task="torp_fire_blood"
-                               class_id="0"
-                               min_score="0.0"
-                               max_dist="20.0"
-                               forward_step="0.5"
-                               default_distance="1.0"
-                               center_gain="1.0"
-                               orient="false"
-                               lateral_sweep_step="1.0"
-                               stop_camera=""
-                               stop_task=""
-                               stop_class_id=""
-                               update_msec="300"
-                               timeout_msec="15000"/>
-        <DownPatternScan task="torp_fire_blood"
-                         class_id="0"
-                         min_score="0.0"
-                         movement_dist="1.65"
-                         sample_timeout_msec="2500"
-                         move_timeout_msec="20000"/>
-      </Fallback>
-      <VelocitySetpoint x="0.0"
-                        y="0.0"
-                        z="0.0"/>
-      <DownContinuousAlign task="torp_fire_blood"
-                           class_id="0"
-                           min_score="0.0"
-                           tolerance="0.35"
-                           desired_distance="nan"
-                           distance_tolerance="0.5"
-                           default_distance="1.0"
-                           center_gain="1.0"
-                           orient="true"
-                           require_orientation="false"
-                           orientation_settle_frames="3"
-                           orientation_consistency_deg="10.0"
-                           orient_tolerance_deg="5.0"
-                           min_msec="3000"
-                           timeout_msec="30000"
-                           update_msec="200"/>
-      <NavigateToTransform source_frame="dropper_link"
-                           target_frame="down_camera"
-                           timeout_msec="30000"/>
-      <DropBalls open="true"
-                 timeout_msec="5000"/>
       <MoveRelative x="1.0"
                     y="0.0"
                     z="0.0"/>
     </Sequence>
   </BehaviorTree>
 
+  <!-- Find and service one bin of the selected role. -->
+  <BehaviorTree ID="DropMarkerInBin">
+    <Sequence name="drop_marker_in_bin">
+      <Fallback name="find_role_bin">
+        <DownForwardSweepAlign task="torp_fire_blood"
+                               class_id="{class_id}"
+                               min_score="0.0"
+                               max_dist="20.0"
+                               forward_step="0.5"
+                               default_distance="1.0"
+                               center_gain="1.0"
+                               orient="false"
+                               lateral_sweep_step="1.0"
+                               update_msec="300"
+                               timeout_msec="15000"/>
+        <DownPatternScan task="torp_fire_blood"
+                         class_id="{class_id}"
+                         min_score="0.0"
+                         movement_dist="1.65"
+                         sample_timeout_msec="2500"
+                         move_timeout_msec="20000"/>
+      </Fallback>
+      <DownContinuousAlign task="torp_fire_blood"
+                           class_id="{class_id}"
+                           min_score="0.0"
+                           tolerance="0.25"
+                           desired_distance="nan"
+                           default_distance="1.0"
+                           center_gain="1.0"
+                           orient="false"
+                           min_msec="3000"
+                           timeout_msec="30000"
+                           update_msec="200"/>
+      <!-- Put the physical dropper, not the camera, over the centered target. -->
+      <NavigateToTransform source_frame="down_camera"
+                           target_frame="dropper_link"
+                           timeout_msec="30000"/>
+      <DropBalls dropper_id="{dropper_id}"
+                 open="true"
+                 timeout_msec="5000"/>
+    </Sequence>
+  </BehaviorTree>
+
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Condition ID="SearchRole">Succeeds when the launch-time role is SEARCH</Condition>
+    <Condition ID="SurveyRole">Succeeds when the launch-time role is SURVEY</Condition>
     <Action ID="DownContinuousAlign">
       <input_port name="task">Only accept down-camera detections from this task</input_port>
       <input_port name="class_id">Only accept this class id (empty = any)</input_port>
@@ -188,6 +153,8 @@
                   default="20000">Maximum wait for each pattern move</input_port>
     </Action>
     <Action ID="DropBalls">
+      <input_port name="dropper_id"
+                  default="0">Dropper id to command</input_port>
       <input_port name="open"
                   default="true">Dropper state to command</input_port>
       <input_port name="timeout_msec"

@@ -113,12 +113,14 @@ mission sets them in its `Script` node:
 | `gate_exit_yaw`      | 0.34906585   | -0.34906585  | gate               |
 | `torp_search_yaw`    | -2.35619449  | 2.35619449   | torp               |
 | `octagon_search_yaw` | -0.61086524  | 0.61086524   | octagon            |
-| `target_animal`      | 1 (sawfish)  | 1 (sawfish)  | gate, bins, torp   |
+| `target_animal`      | 1 (sawfish)  | 1 (sawfish)  | gate, torp         |
 
 `target_animal` is the RoboSub 2026 gate side choice (`1` = sawfish, `0` = reef
-shark), scored again at the bins and torpedoes. It's mission-wide strategy, not
-pool-side, so it's the same in every file — set it once and gate/bins/torp read
-`{@target_animal}`.
+shark), also used by the torpedoes. It's mission-wide strategy, not pool-side,
+so it's the same in every file — set it once and gate/torp read
+`{@target_animal}`. The bins tree instead uses the launch-time `role` parameter:
+`SURVEY` targets the two fire bins (class `0`) and `SEARCH` targets the two
+blood bins (class `1`) with the `torp_fire_blood` down-camera detector.
 
 New pool-dependent numbers (headings, distances, depths) should follow the
 same pattern: assign `@key` in each pool mission's `Script` and read it with

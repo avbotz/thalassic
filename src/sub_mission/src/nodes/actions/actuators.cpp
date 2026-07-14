@@ -26,16 +26,24 @@ class DropBallsAction : public BT::StatefulActionNode {
           client_(node.create_client<SetDropper>("set_dropper")) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<bool>("open", true, "Dropper state to command"),
+        return {BT::InputPort<int>("dropper_id", 0, "Dropper id to command"),
+                BT::InputPort<bool>("open", true, "Dropper state to command"),
                 BT::InputPort<int>("timeout_msec", 5000, "Maximum wait for set_dropper response")};
     }
 
     BT::NodeStatus onStart() override {
+        int dropper_id = 0;
         bool open = true;
         int timeout_msec = 5000;
+        getInput("dropper_id", dropper_id);
         getInput("open", open);
         getInput("timeout_msec", timeout_msec);
 
+        if (dropper_id < 0 || dropper_id > 1) {
+            RCLCPP_ERROR(logger_, "%s: invalid dropper_id %d.", name().c_str(), dropper_id);
+            return BT::NodeStatus::FAILURE;
+        }
+        dropper_id_ = static_cast<std::uint8_t>(dropper_id);
         open_ = open;
         sent_request_ = false;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec);
@@ -62,12 +70,14 @@ class DropBallsAction : public BT::StatefulActionNode {
             }
 
             auto request = std::make_shared<SetDropper::Request>();
+            request->dropper_id = dropper_id_;
             request->open = open_;
             auto future_and_id = client_->async_send_request(request);
             request_id_ = future_and_id.request_id;
             future_ = future_and_id.future.share();
             sent_request_ = true;
-            RCLCPP_INFO(logger_, "DropBalls: requested dropper %s.", open_ ? "open" : "closed");
+            RCLCPP_INFO(logger_, "DropBalls: requested dropper %u %s.", static_cast<unsigned int>(dropper_id_),
+                        open_ ? "open" : "closed");
         }
         if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             const auto response = future_.get();
@@ -100,6 +110,7 @@ class DropBallsAction : public BT::StatefulActionNode {
     std::shared_future<SetDropper::Response::SharedPtr> future_;
     std::int64_t request_id_ = 0;
     SteadyClock::time_point deadline_;
+    std::uint8_t dropper_id_ = 0;
     bool open_ = true;
     bool sent_request_ = false;
 };

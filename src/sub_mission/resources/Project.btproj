@@ -131,6 +131,7 @@
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each pattern move</input_port>
         </Action>
         <Action ID="DropBalls">
+            <input_port name="dropper_id" default="0">Dropper id to command</input_port>
             <input_port name="open" default="true">Dropper state to command</input_port>
             <input_port name="timeout_msec" default="5000">Maximum wait for set_dropper response</input_port>
         </Action>
@@ -229,6 +230,8 @@
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw or depth command</input_port>
         </Action>
         <Condition ID="NotKilled"/>
+        <Condition ID="SearchRole">Succeeds when the launch-time role is SEARCH</Condition>
+        <Condition ID="SurveyRole">Succeeds when the launch-time role is SURVEY</Condition>
         <Condition ID="TorpBoardV1">Succeeds when launch-time torp_board_type is v1</Condition>
         <Action ID="OrientToDetectionAtDist">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
