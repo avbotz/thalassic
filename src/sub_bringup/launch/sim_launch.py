@@ -81,7 +81,6 @@ def _render_scn(context, *_, **__):
     scenario_name = LaunchConfiguration("scenario").perform(context)
     scenario_templates = {
         "woollett": "woollett.scn.j2",
-        "slalom_regression": "slalom_regression.scn.j2",
     }
     if scenario_name not in scenario_templates:
         choices = ", ".join(sorted(scenario_templates))
@@ -135,7 +134,7 @@ def sim_entities() -> list:
         DeclareLaunchArgument(
             "scenario",
             default_value="woollett",
-            description="Simulator scene: woollett or slalom_regression",
+            description="Simulator scene: woollett",
         ),
         DeclareLaunchArgument("seed", default_value=""),
         DeclareLaunchArgument("DX", default_value="0.25"),
