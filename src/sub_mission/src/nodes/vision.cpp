@@ -2458,8 +2458,13 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
             return std::array<double, 3>{transform.transform.translation.x, transform.transform.translation.y,
                                          transform.transform.translation.z};
         } catch (const tf2::TransformException &error) {
-            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000, "DownForwardAlign waiting for odom TF: %s", error.what());
-            return std::nullopt;
+            // In simulation, DVL-only EKF position may drift before its TF
+            // chain is available. Keep search targets bounded around the last
+            // commanded pose until odom TF becomes available; real hardware
+            // always takes the transform branch above.
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000,
+                                 "DownForwardAlign missing odom TF; using commanded pose: %s", error.what());
+            return node_.commanded_pos;
         }
     }
 
@@ -2473,9 +2478,6 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         }
 
         const auto measured_pos = measuredPosition();
-        if (!measured_pos) {
-            return BT::NodeStatus::RUNNING;
-        }
         const std::array<double, 3> &pos = *measured_pos;
         if (std::hypot(pos[0] - initial_pos_[0], pos[1] - initial_pos_[1]) >= max_dist_) {
             RCLCPP_INFO(logger_, "DownForwardAlign: max distance %.2fm reached.", max_dist_);
@@ -2797,11 +2799,15 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
             const auto &q = transform.transform.rotation;
             const double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
             const double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+            have_odom_tf_ = true;
             return MeasuredPose{transform.transform.translation.x, transform.transform.translation.y,
                                 transform.transform.translation.z, std::atan2(siny_cosp, cosy_cosp)};
         } catch (const tf2::TransformException &error) {
-            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000, "DownAlignToDetection waiting for odom TF: %s", error.what());
-            return std::nullopt;
+            have_odom_tf_ = false;
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000,
+                                 "DownAlignToDetection missing odom TF; using commanded pose: %s", error.what());
+            return MeasuredPose{node_.commanded_pos[0], node_.commanded_pos[1], node_.commanded_pos[2],
+                                node_.commanded_att[2]};
         }
     }
 
@@ -2872,14 +2878,24 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
             return BT::NodeStatus::SUCCESS;
         }
 
+        // Refresh the pose before deciding whether corrections are safe.  In
+        // particular, have_odom_tf_ starts false for every action instance;
+        // checking it first would prevent the first correction (and every
+        // subsequent one) even when the odom transform is available.
+        const auto pose = measuredPose();
+
+        // Without a pose TF, repeatedly applying the same image correction
+        // against the prior command integrates into a multi-metre target
+        // before the simulator can return a new image. Hold position instead;
+        // release is only permitted by the centered check above.
+        if (!have_odom_tf_) {
+            return BT::NodeStatus::RUNNING;
+        }
+
         if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
             return BT::NodeStatus::RUNNING;
         }
 
-        const auto pose = measuredPose();
-        if (!pose) {
-            return BT::NodeStatus::RUNNING;
-        }
         const double yaw = pose->yaw;
         // Image-up is vehicle-forward for the down camera; see the matching
         // sign convention in DownForwardAlignAction.
@@ -2924,6 +2940,7 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
     int orientation_settle_frames_ = 3;
     int consistent_orientation_frames_ = 0;
     bool orient_ = true;
+    mutable bool have_odom_tf_ = false;
     bool require_orientation_ = false;
     std::optional<double> filtered_orientation_;
 };

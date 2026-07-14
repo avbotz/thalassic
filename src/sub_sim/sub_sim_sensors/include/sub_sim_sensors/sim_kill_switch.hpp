@@ -18,6 +18,7 @@ class SimKillSwitch : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sim_sub_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pub_;
     rclcpp::TimerBase::SharedPtr startup_timer_;
+    rclcpp::TimerBase::SharedPtr released_heartbeat_timer_;
 
     bool startup_done_{false};
 };

@@ -23,11 +23,16 @@ the same namespace yourself. Otherwise it publishes root-level topics such as
 `/pos_setpoint`, while `sub_control` listens on `/marlin_v2/pos_setpoint`.
 
 The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`,
-`pool_d`, `prelim`, `pool_test`, `vision_test`, and `pid_tuning`.
+`pool_d`, `prelim`, `pool_test`, `vision_test`, `pid_tuning`, and `bins_test`.
 
 Vision BT XML uses task-agnostic model names such as `task="gate"`.
 `sub_mission` sends those names unchanged in `LoadModel` requests to
 `sub_vision`.
+
+`bins_test` runs only the Recon (Bins) tree. It chooses fire bins (detector
+class `0`) for `role:=SURVEY` and blood bins (class `1`) for `role:=SEARCH`,
+then drops one marker into each of the two matching bins. The current task
+scope does not include magnetic-detector interactions.
 
 ## Restart Supervisor
 

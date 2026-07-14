@@ -15,6 +15,7 @@ class SimPressureToDepth : public rclcpp::Node {
    private:
     double water_density_kg_m3_;
     double gravity_m_s2_;
+    double surface_pressure_pa_;
     std::string frame_id_;
     std::string child_frame_id_;
     double z_variance_;

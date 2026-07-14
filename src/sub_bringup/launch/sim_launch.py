@@ -210,6 +210,24 @@ def sim_entities() -> list:
         namespace=LaunchConfiguration("robot_name"),
         output="both",
         composable_node_descriptions=[
+            # Bring the simulated kill switch up first.  It publishes a
+            # transient initial killed state, so loading it after the mission
+            # has begun can abort an otherwise healthy task mid-run.
+            sim_component(
+                "sim_kill_switch",
+                "SimKillSwitch",
+                parameters=[{"off_delay": 0.0}],
+            ),
+            # The mission's first marker drop can occur before the remaining
+            # sensor adapters finish loading, so make its service available
+            # alongside the kill switch.
+            sim_component(
+                "sim_dropper",
+                "SimDropper",
+                parameters=[
+                    {"joint_name": "marlin_v2/dropper_joint"}
+                ],
+            ),
             sim_component(
                 "sim_dvl_remapper",
                 "SimDVLRemapper",
@@ -232,18 +250,6 @@ def sim_entities() -> list:
             ),
             sim_component("sim_thruster_republisher", "SimThrusterRepublisher"),
             sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
-            sim_component(
-                "sim_dropper",
-                "SimDropper",
-                parameters=[
-                    {"joint_name": "marlin_v2/dropper_joint"}
-                ],
-            ),
-            sim_component(
-                "sim_kill_switch",
-                "SimKillSwitch",
-                parameters=[{"off_delay": 6.0}],
-            ),
         ],
         ros_arguments=["--disable-stdout-logs"],
     )
@@ -365,7 +371,7 @@ def control_and_state_entities() -> list[Node]:
                     "config/control_gains_sim.yaml",
                 ]
             ),
-            {"robot_name": LaunchConfiguration("robot_name")},
+            {"robot_name": LaunchConfiguration("robot_name"), "start_un_killed": True},
         ],
     )
 
@@ -451,6 +457,9 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
                 "rgb_topic": "front_camera/image_raw",
                 "camera_info_topic": "front_camera/camera_info",
                 "image_transport": "raw",
+                "model_dir": PathJoinSubstitution(
+                    [FindPackageShare("sub_vision"), "models"]
+                ),
             },
         ],
     )
@@ -564,6 +573,7 @@ def generate_launch_description():
                 "mission": LaunchConfiguration("mission"),
                 "role": LaunchConfiguration("role"),
                 "torp_board_type": LaunchConfiguration("resolved_torp_board_type"),
+                "ignore_initial_kill": True,
             }
         ],
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),

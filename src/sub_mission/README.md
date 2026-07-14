@@ -55,7 +55,7 @@ resources/
                #   gate, slalom, bins, torp, octagon, coin_flip,
                #   competition (the shared 2026 run), plus test trees
   missions/    # runnable entrypoints (pool_a..pool_d, prelim, pool_test,
-               #   vision_test, pid_tuning)
+               #   vision_test, pid_tuning, bins_test)
   Project.btproj  # Groot2 project covering both, open it to edit any tree
 ```
 

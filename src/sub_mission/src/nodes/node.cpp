@@ -106,6 +106,12 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         throw std::invalid_argument("sub_mission torp_board_type must be v1 or v2");
     }
     RCLCPP_INFO(this->get_logger(), "Torpedo-board layout: %s", this->torp_board_type.c_str());
+
+    // The sim kill-switch bridge is a late-loaded composable node. Hardware
+    // remains fail-safe by default; the sim launch opts in only to bypass a
+    // missing initial latched sample. Later kill messages still apply.
+    this->declare_parameter<bool>("ignore_initial_kill", false);
+    this->get_parameter("ignore_initial_kill", this->ignore_initial_kill);
 }
 
 std::string MissionNode::visionModelTask(const std::string &task) const {
@@ -152,6 +158,10 @@ void MissionNode::activate() {
 
     // Wait for sub to turn on
     RCLCPP_INFO(this->get_logger(), "Wait for unkill");
+    if (this->ignore_initial_kill) {
+        this->killed = false;
+        RCLCPP_INFO(this->get_logger(), "Ignoring initial kill state for simulation startup.");
+    }
     while (rclcpp::ok() && !this->subAlive()) {
         RCLCPP_INFO(this->get_logger(), "Sub is killed, waiting...");
         std::this_thread::sleep_for(0.5s);

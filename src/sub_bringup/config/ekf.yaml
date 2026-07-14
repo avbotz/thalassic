@@ -10,6 +10,7 @@
         odom_frame: marlin_v2/odom
         base_link_frame: marlin_v2/base_link
         world_frame: marlin_v2/odom
+        publish_tf: true
 
         # Use relative measurements for yaw
         # AUV should always start at yaw = 0 when unkilled
@@ -38,12 +39,16 @@
                       false, false, false,
                       false, false, false]
 
-        # odom1: odometry/depth
-        # odom1_config: [false, false, true,
-        #               false, false, false,
-        #               false, false, false,
-        #               false, false, false,
-        #               false, false, false]
+        # Stonefish publishes pressure-derived depth through the simulation
+        # adapter. Fuse it so vertical position control (and the small
+        # camera-to-dropper z offset) can converge in sim just as it does on
+        # the vehicle.
+        odom1: odometry/depth
+        odom1_config: [false, false, true,
+                       false, false, false,
+                       false, false, false,
+                       false, false, false,
+                       false, false, false]
 
         # Depth camera not on marlin
         # odom2: odom/depth_camera

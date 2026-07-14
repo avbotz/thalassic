@@ -37,6 +37,7 @@ class MissionNode : public rclcpp::Node {
     // Torpedo-board artwork selected at launch. The second torpedo target is
     // mirrored between the two layouts.
     std::string torp_board_type;
+    bool ignore_initial_kill = false;
 
     // Logical BT task name -> sub_vision model task name.
     std::string visionModelTask(const std::string &task) const;

@@ -27,6 +27,7 @@ SubControl::SubControl() : Node("sub_control") {
     this->declare_parameter("control_rate_hz", 30.0, read_only);
     this->declare_parameter("power_limit", 0.6);
     this->declare_parameter("robot_name", "", read_only);
+    this->declare_parameter("start_un_killed", false, read_only);
 
     this->declare_parameter("pos_pid.x", std::vector<float>{0.8, 0.0, 0.0, 1.0});
     this->declare_parameter("pos_pid.y", std::vector<float>{0.8, 0.0, 0.0, 1.0});
@@ -52,6 +53,10 @@ SubControl::SubControl() : Node("sub_control") {
     this->get_parameter("control_rate_hz", control_rate_hz_);
     this->get_parameter("power_limit", power_limit_);
     this->get_parameter("robot_name", robot_name_);
+    if (this->get_parameter("start_un_killed").as_bool()) {
+        killed_ = false;
+        RCLCPP_WARN(this->get_logger(), "Starting un-killed for simulation; later kill messages remain active.");
+    }
     this->get_parameter("spin_max_yaw_rate", spin_max_yaw_rate_);
     this->get_parameter("spin_done_angle", spin_done_angle_);
     this->get_parameter("spin_done_rate", spin_done_rate_);

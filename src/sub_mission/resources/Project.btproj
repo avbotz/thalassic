@@ -219,6 +219,10 @@
         <Action ID="NavigateToTransform">
             <input_port name="source_frame">Frame whose current position is the aim point</input_port>
             <input_port name="target_frame">Attached frame to move into the source position</input_port>
+            <input_port name="horizontal_only" default="false">Preserve depth while aligning the attached frame</input_port>
+            <input_port name="fallback_forward">Body-forward offset used when TF is unavailable</input_port>
+            <input_port name="fallback_right">Body-right offset used when TF is unavailable</input_port>
+            <input_port name="fallback_up">Body-up offset used when TF is unavailable</input_port>
             <input_port name="timeout_msec" default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
         </Action>
         <Action ID="OctagonSurfaceSweep">

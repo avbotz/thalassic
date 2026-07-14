@@ -19,16 +19,33 @@ SimKillSwitch::SimKillSwitch(const rclcpp::NodeOptions& options) : Node("sim_kil
     sim_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         "sim/kill_switch", qos, [this](const std_msgs::msg::Bool& msg) { sim_callback(msg); });
 
-    // Start killed, then release after the startup delay.
-    publish(true);
-    RCLCPP_INFO(this->get_logger(), "kill switch ON; releasing in %.1fs", off_delay);
-    startup_timer_ = this->create_timer(std::chrono::duration<double>(off_delay), [this]() { release(); });
+    // Start killed, then release after the startup delay.  A zero delay is
+    // useful in simulation: composable nodes are loaded after the launch
+    // graph is already running, so relying on a timer to make the first
+    // release can leave a mission permanently killed if that executor is
+    // still busy finishing startup.
+    if (off_delay <= 0.0) {
+        // Sim launch requests immediate operation. Avoid publishing an
+        // initial latched true that can arrive after the controller's
+        // simulation-only startup override and re-kill it.
+        release();
+    } else {
+        publish(true);
+        RCLCPP_INFO(this->get_logger(), "kill switch ON; releasing in %.1fs", off_delay);
+        startup_timer_ = this->create_timer(std::chrono::duration<double>(off_delay), [this]() { release(); });
+    }
 }
 
 void SimKillSwitch::release() {
-    startup_timer_->cancel();
+    if (startup_timer_) {
+        startup_timer_->cancel();
+    }
     startup_done_ = true;
     publish(false);
+    // Re-publish the released state for late-starting controller nodes. The
+    // transient sample should cover this, but the composable sim startup can
+    // race DDS endpoint discovery.
+    released_heartbeat_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() { publish(false); });
     RCLCPP_INFO(this->get_logger(), "kill switch OFF");
 }
 
