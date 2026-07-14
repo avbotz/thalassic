@@ -5,7 +5,7 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 
 from sub_vision_interfaces.msg import DetectionArray
 
@@ -22,14 +22,24 @@ class AnnotatedNode(Node):
             "vision/debug_image",
             qos_profile_sensor_data,
         )
-        
 
-        self.create_subscription(
-            Image,
-            "front_camera/image_raw",
-            self.image_callback,
-            qos_profile_sensor_data,
-        )
+        self.declare_parameter("image_transport", "raw")
+        transport = self.get_parameter("image_transport").value
+
+        if transport == "compressed":
+            self.create_subscription(
+                CompressedImage,
+                "front_camera/image_raw/compressed",
+                self.image_compressed_callback,
+                qos_profile_sensor_data,
+            )
+        else:
+            self.create_subscription(
+                Image,
+                "front_camera/image_raw",
+                self.image_callback,
+                qos_profile_sensor_data,
+            )
         self.create_subscription(
             DetectionArray,
             "vision/detections",
@@ -39,6 +49,14 @@ class AnnotatedNode(Node):
     def image_callback(self, msg):
         self._latest_header = msg.header
         self._latest_image = self._bridge.imgmsg_to_cv2(
+            msg,
+            desired_encoding="bgr8",
+        )
+
+        self.publish_debug()
+    def image_compressed_callback(self, msg):
+        self._latest_header = msg.header
+        self._latest_image = self._bridge.compressed_imgmsg_to_cv2(
             msg,
             desired_encoding="bgr8",
         )

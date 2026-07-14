@@ -61,6 +61,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     registerSaveGateHomeAction(factory, node, logger);
     registerAverageAnglesAction(factory, logger);
     registerActuatorActions(factory, node, logger);
+    registerSleepAction(factory, logger);
     registerOctagonSurfaceSweepAction(factory, node, position_publisher, attitude_publisher, clock, logger);
 }
 

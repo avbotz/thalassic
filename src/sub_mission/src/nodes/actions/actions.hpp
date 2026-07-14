@@ -36,6 +36,7 @@ void registerWaitUntilHitAction(BT::BehaviorTreeFactory &factory, MissionNode &n
 void registerSaveGateHomeAction(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger);
 void registerAverageAnglesAction(BT::BehaviorTreeFactory &factory, rclcpp::Logger logger);
 void registerActuatorActions(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger);
+void registerSleepAction(BT::BehaviorTreeFactory &factory, rclcpp::Logger logger);
 void registerOctagonSurfaceSweepAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                        PointCmdPublisher::SharedPtr position_publisher,
                                        QuaternionCmdPublisher::SharedPtr attitude_publisher,

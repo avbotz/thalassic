@@ -3,110 +3,36 @@
       main_tree_to_execute="BinsMission">
   <BehaviorTree ID="BinsMission">
     <Sequence name="bins_mission">
-      <LoadModel camera="down"
-                 task="path"
-                 timeout_msec="30000"/>
-      <ForceSuccess>
-        <Fallback name="find_bins_path_marker">
-          <DownForwardSweepAlign task="path"
-                                 class_id=""
-                                 min_score="0.0"
-                                 max_dist="8.0"
-                                 forward_step="2.0"
-                                 default_distance="1.0"
-                                 center_gain="1.0"
-                                 lateral_sweep_step="1.0"
-                                 stop_camera=""
-                                 stop_task=""
-                                 stop_class_id=""
-                                 stop_min_score="0.0"
-                                 update_msec="300"
-                                 timeout_msec="30000"/>
-          <DownPatternScan task="path"
-                           class_id=""
-                           min_score="0.0"
-                           movement_dist="2.0"
-                           sample_timeout_msec="2500"
-                           move_timeout_msec="20000"/>
-        </Fallback>
-      </ForceSuccess>
-      <ForceSuccess>
-        <Fallback name="path_marker_oriented_then_center_only">
-          <DownContinuousAlign task="path"
-                               class_id=""
-                               min_score="0.0"
-                               tolerance="0.4"
-                               desired_distance="nan"
-                               distance_tolerance="0.5"
-                               default_distance="1.0"
-                               center_gain="1.0"
-                               orient="true"
-                               require_orientation="true"
-                               orientation_settle_frames="3"
-                               orientation_consistency_deg="10.0"
-                               orient_tolerance_deg="5.0"
-                               min_msec="3000"
-                               timeout_msec="12000"
-                               update_msec="200"/>
-          <DownContinuousAlign task="path"
-                               class_id=""
-                               min_score="0.0"
-                               tolerance="0.4"
-                               desired_distance="nan"
-                               distance_tolerance="0.5"
-                               default_distance="1.0"
-                               center_gain="1.0"
-                               orient="false"
-                               min_msec="1000"
-                               timeout_msec="8000"
-                               update_msec="200"/>
-          <AlwaysSuccess/>
-        </Fallback>
-      </ForceSuccess>
-      <LoadModel camera="front"
-                 task="bins_side"
-                 timeout_msec="30000"/>
-      <ForceSuccess>
-        <ForwardContinuousAlign camera="front"
-                                task="bins_side"
-                                class_id=""
-                                min_score="0.0"
-                                max_dist="10.0"
-                                forward_velocity="1.0"
-                                close_distance="3.0"
-                                detection_loss_msec="3000"
-                                timeout_msec="30000"/>
-      </ForceSuccess>
       <PosSetpoint x="nan"
                    y="nan"
                    z="-0.5"/>
       <LoadModel camera="down"
-                 task="fire_bins"
+                 task="torp_fire_blood"
                  timeout_msec="30000"/>
       <Fallback name="find_bins">
-        <DownForwardSweepAlign task="fire_bins"
-                               class_id=""
+        <DownForwardSweepAlign task="torp_fire_blood"
+                               class_id="0"
                                min_score="0.0"
                                max_dist="20.0"
                                forward_step="0.5"
                                default_distance="1.0"
                                center_gain="1.0"
+                               orient="false"
                                lateral_sweep_step="1.0"
                                stop_camera=""
                                stop_task=""
                                stop_class_id=""
-                               stop_min_score="0.0"
                                update_msec="300"
                                timeout_msec="15000"/>
-        <DownPatternScan task="fire_bins"
-                         class_id=""
+        <DownPatternScan task="torp_fire_blood"
+                         class_id="0"
                          min_score="0.0"
                          movement_dist="1.65"
                          sample_timeout_msec="2500"
                          move_timeout_msec="20000"/>
       </Fallback>
-      <DownContinuousAlign task="fire_bins"
-                           class_id=""
+      <DownContinuousAlign task="torp_fire_blood"
+                           class_id="0"
                            min_score="0.0"
                            tolerance="0.3"
                            desired_distance="1.0"
@@ -114,42 +40,55 @@
                            default_distance="1.0"
                            center_gain="1.0"
                            orient="true"
+                           require_orientation="false"
+                           orientation_settle_frames="3"
+                           orientation_consistency_deg="10.0"
                            orient_tolerance_deg="5.0"
                            min_msec="3000"
                            timeout_msec="30000"
                            update_msec="200"/>
+      <NavigateToTransform source_frame="dropper_link"
+                           target_frame="down_camera"
+                           timeout_msec="30000"/>
       <DropBalls open="true"
                  timeout_msec="5000"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.6"/>
-      <MoveRelative x="1.0"
+                   z="-0.5"/>
+      <MoveRelative x="2.0"
                     y="0.0"
                     z="0.0"/>
+      <Sleep msec="3000"/>
+      <VelocitySetpoint x="0.0"
+                        y="0.0"
+                        z="0.0"/>
       <Fallback>
-        <DownForwardSweepAlign task="fire_bins"
-                               class_id=""
+        <DownForwardSweepAlign task="torp_fire_blood"
+                               class_id="0"
                                min_score="0.0"
                                max_dist="20.0"
                                forward_step="0.5"
                                default_distance="1.0"
                                center_gain="1.0"
+                               orient="false"
                                lateral_sweep_step="1.0"
                                stop_camera=""
                                stop_task=""
                                stop_class_id=""
-                               stop_min_score="0.0"
                                update_msec="300"
                                timeout_msec="15000"/>
-        <DownPatternScan task="fire_bins"
-                         class_id=""
+        <DownPatternScan task="torp_fire_blood"
+                         class_id="0"
                          min_score="0.0"
                          movement_dist="1.65"
                          sample_timeout_msec="2500"
                          move_timeout_msec="20000"/>
       </Fallback>
-      <DownContinuousAlign task="fire_bins"
-                           class_id=""
+      <VelocitySetpoint x="0.0"
+                        y="0.0"
+                        z="0.0"/>
+      <DownContinuousAlign task="torp_fire_blood"
+                           class_id="0"
                            min_score="0.0"
                            tolerance="0.35"
                            desired_distance="nan"
@@ -157,10 +96,16 @@
                            default_distance="1.0"
                            center_gain="1.0"
                            orient="true"
+                           require_orientation="false"
+                           orientation_settle_frames="3"
+                           orientation_consistency_deg="10.0"
                            orient_tolerance_deg="5.0"
                            min_msec="3000"
                            timeout_msec="30000"
                            update_msec="200"/>
+      <NavigateToTransform source_frame="dropper_link"
+                           target_frame="down_camera"
+                           timeout_msec="30000"/>
       <DropBalls open="true"
                  timeout_msec="5000"/>
       <MoveRelative x="1.0"
@@ -248,35 +193,6 @@
       <input_port name="timeout_msec"
                   default="5000">Maximum wait for set_dropper response</input_port>
     </Action>
-    <Action ID="ForwardContinuousAlign">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="max_dist"
-                  default="10.0">Maximum forward travel before SUCCESS</input_port>
-      <input_port name="forward_velocity"
-                  default="1.0">Fixed body-forward velocity in meters per second</input_port>
-      <input_port name="close_distance"
-                  default="3.0">Distance that completes the approach</input_port>
-      <input_port name="detection_loss_msec"
-                  default="3000">Target-loss time that completes the approach</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Maximum align time before SUCCESS</input_port>
-      <input_port name="confirmation_frames" default="1">Matching frames required before propulsion</input_port>
-      <input_port name="continue_on_loss" default="true">Continue on the last heading after target loss</input_port>
-      <input_port name="stop_on_close" default="true">Stop immediately when the target is close</input_port>
-      <input_port name="loss_is_success" default="false">Accept target loss only after a confirmed close pass</input_port>
-      <input_port name="loss_min_travel" default="0.0">Minimum odom travel before a post-close loss can succeed</input_port>
-      <input_port name="timeout_is_success" default="true">Treat bounded timeout as SUCCESS</input_port>
-      <input_port name="max_dist_is_success" default="true">Treat maximum travel as SUCCESS</input_port>
-      <input_port name="max_yaw_step_deg" default="45.0">Maximum heading correction per frame</input_port>
-      <input_port name="fixed_distance_from_detection" default="false">Lock transit distance from confirmed vision range</input_port>
-      <input_port name="pass_distance" default="0.0">Meters to continue beyond detected gap plane</input_port>
-      <input_port name="min_transit_distance" default="0.0">Minimum safe fixed transit distance</input_port>
-    </Action>
     <Action ID="LoadModel">
       <input_port name="camera"
                   default="front">Camera whose vision node loads the model</input_port>
@@ -292,6 +208,12 @@
       <input_port name="z"
                   default="0.0">Vertical offset in meters; negative is down</input_port>
     </Action>
+    <Action ID="NavigateToTransform">
+      <input_port name="source_frame">Frame whose current position is the aim point</input_port>
+      <input_port name="target_frame">Attached frame to move into the source position</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
+    </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
                   default="nan">North/forward position setpoint</input_port>
@@ -299,6 +221,14 @@
                   default="nan">East/right position setpoint</input_port>
       <input_port name="z"
                   default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="VelocitySetpoint">
+      <input_port name="x"
+                  default="0.0">Forward velocity in meters per second</input_port>
+      <input_port name="y"
+                  default="0.0">Right velocity in meters per second</input_port>
+      <input_port name="z"
+                  default="0.0">Up velocity in meters per second</input_port>
     </Action>
   </TreeNodesModel>
 

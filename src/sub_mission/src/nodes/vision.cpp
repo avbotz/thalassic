@@ -2491,10 +2491,15 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         double forward = forward_step_;
         double right = 0.0;
         std::optional<double> yaw_offset;
-        const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
+        const Match match = latestMatch(node_, filter_, sweep_when_missing_ ? SteadyClock::time_point{} : last_processed_ + std::chrono::nanoseconds(1));
         if (match.detection != nullptr) {
             if (sweep_when_missing_) {
                 RCLCPP_INFO(logger_, "DownForwardSweepAlign: found %s.", filter_.describe().c_str());
+                if (const auto hold = measuredPosition()) {
+                    node_.commanded_pos[0] = (*hold)[0];
+                    node_.commanded_pos[1] = (*hold)[1];
+                    position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
+                }
                 return BT::NodeStatus::SUCCESS;
             }
             last_processed_ = match.received_at;

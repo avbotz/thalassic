@@ -1,22 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Gain-tuning profile: one step input per controlled axis with a hold after
-  each so the response (overshoot, settling) is visible in the plots. Every
-  setpoint node already waits until the tracking error is within tolerance;
-  the Sleep is the observation window.
--->
-<root BTCPP_format="4" main_tree_to_execute="PidTuningRun">
+<root BTCPP_format="4"
+      main_tree_to_execute="PidTuningRun">
   <BehaviorTree ID="PidTuningRun">
     <Sequence name="pid_tuning">
-      <PosSetpoint z="-1.0"/>
-      <Sleep msec="8000"/>
-      <MoveRelative x="2.0"/>
-      <Sleep msec="8000"/>
-      <AddAttSetpoint yaw="1.57079633"/>
-      <Sleep msec="8000"/>
-      <PosSetpoint z="-0.5"/>
-      <Sleep msec="8000"/>
-      <PosSetpoint z="0.0"/>
+      <SubTree ID="BinsMission"/>
     </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel/>
+
 </root>

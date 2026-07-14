@@ -492,8 +492,10 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
         name="annotation_visualizer_down",
         output="screen",
         namespace=LaunchConfiguration("robot_name"),
+        parameters=[{"image_transport": "compressed"}],
         remappings=[
             ("front_camera/image_raw", "down_camera/image_raw"),
+            ("front_camera/image_raw/compressed", "down_camera/image_raw/compressed"),
             ("vision/detections", "vision/detections_down"),
             ("vision/debug_image", "vision/debug_image_down"),
         ],
