@@ -67,7 +67,8 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     registerSaveGateHomeAction(factory, node, logger);
     registerAverageAnglesAction(factory, logger);
     registerActuatorActions(factory, node, logger);
-    registerSleepAction(factory, logger);
+    // BehaviorTree.CPP provides Sleep itself. Registering our legacy action
+    // again throws "ID [Sleep] already registered" before any mission loads.
     registerOctagonSurfaceSweepAction(factory, node, position_publisher, attitude_publisher, clock, logger);
 }
 
