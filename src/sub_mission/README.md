@@ -15,6 +15,8 @@ is REP-103, the same convention `sub_control` speaks:
   with 0 at the sub's initial heading.
 - **Body (FLU):** x forward, y left, z up. `<MoveRelative y="1.0"/>` moves 1 m
   to port.
+- **Global (ENU):** `<MoveRelativePos x="1.0"/>` adds 1 m east to the commanded
+  position, independent of attitude.
 - **Exceptions:** `AltitudeSetpoint z` is height above the bottom (positive
   up), and `AlignToDetection depth_gain`/`ForwardAlign depth_offset` keep
   depth semantics (positive = deeper).

@@ -60,6 +60,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
     registerAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);
+    registerMoveRelativePosAction(factory, node, position_publisher, clock, logger);
     registerNavigateToTransformAction(factory, node, position_publisher, clock, logger);
     registerAddAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerSpinAction(factory, node, spin_publisher, attitude_publisher, clock, logger);

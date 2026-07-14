@@ -81,6 +81,7 @@ Movement-related XML nodes currently implemented in C++:
 | `AttSetpoint` | Attitude command that waits for the controller to reach tolerance |
 | `AngularVelocitySetpoint` | Body-frame angular velocity command |
 | `MoveRelative` | Relative x/y/z movement using the current commanded yaw |
+| `MoveRelativePos` | Relative ENU x/y/z movement that does not use attitude |
 | `NavigateToTransform` | Move a vehicle-mounted source frame to an externally supplied target pose |
 | `AddAttSetpoint` | Relative roll/pitch/yaw target |
 | `Spin` | Angular-velocity spin until measured yaw travel reaches the target |

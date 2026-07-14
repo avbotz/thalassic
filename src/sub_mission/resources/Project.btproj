@@ -222,6 +222,11 @@
             <input_port name="y" default="0.0">Right offset in meters</input_port>
             <input_port name="z" default="0.0">Vertical offset in meters; negative is down</input_port>
         </Action>
+        <Action ID="MoveRelativePos">
+            <input_port name="x" default="0.0">Global east offset in meters</input_port>
+            <input_port name="y" default="0.0">Global north offset in meters</input_port>
+            <input_port name="z" default="0.0">Global vertical offset in meters; negative is down</input_port>
+        </Action>
         <Action ID="NavigateToTransform">
             <input_port name="source_frame">Frame whose current position is the aim point</input_port>
             <input_port name="target_frame">Attached frame to move into the source position</input_port>

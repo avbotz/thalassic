@@ -37,7 +37,7 @@
       z=ROBOT_Z,
       roll=0.0,
       pitch=0.0,
-      yaw=ROBOT_YAW if ROBOT_YAW is not none else PI
+      yaw=ROBOT_YAW if ROBOT_YAW is not none else choose([PI/2, PI])
   ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
@@ -112,7 +112,7 @@
     <arg name="yaw" value="{{ fuzz(-PI / 6, DYAW / 2) }}" />
   </include>
 
-
+<!-- 
   <include file="models/bin_task/bin/bin.scn">
     <arg name="x" value="{{ fuzz(15.4, DX) }}" />
     <arg name="y" value="{{ fuzz(1.1, DY) }}" />
@@ -120,7 +120,7 @@
     <arg name="roll" value="3.14159" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
-  </include>
+  </include> -->
 
   {% set torp_board_type = choose(['v1', 'v2']) if TORP_BOARD_TYPE == 'random' else TORP_BOARD_TYPE %}
   <include file="models/torpedoes_task/torpboard_{{ torp_board_type }}/torpboard_{{ torp_board_type }}.scn">

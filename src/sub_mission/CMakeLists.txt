@@ -47,6 +47,7 @@ set(MISSION_ACTION_SOURCES
     src/nodes/actions/att_setpoint.cpp
     src/nodes/actions/average_angles.cpp
     src/nodes/actions/move_relative.cpp
+    src/nodes/actions/move_relative_pos.cpp
     src/nodes/actions/navigate_to_transform.cpp
     src/nodes/actions/octagon_surface_sweep.cpp
     src/nodes/actions/pos_setpoint.cpp

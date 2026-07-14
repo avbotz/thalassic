@@ -22,6 +22,9 @@ void registerAngularVelocitySetpointAction(BT::BehaviorTreeFactory &factory, Mis
 void registerMoveRelativeAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                 PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
                                 rclcpp::Logger logger);
+void registerMoveRelativePosAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
+                                   PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
+                                   rclcpp::Logger logger);
 void registerNavigateToTransformAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                        PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
                                        rclcpp::Logger logger);

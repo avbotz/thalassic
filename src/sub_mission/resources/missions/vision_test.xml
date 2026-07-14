@@ -4,8 +4,10 @@
   <BehaviorTree ID="VisionTestRun">
     <Sequence name="vision_test_run">
       <SetBlackboard output_key="torp_search_yaw" value="-0.211"/>
-      <SubTree ID="TorpMission"
-               _autoremap="true"/>
+      <ForceSuccess>
+        <SubTree ID="TorpMission"
+                 _autoremap="true"/>
+      </ForceSuccess>
     </Sequence>
   </BehaviorTree>
 
