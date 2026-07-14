@@ -13,6 +13,10 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from std_msgs.msg import Bool, Float64
+from sensor_msgs.msg import Imu
+
+from tf_transformations import quaternion_from_euler
+
 
 from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
@@ -35,7 +39,10 @@ class SubLow(LifecycleNode):
 
         self.declare_parameter("depth_frame_id", "odom")
         self.declare_parameter("depth_child_frame_id", "base_link")
+        self.declare_parameter("imu_frame_id", "imu_link")
         self.declare_parameter("depth_z_variance", 0.01)
+
+        self.declare_parameter("publish_imu", True)
 
         self._serial: serial.Serial | None = None
         self._write_lock = threading.Lock()
@@ -60,7 +67,9 @@ class SubLow(LifecycleNode):
 
         self._depth_frame_id = self.get_parameter("depth_frame_id").value
         self._depth_child_frame_id = self.get_parameter("depth_child_frame_id").value
+        self._imu_frame_id = self.get_parameter("imu_frame_id").value
         self._depth_z_variance = self.get_parameter("depth_z_variance").value
+        self._publish_imu = self.get_parameter("publish_imu").value
         self._depth_pub = self.create_lifecycle_publisher(
             Odometry, "odometry/depth", qos_profile_sensor_data
         )
@@ -86,6 +95,14 @@ class SubLow(LifecycleNode):
         )
         self._set_dropper_srv = self.create_service(
             SetDropper, "set_dropper", self._set_dropper_callback
+        )
+
+        self._imu_pub = self.create_lifecycle_publisher(
+            Imu, "imu/data", QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=10
+            )
         )
 
         self._reader_stop.clear()
@@ -197,6 +214,26 @@ class SubLow(LifecycleNode):
                 return
 
             self._publish_depth(depth)
+        elif fields[0] == b"i":
+            try:
+                if not self._publish_imu:
+                    return
+
+                imu = Imu()
+                imu.header.stamp = self.get_clock().now().to_msg()
+                imu.header.frame_id = self._imu_frame_id
+
+                roll = float(fields[1])
+                pitch = float(fields[2])
+                yaw = float(fields[3])
+                q = quaternion_from_euler(roll, pitch, yaw)
+
+                imu.orientation.x = q[0]
+                imu.orientation.y = q[1]
+                imu.orientation.z = q[2]
+                imu.orientation.w = q[3]
+            except (IndexError, ValueError):
+                return
 
     def _publish_depth(self, depth: float) -> None:
         if self._depth_pub is None:

@@ -26,7 +26,7 @@ declare -A models=(
 
 if [[ " $* " =~ " --sim " ]]; then
     for model in "${!sim_models[@]}"; do
-        gdown "${sim_models[$model]}" -O "weights/$model.pt"
+        gdown "${sim_models[$model]}" -O "weights/$model.onnx"
     done
 else
     for model in "${!models[@]}"; do

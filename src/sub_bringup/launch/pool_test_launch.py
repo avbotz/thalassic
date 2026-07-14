@@ -149,18 +149,19 @@ def control_and_state_entities():
                 "device": "/dev/pico",
                 "depth_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
                 "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/depth_link"],
+                "imu_frame_id": [LaunchConfiguration("robot_name"), "/witmotion_imu_link"],
             }
         ],
     )
 
-    naviguider_imu_driver_node = LifecycleNode(
-        package="sub_serial_drivers",
-        executable="naviguider_imu_driver",
-        name="naviguider_imu_driver",
-        namespace=LaunchConfiguration("robot_name"),
-        output="both",
-        parameters=[{"device": "/dev/naviguider_imu", "frame_id": "marlin_v2/imu_link"}],
-    )
+    # naviguider_imu_driver_node = LifecycleNode(
+    #     package="sub_serial_drivers",
+    #     executable="naviguider_imu_driver",
+    #     name="naviguider_imu_driver",
+    #     namespace=LaunchConfiguration("robot_name"),
+    #     output="both",
+    #     parameters=[{"device": "/dev/naviguider_imu", "frame_id": "marlin_v2/imu_link"}],
+    # )
 
     robot_localization_node = Node(
         package="robot_localization",
@@ -172,7 +173,7 @@ def control_and_state_entities():
             PathJoinSubstitution(
                 [
                     FindPackageShare("sub_bringup"),
-                    "config/ekf.yaml",
+                    "config/ekf_pool.yaml",
                 ]
             ),
         ],
@@ -217,7 +218,7 @@ def control_and_state_entities():
         # sub_control_node,
         sub_control_mcu_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),
-        *lifecycle_startup(naviguider_imu_driver_node),
+        # *lifecycle_startup(naviguider_imu_driver_node),
         *lifecycle_startup(sub_low_node),
     ]
 

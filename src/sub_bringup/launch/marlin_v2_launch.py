@@ -25,6 +25,7 @@ def generate_launch_description():
         static_tf(BASE_NED, f"{ROBOT}/pressure_link", y=0.34012, z=-0.19384),
         # Naviguider IMU outputs ENU
         static_tf(f"{ROBOT}/base_link", f"{ROBOT}/imu_link", x=-0.199, y=-0.09, z=0.185622),
+        static_tf(f"{ROBOT}/base_link", f"{ROBOT}/witmotion_imu_link", x=-0.075, y=-0.038, z=0.185622),
         static_tf(BASE_NED, f"{ROBOT}/dropper_link", x=-0.19074, y=0.40252, z=0.15565),
         static_tf(
             BASE_NED, f"{ROBOT}/left_grabber_link", x=0.056319, y=0.3506, z=0.13631
