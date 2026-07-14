@@ -11,6 +11,7 @@ declare -A sim_models=(
     ["path_marker"]="https://drive.google.com/file/d/1Z48v2QMXTAKXQeYasLrr7ppSr43AZk7q/view"
     ["slalom"]="https://drive.google.com/file/d/1fpKPookhjDVDDNKeEgshl0-yfyH-V0jp/view"
     ["octagon_gate_images"]="https://drive.google.com/drive/u/0/folders/1bESRgUH0ChXFrFy241ReqvT3KSzyoTIK"
+    ["torp_find"]="https://drive.google.com/file/d/1IGKLsHt4Z1yOv0NkiVRRCwg-e8z0aT_m/view"
 )
 
 declare -A models=(
@@ -22,6 +23,7 @@ declare -A models=(
     ["path_marker"]=""
     ["slalom"]=""
     ["octagon_gate_images"]=""
+    ["torp_find"]=""
 )
 
 if [[ " $* " =~ " --sim " ]]; then
