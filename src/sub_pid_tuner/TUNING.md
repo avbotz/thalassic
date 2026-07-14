@@ -9,9 +9,11 @@ Tune velocity x/y/z, then angular rate roll/pitch/yaw. Select the controller and
 axis in **Control**, then use:
 
 - **Trapezoid cruise** first. It ramps to a constant rate, cruises, ramps back
-  to zero, settles, then tests the opposite direction. Set the ramp long enough
-  to avoid saturating the thrusters. The zero dwell is intentional: unlike a
-  wheeled robot, the AUV should shed momentum before reversing.
+  to zero, settles, then tests the opposite direction. Set **Ramp slope** low
+  enough to avoid saturating the thrusters, then increase it gradually to expose
+  acceleration lag. The dashboard shows the resulting ramp duration. The zero
+  dwell is intentional: unlike a wheeled robot, the AUV should shed momentum
+  before reversing.
 - **Step + settle** for rise time, overshoot, steady error, and positive/negative
   asymmetry. Each direction returns to zero and settles before the next one, so
   momentum from a reversal is not mistaken for bad PID.
@@ -44,10 +46,13 @@ Keep the inner gains fixed and select the position controller.
 
 - **Follower PID loop** repeatedly follows a compact closed path relative to
   the measured starting pose. Start in **XY horizontal**, then use a vertical
-  plane, and only then try **XYZ 3D**. Tune from the three error traces and the
-  planned/target/actual trails in **3D Path**.
-- **Spline Test** is the final coupled check. It follows a smooth 3D Bezier out
-  and back with zero endpoint velocity and a home settle between cycles.
+  plane. Tune from the two selected error traces and the green target versus
+  blue actual trail in **Pool Path**.
+- **Square Test** is a post-tuning validation. It follows four straight sides,
+  slowing to zero and briefly settling at every corner so a direction reversal
+  is not mistaken for a controller problem.
+- **Spline Test** is the final coupled check. It follows a smooth planar Bezier
+  out and back with zero endpoint velocity and a home settle between cycles.
 
 These are feedback-follower tests, not feedforward identification. The current
 AUV cascade accepts pose targets but no trajectory velocity feedforward, so a

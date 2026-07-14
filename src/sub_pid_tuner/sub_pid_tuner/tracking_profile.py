@@ -18,10 +18,11 @@ EXPERIMENTS = {
     "sine",
     "hold",
     "follower_pid",
+    "square_test",
     "spline_test",
 }
-PATH_EXPERIMENTS = {"follower_pid", "spline_test"}
-PATH_AXES = {"xy", "xz", "yz", "xyz"}
+PATH_EXPERIMENTS = {"follower_pid", "square_test", "spline_test"}
+PATH_AXES = {"xy", "xz", "yz"}
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,7 @@ class TrackingProfile:
             if self.mode != "position":
                 raise ValueError("path op modes use the position controller")
             if self.axis not in PATH_AXES:
-                raise ValueError("path plane must be xy, xz, yz, or xyz")
+                raise ValueError("path plane must be xy, xz, or yz")
         elif self.axis not in "xyz" or len(self.axis) != 1:
             raise ValueError("axis must be x, y, or z")
         values = (self.amplitude, self.ramp_time, self.hold_time)
@@ -213,25 +214,46 @@ class TrackingProfile:
             return (0.0, 0.0, 0.0)
         phase = local / self.ramp_time
 
-        if self.experiment == "follower_pid":
+        if self.experiment == "square_test":
+            # Four straight segments with a quintic time law on each edge.
+            # The final 20% of each segment holds the corner so the AUV can
+            # shed momentum before the next direction change.
+            edge_position = phase * 4.0
+            edge = min(int(edge_position), 3)
+            u = self._smoothstep(min((edge_position - edge) / 0.8, 1.0))
+            corners = (
+                (0.0, 0.0),
+                (self.amplitude, 0.0),
+                (self.amplitude, self.amplitude),
+                (0.0, self.amplitude),
+                (0.0, 0.0),
+            )
+            start = corners[edge]
+            end = corners[edge + 1]
+            canonical = (
+                start[0] + (end[0] - start[0]) * u,
+                start[1] + (end[1] - start[1]) * u,
+                0.0,
+            )
+        elif self.experiment == "follower_pid":
             theta = 2.0 * math.pi * self._smoothstep(phase)
             canonical = (
                 self.amplitude * math.sin(theta),
                 0.65 * self.amplitude * (1.0 - math.cos(theta)),
-                0.35 * self.amplitude * math.sin(2.0 * theta),
+                0.0,
             )
         else:
-            # A smooth out-and-back cubic Bezier. Quintic time scaling makes
-            # velocity and acceleration zero at home and at the far endpoint.
+            # A smooth planar cubic Bezier out and back. Quintic time scaling
+            # makes velocity and acceleration zero at both endpoints.
             outward = phase <= 0.5
             u = phase * 2.0 if outward else (1.0 - phase) * 2.0
             u = self._smoothstep(u)
-            p0 = (0.0, 0.0, 0.0)
-            p1 = (0.28, 0.65, 0.18)
-            p2 = (0.72, -0.55, 0.48)
-            p3 = (1.0, 0.0, 0.32)
+            p0 = (0.0, 0.0)
+            p1 = (0.28, 0.65)
+            p2 = (0.72, -0.55)
+            p3 = (1.0, 0.0)
             inverse = 1.0 - u
-            canonical = tuple(
+            curve = tuple(
                 self.amplitude
                 * (
                     inverse**3 * p0[index]
@@ -239,8 +261,9 @@ class TrackingProfile:
                     + 3.0 * inverse * u**2 * p2[index]
                     + u**3 * p3[index]
                 )
-                for index in range(3)
+                for index in range(2)
             )
+            canonical = (curve[0], curve[1], 0.0)
 
         x, y, z = canonical
         if self.axis == "xy":
@@ -249,7 +272,7 @@ class TrackingProfile:
             return (x, 0.0, y)
         if self.axis == "yz":
             return (0.0, x, y)
-        return (x, y, z)
+        raise ValueError(f"unsupported path plane: {self.axis}")
 
     def preview(self, samples: int = 121) -> list[list[float]]:
         if not self.path_experiment:
@@ -261,4 +284,7 @@ class TrackingProfile:
         ]
 
     def public_state(self) -> dict:
-        return {**asdict(self), "duration": self.duration}
+        state = {**asdict(self), "duration": self.duration}
+        if self.experiment == "trapezoid":
+            state["ramp_slope"] = abs(self.amplitude) / self.ramp_time
+        return state
