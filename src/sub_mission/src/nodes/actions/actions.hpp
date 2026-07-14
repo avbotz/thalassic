@@ -4,18 +4,14 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "sub_control_interfaces/action/control_setpoint.hpp"
 
 class MissionNode;
 
-void registerPosSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                               PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
-                               rclcpp::Logger logger);
-void registerVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                                    PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
-                                    rclcpp::Logger logger);
-void registerAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                               QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
-                               rclcpp::Logger logger);
+void registerControlSetpointActions(
+    BT::BehaviorTreeFactory& factory,
+    rclcpp_action::Client<sub_control_interfaces::action::ControlSetpoint>::SharedPtr client, rclcpp::Logger logger);
 void registerAngularVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                            PointCmdPublisher::SharedPtr angular_velocity_publisher,
                                            rclcpp::Clock::SharedPtr clock, rclcpp::Logger logger);
