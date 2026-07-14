@@ -40,7 +40,7 @@
       <Fallback name="find_role_bin">
         <DownForwardSweepAlign task="torp_fire_blood"
                                class_id="{class_id}"
-                               min_score="0.0"
+                               min_score="0.35"
                                max_dist="20.0"
                                forward_step="0.5"
                                default_distance="1.0"
@@ -51,26 +51,29 @@
                                timeout_msec="15000"/>
         <DownPatternScan task="torp_fire_blood"
                          class_id="{class_id}"
-                         min_score="0.0"
+                         min_score="0.35"
                          movement_dist="1.65"
                          sample_timeout_msec="2500"
                          move_timeout_msec="20000"/>
       </Fallback>
       <DownContinuousAlign task="torp_fire_blood"
                            class_id="{class_id}"
-                           min_score="0.0"
-                           tolerance="0.25"
+                           min_score="0.45"
+                           tolerance="0.12"
                            desired_distance="nan"
                            default_distance="1.0"
                            center_gain="1.0"
                            orient="false"
-                           min_msec="3000"
+                           min_msec="2500"
                            timeout_msec="30000"
                            update_msec="200"/>
-      <!-- Put the physical dropper, not the camera, over the centered target. -->
+      <!-- DownContinuousAlign centers the camera on the selected bin image.
+           Shift by the measured camera-to-dropper transform, then wait until
+           NavigateToTransform has controller-confirmed the final position. -->
       <NavigateToTransform source_frame="down_camera"
                            target_frame="dropper_link"
                            timeout_msec="30000"/>
+      <Sleep msec="1000"/>
       <DropBalls dropper_id="{dropper_id}"
                  open="true"
                  timeout_msec="5000"/>

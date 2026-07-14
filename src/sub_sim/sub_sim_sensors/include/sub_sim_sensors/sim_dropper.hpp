@@ -1,6 +1,9 @@
 #ifndef SIM_DROPPER_HPP_
 #define SIM_DROPPER_HPP_
 
+#include <array>
+#include <optional>
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_srvs/srv/set_bool.hpp>
@@ -18,10 +21,11 @@ class SimDropper : public rclcpp::Node {
     rclcpp::Service<sub_driver_interfaces::srv::SetDropper>::SharedPtr set_dropper_srv_;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_setpoint_pub_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
-    rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr glue_client_;
+    std::array<rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr, 2> glue_clients_;
 
-    bool released_ = false;
-    bool request_in_flight_ = false;
+    std::array<bool, 2> released_ = {};
+    std::array<bool, 2> request_in_flight_ = {};
+    std::optional<std::uint8_t> pending_dropper_id_;
 };
 
 #endif  // SIM_DROPPER_HPP_

@@ -11,7 +11,8 @@ SimDropper::SimDropper(const rclcpp::NodeOptions& options) : Node("sim_dropper",
     this->declare_parameter<double>("open_position", 1.5);  // rad
     this->declare_parameter<double>("release_angle", 1.0);  // rad
 
-    glue_client_ = this->create_client<std_srvs::srv::SetBool>("sim/dropper_ball/glue");
+    glue_clients_[0] = this->create_client<std_srvs::srv::SetBool>("sim/dropper_ball/glue");
+    glue_clients_[1] = this->create_client<std_srvs::srv::SetBool>("sim/dropper_ball_1/glue");
 
     joint_setpoint_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("sim/joint_setpoints", 10);
 
@@ -27,6 +28,24 @@ SimDropper::SimDropper(const rclcpp::NodeOptions& options) : Node("sim_dropper",
 
 void SimDropper::set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
                                       std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response) {
+    if (request->dropper_id >= glue_clients_.size()) {
+        response->success = false;
+        response->message = "dropper_id must be 0 or 1.";
+        return;
+    }
+
+    if (request->open && released_[request->dropper_id]) {
+        response->success = false;
+        response->message = "Marker has already been released.";
+        return;
+    }
+
+    if (request->open && pending_dropper_id_) {
+        response->success = false;
+        response->message = "Another marker release is still in progress.";
+        return;
+    }
+
     const double position = request->open ? this->get_parameter("open_position").as_double() : 0.0;
 
     sensor_msgs::msg::JointState setpoint;
@@ -35,13 +54,22 @@ void SimDropper::set_dropper_callback(const std::shared_ptr<sub_driver_interface
     setpoint.position.push_back(position);
     joint_setpoint_pub_->publish(setpoint);
 
-    RCLCPP_INFO(this->get_logger(), "Dropper servo commanded to %g rad.", position);
+    if (request->open) {
+        pending_dropper_id_ = request->dropper_id;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Dropper %u servo commanded to %g rad.",
+                static_cast<unsigned int>(request->dropper_id), position);
     response->success = true;
     response->message = request->open ? "Dropper opening." : "Dropper closing.";
 }
 
 void SimDropper::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
-    if (released_ || request_in_flight_) {
+    if (!pending_dropper_id_) {
+        return;
+    }
+    const std::uint8_t dropper_id = *pending_dropper_id_;
+    if (released_[dropper_id] || request_in_flight_[dropper_id]) {
         return;
     }
 
@@ -57,7 +85,8 @@ void SimDropper::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
             return;
         }
 
-        if (!glue_client_->service_is_ready()) {
+        auto& glue_client = glue_clients_[dropper_id];
+        if (!glue_client->service_is_ready()) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
                                  "Dropper servo turned but glue service is unavailable.");
             return;
@@ -65,14 +94,15 @@ void SimDropper::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
 
         auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
         request->data = false;
-        request_in_flight_ = true;
+        request_in_flight_[dropper_id] = true;
 
-        glue_client_->async_send_request(request, [this](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
-            request_in_flight_ = false;
+        glue_client->async_send_request(request, [this, dropper_id](rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture future) {
+            request_in_flight_[dropper_id] = false;
             const auto result = future.get();
             if (result->success) {
-                released_ = true;
-                RCLCPP_INFO(this->get_logger(), "Dropper ball released.");
+                released_[dropper_id] = true;
+                pending_dropper_id_.reset();
+                RCLCPP_INFO(this->get_logger(), "Dropper %u marker released.", static_cast<unsigned int>(dropper_id));
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Glue release failed: %s", result->message.c_str());
             }

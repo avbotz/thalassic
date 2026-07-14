@@ -684,4 +684,30 @@
     <second_body name="marlin_v2/base_link_ned" />
     <ros_service topic="/marlin_v2/sim/dropper_ball/glue" />
   </glue>
+
+  <robot name="dropper_ball_1" fixed="false" self_collisions="false" algorithm="featherstone">
+    <base_link name="base_link" type="sphere" physics="submerged" buoyant="true">
+      <dimensions radius="0.0155" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+
+      <mass value="0.039" />
+
+      <material name="plastic" />
+      <look name="ball_red" />
+    </base_link>
+
+    <sensor name="dropper_ball_1_odometry" rate="10.0" type="odometry">
+      <link name="base_link" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <ros_publisher topic="/marlin_v2/sim/dropper_ball_1/odometry" />
+    </sensor>
+
+    <world_transform xyz="{{ x + 0.193 }} {{ y - 0.3075 }} {{ z + 0.115 }}" rpy="{{ roll }} {{ pitch }} {{ yaw }}" />
+  </robot>
+
+  <glue name="dropper_ball_1_glue" activated="true">
+    <first_body name="dropper_ball_1/base_link" />
+    <second_body name="marlin_v2/base_link_ned" />
+    <ros_service topic="/marlin_v2/sim/dropper_ball_1/glue" />
+  </glue>
 </scenario>
