@@ -159,8 +159,6 @@ void MissionNode::activate() {
     }
 
     RCLCPP_INFO(this->get_logger(), "Kill switch released");
-    RCLCPP_INFO(this->get_logger(), "Wait for motors to start up");
-    std::this_thread::sleep_for(7s);
 }
 
 bool MissionNode::load_mission() {

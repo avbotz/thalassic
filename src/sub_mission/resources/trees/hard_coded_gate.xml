@@ -5,7 +5,7 @@
     <Sequence name="hard_coded_coin_flip_mission">
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.7"/>
+                   z="-1.0"/>
       <Sleep msec="3500"/>
       <AttSetpoint roll="nan"
                    pitch="nan"
