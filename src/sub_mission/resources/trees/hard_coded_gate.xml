@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
       main_tree_to_execute="HardCodedGateMission">
-  <BehaviorTree ID="HardCodedCoinFlipMission">
+  <!-- <BehaviorTree ID="HardCodedCoinFlipMission">
     <Sequence name="hard_coded_coin_flip_mission">
       <PosSetpoint x="nan"
                    y="nan"
@@ -11,7 +11,7 @@
                    pitch="nan"
                    yaw="0.0"/>
     </Sequence>
-  </BehaviorTree>
+  </BehaviorTree> -->
 
   <BehaviorTree ID="HardCodedGateMission">
     <Sequence name="hard_coded_gate_mission">
@@ -20,30 +20,18 @@
                     y="{@gate_home_y}"/>
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.65"/>
-      <MoveRelative x="7.8"
+                   z="-1.0"/>
+      <MoveRelativePos x="0.0"
+                    y="0.4"
+                    z="0.0"/>
+      <MoveRelativePos x="1.5"
                     y="0.0"
                     z="0.0"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-1.3"/>
-      <MoveRelative x="1.3"
-                    y="0.0"
-                    z="0.0"
-                    _description="Pass through the gate centerline"/>
       <Spin yaw="12.56637061"
             rate="3.14159265"/>
-      <MoveRelative x="0.5"
-                    y="0.0"
-                    z="0.0"
-                    _description="Clear the gate after the spin"/>
       <PosSetpoint x="nan"
                    y="nan"
                    z="-0.8"/>
-      <AttSetpoint name="hard_coded_pool_exit_heading"
-                   roll="nan"
-                   pitch="nan"
-                   yaw="0.34906585"/>
     </Sequence>
   </BehaviorTree>
 
