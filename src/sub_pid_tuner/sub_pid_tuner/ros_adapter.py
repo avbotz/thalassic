@@ -480,10 +480,16 @@ class RosAdapter(Node):
         ramp_time: float,
         hold_time: float,
         cycles: int,
+        max_tracking_error: float | None = None,
     ) -> dict:
         profile = TrackingProfile.from_values(
             experiment, mode, axis, amplitude, ramp_time, hold_time, cycles
         )
+        path_error_limit = None
+        if profile.path_experiment:
+            path_error_limit = 0.12 if max_tracking_error is None else float(max_tracking_error)
+            if not math.isfinite(path_error_limit) or not 0.02 <= path_error_limit <= 1.0:
+                raise ValueError("maximum path lag must be between 0.02 and 1 metre")
         self._refresh_source_health()
         now = time.monotonic()
         with self._lock:
@@ -524,6 +530,15 @@ class RosAdapter(Node):
                 "attitude_hold": attitude,
             }
             if profile.path_experiment:
+                run.update(
+                    path_elapsed=0.0,
+                    last_tick=now,
+                    max_tracking_error=path_error_limit,
+                    timeout_after=min(
+                        max(profile.duration * 4.0, profile.duration + 120.0),
+                        profile.duration + 600.0,
+                    ),
+                )
                 run["path_preview"] = [
                     [position[index] + offset[index] for index in range(3)]
                     for offset in profile.preview()
@@ -537,6 +552,17 @@ class RosAdapter(Node):
                 "progress": 0.0,
                 "path_preview": run.get("path_preview", []),
                 "current_reference": position if profile.path_experiment else None,
+                **(
+                    {
+                        "max_tracking_error": path_error_limit,
+                        "tracking_error": 0.0,
+                        "reference_rate": 1.0,
+                        "reference_limited": False,
+                        "wall_elapsed": 0.0,
+                    }
+                    if profile.path_experiment
+                    else {}
+                ),
                 **profile.public_state(),
             }
 
@@ -581,14 +607,15 @@ class RosAdapter(Node):
         self.publish_setpoint(profile.mode, command)
 
     def _tracking_tick(self) -> None:
+        now = time.monotonic()
         with self._lock:
             run = self._tracking_run
             killed = self._kill
             duplicate_sources = self._duplicate_sources()
             measurement_age = (
                 max(
-                    time.monotonic() - self._last_odom,
-                    time.monotonic() - self._last_error,
+                    now - self._last_odom,
+                    now - self._last_error,
                 )
                 if self._last_odom and self._last_error
                 else None
@@ -609,8 +636,12 @@ class RosAdapter(Node):
             self._finish_tracking("aborted", "Telemetry became stale", publish_hold=True)
             return
 
-        elapsed = time.monotonic() - run["started_at"]
         profile: TrackingProfile = run["profile"]
+        if profile.path_experiment:
+            self._tracking_path_tick(run, now)
+            return
+
+        elapsed = now - run["started_at"]
         if elapsed >= profile.duration:
             self._finish_tracking("complete", "Tracking routine complete", publish_hold=True)
             return
@@ -620,6 +651,90 @@ class RosAdapter(Node):
                 self._tracking_state["elapsed"] = elapsed
                 self._tracking_state["progress"] = elapsed / profile.duration
 
+    def _tracking_path_tick(self, run: dict, now: float) -> None:
+        """Advance a path reference only as quickly as the AUV can follow it.
+
+        Path validation is different from an inner-loop step response. Advancing
+        a geometric path strictly from wall time makes it impossible to tell a
+        bad follower from a reference that simply exceeds the vehicle's
+        acceleration and drag limits. This governor leaves the requested path
+        unchanged while slowing its virtual clock as planar tracking lag grows.
+        """
+        profile: TrackingProfile = run["profile"]
+        with self._lock:
+            if self._tracking_run is not run:
+                return
+            current = [
+                float(self._signals[f"pid.position.{axis}.current"])
+                for axis in "xyz"
+            ]
+            reference = self._tracking_state.get("current_reference")
+            path_elapsed = float(run["path_elapsed"])
+            last_tick = float(run["last_tick"])
+            max_error = float(run["max_tracking_error"])
+
+        if not isinstance(reference, list) or len(reference) != 3:
+            offset = profile.vector_at(path_elapsed)
+            reference = [
+                run["position_hold"][index] + offset[index]
+                for index in range(3)
+            ]
+
+        selected = ["xyz".index(axis) for axis in profile.axis]
+        tracking_error = math.sqrt(
+            sum((current[index] - float(reference[index])) ** 2 for index in selected)
+        )
+        slowdown_error = max_error * 0.5
+        if tracking_error <= slowdown_error:
+            reference_rate = 1.0
+        elif tracking_error >= max_error:
+            reference_rate = 0.0
+        else:
+            reference_rate = (max_error - tracking_error) / (
+                max_error - slowdown_error
+            )
+
+        # Clamp timer jitter so a delayed callback cannot jump the target.
+        delta = max(0.0, min(now - last_tick, 0.2))
+        path_elapsed = min(path_elapsed + delta * reference_rate, profile.duration)
+        wall_elapsed = max(0.0, now - run["started_at"])
+        with self._lock:
+            if self._tracking_run is not run:
+                return
+            run["path_elapsed"] = path_elapsed
+            run["last_tick"] = now
+
+        if wall_elapsed >= run["timeout_after"]:
+            self._finish_tracking(
+                "aborted",
+                "Path timed out while waiting for the vehicle to catch up",
+                publish_hold=True,
+            )
+            return
+        if path_elapsed >= profile.duration:
+            self._finish_tracking("complete", "Tracking routine complete", publish_hold=True)
+            return
+
+        self._publish_tracking_reference(run, path_elapsed)
+        limited = reference_rate < 0.999
+        if reference_rate < 0.05:
+            message = "Target paused while the vehicle catches up"
+        elif limited:
+            message = "Target slowed for tracking lag"
+        else:
+            message = "Tracking profile running"
+        with self._lock:
+            if self._tracking_run is run:
+                self._tracking_state.update(
+                    elapsed=path_elapsed,
+                    progress=path_elapsed / profile.duration,
+                    wall_elapsed=wall_elapsed,
+                    tracking_error=tracking_error,
+                    reference_rate=reference_rate,
+                    reference_limited=limited,
+                    message=message,
+                )
+
     def _finish_tracking(self, status: str, message: str, publish_hold: bool) -> None:
         with self._lock:
             run = self._tracking_run
@@ -627,7 +742,12 @@ class RosAdapter(Node):
                 return
             self._tracking_run = None
             profile: TrackingProfile = run["profile"]
-            elapsed = min(time.monotonic() - run["started_at"], profile.duration)
+            wall_elapsed = max(0.0, time.monotonic() - run["started_at"])
+            elapsed = (
+                min(float(run["path_elapsed"]), profile.duration)
+                if profile.path_experiment
+                else min(wall_elapsed, profile.duration)
+            )
             self._tracking_state = {
                 "active": False,
                 "status": status,
@@ -636,6 +756,17 @@ class RosAdapter(Node):
                 "progress": min(elapsed / profile.duration, 1.0),
                 "path_preview": run.get("path_preview", []),
                 "current_reference": None,
+                **(
+                    {
+                        "max_tracking_error": run["max_tracking_error"],
+                        "tracking_error": self._tracking_state.get("tracking_error", 0.0),
+                        "reference_rate": 0.0,
+                        "reference_limited": False,
+                        "wall_elapsed": wall_elapsed,
+                    }
+                    if profile.path_experiment
+                    else {}
+                ),
                 **profile.public_state(),
             }
         if publish_hold:

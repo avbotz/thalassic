@@ -100,7 +100,10 @@ class TrackingProfile:
                 f"{self.mode.replace('_', ' ')} amplitude must be non-zero and at most "
                 f"{limit:g} {MODE_LIMITS[self.mode]['unit']}"
             )
-        if not 0.5 <= self.ramp_time <= 30.0:
+        if self.path_experiment:
+            if not 4.0 <= self.ramp_time <= 180.0:
+                raise ValueError("path traversal time must be between 4 and 180 seconds")
+        elif not 0.5 <= self.ramp_time <= 30.0:
             raise ValueError("ramp time must be between 0.5 and 30 seconds")
         if not 0.2 <= self.hold_time <= 30.0:
             raise ValueError("hold time must be between 0.2 and 30 seconds")
@@ -283,8 +286,21 @@ class TrackingProfile:
             for index in range(samples)
         ]
 
+    @property
+    def path_length(self) -> float:
+        if not self.path_experiment:
+            return 0.0
+        points = self.preview(samples=301)
+        return sum(
+            math.dist(points[index - 1], points[index])
+            for index in range(1, len(points))
+        )
+
     def public_state(self) -> dict:
         state = {**asdict(self), "duration": self.duration}
         if self.experiment == "trapezoid":
             state["ramp_slope"] = abs(self.amplitude) / self.ramp_time
+        if self.path_experiment:
+            state["path_length"] = self.path_length
+            state["nominal_speed"] = self.path_length / self.ramp_time
         return state

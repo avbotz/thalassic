@@ -194,6 +194,7 @@ class DashboardServer:
                 message.get("ramp_time"),
                 message.get("hold_time"),
                 message.get("cycles"),
+                message.get("max_tracking_error"),
             )
             return {
                 "type": "tracking_result",

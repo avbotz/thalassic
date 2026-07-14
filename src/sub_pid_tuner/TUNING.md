@@ -47,7 +47,7 @@ Keep the inner gains fixed and select the position controller.
 - **Follower PID loop** repeatedly follows a compact closed path relative to
   the measured starting pose. Start in **XY horizontal**, then use a vertical
   plane. Tune from the two selected error traces and the green target versus
-  blue actual trail in **Pool Path**.
+  blue actual trail in **Pool Path**. Start with the 45 s default traversal.
 - **Square Test** is a post-tuning validation. It follows four straight sides,
   slowing to zero and briefly settling at every corner so a direction reversal
   is not mistaken for a controller problem.
@@ -59,6 +59,19 @@ AUV cascade accepts pose targets but no trajectory velocity feedforward, so a
 moving pose target must retain some error to create velocity demand. Judge
 bounded lag, repeatability, overshoot, and cross-axis error rather than expecting
 perfect target/current overlap during motion.
+
+Path modes use a response-aware target clock. The entered traversal time is the
+nominal, fastest traversal. The target begins slowing at half of **Max lag** and
+pauses at the limit until the AUV catches up. This accounts for mass, added
+mass, drag, and finite thruster acceleration without changing the geometric
+path. The status row shows wall time, current lag, and target-clock speed.
+
+Start with **Max lag = 0.12 m** and a nominal average target speed around
+0.03–0.06 m/s. If the target is slowed most of the run, increase traversal time
+or return to inner/outer-loop tuning. Do not increase Max lag just to make a run
+finish, and do not set it below position-estimator noise. The velocity and
+angular-rate routines deliberately do not use this governor: their lag is the
+response being measured.
 
 ## 4. Apply and save
 

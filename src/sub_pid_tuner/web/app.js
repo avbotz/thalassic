@@ -892,9 +892,12 @@ function drawPathViewer() {
   ctx.fillText(axes + " · metres", plot.left, height - 11);
   ctx.fillText("local pool plane · auto fit", plot.left + 6, plot.top + 16);
   const pathNames = {follower_pid: "Follower PID", square_test: "Square Test", spline_test: "Spline Test"};
+  const rate = Number(tracking.reference_rate);
+  const governorStatus = tracking.reference_limited ?
+    rate < 0.05 ? " · catching up" : " · target " + Math.round(rate * 100) + "% speed" : "";
   $("path-status").textContent = tracking.active && pathNames[tracking.experiment] ?
     pathNames[tracking.experiment] + " · " + Math.round((tracking.progress || 0) * 100) + "% · " +
-      (validTarget ? "target live" : "target unavailable") :
+      (validTarget ? "target live" : "target unavailable") + governorStatus :
     planned.length ? "Last target path" : validTarget ? "Live target and pose" : "Live pose trail";
 }
 
@@ -944,9 +947,9 @@ const trackingDefaults = {
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3},
     hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1},
-    follower_pid: {amplitude: 0.5, ramp: 12, hold: 3, cycles: 2},
-    square_test: {amplitude: 0.5, ramp: 16, hold: 3, cycles: 2},
-    spline_test: {amplitude: 0.6, ramp: 12, hold: 3, cycles: 2}
+    follower_pid: {amplitude: 0.5, ramp: 45, hold: 5, cycles: 1, maxError: 0.12},
+    square_test: {amplitude: 0.5, ramp: 60, hold: 5, cycles: 1, maxError: 0.12},
+    spline_test: {amplitude: 0.5, ramp: 40, hold: 5, cycles: 1, maxError: 0.12}
   },
   velocity: {
     trapezoid: {amplitude: 0.25, ramp: 0.125, hold: 2, cycles: 2},
@@ -972,9 +975,9 @@ const trackingHints = {
   step: "Tests positive and negative commands separately, returning to zero to settle between them.",
   sine: "Smooth zero-mean tracking with a fade-in/out; shorten the period gradually to expose phase lag.",
   hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move.",
-  follower_pid: "Repeats a smooth planar loop from the measured pose. Tune from both position errors and the pool trail.",
-  square_test: "Runs four straight sides with a brief settle at each corner to validate the tuned planar follower.",
-  spline_test: "Runs a smooth planar Bezier out and back to validate coupled tracking without target jumps."
+  follower_pid: "Repeats a slow, smooth planar loop from the measured pose. Tune from both position errors and the pool trail.",
+  square_test: "Runs four slow straight sides with a settle at each corner to validate the tuned planar follower.",
+  spline_test: "Runs a slow planar Bezier out and back to validate coupled tracking without target jumps."
 };
 
 function updateTrackingHint() {
@@ -985,6 +988,16 @@ function updateTrackingHint() {
     const slope = Number($("tracking-ramp").value);
     if (Number.isFinite(amplitude) && Number.isFinite(slope) && slope > 0) {
       hint += " Current ramp duration: " + (amplitude / slope).toFixed(2) + " s.";
+    }
+  }
+  if (pathExperiments.has(experiment)) {
+    const amplitude = Math.abs(Number($("tracking-amplitude").value));
+    const traversal = Number($("tracking-ramp").value);
+    const maxError = Number($("tracking-max-error").value);
+    const lengthFactor = {follower_pid: 5.25, square_test: 4, spline_test: 2.3}[experiment];
+    if ([amplitude, traversal, maxError].every(Number.isFinite) && traversal > 0) {
+      hint += " Approx. target speed: " + (lengthFactor * amplitude / traversal).toFixed(3) +
+        " m/s. The target slows and then pauses as lag approaches " + maxError.toFixed(2) + " m.";
     }
   }
   $("tracking-hint").textContent = hint;
@@ -1018,12 +1031,13 @@ function updateTrackingLabels(loadDefaults) {
   $("tracking-amplitude-label").textContent = (pathExperiment ? "Path span" : mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
   $("tracking-amplitude-wrap").hidden = experiment === "hold";
   $("tracking-primary-wrap").hidden = experiment === "hold";
+  $("tracking-max-error-wrap").hidden = !pathExperiment;
   $("tracking-cycles-wrap").hidden = experiment === "hold";
   const slopeUnit = mode === "angular_velocity" ? "rad/s²" : "m/s²";
-  $("tracking-primary-label").textContent = pathExperiment ? "Traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp slope (" + slopeUnit + ")" : experiment === "step" ? "Step (s)" : "Period (s)";
-  $("tracking-ramp").min = experiment === "trapezoid" ? "0.005" : "0.5";
-  $("tracking-ramp").max = experiment === "trapezoid" ? "5" : "30";
-  $("tracking-ramp").step = experiment === "trapezoid" ? "0.005" : "0.1";
+  $("tracking-primary-label").textContent = pathExperiment ? "Nominal traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp slope (" + slopeUnit + ")" : experiment === "step" ? "Step (s)" : "Period (s)";
+  $("tracking-ramp").min = pathExperiment ? "4" : experiment === "trapezoid" ? "0.005" : "0.5";
+  $("tracking-ramp").max = pathExperiment ? "180" : experiment === "trapezoid" ? "5" : "30";
+  $("tracking-ramp").step = pathExperiment ? "1" : experiment === "trapezoid" ? "0.005" : "0.1";
   $("tracking-secondary-label").textContent = experiment === "trapezoid" ? "Cruise / settle (s)" : experiment === "step" ? "Settle (s)" : experiment === "sine" ? "Final settle (s)" : experiment === "hold" ? "Duration (s)" : pathExperiment ? "Home settle (s)" : "Hold (s)";
   if (loadDefaults) {
     const defaults = trackingDefaults[mode][experiment];
@@ -1031,6 +1045,7 @@ function updateTrackingLabels(loadDefaults) {
     $("tracking-ramp").value = defaults.ramp;
     $("tracking-hold").value = defaults.hold;
     $("tracking-cycles").value = defaults.cycles;
+    if (pathExperiment) $("tracking-max-error").value = defaults.maxError;
   }
   updateTrackingHint();
 }
@@ -1072,7 +1087,8 @@ async function startTracking() {
     amplitude: amplitude,
     ramp_time: rampTime,
     hold_time: Number($("tracking-hold").value),
-    cycles: Number($("tracking-cycles").value)
+    cycles: Number($("tracking-cycles").value),
+    max_tracking_error: pathExperiments.has(experiment) ? Number($("tracking-max-error").value) : null
   };
   if (experiment === "trapezoid" && (!Number.isFinite(primary) || primary <= 0)) {
     toast("Ramp slope must be greater than zero", true);
@@ -1085,7 +1101,9 @@ async function startTracking() {
       " to " + maximumSlope.toPrecision(3), true);
     return;
   }
-  if (![values.amplitude, values.ramp_time, values.hold_time, values.cycles].every(Number.isFinite)) {
+  const numericValues = [values.amplitude, values.ramp_time, values.hold_time, values.cycles];
+  if (pathExperiments.has(experiment)) numericValues.push(values.max_tracking_error);
+  if (!numericValues.every(Number.isFinite)) {
     toast("Enter finite tracking routine values", true);
     return;
   }
@@ -1127,15 +1145,22 @@ function renderTracking() {
   const inactiveStatus = !topologyReady ? "Conflict" : !telemetryReady ? "Telemetry stale" :
     state.server.killed !== false ? "Killed" : tracking.status === "stopped" ? "Ready" :
       tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1);
-  setPill("tracking-status", active ? "Running" : inactiveStatus, statusKind);
+  const referenceRate = Number(tracking.reference_rate);
+  const activeStatus = Number.isFinite(referenceRate) && referenceRate < 0.05 ? "Catching up" :
+    Number.isFinite(referenceRate) && referenceRate < 0.999 ? "Target slowed" : "Running";
+  setPill("tracking-status", active ? activeStatus : inactiveStatus, statusKind);
   document.querySelectorAll(".tracking-form input, .tracking-form select").forEach(control => {
     control.disabled = active;
   });
   $("start-tracking").disabled = active || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   $("stop-tracking").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   const progress = Number.isFinite(tracking.progress) ? Math.round(tracking.progress * 100) : 0;
+  const pathProgress = pathExperiments.has(tracking.experiment) ?
+    progress + "% path · " + Number(tracking.wall_elapsed || 0).toFixed(1) + " s wall · lag " +
+      Number(tracking.tracking_error || 0).toFixed(2) + " m · target " +
+      Math.round(Math.max(0, Math.min(1, Number.isFinite(referenceRate) ? referenceRate : 1)) * 100) + "%" : null;
   $("tracking-progress").textContent = active ?
-    progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
+    pathProgress || progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
     !topologyReady ? "Stop the duplicate sim/controller launch: " + duplicates.join(", ") :
       !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
       "Release kill switch to tune" : tracking.message || "Ready";
@@ -1331,6 +1356,7 @@ $("tracking-mode").addEventListener("change", () => updateTrackingLabels(true));
 $("tracking-experiment").addEventListener("change", () => updateTrackingLabels(true));
 $("tracking-amplitude").addEventListener("input", updateTrackingHint);
 $("tracking-ramp").addEventListener("input", updateTrackingHint);
+$("tracking-max-error").addEventListener("input", updateTrackingHint);
 $("start-tracking").addEventListener("click", startTracking);
 $("stop-tracking").addEventListener("click", stopTracking);
 $("export").addEventListener("click", exportCsv);
