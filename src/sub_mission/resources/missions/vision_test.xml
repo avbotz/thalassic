@@ -2,8 +2,11 @@
 <root BTCPP_format="4"
       main_tree_to_execute="VisionTestRun">
   <BehaviorTree ID="VisionTestRun">
-    <SubTree ID="TorpMission"
-             _autoremap="true"/>
+    <Sequence name="vision_test_run">
+      <SetBlackboard output_key="torp_search_yaw" value="-0.211"/>
+      <SubTree ID="TorpMission"
+               _autoremap="true"/>
+    </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->

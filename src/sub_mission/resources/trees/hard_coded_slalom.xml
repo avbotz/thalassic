@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedSlalomMission">
+  <BehaviorTree ID="HardCodedSlalomMission">
+    <Sequence name="hard_coded_slalom_mission">
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.1"/>
+      <MoveRelative x="0.0"
+                    y="0.5"
+                    z="0.0"
+                    _description="Move to the fixed port-side line for the first pole"/>
+      <MoveRelative x="3.0"
+                    y="0.0"
+                    z="0.0"
+                    _description="Forward transit past the first pole"/>
+      <MoveRelative x="0.0"
+                    y="1.8"
+                    z="0.0"
+                    _description="Move to the fixed starboard-side line for the second pole"/>
+      <MoveRelative x="3.0"
+                    y="0.0"
+                    z="0.0"
+                    _description="Forward transit past the second pole"/>
+      <MoveRelative x="0.0"
+                    y="-1.8"
+                    z="0.0"
+                    _description="Move to the fixed port-side line for the third pole"/>
+      <MoveRelative x="3.0"
+                    y="0.0"
+                    z="0.0"
+                    _description="Forward transit past the third pole"/>
+      <MoveRelative x="0.0"
+                    y="0.9"
+                    z="0.0"
+                    _description="Return to the course centerline"/>
+      <MoveRelative x="1.0"
+                    y="0.0"
+                    z="0.0"
+                    _description="Forward clearance after the final pole"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+  </TreeNodesModel>
+
+</root>

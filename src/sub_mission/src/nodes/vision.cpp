@@ -946,6 +946,8 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<int>("attempts", 3, "Stable matching frames required for an acquisition"));
         ports.insert(BT::InputPort<int>("num_sweeps", 1, "Complete stationary left/right sweeps before acquisition"));
         ports.insert(BT::InputPort<int>("required_pole_count", 1, "Pole count required to confirm the selected pole"));
+        ports.insert(BT::InputPort<double>("max_left_offset_deg", 45.0,
+                                           "Largest safe port-side scan offset before using the least-oblique pole"));
         ports.insert(
             BT::InputPort<double>("sample_timeout_msec", 1800.0, "Maximum detection sampling time at each heading"));
         ports.insert(BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each in-place yaw command"));
@@ -959,6 +961,7 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
         getInput("attempts", attempts_);
         getInput("num_sweeps", num_sweeps_);
         getInput("required_pole_count", required_pole_count_);
+        getInput("max_left_offset_deg", max_left_offset_deg_);
         getInput("sample_timeout_msec", sample_timeout_msec_);
         getInput("move_timeout_msec", move_timeout_msec_);
 
@@ -969,9 +972,8 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
         if (attempts_ <= 0 || num_sweeps_ <= 0 || required_pole_count_ != 1 || sample_timeout_msec_ <= 0.0 ||
-            move_timeout_msec_ <= 0) {
-            RCLCPP_ERROR(logger_,
-                         "StationarySweepAlign requires positive timings and exactly one selected slalom pole.");
+            move_timeout_msec_ <= 0 || max_left_offset_deg_ <= 0.0 || max_left_offset_deg_ > 180.0) {
+            RCLCPP_ERROR(logger_, "StationarySweepAlign requires valid timings, one pole, and a safe left-offset limit.");
             stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
@@ -1086,18 +1088,28 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
         candidates_.push_back(candidate);
     }
 
-    const Candidate *leftmostConfirmedCandidate() const {
+    const Candidate *safestConfirmedCandidate() const {
         const Candidate *best = nullptr;
+        const double safe_offset = radians(max_left_offset_deg_);
         for (const Candidate &candidate : candidates_) {
             if (candidate.samples < attempts_ || candidate.distance_samples < attempts_) {
                 continue;
             }
-            // REP-103 yaw is counter-clockwise-positive, so the largest
-            // signed offset from the scan start is the image-left/port-most
-            // pole. If every valid pole is to starboard, this still chooses
-            // the least-starboard (reasonable default) instead of skipping it.
-            if (best == nullptr ||
-                normalizeAngle(candidate.yaw() - scan_start_yaw_) > normalizeAngle(best->yaw() - scan_start_yaw_)) {
+            const double offset = normalizeAngle(candidate.yaw() - scan_start_yaw_);
+            if (std::fabs(offset) > safe_offset) {
+                continue;
+            }
+            // A staggered course can put the "left-most" visible gap behind
+            // another row.  Crossing the most direct confirmed gap is the
+            // primary safety criterion; port/left bias is only a tie-breaker.
+            // This prevents a large sideways transit into an adjacent pole.
+            if (best == nullptr) {
+                best = &candidate;
+                continue;
+            }
+            const double best_offset = normalizeAngle(best->yaw() - scan_start_yaw_);
+            if (std::fabs(offset) < std::fabs(best_offset) - radians(2.0) ||
+                (std::fabs(std::fabs(offset) - std::fabs(best_offset)) <= radians(2.0) && offset > best_offset)) {
                 best = &candidate;
             }
         }
@@ -1172,7 +1184,7 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
             return BT::NodeStatus::RUNNING;
         }
 
-        if (const Candidate *candidate = leftmostConfirmedCandidate()) {
+        if (const Candidate *candidate = safestConfirmedCandidate()) {
             const auto range = candidate->distance();
             if (!range) {
                 RCLCPP_WARN(logger_, "StationarySweepAlign: selected gap has no valid vision range.");
@@ -1181,11 +1193,11 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
             const double offset = normalizeAngle(candidate->yaw() - scan_start_yaw_);
             setOutput("transit_distance_m", *range);
             RCLCPP_INFO(logger_,
-                        "StationarySweepAlign: full scan confirmed %d pole candidate(s); selecting left-most %.1f deg "
+                        "StationarySweepAlign: full scan confirmed %d pole candidate(s); selecting safest %.1f deg "
                         "at %.2fm.",
                         static_cast<int>(candidates_.size()), std::round(offset * 180.0 / M_PI), *range);
             return beginFinalAlign(candidate->yaw(),
-                                   "right-clearance path around the left-most pole after stationary scan");
+                                   "direct confirmed right-clearance path after stationary scan");
         }
 
         RCLCPP_WARN(logger_,
@@ -1254,6 +1266,7 @@ class StationarySweepAlignAction : public BT::StatefulActionNode {
     int attempts_ = 3;
     int num_sweeps_ = 1;
     int required_pole_count_ = 1;
+    double max_left_offset_deg_ = 45.0;
     int sweep_index_ = 0;
     std::size_t angle_index_ = 0;
     int move_timeout_msec_ = 20000;
@@ -1916,21 +1929,30 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         return {BT::InputPort<double>("vision_distance_m", "Range produced by StationarySweepAlign"),
                 BT::InputPort<double>("pass_distance", 0.0, "Meters to travel beyond the detected gap plane"),
                 BT::InputPort<double>("min_transit_distance", 0.0, "Minimum safe fixed transit distance in meters"),
+                BT::InputPort<double>("completion_tolerance_m", 0.15,
+                                      "Odometry shortfall accepted within the pass margin"),
                 BT::InputPort<double>("max_dist", 10.0, "Hard maximum forward distance in meters"),
                 BT::InputPort<double>("forward_velocity", 0.3, "Body-forward transit velocity in meters per second"),
-                BT::InputPort<int>("timeout_msec", 30000, "Maximum transit time before a safe failure")};
+                BT::InputPort<int>("timeout_msec", 30000, "Maximum transit time before a safe failure"),
+                BT::InputPort<double>("min_progress_m", 0.10, "Minimum odometry advance that proves motion"),
+                BT::InputPort<int>("progress_timeout_msec", 4000,
+                                   "Maximum time without sufficient odometry progress")};
     }
 
     BT::NodeStatus onStart() override {
         getInput("vision_distance_m", vision_distance_m_);
         getInput("pass_distance", pass_distance_);
         getInput("min_transit_distance", min_transit_distance_);
+        getInput("completion_tolerance_m", completion_tolerance_m_);
         getInput("max_dist", max_dist_);
         getInput("forward_velocity", forward_velocity_);
         getInput("timeout_msec", timeout_msec_);
+        getInput("min_progress_m", min_progress_m_);
+        getInput("progress_timeout_msec", progress_timeout_msec_);
 
         if (!validDistanceValue(vision_distance_m_) || pass_distance_ < 0.0 || min_transit_distance_ < 0.0 ||
-            max_dist_ <= 0.0 || forward_velocity_ <= 0.0 || timeout_msec_ <= 0) {
+            completion_tolerance_m_ < 0.0 || max_dist_ <= 0.0 || forward_velocity_ <= 0.0 || timeout_msec_ <= 0 ||
+            min_progress_m_ <= 0.0 || progress_timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_,
                          "ForwardFixedTransit received invalid range, distance, velocity, or timeout settings.");
             stopVelocity();
@@ -1938,6 +1960,7 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         }
 
         planned_distance_ = std::max(min_transit_distance_, vision_distance_m_ + pass_distance_);
+        completion_distance_ = std::max(min_transit_distance_, planned_distance_ - completion_tolerance_m_);
         if (planned_distance_ > max_dist_) {
             RCLCPP_WARN(logger_, "ForwardFixedTransit: requested %.2fm exceeds %.2fm safety limit.", planned_distance_,
                         max_dist_);
@@ -1952,8 +1975,11 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         }
         initial_position_ = *initial_position;
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec_);
+        progress_deadline_ = SteadyClock::now() + std::chrono::milliseconds(progress_timeout_msec_);
+        last_progress_travel_ = 0.0;
         node_.last_velocity_setpoint = {forward_velocity_, 0.0, 0.0};
         velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        last_velocity_publish_ = SteadyClock::now();
         velocity_active_ = true;
         RCLCPP_INFO(logger_, "ForwardFixedTransit: passing right of confirmed pole for %.2fm at %.2fm/s.",
                     planned_distance_, forward_velocity_);
@@ -1966,6 +1992,17 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
             stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
+        // Hold command ownership for the entire transit. Telemetry/teleop
+        // bridges may publish zero velocity keepalives after this action's
+        // initial command; without reassertion, one such message silently
+        // stops the vehicle and the progress watchdog fires several seconds
+        // later. Re-publishing is safe because setpoint updates preserve PID
+        // state in sub_control.
+        if (SteadyClock::now() - last_velocity_publish_ >= std::chrono::milliseconds(200)) {
+            node_.last_velocity_setpoint = {forward_velocity_, 0.0, 0.0};
+            velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+            last_velocity_publish_ = SteadyClock::now();
+        }
         const auto current_position = horizontalPosition();
         if (!current_position) {
             stopVelocity();
@@ -1973,10 +2010,20 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         }
         const double travel =
             std::hypot((*current_position)[0] - initial_position_[0], (*current_position)[1] - initial_position_[1]);
-        if (travel >= planned_distance_) {
-            RCLCPP_INFO(logger_, "ForwardFixedTransit: completed %.2fm confirmed-gap pass.", planned_distance_);
+        if (travel >= completion_distance_) {
+            RCLCPP_INFO(logger_, "ForwardFixedTransit: completed %.2fm confirmed-gap pass (planned %.2fm).", travel,
+                        planned_distance_);
             stopVelocity();
             return BT::NodeStatus::SUCCESS;
+        }
+        if (travel >= last_progress_travel_ + min_progress_m_) {
+            last_progress_travel_ = travel;
+            progress_deadline_ = SteadyClock::now() + std::chrono::milliseconds(progress_timeout_msec_);
+        } else if (SteadyClock::now() >= progress_deadline_) {
+            RCLCPP_WARN(logger_, "ForwardFixedTransit stopped after %.2fs without %.2fm odometry progress (travel=%.2fm).",
+                        progress_timeout_msec_ / 1000.0, min_progress_m_, travel);
+            stopVelocity();
+            return BT::NodeStatus::FAILURE;
         }
         if (travel >= max_dist_ || SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "ForwardFixedTransit stopped before completing its confirmed-gap pass (travel=%.2fm).",
@@ -2021,11 +2068,18 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
     double vision_distance_m_ = std::numeric_limits<double>::quiet_NaN();
     double pass_distance_ = 0.0;
     double min_transit_distance_ = 0.0;
+    double completion_tolerance_m_ = 0.15;
     double max_dist_ = 10.0;
     double forward_velocity_ = 0.3;
     double planned_distance_ = 0.0;
+    double completion_distance_ = 0.0;
+    double min_progress_m_ = 0.10;
     int timeout_msec_ = 30000;
+    int progress_timeout_msec_ = 4000;
+    double last_progress_travel_ = 0.0;
     bool velocity_active_ = false;
+    SteadyClock::time_point progress_deadline_;
+    SteadyClock::time_point last_velocity_publish_;
 };
 
 class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
@@ -2050,6 +2104,8 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<double>("distance_tolerance", 0.5, "Distance error allowed at completion (m)"));
         ports.insert(BT::InputPort<double>("orient_tolerance_deg", 5.0, "Orientation error allowed at completion"));
         ports.insert(BT::InputPort<double>("max_position_step", 0.5, "Maximum translation correction per update (m)"));
+        ports.insert(BT::InputPort<bool>("use_aim_bearing", false,
+                                         "Use calibrated aim_bearing_horizontal metadata when available"));
         ports.insert(
             BT::InputPort<bool>("require_heading", false,
                                 "Fail instead of bearing-only fallback when a board-normal heading is unavailable"));
@@ -2069,6 +2125,7 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
         getInput("distance_tolerance", distance_tolerance_);
         getInput("orient_tolerance_deg", orient_tolerance_deg_);
         getInput("max_position_step", max_position_step_);
+        getInput("use_aim_bearing", use_aim_bearing_);
         getInput("require_heading", require_heading_);
         getInput("settle_frames", settle_frames_);
         getInput("min_msec", min_msec_);
@@ -2080,8 +2137,9 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
                          "OrientToDetectionAtDist needs a task port, e.g. <OrientToDetectionAtDist task=\"torp\"/>.");
             return BT::NodeStatus::FAILURE;
         }
-        if (desired_distance_ <= 0.0 || max_detection_distance_ < 0.0 || max_position_step_ <= 0.0 ||
-            settle_frames_ <= 0 || update_msec_ <= 0 || min_msec_ < 0) {
+        if (desired_distance_ <= 0.0 || max_detection_distance_ < 0.0 || tolerance_ < 0.0 ||
+            distance_tolerance_ < 0.0 || orient_tolerance_deg_ < 0.0 || max_position_step_ <= 0.0 ||
+            settle_frames_ <= 0 || update_msec_ <= 0 || min_msec_ < 0 || timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_,
                          "OrientToDetectionAtDist requires positive geometry/timing values and a non-negative "
                          "max_detection_distance.");
@@ -2186,7 +2244,17 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
                                  "OrientToDetectionAtDist: calibrated heading is unavailable; holding position.");
             return BT::NodeStatus::RUNNING;
         }
-        const double distance = validDistanceValue(detection.distance_m) ? detection.distance_m : desired_distance_;
+        const bool has_distance = validDistanceValue(detection.distance_m);
+        if (!has_distance && !have_filtered_detection_) {
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 1000,
+                                 "OrientToDetectionAtDist: waiting for a valid range observation.");
+            return BT::NodeStatus::RUNNING;
+        }
+        const double distance = has_distance ? detection.distance_m : filtered_distance_;
+        const double bearing = use_aim_bearing_
+                                   ? extraDouble(detection, "aim_bearing_horizontal")
+                                         .value_or(detection.bearing_horizontal)
+                                   : detection.bearing_horizontal;
         if (max_detection_distance_ > 0.0 && distance > max_detection_distance_) {
             clearCandidate();
             RCLCPP_WARN_THROTTLE(logger_, *clock_, 1000,
@@ -2205,11 +2273,11 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
             static const double MAX_HEADING_JUMP_RAD = radians(18.0);
             const bool relative_to_reference =
                 have_filtered_detection_ && std::fabs(distance - filtered_distance_) <= MAX_RANGE_JUMP_M &&
-                std::fabs(normalizeAngle(detection.bearing_horizontal - filtered_bearing_)) <= MAX_BEARING_JUMP_RAD &&
+                std::fabs(normalizeAngle(bearing - filtered_bearing_)) <= MAX_BEARING_JUMP_RAD &&
                 (!have_filtered_heading_ ||
                  std::fabs(normalizeAngle(*heading - filtered_heading_)) <= MAX_HEADING_JUMP_RAD);
             if (!relative_to_reference) {
-                if (advanceCandidate(detection.bearing_horizontal, distance, *heading)) {
+                if (advanceCandidate(bearing, distance, *heading)) {
                     filtered_bearing_ = candidate_bearing_;
                     filtered_distance_ = candidate_distance_;
                     filtered_heading_ = candidate_heading_;
@@ -2231,14 +2299,15 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
             }
         }
         if (!have_filtered_detection_) {
-            filtered_bearing_ = detection.bearing_horizontal;
+            filtered_bearing_ = bearing;
             filtered_distance_ = distance;
             have_filtered_detection_ = true;
         } else {
             // Monocular range and box centers are noisy. Smooth them before
             // turning each camera frame into a continuously moving reference.
             static constexpr double FILTER_ALPHA = 0.25;
-            filtered_bearing_ += FILTER_ALPHA * (detection.bearing_horizontal - filtered_bearing_);
+            filtered_bearing_ = normalizeAngle(filtered_bearing_ +
+                                               FILTER_ALPHA * normalizeAngle(bearing - filtered_bearing_));
             filtered_distance_ += FILTER_ALPHA * (distance - filtered_distance_);
         }
         if (heading) {
@@ -2360,6 +2429,7 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     bool have_filtered_heading_ = false;
     bool have_candidate_ = false;
     bool require_heading_ = false;
+    bool use_aim_bearing_ = false;
 };
 
 class DownForwardAlignAction : public BT::StatefulActionNode {

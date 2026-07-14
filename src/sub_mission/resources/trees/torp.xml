@@ -18,7 +18,7 @@
                            task="torp"
                            class_id=""
                            min_score="0.2"
-                           attempts="4"
+                           attempts="2"
                            num_sweeps="4"
                            forward_step="2.0"
                            sample_timeout_msec="2500.0"
@@ -56,7 +56,7 @@
                            task="torp"
                            class_id=""
                            min_score="0.1"
-                           attempts="4"
+                           attempts="2"
                            num_sweeps="4"
                            forward_step="2.0"
                            sample_timeout_msec="2500.0"
@@ -70,7 +70,7 @@
                               forward_velocity="0.6"
                               close_distance="2.4"
                               detection_loss_msec="3000"
-                              timeout_msec="15000"
+                              timeout_msec="35000"
                               confirmation_frames="1"
                               continue_on_loss="false"
                               stop_on_close="true"
@@ -90,7 +90,7 @@
                           task="torp"
                           class_id="0"
                           min_score="0.2"
-                          timeout_msec="1500"/>
+                          timeout_msec="2500"/>
         <Sequence name="backoff_and_reacquire_torp_board">
           <MoveRelative x="-0.4"
                         y="0.0"
@@ -109,26 +109,57 @@
                                  task="torp"
                                  class_id="0"
                                  min_score="0.1"
-                                 desired_distance="0.95"
-                                 max_detection_distance="4.0"
+                                 desired_distance="1.7"
+                                 max_detection_distance="0.0"
                                  tolerance="0.08"
-                                 distance_tolerance="0.08"
+                                 distance_tolerance="0.20"
                                  orient_tolerance_deg="5.0"
                                  max_position_step="0.60"
-                                 require_heading="true"
-                                 settle_frames="3"
-                                 min_msec="3000"
+                                 require_heading="false"
+                                 settle_frames="2"
+                                 min_msec="1500"
                                  timeout_msec="40000"
                                  update_msec="300"/>
       </RetryUntilSuccessful>
-      <!-- Only the board is detectable.  These are fixed competition-board
-           offsets from the visually aligned camera aim point. -->
-      <MoveRelative x="0.5"
+      <LoadModel camera="front"
+                 task="torp_fire_blood"
+                 timeout_msec="30000"/>
+      <Fallback name="find_fire_target">
+        <ForwardSweepAlign camera="front"
+                           task="torp_fire_blood"
+                           class_id="0"
+                           min_score="0.2"
+                           attempts="2"
+                           num_sweeps="4"
+                           forward_step="1.0"
+                           sample_timeout_msec="2500.0"
+                           move_timeout_msec="20000"/>
+        <WaitForDetection camera="front"
+                          task="torp_fire_blood"
+                          class_id="0"
+                          min_score="0.1"
+                          timeout_msec="3000"/>
+      </Fallback>
+      <AlignToDetection camera="front"
+                        task="torp_fire_blood"
+                        class_id="0"
+                        min_score="0.2"
+                        yaw="true"
+                        depth="false"
+                        tolerance="0.3"
+                        depth_gain="1.5"
+                        max_depth_step="0.5"
+                        timeout_msec="10000"/>
+      <!-- Once class 0 is centered, firing positions are fixed vehicle-frame
+           offsets from that visual aim point. -->
+      <MoveRelative x="0.3"
                     y="0.0"
                     z="0.0"/>
-      <NavigateToTransform source_frame="front_camera"
-                           target_frame="torps_left"
-                           timeout_msec="30000"/>
+      <RetryUntilSuccessful num_attempts="2">
+        <NavigateToTransform source_frame="front_camera"
+                             target_frame="torps_left"
+                             timeout_msec="25000"/>
+      </RetryUntilSuccessful>
       <ShootTorpedo torpedo_id="0"
                     open="true"
                     timeout_msec="5000"/>
@@ -324,6 +355,8 @@
                   default="5.0">Orientation error allowed at completion</input_port>
       <input_port name="max_position_step"
                   default="0.5">Maximum translation correction per update (m)</input_port>
+      <input_port name="use_aim_bearing"
+                  default="false">Use calibrated aim_bearing_horizontal metadata when available</input_port>
       <input_port name="require_heading"
                   default="false">Fail when no calibrated board-normal heading is available</input_port>
       <input_port name="settle_frames"
