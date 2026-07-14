@@ -8,6 +8,5 @@
       <SubTree ID="HardCodedTorpMission"/>
     </Sequence>
   </BehaviorTree>
-
   <TreeNodesModel/>
 </root>

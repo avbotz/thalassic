@@ -658,11 +658,13 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
             return BT::NodeStatus::RUNNING;
         }
-        const double left_step = std::clamp(left_error, -max_lateral_step_, max_lateral_step_);
-        const double z_step = std::clamp(z_error, -max_depth_step_, max_depth_step_);
-        node_.commanded_pos[0] = measured[0] - std::sin(yaw) * left_step;
-        node_.commanded_pos[1] = measured[1] + std::cos(yaw) * left_step;
-        node_.commanded_pos[2] = measured[2] + z_step;
+        // This branch deliberately holds the odom-frame target captured by
+        // lockTarget(). Recomputing a capped step from the latest odometry
+        // turns the setpoint into a moving target and prevents the position
+        // PID from settling on the selected firing ray.
+        node_.commanded_pos[0] = locked_target_x_;
+        node_.commanded_pos[1] = locked_target_y_;
+        node_.commanded_pos[2] = locked_target_z_;
         position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         last_commanded_ = SteadyClock::now();
         return BT::NodeStatus::RUNNING;

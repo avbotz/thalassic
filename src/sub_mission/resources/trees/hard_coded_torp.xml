@@ -1,146 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
       main_tree_to_execute="HardCodedTorpMission">
-  <!--
-    Hardcoded torpedo mission.
-    Assumes the sub starts perpendicular to the board at ~target_distance away.
-    Yaw is set once from torp_search_yaw and never changed.
-    torp_fire_blood is used to align laterally + vertically to each hole;
-    NavigateToTransform drives to the fixed firing offset.
-  -->
   <BehaviorTree ID="HardCodedTorpMission">
     <Sequence name="hard_coded_torp_mission">
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.7"/>
-      <LoadModel camera="front"
-                 task="torp_fire_blood"
-                 timeout_msec="30000"/>
-
-      <!-- Align to hole 0: strafe + depth only, yaw unchanged -->
-      <ForceSuccess>
-        <LateralAlignToDetection camera="front"
-                                 task="torp_fire_blood"
-                                 class_id="0"
-                                 min_score="0.2"
-                                 target_distance="1.7"
-                                 tolerance="0.03"
-                                 max_lateral_step="0.10"
-                                 max_depth_step="0.08"
-                                 settle_frames="5"
-                                 min_msec="1000"
-                                 timeout_msec="15000"
-                                 update_msec="300"/>
-      </ForceSuccess>
-
-      <!-- Fire torpedo 0 -->
-      <ForceSuccess>
-        <NavigateToTransform source_frame="front_camera"
-                             target_frame="torps_left"
-                             timeout_msec="25000"/>
-      </ForceSuccess>
+                   z="-1.0"/>
+      <MoveRelativePos x="0.0"
+                       y="0.0"
+                       z="0.0"/>
+      
+      <MoveRelativePos x="1.8"
+                       y="0.0"
+                       z="0.0"/>
+      <MoveRelativePos x="0.0"
+                       y="0.3"
+                       z="0.0"/>    
       <ForceSuccess>
         <ShootTorpedo torpedo_id="0"
                       open="true"
                       timeout_msec="5000"/>
       </ForceSuccess>
-
-      <!-- Reposition and align to hole 1 -->
-      <ForceSuccess>
-        <Sequence name="torp1_approach">
-          <NavigateToTransform source_frame="torps_left"
-                               target_frame="front_camera"
-                               timeout_msec="30000"/>
-          <MoveRelativePos x="0.15"
-                           y="0.0"
-                           z="0.0"/>
-          <LateralAlignToDetection camera="front"
-                                   task="torp_fire_blood"
-                                   class_id="0"
-                                   min_score="0.2"
-                                   target_distance="1.7"
-                                   tolerance="0.03"
-                                   max_lateral_step="0.10"
-                                   max_depth_step="0.08"
-                                   settle_frames="5"
-                                   min_msec="1000"
-                                   timeout_msec="15000"
-                                   update_msec="300"/>
-          <NavigateToTransform source_frame="front_camera"
-                               target_frame="torps_right"
-                               timeout_msec="25000"/>
-        </Sequence>
-      </ForceSuccess>
-
-      <!-- Fire torpedo 1 -->
       <ForceSuccess>
         <ShootTorpedo torpedo_id="1"
                       open="true"
                       timeout_msec="5000"/>
       </ForceSuccess>
-
-      <VelocitySetpoint x="-1.5"
-                        y="0.0"
-                        z="0.0"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 
+  <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="AttSetpoint">
-      <input_port name="roll" default="nan">Roll setpoint in radians</input_port>
-      <input_port name="pitch" default="nan">Pitch setpoint in radians</input_port>
-      <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
-    </Action>
-    <Action ID="LateralAlignToDetection">
-      <input_port name="camera" default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
-      <input_port name="use_board_aim_bearing" default="false">Use calibrated fixed-hole bearings published with a board detection</input_port>
-      <input_port name="lock_board_aim" default="false">Lock three consistent aim rays into an odom-frame lateral/depth target</input_port>
-      <input_port name="target_distance" default="1.15">Camera-to-target plane distance used to project pixel bearings</input_port>
-      <input_port name="target_offset_right_m" default="0.0">Fixed target offset to camera-right from the detected item, in meters</input_port>
-      <input_port name="target_offset_down_m" default="0.0">Fixed target offset downward from the detected item, in meters</input_port>
-      <input_port name="tolerance" default="0.012">Centered when horizontal and vertical bearing are within this radian bound</input_port>
-      <input_port name="max_lateral_step" default="0.10">Maximum body-lateral correction per update in meters</input_port>
-      <input_port name="max_depth_step" default="0.08">Maximum vertical correction per update in meters</input_port>
-      <input_port name="settle_frames" default="8">Consecutive centered model detections required before SUCCESS</input_port>
-      <input_port name="min_msec" default="1500">Minimum closed-loop alignment time</input_port>
-      <input_port name="timeout_msec" default="15000">Maximum alignment time before FAILURE</input_port>
-      <input_port name="update_msec" default="300">Minimum time between translation corrections</input_port>
-    </Action>
-    <Action ID="LoadModel">
-      <input_port name="camera" default="front">Camera whose vision node loads the model</input_port>
-      <input_port name="task">Task model to load, e.g. gate</input_port>
-      <input_port name="timeout_msec" default="20000">Maximum wait for service + load</input_port>
-    </Action>
     <Action ID="MoveRelativePos">
-      <input_port name="x" default="0.0">Global east offset in meters</input_port>
-      <input_port name="y" default="0.0">Global north offset in meters</input_port>
-      <input_port name="z" default="0.0">Global vertical offset in meters; negative is down</input_port>
+      <input_port name="x"
+                  default="0.0">Global east offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Global north offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Global vertical offset in meters; negative is down</input_port>
     </Action>
     <Action ID="NavigateToTransform">
       <input_port name="source_frame">Frame whose current position is the aim point</input_port>
       <input_port name="target_frame">Attached frame to move into the source position</input_port>
-      <input_port name="timeout_msec" default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
     </Action>
     <Action ID="PosSetpoint">
-      <input_port name="x" default="nan">North/forward position setpoint</input_port>
-      <input_port name="y" default="nan">East/right position setpoint</input_port>
-      <input_port name="z" default="nan">Vertical position setpoint; negative is down</input_port>
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
     </Action>
     <Action ID="ShootTorpedo">
       <input_port name="torpedo_id">Torpedo id to command</input_port>
-      <input_port name="open" default="true">Torpedo thruster state to command</input_port>
-      <input_port name="timeout_msec" default="5000">Maximum wait for launch_torpedo response</input_port>
-    </Action>
-    <Action ID="VelocitySetpoint">
-      <input_port name="x" default="0.0">Forward velocity in meters per second</input_port>
-      <input_port name="y" default="0.0">Right velocity in meters per second</input_port>
-      <input_port name="z" default="0.0">Up velocity in meters per second</input_port>
+      <input_port name="open"
+                  default="true">Torpedo thruster state to command</input_port>
+      <input_port name="timeout_msec"
+                  default="5000">Maximum wait for launch_torpedo response</input_port>
     </Action>
   </TreeNodesModel>
 
