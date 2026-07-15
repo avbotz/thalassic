@@ -181,7 +181,7 @@ def control_and_state_entities():
             PathJoinSubstitution(
                 [
                     FindPackageShare("sub_bringup"),
-                    "config/ekf_pool.yaml",
+                    "config/ekf.yaml",
                 ]
             ),
         ],
