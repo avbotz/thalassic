@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedTorpMission">
+  <BehaviorTree ID="HardCodedTorpMission">
+    <Sequence name="hard_coded_torp_mission">
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
+      <MoveRelativePos x="0.0"
+                       y="0.0"
+                       z="0.0"/>
+
+      <MoveRelativePos x="1.8"
+                       y="0.0"
+                       z="0.0"/>
+      <MoveRelativePos x="0.0"
+                       y="0.3"
+                       z="0.0"/>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="0"
+                      open="true"
+                      timeout_msec="5000"/>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="1"
+                      open="true"
+                      timeout_msec="5000"/>
+      </ForceSuccess>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="MoveRelativePos">
+      <input_port name="x"
+                  default="0.0">Global east offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Global north offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Global vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="NavigateToTransform">
+      <input_port name="source_frame">Frame whose current position is the aim point</input_port>
+      <input_port name="target_frame">Attached frame to move into the source position</input_port>
+      <input_port name="timeout_msec"
+                  default="30000">Maximum TF lookup and movement time before FAILURE</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="ShootTorpedo">
+      <input_port name="torpedo_id">Torpedo id to command</input_port>
+      <input_port name="open"
+                  default="true">Torpedo thruster state to command</input_port>
+      <input_port name="timeout_msec"
+                  default="5000">Maximum wait for launch_torpedo response</input_port>
+    </Action>
+  </TreeNodesModel>
+
+</root>

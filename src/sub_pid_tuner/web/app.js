@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 const colors = ["#55a7ff", "#ffffff", "#25d8ff", "#8d7cff", "#78e6b2", "#f5c451", "#ff7f9f", "#b4c8e8"];
+const savedPathView = localStorage.getItem("avbotz-path-view");
 const state = {
   socket: null,
   server: {parameters: {}, signals: {}, profile: {available: false, values: {}}},
@@ -22,7 +23,7 @@ const state = {
   controlsSynced: false,
   pathTrail: [],
   pathTargetTrail: [],
-  pathView: localStorage.getItem("avbotz-path-view") || "iso"
+  pathView: ["xy", "xz", "yz"].includes(savedPathView) ? savedPathView : "xy"
 };
 let toastTimer;
 
@@ -494,11 +495,14 @@ function recordTelemetry(receivedAt, serverTime) {
     if (state.pathTrail.length > 1200) state.pathTrail.splice(0, state.pathTrail.length - 1200);
   }
   const trackingTarget = state.server.tracking?.current_reference;
-  const targetPoint = Array.isArray(trackingTarget) ? trackingTarget :
-    [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
-  if (targetPoint.every(Number.isFinite)) {
+  const signalTarget = [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
+  const targetPoint = Array.isArray(trackingTarget) && trackingTarget.every(Number.isFinite) ?
+    trackingTarget : signalTarget;
+  const recordingPathTarget = Boolean(state.server.tracking?.active) &&
+    pathExperiments.has(state.server.tracking?.experiment);
+  if (recordingPathTarget && targetPoint.every(Number.isFinite)) {
     const previousTarget = state.pathTargetTrail[state.pathTargetTrail.length - 1];
-    const moved = !previousTarget || targetPoint.some((value, index) => Math.abs(value - previousTarget[index]) > 0.001);
+    const moved = !previousTarget || targetPoint.some((value, index) => Math.abs(value - previousTarget[index]) > 0.0001);
     if (moved) state.pathTargetTrail.push([...targetPoint]);
     if (state.pathTargetTrail.length > 1200) state.pathTargetTrail.splice(0, state.pathTargetTrail.length - 1200);
   }
@@ -739,10 +743,25 @@ function formatAxisValue(value) {
 
 function projectPathPoint(point, view) {
   const [x, y, z] = point;
-  if (view === "xy") return [x, -y];
-  if (view === "xz") return [x, -z];
-  if (view === "yz") return [y, -z];
-  return [(x - y) * 0.7071, (x + y) * 0.3536 - z * 0.82];
+  if (view === "xy") return [x, y];
+  if (view === "xz") return [x, z];
+  return [y, z];
+}
+
+function pathOrientationTip(current, view, signals, length) {
+  if (view === "xy") {
+    const yaw = signals["pid.attitude.z.current"];
+    return Number.isFinite(yaw) ?
+      [current[0] + Math.cos(yaw) * length, current[1] + Math.sin(yaw) * length, current[2]] : null;
+  }
+  if (view === "xz") {
+    const pitch = signals["pid.attitude.y.current"];
+    return Number.isFinite(pitch) ?
+      [current[0] + Math.cos(pitch) * length, current[1], current[2] - Math.sin(pitch) * length] : null;
+  }
+  const roll = signals["pid.attitude.x.current"];
+  return Number.isFinite(roll) ?
+    [current[0], current[1] + Math.cos(roll) * length, current[2] + Math.sin(roll) * length] : null;
 }
 
 function drawPathViewer() {
@@ -758,21 +777,24 @@ function drawPathViewer() {
   }
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = "#080d16";
-  ctx.fillRect(0, 0, width, height);
-
   const tracking = state.server.tracking || {};
-  const planned = Array.isArray(tracking.path_preview) ? tracking.path_preview : [];
+  const planned = Array.isArray(tracking.path_preview) ?
+    tracking.path_preview.filter(point => Array.isArray(point) && point.every(Number.isFinite)) : [];
   const signals = state.server.signals || {};
   const current = [signals["pid.position.x.current"], signals["pid.position.y.current"], signals["pid.position.z.current"]];
-  const target = Array.isArray(tracking.current_reference) ? tracking.current_reference :
-    [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
+  const signalTarget = [signals["pid.position.x.target"], signals["pid.position.y.target"], signals["pid.position.z.target"]];
+  const liveReference = Array.isArray(tracking.current_reference) && tracking.current_reference.every(Number.isFinite) ?
+    tracking.current_reference : null;
+  const recordedReference = state.pathTargetTrail[state.pathTargetTrail.length - 1];
+  const target = liveReference || (planned.length && recordedReference ? recordedReference : signalTarget);
   const validCurrent = current.every(Number.isFinite) ? current : null;
   const validTarget = target.every(Number.isFinite) ? target : null;
   const all = [...planned, ...state.pathTargetTrail, ...state.pathTrail];
   if (validCurrent) all.push(validCurrent);
   if (validTarget) all.push(validTarget);
 
+  ctx.fillStyle = "#06111f";
+  ctx.fillRect(0, 0, width, height);
   if (!all.length) {
     ctx.fillStyle = "#8798b3";
     ctx.font = "13px system-ui";
@@ -786,23 +808,43 @@ function drawPathViewer() {
   let maxX = Math.max(...projected.map(point => point[0]));
   let minY = Math.min(...projected.map(point => point[1]));
   let maxY = Math.max(...projected.map(point => point[1]));
-  if (maxX - minX < 0.2) { minX -= 0.1; maxX += 0.1; }
-  if (maxY - minY < 0.2) { minY -= 0.1; maxY += 0.1; }
-  const pad = 34;
-  const scale = Math.max(1, Math.min((width - 2 * pad) / (maxX - minX), (height - 2 * pad) / (maxY - minY)));
+  const deficitX = Math.max(0, 0.5 - (maxX - minX));
+  const deficitY = Math.max(0, 0.5 - (maxY - minY));
+  minX -= deficitX / 2; maxX += deficitX / 2;
+  minY -= deficitY / 2; maxY += deficitY / 2;
+  const marginX = Math.max((maxX - minX) * 0.16, 0.08);
+  const marginY = Math.max((maxY - minY) * 0.16, 0.08);
+  minX -= marginX; maxX += marginX; minY -= marginY; maxY += marginY;
+  const plot = {left: 46, top: 25, right: width - 18, bottom: height - 35};
+  const plotWidth = Math.max(1, plot.right - plot.left);
+  const plotHeight = Math.max(1, plot.bottom - plot.top);
+  const scale = Math.max(1, Math.min(plotWidth / (maxX - minX), plotHeight / (maxY - minY)));
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   const screen = point => {
     const projectedPoint = projectPathPoint(point, state.pathView);
-    return [width / 2 + (projectedPoint[0] - centerX) * scale, height / 2 + (projectedPoint[1] - centerY) * scale];
+    return [plot.left + plotWidth / 2 + (projectedPoint[0] - centerX) * scale,
+      plot.top + plotHeight / 2 - (projectedPoint[1] - centerY) * scale];
   };
 
-  ctx.strokeStyle = "#172842";
+  const poolGradient = ctx.createLinearGradient(0, plot.top, 0, plot.bottom);
+  poolGradient.addColorStop(0, "#0b3555");
+  poolGradient.addColorStop(1, "#08253e");
+  ctx.fillStyle = poolGradient;
+  ctx.fillRect(plot.left, plot.top, plotWidth, plotHeight);
+  ctx.strokeStyle = "#1b5378";
   ctx.lineWidth = 1;
-  for (let index = 1; index < 5; index++) {
-    const y = pad + (height - 2 * pad) * index / 5;
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
+  for (let index = 1; index < 8; index++) {
+    const x = plot.left + plotWidth * index / 8;
+    ctx.beginPath(); ctx.moveTo(x, plot.top); ctx.lineTo(x, plot.bottom); ctx.stroke();
   }
+  for (let index = 1; index < 6; index++) {
+    const y = plot.top + plotHeight * index / 6;
+    ctx.beginPath(); ctx.moveTo(plot.left, y); ctx.lineTo(plot.right, y); ctx.stroke();
+  }
+  ctx.strokeStyle = "#58aee6";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(plot.left, plot.top, plotWidth, plotHeight);
 
   const strokePath = (points, color, lineWidth, dashed) => {
     if (points.length < 2) return;
@@ -818,37 +860,45 @@ function drawPathViewer() {
     ctx.stroke();
     ctx.restore();
   };
-  strokePath(planned, "#78e6b2", 2, [6, 5]);
-  strokePath(state.pathTargetTrail, "#2589ff", 2);
-  strokePath(state.pathTrail, "#f5f8ff", 2.2);
+  strokePath(planned, "#72e6a9", 3);
+  strokePath(state.pathTargetTrail, "#b4f4cf", 1.5, [5, 4]);
+  strokePath(state.pathTrail, "#3195ff", 2.8);
 
   if (validTarget) {
     const [x, y] = screen(validTarget);
-    ctx.fillStyle = "#2589ff";
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = "#72e6a9";
+    ctx.beginPath();
+    ctx.moveTo(x, y - 7); ctx.lineTo(x + 7, y); ctx.lineTo(x, y + 7); ctx.lineTo(x - 7, y); ctx.closePath();
+    ctx.fill();
   }
   if (validCurrent) {
     const [x, y] = screen(validCurrent);
-    ctx.fillStyle = "#f5f8ff";
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
-    const yaw = signals["pid.attitude.z.current"];
-    if (Number.isFinite(yaw)) {
-      const arrowLength = Math.max(0.08, 18 / scale);
-      const tip = [validCurrent[0] + Math.cos(yaw) * arrowLength, validCurrent[1] + Math.sin(yaw) * arrowLength, validCurrent[2]];
+    ctx.fillStyle = "#0d2e54";
+    ctx.strokeStyle = "#57adff";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    const tip = pathOrientationTip(validCurrent, state.pathView, signals, Math.max(0.08, 24 / scale));
+    if (tip) {
       const [tipX, tipY] = screen(tip);
-      ctx.strokeStyle = "#f5f8ff"; ctx.lineWidth = 2;
+      ctx.strokeStyle = "#9ed2ff"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tipX, tipY); ctx.stroke();
     }
   }
 
-  ctx.fillStyle = "#8798b3";
+  ctx.fillStyle = "#9fc2dc";
   ctx.font = "11px ui-monospace";
-  const axes = state.pathView === "xy" ? "X / Y · metres" : state.pathView === "xz" ? "X / Z(up) · metres" :
-    state.pathView === "yz" ? "Y / Z(up) · metres" : "isometric X / Y / Z(up) · metres";
-  ctx.fillText(axes, 12, height - 10);
-  $("path-status").textContent = tracking.active && ["follower_pid", "spline_test"].includes(tracking.experiment) ?
-    (tracking.experiment === "follower_pid" ? "Follower PID" : "Spline Test") + " · " + Math.round((tracking.progress || 0) * 100) + "%" :
-    planned.length ? "Last planned path" : "Live pose trail";
+  const axes = state.pathView === "xy" ? "X forward / Y left · yaw" : state.pathView === "xz" ?
+    "X forward / Z up · pitch" : "Y left / Z up · roll";
+  ctx.fillText(axes + " · metres", plot.left, height - 11);
+  ctx.fillText("local pool plane · auto fit", plot.left + 6, plot.top + 16);
+  const pathNames = {follower_pid: "Follower PID", square_test: "Square Test", spline_test: "Spline Test"};
+  const rate = Number(tracking.reference_rate);
+  const governorStatus = tracking.reference_limited ?
+    rate < 0.05 ? " · catching up" : " · target " + Math.round(rate * 100) + "% speed" : "";
+  $("path-status").textContent = tracking.active && pathNames[tracking.experiment] ?
+    pathNames[tracking.experiment] + " · " + Math.round((tracking.progress || 0) * 100) + "% · " +
+      (validTarget ? "target live" : "target unavailable") + governorStatus :
+    planned.length ? "Last target path" : validTarget ? "Live target and pose" : "Live pose trail";
 }
 
 function renderTelemetry() {
@@ -885,8 +935,11 @@ const experimentNames = {
   sine: "Windowed sine",
   hold: "Hold / disturbance",
   follower_pid: "Follower PID loop",
+  square_test: "Square Test",
   spline_test: "Spline Test"
 };
+
+const pathExperiments = new Set(["follower_pid", "square_test", "spline_test"]);
 
 const trackingDefaults = {
   position: {
@@ -894,11 +947,12 @@ const trackingDefaults = {
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3},
     hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1},
-    follower_pid: {amplitude: 0.5, ramp: 12, hold: 3, cycles: 2},
-    spline_test: {amplitude: 0.6, ramp: 12, hold: 3, cycles: 2}
+    follower_pid: {amplitude: 0.5, ramp: 45, hold: 5, cycles: 1, maxError: 0.12},
+    square_test: {amplitude: 0.5, ramp: 60, hold: 5, cycles: 1, maxError: 0.12},
+    spline_test: {amplitude: 0.5, ramp: 40, hold: 5, cycles: 1, maxError: 0.12}
   },
   velocity: {
-    trapezoid: {amplitude: 0.25, ramp: 2, hold: 2, cycles: 2},
+    trapezoid: {amplitude: 0.25, ramp: 0.125, hold: 2, cycles: 2},
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.2, ramp: 8, hold: 3, cycles: 3}
   },
@@ -909,11 +963,45 @@ const trackingDefaults = {
     hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1}
   },
   angular_velocity: {
-    trapezoid: {amplitude: 0.3, ramp: 2, hold: 2, cycles: 2},
+    trapezoid: {amplitude: 0.3, ramp: 0.15, hold: 2, cycles: 2},
     step: {amplitude: 0.35, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3}
   }
 };
+
+const trackingHints = {
+  minimum_jerk: "Quintic out-and-back move with zero velocity and acceleration at each endpoint.",
+  trapezoid: "Uses the selected acceleration slope, cruises, ramps to zero, settles, then repeats in the opposite direction.",
+  step: "Tests positive and negative commands separately, returning to zero to settle between them.",
+  sine: "Smooth zero-mean tracking with a fade-in/out; shorten the period gradually to expose phase lag.",
+  hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move.",
+  follower_pid: "Repeats a slow, smooth planar loop from the measured pose. Tune from both position errors and the pool trail.",
+  square_test: "Runs four slow straight sides with a settle at each corner to validate the tuned planar follower.",
+  spline_test: "Runs a slow planar Bezier out and back to validate coupled tracking without target jumps."
+};
+
+function updateTrackingHint() {
+  const experiment = $("tracking-experiment").value;
+  let hint = trackingHints[experiment] || "";
+  if (experiment === "trapezoid") {
+    const amplitude = Math.abs(Number($("tracking-amplitude").value));
+    const slope = Number($("tracking-ramp").value);
+    if (Number.isFinite(amplitude) && Number.isFinite(slope) && slope > 0) {
+      hint += " Current ramp duration: " + (amplitude / slope).toFixed(2) + " s.";
+    }
+  }
+  if (pathExperiments.has(experiment)) {
+    const amplitude = Math.abs(Number($("tracking-amplitude").value));
+    const traversal = Number($("tracking-ramp").value);
+    const maxError = Number($("tracking-max-error").value);
+    const lengthFactor = {follower_pid: 5.25, square_test: 4, spline_test: 2.3}[experiment];
+    if ([amplitude, traversal, maxError].every(Number.isFinite) && traversal > 0) {
+      hint += " Approx. target speed: " + (lengthFactor * amplitude / traversal).toFixed(3) +
+        " m/s. The target slows and then pauses as lag approaches " + maxError.toFixed(2) + " m.";
+    }
+  }
+  $("tracking-hint").textContent = hint;
+}
 
 function updateTrackingLabels(loadDefaults) {
   const mode = $("tracking-mode").value;
@@ -925,11 +1013,11 @@ function updateTrackingLabels(loadDefaults) {
   ).join("");
   experimentSelect.value = experiments.includes(previousExperiment) ? previousExperiment : experiments[0];
   const experiment = experimentSelect.value;
-  const pathExperiment = experiment === "follower_pid" || experiment === "spline_test";
+  const pathExperiment = pathExperiments.has(experiment);
   const rotational = mode === "attitude" || mode === "angular_velocity";
   const previousAxis = $("tracking-axis").value;
   if (pathExperiment) {
-    $("tracking-axis").innerHTML = '<option value="xyz">XYZ · 3D</option><option value="xy">XY · horizontal</option><option value="xz">XZ · vertical</option><option value="yz">YZ · vertical</option>';
+    $("tracking-axis").innerHTML = '<option value="xy">XY · horizontal</option><option value="xz">XZ · vertical</option><option value="yz">YZ · vertical</option>';
   } else {
     const labels = rotational ? ["Roll", "Pitch", "Yaw"] : ["X", "Y", "Z"];
     $("tracking-axis").innerHTML = labels.map((label, index) =>
@@ -938,42 +1026,43 @@ function updateTrackingLabels(loadDefaults) {
   if ([...$("tracking-axis").options].some(option => option.value === previousAxis)) $("tracking-axis").value = previousAxis;
   const unit = {position: "m", velocity: "m/s", attitude: "rad", angular_velocity: "rad/s"}[mode];
   const limit = {position: 2, velocity: 1, attitude: 0.523598, angular_velocity: 1}[mode];
-  $("tracking-amplitude").min = -limit;
+  $("tracking-amplitude").min = pathExperiment ? "0.05" : -limit;
   $("tracking-amplitude").max = limit;
   $("tracking-amplitude-label").textContent = (pathExperiment ? "Path span" : mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
   $("tracking-amplitude-wrap").hidden = experiment === "hold";
   $("tracking-primary-wrap").hidden = experiment === "hold";
+  $("tracking-max-error-wrap").hidden = !pathExperiment;
   $("tracking-cycles-wrap").hidden = experiment === "hold";
-  $("tracking-primary-label").textContent = pathExperiment ? "Traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp (s)" : experiment === "step" ? "Step (s)" : "Period (s)";
+  const slopeUnit = mode === "angular_velocity" ? "rad/s²" : "m/s²";
+  $("tracking-primary-label").textContent = pathExperiment ? "Nominal traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp slope (" + slopeUnit + ")" : experiment === "step" ? "Step (s)" : "Period (s)";
+  $("tracking-ramp").min = pathExperiment ? "4" : experiment === "trapezoid" ? "0.005" : "0.5";
+  $("tracking-ramp").max = pathExperiment ? "180" : experiment === "trapezoid" ? "5" : "30";
+  $("tracking-ramp").step = pathExperiment ? "1" : experiment === "trapezoid" ? "0.005" : "0.1";
   $("tracking-secondary-label").textContent = experiment === "trapezoid" ? "Cruise / settle (s)" : experiment === "step" ? "Settle (s)" : experiment === "sine" ? "Final settle (s)" : experiment === "hold" ? "Duration (s)" : pathExperiment ? "Home settle (s)" : "Hold (s)";
-  const hints = {
-    minimum_jerk: "Quintic out-and-back move with zero velocity and acceleration at each endpoint.",
-    trapezoid: "Ramps to a steady rate, cruises, ramps to zero, settles, then repeats in the opposite direction.",
-    step: "Tests positive and negative commands separately, returning to zero to settle between them.",
-    sine: "Smooth zero-mean tracking with a fade-in/out; use a longer period first, then shorten it to expose phase lag.",
-    hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move.",
-    follower_pid: "Repeats a smooth closed path from the measured pose. Tune outer position gains from XYZ error and the 3D trail.",
-    spline_test: "Runs a smooth 3D Bezier out and back to validate the finished follower without target jumps."
-  };
-  $("tracking-hint").textContent = hints[experiment];
   if (loadDefaults) {
     const defaults = trackingDefaults[mode][experiment];
     $("tracking-amplitude").value = defaults.amplitude;
     $("tracking-ramp").value = defaults.ramp;
     $("tracking-hold").value = defaults.hold;
     $("tracking-cycles").value = defaults.cycles;
+    if (pathExperiment) $("tracking-max-error").value = defaults.maxError;
   }
+  updateTrackingHint();
 }
 
 function selectTrackingGraph() {
   $("loop-select").value = $("tracking-mode").value;
   updateGraphAxisLabels();
   const experiment = $("tracking-experiment").value;
-  if (experiment === "follower_pid" || experiment === "spline_test") {
+  if (pathExperiments.has(experiment)) {
     const plane = $("tracking-axis").value;
-    const axes = plane === "xyz" ? ["x", "y", "z"] : plane.split("");
+    const axes = plane.split("");
     state.selected = new Set(axes.map(axis => "pid.position." + axis + ".error"));
     localStorage.setItem("avbotz-signals", JSON.stringify([...state.selected]));
+    state.pathView = plane;
+    localStorage.setItem("avbotz-path-view", plane);
+    document.querySelectorAll("[data-path-view]").forEach(button =>
+      button.classList.toggle("active", button.dataset.pathView === plane));
     state.signalKey = "";
     renderSignals();
   } else {
@@ -987,16 +1076,34 @@ function selectTrackingGraph() {
 }
 
 async function startTracking() {
+  const experiment = $("tracking-experiment").value;
+  const amplitude = Number($("tracking-amplitude").value);
+  const primary = Number($("tracking-ramp").value);
+  const rampTime = experiment === "trapezoid" && primary > 0 ? Math.abs(amplitude) / primary : primary;
   const values = {
-    experiment: $("tracking-experiment").value,
+    experiment: experiment,
     mode: $("tracking-mode").value,
     axis: $("tracking-axis").value,
-    amplitude: Number($("tracking-amplitude").value),
-    ramp_time: Number($("tracking-ramp").value),
+    amplitude: amplitude,
+    ramp_time: rampTime,
     hold_time: Number($("tracking-hold").value),
-    cycles: Number($("tracking-cycles").value)
+    cycles: Number($("tracking-cycles").value),
+    max_tracking_error: pathExperiments.has(experiment) ? Number($("tracking-max-error").value) : null
   };
-  if (![values.amplitude, values.ramp_time, values.hold_time, values.cycles].every(Number.isFinite)) {
+  if (experiment === "trapezoid" && (!Number.isFinite(primary) || primary <= 0)) {
+    toast("Ramp slope must be greater than zero", true);
+    return;
+  }
+  if (experiment === "trapezoid" && (rampTime < 0.5 || rampTime > 30)) {
+    const minimumSlope = Math.abs(amplitude) / 30;
+    const maximumSlope = Math.abs(amplitude) / 0.5;
+    toast("For this command, use a ramp slope from " + minimumSlope.toPrecision(3) +
+      " to " + maximumSlope.toPrecision(3), true);
+    return;
+  }
+  const numericValues = [values.amplitude, values.ramp_time, values.hold_time, values.cycles];
+  if (pathExperiments.has(experiment)) numericValues.push(values.max_tracking_error);
+  if (!numericValues.every(Number.isFinite)) {
     toast("Enter finite tracking routine values", true);
     return;
   }
@@ -1004,7 +1111,8 @@ async function startTracking() {
     const result = await request("start_tracking", values);
     state.server.tracking = result.tracking;
     state.pathTrail = [];
-    state.pathTargetTrail = [];
+    state.pathTargetTrail = Array.isArray(result.tracking.current_reference) &&
+      result.tracking.current_reference.every(Number.isFinite) ? [[...result.tracking.current_reference]] : [];
     selectTrackingGraph();
     renderTracking();
     toast("Tracking routine started");
@@ -1037,15 +1145,22 @@ function renderTracking() {
   const inactiveStatus = !topologyReady ? "Conflict" : !telemetryReady ? "Telemetry stale" :
     state.server.killed !== false ? "Killed" : tracking.status === "stopped" ? "Ready" :
       tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1);
-  setPill("tracking-status", active ? "Running" : inactiveStatus, statusKind);
+  const referenceRate = Number(tracking.reference_rate);
+  const activeStatus = Number.isFinite(referenceRate) && referenceRate < 0.05 ? "Catching up" :
+    Number.isFinite(referenceRate) && referenceRate < 0.999 ? "Target slowed" : "Running";
+  setPill("tracking-status", active ? activeStatus : inactiveStatus, statusKind);
   document.querySelectorAll(".tracking-form input, .tracking-form select").forEach(control => {
     control.disabled = active;
   });
   $("start-tracking").disabled = active || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   $("stop-tracking").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   const progress = Number.isFinite(tracking.progress) ? Math.round(tracking.progress * 100) : 0;
+  const pathProgress = pathExperiments.has(tracking.experiment) ?
+    progress + "% path · " + Number(tracking.wall_elapsed || 0).toFixed(1) + " s wall · lag " +
+      Number(tracking.tracking_error || 0).toFixed(2) + " m · target " +
+      Math.round(Math.max(0, Math.min(1, Number.isFinite(referenceRate) ? referenceRate : 1)) * 100) + "%" : null;
   $("tracking-progress").textContent = active ?
-    progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
+    pathProgress || progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
     !topologyReady ? "Stop the duplicate sim/controller launch: " + duplicates.join(", ") :
       !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
       "Release kill switch to tune" : tracking.message || "Ready";
@@ -1239,6 +1354,9 @@ $("setpoint-mode").addEventListener("change", updateSetpointLabels);
 $("publish-setpoint").addEventListener("click", publishSetpoint);
 $("tracking-mode").addEventListener("change", () => updateTrackingLabels(true));
 $("tracking-experiment").addEventListener("change", () => updateTrackingLabels(true));
+$("tracking-amplitude").addEventListener("input", updateTrackingHint);
+$("tracking-ramp").addEventListener("input", updateTrackingHint);
+$("tracking-max-error").addEventListener("input", updateTrackingHint);
 $("start-tracking").addEventListener("click", startTracking);
 $("stop-tracking").addEventListener("click", stopTracking);
 $("export").addEventListener("click", exportCsv);

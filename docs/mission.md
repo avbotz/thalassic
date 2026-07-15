@@ -74,8 +74,8 @@ Current limitations:
 
 Task XML should contain mission logic: ordering, fallback/retry structure,
 pool-specific branches, and calls to reusable actions. C++ should contain the
-ROS-facing mechanics: publishing commands, waiting for control error, and
-wrapping any nontrivial state.
+ROS-facing mechanics: calling controller actions and wrapping any nontrivial
+state.
 
 Movement-related XML nodes currently implemented in C++:
 
@@ -86,6 +86,7 @@ Movement-related XML nodes currently implemented in C++:
 | `AttSetpoint` | Attitude command that waits for the controller to reach tolerance |
 | `AngularVelocitySetpoint` | Body-frame angular velocity command |
 | `MoveRelative` | Relative x/y/z movement using the current commanded yaw |
+| `MoveRelativePos` | Relative ENU x/y/z movement that does not use attitude |
 | `NavigateToTransform` | Move a vehicle-mounted source frame to an externally supplied target pose |
 | `AddAttSetpoint` | Relative roll/pitch/yaw target |
 | `Spin` | Angular-velocity spin until measured yaw travel reaches the target |
@@ -108,13 +109,13 @@ unknown ports at runtime.
 
 ## Control Interface
 
-Mission does not write to the low-level board directly. Movement commands are
-published to `sub_control`:
+Mission does not write to the low-level board directly. `PosSetpoint`,
+`VelocitySetpoint`, and `AttSetpoint` call `sub_control`'s `control_setpoint`
+action; the controller owns target resolution and completion checking.
 
-| Topic | Type | Use |
+| Interface | Type | Use |
 |---|---|---|
-| `pos_setpoint` | `sub_control_interfaces/Setpoint` | Position/depth target, or body-frame linear velocity |
-| `att_setpoint` | `sub_control_interfaces/Setpoint` | Absolute attitude target, or body-frame angular velocity |
+| `control_setpoint` action | `sub_control_interfaces/ControlSetpoint` | Position/depth, body-frame linear velocity, or attitude request |
 | `control/error` | `sub_control_interfaces/Error` | Position, velocity, attitude, and angular-rate tracking error |
 | `kill_switch` | `std_msgs/Bool` | Low-level kill state, published by `sub_low` |
 
@@ -141,13 +142,13 @@ publish them.
 
 ## Completion Semantics
 
-Position and attitude commands return `RUNNING` until fresh `control/error`
-feedback is within fixed C++ tolerances. The tolerance is intentionally not an
-XML port, because the old movement layer owned those constants and mission XML
-should stay focused on task logic.
+Position and attitude commands return `RUNNING` until the controller action
+succeeds after reaching its fixed C++ tolerance. A canceled or aborted action
+returns `FAILURE` to the BT. The tolerance is intentionally not an XML port.
 
-`VelocitySetpoint` and `AngularVelocitySetpoint` return `SUCCESS` after
-publishing because they are open-loop commands by nature. Use `WaitUntilHit` or
+`VelocitySetpoint` succeeds when the controller accepts its action goal;
+`AngularVelocitySetpoint` returns `SUCCESS` after publishing because it is an
+open-loop command. Use `WaitUntilHit` or
 a later position/attitude hold when the sequence needs a completion condition.
 
 `Spin` is a special case: it commands angular velocity, integrates measured yaw

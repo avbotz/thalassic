@@ -10,6 +10,7 @@
   <depend>angles</depend>
   <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
   <depend>robot_localization</depend>
   <depend>sub_control_interfaces</depend>
   <depend>tf2</depend>

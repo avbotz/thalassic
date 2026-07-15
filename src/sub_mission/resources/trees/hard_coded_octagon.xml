@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedOctagonMission">
+  <BehaviorTree ID="HardCodedOctagonMission">
+    <!-- Tune these fixed transit legs against the pool layout as needed. -->
+    <Sequence name="hard_coded_octagon_mission">
+      <MoveRelative x="0.0"
+                    y="1.0"
+                    z="0.0"
+                    _description="Move right toward the octagon exit lane"/>
+      <MoveRelative x="3.0"
+                    y="0.0"
+                    z="0.0"
+                    _description="Proceed straight through the exit lane"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="0.0"
+                   _description="Surface and finish the run"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <TreeNodesModel>
+    <Action ID="MoveRelative">
+      <input_port name="x" default="0.0">Forward offset in meters</input_port>
+      <input_port name="y" default="0.0">Right offset in meters</input_port>
+      <input_port name="z" default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x" default="nan">North/forward position setpoint</input_port>
+      <input_port name="y" default="nan">East/right position setpoint</input_port>
+      <input_port name="z" default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+  </TreeNodesModel>
+</root>

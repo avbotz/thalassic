@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cstring>
 #include <format>
+#include <memory>
+#include <thread>
 
 // The MCU firmware works in NED/FRD; the workspace speaks REP-103 ENU/FLU.
 // The two are related by a pi rotation about x (identifying ENU x with
@@ -16,6 +18,8 @@
 // are the only place frames change; everything between them is the MCU
 // algorithm untouched.
 namespace {
+constexpr double POSITION_TOLERANCE = 0.25;
+constexpr double ATTITUDE_TOLERANCE = 0.0872665;
 
 // ENU world vector <-> NED world vector, and FLU body vector <-> FRD body
 // vector: keep x, negate y and z.
@@ -111,6 +115,17 @@ SubControlMcu::SubControlMcu() : Node("sub_control_mcu") {
     error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
 
     set_pose_client_ = this->create_client<robot_localization::srv::SetPose>("set_pose");
+    setpoint_action_server_ = rclcpp_action::create_server<ControlSetpoint>(
+        this, "control_setpoint",
+        [this](const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const ControlSetpoint::Goal> goal) {
+            return handle_setpoint_goal(uuid, std::move(goal));
+        },
+        [this](const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+            return handle_setpoint_cancel(goal_handle);
+        },
+        [this](const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+            std::thread{[this, goal_handle] { execute_setpoint_goal(goal_handle); }}.detach();
+        });
 
     control_timer_ =
         this->create_timer(std::chrono::microseconds{static_cast<int>(1e6 / control_rate_hz_)}, [this]() { run(); });
@@ -191,6 +206,7 @@ rcl_interfaces::msg::SetParametersResult SubControlMcu::on_parameters_set(
 }
 
 void SubControlMcu::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     position_.north = static_cast<float>(msg->pose.pose.position.x);
     position_.east = flip_y(msg->pose.pose.position.y);
     position_.down = flip_z(msg->pose.pose.position.z);
@@ -217,17 +233,24 @@ void SubControlMcu::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) 
 }
 
 void SubControlMcu::altitude_callback(const std_msgs::msg::Float64::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     position_.altitude = static_cast<float>(msg->data);
 }
 
-void SubControlMcu::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
-    if (msg->velocity) {
+void SubControlMcu::apply_pos_setpoint(const sub_control_interfaces::msg::Setpoint& msg) {
+    if (msg.velocity) {
         // MCU 'v' command: body velocity setpoint, bypass the position loop.
         velocity_override_ = true;
 
-        velocity_body_sp_.forward_m_s = static_cast<float>(msg->setpoint.x);
-        velocity_body_sp_.right_m_s = flip_y(msg->setpoint.y);
-        velocity_body_sp_.down_m_s = flip_z(msg->setpoint.z);
+        if (velocity_body_sp_.forward_m_s != msg.setpoint.x || velocity_body_sp_.right_m_s != flip_y(msg.setpoint.y) ||
+            velocity_body_sp_.down_m_s != flip_z(msg.setpoint.z)) {
+            RCLCPP_DEBUG(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg.setpoint.x, msg.setpoint.y,
+                         msg.setpoint.z);
+        }
+
+        velocity_body_sp_.forward_m_s = static_cast<float>(msg.setpoint.x);
+        velocity_body_sp_.right_m_s = flip_y(msg.setpoint.y);
+        velocity_body_sp_.down_m_s = flip_z(msg.setpoint.z);
 
         velocity_controller_update_sp(&vel_controller_, &velocity_body_sp_);
         return;
@@ -237,28 +260,51 @@ void SubControlMcu::pos_setpoint_callback(const sub_control_interfaces::msg::Set
     // altitude off the floor instead of depth.
     velocity_override_ = false;
 
-    position_sp_.north = static_cast<float>(msg->setpoint.x);
-    position_sp_.east = flip_y(msg->setpoint.y);
+    if (position_sp_.north != msg.setpoint.x || position_sp_.east != flip_y(msg.setpoint.y) ||
+        (msg.altitude ? position_sp_.altitude : position_sp_.down) != (msg.altitude ? msg.setpoint.z : flip_z(msg.setpoint.z)) ||
+        pos_controller_.use_floor_altitude != msg.altitude) {
+        RCLCPP_DEBUG(this->get_logger(), "%s_setpoint_: [%f, %f, %f]", msg.altitude ? "altitude" : "position",
+                     msg.setpoint.x, msg.setpoint.y, msg.setpoint.z);
+    }
 
-    pos_controller_.use_floor_altitude = msg->altitude;
-    if (msg->altitude) {
+    position_sp_.north = static_cast<float>(msg.setpoint.x);
+    position_sp_.east = flip_y(msg.setpoint.y);
+
+    pos_controller_.use_floor_altitude = msg.altitude;
+    if (msg.altitude) {
         // Altitude is a positive distance to the floor in both conventions.
-        position_sp_.altitude = static_cast<float>(msg->setpoint.z);
+        position_sp_.altitude = static_cast<float>(msg.setpoint.z);
     } else {
-        position_sp_.down = flip_z(msg->setpoint.z);
+        position_sp_.down = flip_z(msg.setpoint.z);
     }
 
     position_controller_update_sp(&pos_controller_, &position_sp_);
 }
 
 void SubControlMcu::att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
-    if (msg->velocity) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    apply_att_setpoint(*msg);
+}
+
+void SubControlMcu::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    apply_pos_setpoint(*msg);
+}
+
+void SubControlMcu::apply_att_setpoint(const sub_control_interfaces::msg::Setpoint& msg) {
+    if (msg.velocity) {
         // MCU 't' command: angular rate setpoint, bypass the attitude loop.
         angvel_override_ = true;
 
-        angvel_sp_.roll_rad_s = static_cast<float>(msg->setpoint.roll);
-        angvel_sp_.pitch_rad_s = flip_pitch(msg->setpoint.pitch);
-        angvel_sp_.yaw_rad_s = flip_yaw(msg->setpoint.yaw);
+        if (angvel_sp_.roll_rad_s != msg.setpoint.roll || angvel_sp_.pitch_rad_s != flip_pitch(msg.setpoint.pitch) ||
+            angvel_sp_.yaw_rad_s != flip_yaw(msg.setpoint.yaw)) {
+            RCLCPP_DEBUG(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg.setpoint.roll,
+                         msg.setpoint.pitch, msg.setpoint.yaw);
+        }
+
+        angvel_sp_.roll_rad_s = static_cast<float>(msg.setpoint.roll);
+        angvel_sp_.pitch_rad_s = flip_pitch(msg.setpoint.pitch);
+        angvel_sp_.yaw_rad_s = flip_yaw(msg.setpoint.yaw);
 
         angvel_controller_update_sp(&angular_velocity_controller_, &angvel_sp_);
         return;
@@ -267,16 +313,121 @@ void SubControlMcu::att_setpoint_callback(const sub_control_interfaces::msg::Set
     // MCU 'n' command.
     angvel_override_ = false;
 
-    att_sp_.roll = static_cast<float>(msg->setpoint.roll);
-    att_sp_.pitch = flip_pitch(msg->setpoint.pitch);
-    att_sp_.yaw = flip_yaw(msg->setpoint.yaw);
+    if (att_sp_.roll != msg.setpoint.roll || att_sp_.pitch != flip_pitch(msg.setpoint.pitch) ||
+        att_sp_.yaw != flip_yaw(msg.setpoint.yaw)) {
+        RCLCPP_DEBUG(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg.setpoint.roll,
+                     msg.setpoint.pitch, msg.setpoint.yaw);
+    }
+
+    att_sp_.roll = static_cast<float>(msg.setpoint.roll);
+    att_sp_.pitch = flip_pitch(msg.setpoint.pitch);
+    att_sp_.yaw = flip_yaw(msg.setpoint.yaw);
 
     att_controller_update_sp(&attitude_controller_, &att_sp_);
 }
 
+rclcpp_action::GoalResponse SubControlMcu::handle_setpoint_goal(
+    const rclcpp_action::GoalUUID&, const std::shared_ptr<const ControlSetpoint::Goal> goal) {
+    if (goal->command_type > ControlSetpoint::Goal::ATTITUDE) {
+        RCLCPP_WARN(this->get_logger(), "Rejecting ControlSetpoint goal with invalid command type %u", goal->command_type);
+        return rclcpp_action::GoalResponse::REJECT;
+    }
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse SubControlMcu::handle_setpoint_cancel(
+    const std::shared_ptr<GoalHandleControlSetpoint>) {
+    return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void SubControlMcu::execute_setpoint_goal(const std::shared_ptr<GoalHandleControlSetpoint> goal_handle) {
+    const auto goal = goal_handle->get_goal();
+    const auto result = std::make_shared<ControlSetpoint::Result>();
+    std::array<bool, 3> active_axes{};
+
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        if (killed_) {
+            result->message = "kill switch is engaged";
+            goal_handle->abort(result);
+            return;
+        }
+        if (goal->command_type == ControlSetpoint::Goal::POSITION) {
+            active_axes = {std::isfinite(goal->setpoint.setpoint.x), std::isfinite(goal->setpoint.setpoint.y),
+                           std::isfinite(goal->setpoint.setpoint.z)};
+            auto command = goal->setpoint;
+            command.velocity = false;
+            if (!active_axes[0]) command.setpoint.x = position_sp_.north;
+            if (!active_axes[1]) command.setpoint.y = -position_sp_.east;
+            if (!active_axes[2]) command.setpoint.z = pos_controller_.use_floor_altitude ? position_sp_.altitude : -position_sp_.down;
+            apply_pos_setpoint(command);
+        } else if (goal->command_type == ControlSetpoint::Goal::VELOCITY) {
+            auto command = goal->setpoint;
+            command.velocity = true;
+            apply_pos_setpoint(command);
+            result->message = "velocity setpoint accepted";
+            goal_handle->succeed(result);
+            return;
+        } else {
+            active_axes = {std::isfinite(goal->setpoint.setpoint.roll), std::isfinite(goal->setpoint.setpoint.pitch),
+                           std::isfinite(goal->setpoint.setpoint.yaw)};
+            auto command = goal->setpoint;
+            command.velocity = false;
+            if (!active_axes[0]) command.setpoint.roll = att_sp_.roll;
+            if (!active_axes[1]) command.setpoint.pitch = -att_sp_.pitch;
+            if (!active_axes[2]) command.setpoint.yaw = -att_sp_.yaw;
+            apply_att_setpoint(command);
+        }
+    }
+
+    while (rclcpp::ok()) {
+        if (goal_handle->is_canceling()) {
+            result->message = "setpoint canceled";
+            goal_handle->canceled(result);
+            return;
+        }
+        std::array<double, 3> error{};
+        bool complete = true;
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            if (killed_) {
+                result->message = "kill switch is engaged";
+                goal_handle->abort(result);
+                return;
+            }
+            if (goal->command_type == ControlSetpoint::Goal::POSITION) {
+                error = {position_sp_.north - position_.north, -(position_sp_.east - position_.east),
+                         pos_controller_.use_floor_altitude ? position_.altitude - position_sp_.altitude
+                                                            : -(position_sp_.down - position_.down)};
+                for (size_t i = 0; i < error.size(); ++i) complete &= !active_axes[i] || std::fabs(error[i]) <= POSITION_TOLERANCE;
+            } else {
+                error = {angle_difference(att_sp_.roll, attitude_.roll),
+                         -angle_difference(att_sp_.pitch, attitude_.pitch),
+                         -angle_difference(att_sp_.yaw, attitude_.yaw)};
+                for (size_t i = 0; i < error.size(); ++i) complete &= !active_axes[i] || std::fabs(error[i]) <= ATTITUDE_TOLERANCE;
+            }
+        }
+        auto feedback = std::make_shared<ControlSetpoint::Feedback>();
+        feedback->error = error;
+        goal_handle->publish_feedback(feedback);
+        if (complete) {
+            result->message = "setpoint reached";
+            goal_handle->succeed(result);
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    result->message = "ROS shutdown";
+    goal_handle->abort(result);
+}
+
 void SubControlMcu::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     velocity_override_ = true;
     angvel_override_ = true;
+
+    RCLCPP_DEBUG(this->get_logger(), "cmd_vel: linear=[%f, %f, %f] angular=[%f, %f, %f]", msg->linear.x,
+                 msg->linear.y, msg->linear.z, msg->angular.x, msg->angular.y, msg->angular.z);
 
     velocity_body_sp_.forward_m_s = static_cast<float>(msg->linear.x);
     velocity_body_sp_.right_m_s = flip_y(msg->linear.y);
@@ -334,6 +485,10 @@ void SubControlMcu::reset_state_on_revive() {
 }
 
 void SubControlMcu::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    if (killed_ != msg->data) {
+        RCLCPP_INFO(this->get_logger(), "Kill switch %s", msg->data ? "engaged; zeroing thrusters" : "released; resetting state");
+    }
     if (killed_ && !msg->data) {
         reset_state_on_revive();
     }
@@ -349,6 +504,7 @@ void SubControlMcu::publish_zero_thrusters() {
 }
 
 void SubControlMcu::run() {
+    std::lock_guard<std::mutex> lock(state_mutex_);
     if (killed_) {
         last_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
         publish_zero_thrusters();

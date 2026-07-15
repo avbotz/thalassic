@@ -23,6 +23,7 @@ if(BUILD_TESTING)
 endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/ControlSetpoint.action"
   "msg/Error.msg"
   "msg/Setpoint.msg"
   "msg/SetpointAxes.msg"

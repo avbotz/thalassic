@@ -3,7 +3,7 @@
 Reimplementation of the Nautical-Private MCU control firmware
 (`low/Nautical-Private`, the "maritime-ec" library plus `main.cpp`'s run
 loop) as a ROS 2 node. It is a drop-in alternative to `sub_control`: same
-subscriptions, same publications, same namespace layout — swap the
+subscriptions, publications, `control_setpoint` action, and namespace layout — swap the
 `package`/`executable` in the launch file and nothing else changes.
 
 ## Algorithm (ported as-is)
@@ -54,6 +54,7 @@ negated). `control/error` is published in FLU.
 | `n` (attitude sp) | `att_setpoint` (flags false) |
 | `t` (angular rate sp) | `att_setpoint` with `velocity: true` |
 | `v`+`t` together | `cmd_vel` (`Twist`) |
+| monitored position / velocity / attitude request | `control_setpoint` (`ControlSetpoint` action) |
 | `p` (power 0–1) | `power_limit` parameter |
 | `u` (live PID gains) | `pos_pid.* / vel_pid.* / att_pid.* / ang_pid.*` parameters (`[kp, ti, td]`) |
 | kill pin / `x` reset | `kill_switch` topic (revive zeroes EKF via `set_pose`, setpoints, and overrides) |

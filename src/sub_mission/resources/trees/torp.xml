@@ -5,146 +5,184 @@
     <Sequence name="torp_mission">
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-1.0"/>
+                   z="-0.7"/>
       <AttSetpoint name="torp_search_heading"
                    roll="nan"
                    pitch="nan"
                    yaw="{@torp_search_yaw}"/>
-      <LoadModel camera="front"
-                 task="torp"
-                 timeout_msec="30000"/>
-      <Fallback name="find_torp_board">
-        <ForwardSweepAlign camera="front"
-                           task="torp"
-                           class_id=""
-                           min_score="0.2"
-                           attempts="4"
-                           num_sweeps="4"
-                           forward_step="2.0"
-                           sample_timeout_msec="2500.0"
-                           move_timeout_msec="20000"/>
-        <Sequence name="recover_torp_board_search">
-          <MoveRelative x="-0.2"
-                        y="0.0"
-                        z="-0.1"/>
-          <ForwardSweepAlign camera="front"
-                             task="torp"
-                             class_id=""
-                             min_score="0.0"
-                             attempts="8"
-                             num_sweeps="3"
-                             forward_step="2.0"
-                             sample_timeout_msec="2500.0"
-                             move_timeout_msec="20000"/>
-        </Sequence>
-      </Fallback>
-      <MoveRelative x="0.5"
-                    y="0.0"
-                    z="0.0"/>
-      <Fallback name="verify_torp_board">
-        <AlignToDetection camera="front"
-                          task="torp"
-                          class_id=""
-                          min_score="0.01"
-                          yaw="true"
-                          depth="false"
-                          tolerance="0.3"
-                          depth_gain="1.5"
-                          max_depth_step="0.5"
-                          timeout_msec="10000"/>
-        <ForwardSweepAlign camera="front"
-                           task="torp"
-                           class_id=""
-                           min_score="0.1"
-                           attempts="4"
-                           num_sweeps="4"
-                           forward_step="2.0"
-                           sample_timeout_msec="2500.0"
-                           move_timeout_msec="20000"/>
-      </Fallback>
-      <ForwardContinuousAlign camera="front"
-                              task="torp"
-                              class_id="0"
-                              min_score="0.2"
-                              max_dist="4.0"
-                              forward_velocity="0.6"
-                              close_distance="2.4"
-                              detection_loss_msec="3000"
-                              timeout_msec="15000"
-                              confirmation_frames="1"
-                              continue_on_loss="false"
-                              stop_on_close="true"
-                              loss_is_success="true"
-                              loss_min_travel="0.0"
-                              timeout_is_success="true"
-                              max_dist_is_success="true"
-                              max_yaw_step_deg="35.0"
-                              fixed_distance_from_detection="false"
-                              pass_distance="0.0"
-                              min_transit_distance="0.0"/>
-      <!-- At the nominal stand-off this normally succeeds without moving.
-           If the board has filled or left the camera FOV, retreat once before
-           asking PnP to recover its board-normal pose. -->
-      <Fallback>
-        <WaitForDetection camera="front"
-                          task="torp"
-                          class_id="0"
-                          min_score="0.2"
-                          timeout_msec="1500"/>
-        <Sequence name="backoff_and_reacquire_torp_board">
-          <MoveRelative x="-0.4"
+      <ForceSuccess>
+        <Sequence name="torp_approach">
+          <LoadModel camera="front"
+                     task="torp_find"
+                     timeout_msec="30000"/>
+          <Fallback name="find_torp_board">
+            <ForwardSweepAlign camera="front"
+                               task="torp_find"
+                               class_id=""
+                               min_score="0.2"
+                               attempts="2"
+                               num_sweeps="4"
+                               forward_step="2.0"
+                               sample_timeout_msec="2500.0"
+                               move_timeout_msec="20000"/>
+            <Sequence name="recover_torp_board_search">
+              <MoveRelative x="-0.2"
+                            y="0.0"
+                            z="-0.1"/>
+              <ForwardSweepAlign camera="front"
+                                 task="torp_find"
+                                 class_id=""
+                                 min_score="0.0"
+                                 attempts="8"
+                                 num_sweeps="3"
+                                 forward_step="2.0"
+                                 sample_timeout_msec="2500.0"
+                                 move_timeout_msec="20000"/>
+            </Sequence>
+          </Fallback>
+          <MoveRelative x="0.5"
                         y="0.0"
                         z="0.0"/>
-          <ForceSuccess>
+          <Fallback name="verify_torp_board">
+            <AlignToDetection camera="front"
+                              task="torp_find"
+                              class_id=""
+                              min_score="0.01"
+                              yaw="true"
+                              depth="true"
+                              tolerance="0.3"
+                              depth_gain="1.5"
+                              max_depth_step="0.5"
+                              timeout_msec="10000"/>
+            <ForwardSweepAlign camera="front"
+                               task="torp_find"
+                               class_id=""
+                               min_score="0.1"
+                               attempts="2"
+                               num_sweeps="4"
+                               forward_step="2.0"
+                               sample_timeout_msec="2500.0"
+                               move_timeout_msec="20000"/>
+          </Fallback>
+          <Fallback>
+            <ForwardContinuousAlign camera="front"
+                                    task="torp_find"
+                                    class_id=""
+                                    min_score="0.2"
+                                    max_dist="4.0"
+                                    forward_velocity="0.6"
+                                    close_distance="2.4"
+                                    detection_loss_msec="3000"
+                                    timeout_msec="30000"
+                                    confirmation_frames="1"
+                                    continue_on_loss="false"
+                                    stop_on_close="true"
+                                    loss_is_success="true"
+                                    loss_min_travel="0.0"
+                                    timeout_is_success="true"
+                                    max_dist_is_success="true"
+                                    max_yaw_step_deg="35.0"
+                                    fixed_distance_from_detection="false"
+                                    pass_distance="0.0"
+                                    min_transit_distance="0.0"/>
             <WaitForDetection camera="front"
-                              task="torp"
+                              task="torp_find"
+                              class_id=""
+                              min_score="0.2"
+                              timeout_msec="2500"/>
+            <Sequence name="backoff_and_reacquire_torp_board">
+              <MoveRelative x="-0.0"
+                            y="0.0"
+                            z="0.0"/>
+              <ForceSuccess>
+                <WaitForDetection camera="front"
+                                  task="torp_find"
+                                  class_id="0"
+                                  min_score="0.1"
+                                  timeout_msec="5000"/>
+              </ForceSuccess>
+            </Sequence>
+          </Fallback>
+          <RetryUntilSuccessful num_attempts="2">
+            <OrientToDetectionAtDist camera="front"
+                                     task="torp_find"
+                                     class_id="0"
+                                     min_score="0.1"
+                                     desired_distance="1.7"
+                                     max_detection_distance="0.0"
+                                     tolerance="0.08"
+                                     distance_tolerance="0.20"
+                                     orient_tolerance_deg="5.0"
+                                     max_position_step="0.60"
+                                     use_aim_bearing="false"
+                                     require_heading="true"
+                                     settle_frames="1"
+                                     min_msec="500"
+                                     timeout_msec="40000"
+                                     update_msec="300"/>
+          </RetryUntilSuccessful>
+          <LoadModel camera="front"
+                     task="torp_fire_blood"
+                     timeout_msec="30000"/>
+          <Fallback name="find_fire_target">
+            <ForwardSweepAlign camera="front"
+                               task="torp_fire_blood"
+                               class_id="0"
+                               min_score="0.2"
+                               attempts="2"
+                               num_sweeps="4"
+                               forward_step="1.0"
+                               sample_timeout_msec="2500.0"
+                               move_timeout_msec="20000"/>
+            <WaitForDetection camera="front"
+                              task="torp_fire_blood"
                               class_id="0"
                               min_score="0.1"
-                              timeout_msec="5000"/>
-          </ForceSuccess>
+                              timeout_msec="3000"/>
+          </Fallback>
+          <AlignToDetection camera="front"
+                            task="torp_fire_blood"
+                            class_id="0"
+                            min_score="0.2"
+                            yaw="true"
+                            depth="false"
+                            tolerance="0.3"
+                            depth_gain="1.5"
+                            max_depth_step="0.5"
+                            timeout_msec="10000"/>
+          <MoveRelative x="0.3"
+                        y="0.0"
+                        z="0.0"/>
+          <RetryUntilSuccessful num_attempts="2">
+            <NavigateToTransform source_frame="front_camera"
+                                 target_frame="torps_left"
+                                 timeout_msec="25000"/>
+          </RetryUntilSuccessful>
         </Sequence>
-      </Fallback>
-      <RetryUntilSuccessful num_attempts="2">
-        <OrientToDetectionAtDist camera="front"
-                                 task="torp"
-                                 class_id="0"
-                                 min_score="0.1"
-                                 desired_distance="0.95"
-                                 max_detection_distance="4.0"
-                                 tolerance="0.08"
-                                 distance_tolerance="0.08"
-                                 orient_tolerance_deg="5.0"
-                                 max_position_step="0.60"
-                                 require_heading="true"
-                                 settle_frames="3"
-                                 min_msec="3000"
-                                 timeout_msec="40000"
-                                 update_msec="300"/>
-      </RetryUntilSuccessful>
-      <!-- Only the board is detectable.  These are fixed competition-board
-           offsets from the visually aligned camera aim point. -->
-      <MoveRelative x="0.5"
-                    y="0.0"
-                    z="0.0"/>
-      <NavigateToTransform source_frame="front_camera"
-                           target_frame="torps_left"
-                           timeout_msec="30000"/>
-      <ShootTorpedo torpedo_id="0"
-                    open="true"
-                    timeout_msec="5000"/>
-      <!-- Restore the camera aim point before applying the second fixed offset. -->
-      <NavigateToTransform source_frame="torps_left"
-                           target_frame="front_camera"
-                           timeout_msec="30000"/>
-      <MoveRelative x="0.0"
-                    y="0.15"
-                    z="0.0"/>
-      <NavigateToTransform source_frame="front_camera"
-                           target_frame="torps_right"
-                           timeout_msec="30000"/>
-      <ShootTorpedo torpedo_id="1"
-                    open="true"
-                    timeout_msec="5000"/>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="0"
+                      open="true"
+                      timeout_msec="5000"/>
+      </ForceSuccess>
+      <ForceSuccess>
+        <Sequence name="torp_reposition">
+          <NavigateToTransform source_frame="torps_left"
+                               target_frame="front_camera"
+                               timeout_msec="30000"/>
+          <MoveRelative x="0.0"
+                        y="0.15"
+                        z="0.0"/>
+          <NavigateToTransform source_frame="front_camera"
+                               target_frame="torps_right"
+                               timeout_msec="30000"/>
+        </Sequence>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="1"
+                      open="true"
+                      timeout_msec="5000"/>
+      </ForceSuccess>
       <VelocitySetpoint x="-1.5"
                         y="0.0"
                         z="0.0"/>
@@ -242,48 +280,6 @@
       <input_port name="move_timeout_msec"
                   default="20000">Maximum wait for each commanded movement</input_port>
     </Action>
-    <Action ID="WaitForDetection">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="timeout_msec"
-                  default="15000">Maximum wait before returning FAILURE</input_port>
-    </Action>
-    <Action ID="LateralAlignToDetection">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="use_board_aim_bearing"
-                  default="false">Use calibrated fixed-hole bearings published with a board detection</input_port>
-      <input_port name="lock_board_aim"
-                  default="false">Lock three consistent aim rays into an odom-frame lateral/depth target</input_port>
-      <input_port name="target_distance"
-                  default="1.15">Camera-to-target plane distance used to project pixel bearings</input_port>
-      <input_port name="target_offset_right_m"
-                  default="0.0">Fixed target offset to camera-right from the detected item, in meters</input_port>
-      <input_port name="target_offset_down_m"
-                  default="0.0">Fixed target offset downward from the detected item, in meters</input_port>
-      <input_port name="tolerance"
-                  default="0.012">Centered when horizontal and vertical bearing are within this radian bound</input_port>
-      <input_port name="max_lateral_step"
-                  default="0.10">Maximum body-lateral correction per update in meters</input_port>
-      <input_port name="max_depth_step"
-                  default="0.08">Maximum vertical correction per update in meters</input_port>
-      <input_port name="settle_frames"
-                  default="8">Consecutive centered model detections required before SUCCESS</input_port>
-      <input_port name="min_msec"
-                  default="1500">Minimum closed-loop alignment time</input_port>
-      <input_port name="timeout_msec"
-                  default="15000">Maximum alignment time before FAILURE</input_port>
-      <input_port name="update_msec"
-                  default="300">Minimum time between translation corrections</input_port>
-    </Action>
     <Action ID="LoadModel">
       <input_port name="camera"
                   default="front">Camera whose vision node loads the model</input_port>
@@ -324,6 +320,8 @@
                   default="5.0">Orientation error allowed at completion</input_port>
       <input_port name="max_position_step"
                   default="0.5">Maximum translation correction per update (m)</input_port>
+      <input_port name="use_aim_bearing"
+                  default="false">Use calibrated aim_bearing_horizontal metadata when available</input_port>
       <input_port name="require_heading"
                   default="false">Fail when no calibrated board-normal heading is available</input_port>
       <input_port name="settle_frames"
@@ -358,7 +356,16 @@
       <input_port name="z"
                   default="0.0">Up velocity in meters per second</input_port>
     </Action>
-    <Condition ID="TorpBoardV1">Succeeds when launch-time torp_board_type is v1</Condition>
+    <Action ID="WaitForDetection">
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="timeout_msec"
+                  default="15000">Maximum wait before returning FAILURE</input_port>
+    </Action>
   </TreeNodesModel>
 
 </root>

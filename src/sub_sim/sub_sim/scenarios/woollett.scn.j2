@@ -37,7 +37,7 @@
       z=ROBOT_Z,
       roll=0.0,
       pitch=0.0,
-      yaw=ROBOT_YAW if ROBOT_YAW is not none else PI
+      yaw=ROBOT_YAW if ROBOT_YAW is not none else choose([PI/2, PI])
   ) }}" />
 
   <include file="models/pools/woollett/woollett.scn">
@@ -112,7 +112,6 @@
     <arg name="yaw" value="{{ fuzz(-PI / 6, DYAW / 2) }}" />
   </include>
 
-
   <include file="models/bin_task/bin/bin.scn">
     <arg name="x" value="{{ fuzz(15.4, DX) }}" />
     <arg name="y" value="{{ fuzz(1.1, DY) }}" />
@@ -129,7 +128,8 @@
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(1.2, DYAW) }}" />
+    <!-- Face the default sub spawn head-on (south); keep the board square. -->
+    <arg name="yaw" value="{{ -PI / 2 }}" />
   </include>
 
 
@@ -155,41 +155,5 @@
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(0, DYAW / 5) }}" />
-  </include>
-
-  <include file="models/octagon_task/bottle_red/bottle_red.scn">
-    <arg name="x" value="{{ fuzz(21.3, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
-
-  <include file="models/octagon_task/bottle_yellow/bottle_yellow.scn">
-    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
-
-  <include file="models/octagon_task/ladle_red/ladle_red.scn">
-    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8.1, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
-
-  <include file="models/octagon_task/ladle_yellow/ladle_yellow.scn">
-    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(7.9, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
 </scenario>

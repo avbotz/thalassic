@@ -39,7 +39,6 @@ namespace {
 void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, const rclcpp::Logger logger,
                           PointCmdPublisher::SharedPtr position_publisher,
                           QuaternionCmdPublisher::SharedPtr attitude_publisher,
-                          PointCmdPublisher::SharedPtr linear_velocity_publisher,
                           PointCmdPublisher::SharedPtr angular_velocity_publisher,
                           SpinCmdPublisher::SharedPtr spin_publisher, rclcpp::Clock::SharedPtr clock) {
     factory.registerSimpleCondition("NotKilled", [&node](BT::TreeNode &) {
@@ -55,11 +54,15 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
         return node.role == "SEARCH" ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
     });
 
-    registerPosSetpointAction(factory, node, position_publisher, clock, logger);
-    registerVelocitySetpointAction(factory, node, linear_velocity_publisher, clock, logger);
-    registerAttSetpointAction(factory, node, attitude_publisher, clock, logger);
+    registerControlSetpointActions(
+        factory,
+        rclcpp_action::create_client<sub_control_interfaces::action::ControlSetpoint>(
+            node.get_node_base_interface(), node.get_node_graph_interface(), node.get_node_logging_interface(),
+            node.get_node_waitables_interface(), "control_setpoint"),
+        logger);
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);
+    registerMoveRelativePosAction(factory, node, position_publisher, clock, logger);
     registerNavigateToTransformAction(factory, node, position_publisher, clock, logger);
     registerAddAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerSpinAction(factory, node, spin_publisher, attitude_publisher, clock, logger);
@@ -168,8 +171,6 @@ void MissionNode::activate() {
     }
 
     RCLCPP_INFO(this->get_logger(), "Kill switch released");
-    RCLCPP_INFO(this->get_logger(), "Wait for motors to start up");
-    std::this_thread::sleep_for(7s);
 }
 
 bool MissionNode::load_mission() {
@@ -200,7 +201,7 @@ bool MissionNode::load_mission() {
         const auto angular_velocity_publisher = attitude_publisher;
         const auto spin_publisher = this->create_publisher<SpinCmdMsg>("spin_setpoint", 10);
         registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
-                             linear_velocity_publisher, angular_velocity_publisher, spin_publisher, this->get_clock());
+                             angular_velocity_publisher, spin_publisher, this->get_clock());
         registerVisionNodes(factory, *this, this->get_logger(), position_publisher, linear_velocity_publisher,
                             attitude_publisher, this->get_clock());
         for (const std::string &tree_file : treeFiles()) {

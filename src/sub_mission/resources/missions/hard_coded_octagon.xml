@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedOctagonRun">
+  <BehaviorTree ID="HardCodedOctagonRun">
+    <SubTree ID="HardCodedOctagonMission"/>
+  </BehaviorTree>
+  <PosSetpoint x="nan"
+               y="nan"
+               z="0.0"/>
+  <TreeNodesModel/>
+</root>

@@ -7,6 +7,9 @@
     <include path="missions/pool_d.xml"/>
     <include path="missions/pool_test.xml"/>
     <include path="missions/prelim.xml"/>
+    <include path="missions/hard_coded_torp.xml"/>
+    <include path="missions/hard_coded_octagon.xml"/>
+    <include path="missions/hard_coded_competition.xml"/>
     <include path="missions/slalom_perception_hold_test.xml"/>
     <include path="missions/slalom_three_test.xml"/>
     <include path="missions/vision_test.xml"/>
@@ -14,6 +17,11 @@
     <include path="trees/coin_flip.xml"/>
     <include path="trees/competition.xml"/>
     <include path="trees/gate.xml"/>
+    <include path="trees/hard_coded_gate.xml"/>
+    <include path="trees/hard_coded_slalom.xml"/>
+    <include path="trees/hard_coded_competition.xml"/>
+    <include path="trees/hard_coded_torp.xml"/>
+    <include path="trees/hard_coded_octagon.xml"/>
     <include path="trees/octagon.xml"/>
     <include path="trees/pool_test.xml"/>
     <include path="trees/prelim.xml"/>
@@ -161,9 +169,12 @@
             <input_port name="vision_distance_m">Range along the just-confirmed pole-clearance path</input_port>
             <input_port name="pass_distance" default="0.0">Distance to continue past the gap plane</input_port>
             <input_port name="min_transit_distance" default="0.0">Minimum safe transit distance</input_port>
+            <input_port name="completion_tolerance_m" default="0.15">Odometry shortfall accepted within pass margin</input_port>
             <input_port name="max_dist" default="10.0">Hard transit distance safety limit</input_port>
             <input_port name="forward_velocity" default="0.3">Forward velocity</input_port>
             <input_port name="timeout_msec" default="30000">Transit timeout</input_port>
+            <input_port name="min_progress_m" default="0.10">Minimum odometry advance that proves motion</input_port>
+            <input_port name="progress_timeout_msec" default="4000">Maximum time without sufficient progress</input_port>
         </Action>
         <Action ID="ForwardSweepAlign">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
@@ -184,6 +195,7 @@
             <input_port name="attempts" default="3">Stable matching frames required for an acquisition</input_port>
             <input_port name="num_sweeps" default="1">Complete stationary left/right sweeps before acquisition</input_port>
             <input_port name="required_pole_count" default="1">Exactly one selected pole is required</input_port>
+            <input_port name="max_left_offset_deg" default="45">Largest safe port-side scan offset before using the least-oblique pole</input_port>
             <input_port name="sample_timeout_msec" default="1800.0">Maximum detection sampling time at each heading</input_port>
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each in-place yaw command</input_port>
             <output_port name="transit_distance_m">Vision range to the selected pole's right-clearance path</output_port>
@@ -215,6 +227,11 @@
             <input_port name="x" default="0.0">Forward offset in meters</input_port>
             <input_port name="y" default="0.0">Right offset in meters</input_port>
             <input_port name="z" default="0.0">Vertical offset in meters; negative is down</input_port>
+        </Action>
+        <Action ID="MoveRelativePos">
+            <input_port name="x" default="0.0">Global east offset in meters</input_port>
+            <input_port name="y" default="0.0">Global north offset in meters</input_port>
+            <input_port name="z" default="0.0">Global vertical offset in meters; negative is down</input_port>
         </Action>
         <Action ID="NavigateToTransform">
             <input_port name="source_frame">Frame whose current position is the aim point</input_port>
@@ -248,6 +265,7 @@
             <input_port name="distance_tolerance" default="0.5">Distance error allowed at completion (m)</input_port>
             <input_port name="orient_tolerance_deg" default="5.0">Orientation error allowed at completion</input_port>
             <input_port name="max_position_step" default="0.5">Maximum translation correction per update (m)</input_port>
+            <input_port name="use_aim_bearing" default="false">Use calibrated aim_bearing_horizontal metadata when available</input_port>
             <input_port name="require_heading" default="false">Fail when no calibrated board-normal heading is available</input_port>
             <input_port name="settle_frames" default="1">Consecutive in-tolerance detection frames required before SUCCESS</input_port>
             <input_port name="min_msec" default="6500">Minimum closed-loop alignment time</input_port>

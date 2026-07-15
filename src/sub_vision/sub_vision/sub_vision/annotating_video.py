@@ -22,6 +22,11 @@ class AnnotatedNode(Node):
             "vision/debug_image",
             qos_profile_sensor_data,
         )
+        self._pub_compressed = self.create_publisher(
+            CompressedImage,
+            "vision/debug_image/compressed",
+            qos_profile_sensor_data,
+        )
 
         self.declare_parameter("image_transport", "raw")
         transport = self.get_parameter("image_transport").value
@@ -112,12 +117,21 @@ class AnnotatedNode(Node):
                     2,
                 )
 
-            msg = self._bridge.cv2_to_imgmsg(
-                annotated,
-                encoding="bgr8",
-            )
-            msg.header = self._latest_header
-            self._pub.publish(msg)
+            if self._pub.get_subscription_count() > 0:
+                msg = self._bridge.cv2_to_imgmsg(
+                    annotated,
+                    encoding="bgr8",
+                )
+                msg.header = self._latest_header
+                self._pub.publish(msg)
+
+            if self._pub_compressed.get_subscription_count() > 0:
+                compressed = self._bridge.cv2_to_compressed_imgmsg(
+                    annotated,
+                    dst_format="jpg",
+                )
+                compressed.header = self._latest_header
+                self._pub_compressed.publish(compressed)
 
     
 

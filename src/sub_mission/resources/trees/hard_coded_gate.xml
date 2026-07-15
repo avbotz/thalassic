@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="HardCodedGateMission">
+  <BehaviorTree ID="HardCodedCoinFlipMission">
+    <Sequence name="hard_coded_coin_flip_mission">
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
+      <AttSetpoint roll="nan"
+                   pitch="nan"
+                   yaw="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="HardCodedGateMission">
+    <Sequence name="hard_coded_gate_mission">
+      <SubTree ID="HardCodedCoinFlipMission"/>
+      <SaveGateHome x="{@gate_home_x}"
+                    y="{@gate_home_y}"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-1.0"/>
+      <MoveRelativePos x="0.0"
+                    y="0.4"
+                    z="0.0"/>
+      <MoveRelativePos x="4.0"
+                    y="0.0"
+                    z="0.0"/>
+      <Spin yaw="12.56637061"
+            rate="3.14159265"/>
+      <PosSetpoint x="nan"
+                   y="nan"
+                   z="-0.8"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="AttSetpoint">
+      <input_port name="roll"
+                  default="nan">Roll setpoint in radians</input_port>
+      <input_port name="pitch"
+                  default="nan">Pitch setpoint in radians</input_port>
+      <input_port name="yaw"
+                  default="nan">Yaw setpoint in radians</input_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x"
+                  default="0.0">Forward offset in meters</input_port>
+      <input_port name="y"
+                  default="0.0">Right offset in meters</input_port>
+      <input_port name="z"
+                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    </Action>
+    <Action ID="PosSetpoint">
+      <input_port name="x"
+                  default="nan">North/forward position setpoint</input_port>
+      <input_port name="y"
+                  default="nan">East/right position setpoint</input_port>
+      <input_port name="z"
+                  default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="SaveGateHome">
+      <output_port name="x">Saved gate-home x coordinate</output_port>
+      <output_port name="y">Saved gate-home y coordinate</output_port>
+    </Action>
+    <Action ID="Spin">
+      <input_port name="yaw"
+                  default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
+      <input_port name="rate"
+                  default="3.14159265">Maximum yaw rate in radians per second</input_port>
+    </Action>
+  </TreeNodesModel>
+
+</root>

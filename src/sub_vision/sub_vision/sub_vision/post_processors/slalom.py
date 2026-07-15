@@ -23,10 +23,19 @@ SLALOM_TARGET_CLASS_ID = '2'
 MIN_POLE_SCORE = 0.10
 MIN_POLE_HEIGHT_PX = 8.0
 POLE_NMS_IOU = 0.70
-# The pole is 0.9 m tall in Stonefish.  Staying 0.9 m to its right clears a
-# pole and the vehicle hull without needing to identify the other poles.
+# Adjacent poles are 1.50 m apart. Keep the vehicle just right of the selected
+# left pole (0.55 m), leaving 0.95 m to its right neighbour. The midpoint was
+# still too close to that right pole for Marlin's hull at an oblique approach.
 POLE_HEIGHT_M = 0.90
-RIGHT_CLEARANCE_M = 0.90
+# The red poles in a layer are 1.50 m apart.  Aim at the midpoint of the
+# gap, not merely "past" the selected pole: Marlin's collision envelope makes
+# a 0.55 m offset a grazing route, particularly after a row-to-row turn.
+RIGHT_CLEARANCE_M = 0.75
+# ``distance_m`` drives an odometry transit from ``base_link``.  The front
+# camera is mounted 0.42 m ahead of that origin, so an image ray's distance
+# must be shortened before it is handed to the mission.  Without this, the
+# hull reaches a pole roughly 0.4 m before the reported visual target.
+FRONT_CAMERA_FORWARD_OFFSET_M = 0.42
 
 
 def _class_id(det) -> int:
@@ -87,7 +96,8 @@ def _right_of_pole_target(pole, k: np.ndarray):
         forward_range * math.tan(pole_bearing) + RIGHT_CLEARANCE_M,
         forward_range,
     )
-    path_distance = forward_range / math.cos(desired_bearing)
+    camera_path_distance = forward_range / math.cos(desired_bearing)
+    path_distance = camera_path_distance - FRONT_CAMERA_FORWARD_OFFSET_M
     if not math.isfinite(path_distance) or path_distance <= 0.0:
         return None
 
@@ -102,6 +112,8 @@ def _right_of_pole_target(pole, k: np.ndarray):
         KeyValue(key='target', value='right_of_leftmost_pole'),
         KeyValue(key='pole_count', value='1'),
         KeyValue(key='pole_range_m', value=f'{pole_range:.3f}'),
+        KeyValue(key='camera_path_distance_m', value=f'{camera_path_distance:.3f}'),
+        KeyValue(key='front_camera_offset_m', value=f'{FRONT_CAMERA_FORWARD_OFFSET_M:.3f}'),
         KeyValue(key='right_clearance_m', value=f'{RIGHT_CLEARANCE_M:.3f}'),
         KeyValue(key='source_class', value=str(_class_id(pole))),
         KeyValue(key='source_pole_x_px', value=f'{_center_x(pole):.1f}'),

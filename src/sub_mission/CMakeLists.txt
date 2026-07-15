@@ -18,6 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -44,16 +45,15 @@ set(MISSION_ACTION_SOURCES
     src/nodes/actions/add_att_setpoint.cpp
     src/nodes/actions/actuators.cpp
     src/nodes/actions/angular_velocity_setpoint.cpp
-    src/nodes/actions/att_setpoint.cpp
+    src/nodes/actions/control_setpoint.cpp
     src/nodes/actions/average_angles.cpp
     src/nodes/actions/move_relative.cpp
+    src/nodes/actions/move_relative_pos.cpp
     src/nodes/actions/navigate_to_transform.cpp
     src/nodes/actions/octagon_surface_sweep.cpp
-    src/nodes/actions/pos_setpoint.cpp
     src/nodes/actions/save_gate_home.cpp
     src/nodes/actions/sleep.cpp
     src/nodes/actions/spin.cpp
-    src/nodes/actions/velocity_setpoint.cpp
     src/nodes/actions/wait_until_hit.cpp
 )
 
@@ -84,6 +84,7 @@ foreach(node IN ITEMS mission restart)
 
     ament_target_dependencies(${node}
         "rclcpp"
+        "rclcpp_action"
         "geometry_msgs"
         "sub_control_interfaces"
         "sub_driver_interfaces"

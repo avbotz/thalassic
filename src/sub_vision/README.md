@@ -47,6 +47,33 @@ The depth camera is **not** used: `sub_vision` subscribes to RGB only.
 Bounding boxes, bearings, and `pose` are expressed in the camera **optical**
 frame (`header.frame_id` from the source image).
 
+### Optional Depth Anything V2 sidecar
+
+Set `depth_enabled: true` and provide an exported Depth Anything V2 Small ONNX
+model at `depth_model_path` to run relative-depth inference alongside YOLO.
+`depth_backend: auto` prefers a sibling TensorRT `.engine` on Jetson and falls
+back to ONNX Runtime; `onnxruntime` and `tensorrt` can force either backend.
+The sidecar is rate-limited (`depth_rate_hz`, default 5 Hz) and a result older
+than `depth_max_age_s` (default 0.15 s) is ignored. It does not use the OAK
+stereo topic and does not claim monocular depth is metric.
+
+For torp PnP, a depth map is eligible only when it was inferred from the exact
+same nonzero ROS image timestamp. A fresh map may provide a conservative
+depth-plane board outline; if that outline is not bounded and valid, torp
+falls back to its existing YOLO-mask and HSV/OpenCV outline extraction.
+
+The workspace includes the fixed-shape `518x518` export at
+`sub_vision/weights/depth_anything_v2_vits.onnx` (Depth Anything V2 Small,
+opset 18).
+Its SHA-256 is `6b52116339c20be5acf4f1e800b9a85fa21304dbe5e49ef1897a9feb912a7f36`.
+
+For `torp`, a valid PnP board pose calibrates the relative map against the
+known board plane. The processor then records validation metadata and may use
+that calibration for at most 0.5 s to recover a board plane during a PnP
+dropout. Otherwise, it preserves the existing PnP-only behavior. Inspect
+`depth_status`, `depth_pose_source`, and `depth_calibration_age_s` in each
+detection's `extra` field when diagnosing the feature.
+
 ### image_transport
 
 rclpy has no `image_transport` bindings, so the node implements the convention
