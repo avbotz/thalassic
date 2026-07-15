@@ -6,32 +6,12 @@
       <PosSetpoint x="nan"
                    y="nan"
                    z="-1.0"/>
-      <AttSetpoint roll="nan"
-                   pitch="nan"
-                   yaw="0.0"/>
-      <ResetStateOnRevive timeout_msec="5000"/>
-    </Sequence>
-  </BehaviorTree>
-
-  <BehaviorTree ID="HardCodedGateMission">
-    <Sequence name="hard_coded_gate_mission">
-      <SubTree ID="HardCodedCoinFlipMission"/>
-      <SaveGateHome x="{@gate_home_x}"
-                    y="{@gate_home_y}"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-1.0"/>
       <MoveRelativePos x="0.0"
-                    y="0.4"
-                    z="0.0"/>
-      <MoveRelativePos x="4.0"
-                    y="0.0"
-                    z="0.0"/>
-      <Spin yaw="12.56637061"
-            rate="3.14159265"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.8"/>
+          y="0.4"
+          z="0.0"/>
+      <MoveRelativePos x="5.0"
+          y="0.0"
+          z="0.0"/>
     </Sequence>
   </BehaviorTree>
 

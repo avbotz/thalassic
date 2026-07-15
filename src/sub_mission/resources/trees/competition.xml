@@ -2,19 +2,16 @@
 <root BTCPP_format="4"
       main_tree_to_execute="CompetitionRun">
   <BehaviorTree ID="CompetitionRun">
+    <SubTree ID="HardCodedGateMission"/>
     <Fallback>
       <Sequence name="competition_run">
-        <AttSetpoint x="0.0"
-                     y="0.0"
-                     z="0.0"/>
-        <SubTree ID="GateMission"/>
         <PosSetpoint x="nan"
                      y="nan"
                      z="-1.2"/>
-        <MoveRelative x="17.0"
+        <MoveRelativePos x="17.0"
                      y="0.0"
-                     z=""/>
-        <MoveRelative x="0.0"
+                     z="0.0"/>
+        <MoveRelativePos x="0.0"
                       y="-0.6"
                       z="0.0"/>
         <PosSetpoint x="nan"
@@ -23,12 +20,12 @@
         <PosSetpoint x="nan"
             y="nan"
             z="-0.6"/>
-        <MoveRelative x="-20.0"
+        <MoveRelativePos x="-20.0"
             y="nan"
             z="-1.2"/>
         <PosSetpoint x="nan"
             y="nan"
-            z="0.0">
+            z="0.0"/>
       </Sequence>
     </Fallback>
   </BehaviorTree>
