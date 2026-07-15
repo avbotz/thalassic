@@ -28,15 +28,19 @@ class OctagonSurfaceSweepAction : public BT::StatefulActionNode {
 
     static BT::PortsList providedPorts() {
         return {BT::InputPort<std::string>("task", "", "Front-camera model task to inspect"),
+                BT::InputPort<std::string>("surface_class_id", "0", "Class that triggers surfacing"),
+                BT::InputPort<std::string>("diversion_class_id", "1", "Class that triggers yaw diversion"),
                 BT::InputPort<double>("min_score", 0.0, "Minimum detection confidence"),
-                BT::InputPort<double>("yaw_step_deg", 30.0, "Yaw increment while searching for class 0"),
-                BT::InputPort<double>("diversion_deg", 90.0, "One-time yaw increment after seeing class 2"),
-                BT::InputPort<double>("surface_z", -0.3, "Final ENU z setpoint after seeing class 0"),
+                BT::InputPort<double>("yaw_step_deg", 30.0, "Yaw increment while searching for surface class"),
+                BT::InputPort<double>("diversion_deg", 90.0, "One-time yaw increment after seeing diversion class"),
+                BT::InputPort<double>("surface_z", -0.3, "Final ENU z setpoint after seeing surface class"),
                 BT::InputPort<int>("move_timeout_msec", 20000, "Maximum wait for each yaw or depth command")};
     }
 
     BT::NodeStatus onStart() override {
         getInput("task", task_);
+        getInput("surface_class_id", surface_class_id_);
+        getInput("diversion_class_id", diversion_class_id_);
         getInput("min_score", min_score_);
         getInput("yaw_step_deg", yaw_step_deg_);
         getInput("diversion_deg", diversion_deg_);
@@ -106,17 +110,18 @@ class OctagonSurfaceSweepAction : public BT::StatefulActionNode {
             if (hypothesis.score < min_score_) {
                 continue;
             }
-            if (hypothesis.class_id == "0") {
+            if (hypothesis.class_id == surface_class_id_) {
                 commandSurface();
                 return;
             }
-            saw_diversion = saw_diversion || hypothesis.class_id == "2";
+            saw_diversion = saw_diversion || hypothesis.class_id == diversion_class_id_;
         }
 
         if (saw_diversion && !diversion_applied_) {
             diversion_applied_ = true;
             commandYaw(diversion_deg_);
-            RCLCPP_INFO(logger_, "OctagonSurfaceSweep: class 2 seen; applying %.1f degree diversion.", diversion_deg_);
+            RCLCPP_INFO(logger_, "OctagonSurfaceSweep: class %s seen; applying %.1f degree diversion.",
+                        diversion_class_id_.c_str(), diversion_deg_);
         }
     }
 
@@ -133,7 +138,8 @@ class OctagonSurfaceSweepAction : public BT::StatefulActionNode {
         start_updates_ = node_.control_error_updates[2];
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(move_timeout_msec_);
         position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
-        RCLCPP_INFO(logger_, "OctagonSurfaceSweep: class 0 seen; surfacing to z=%.2f.", surface_z_);
+        RCLCPP_INFO(logger_, "OctagonSurfaceSweep: class %s seen; surfacing to z=%.2f.",
+                    surface_class_id_.c_str(), surface_z_);
     }
 
     MissionNode &node_;
@@ -145,6 +151,8 @@ class OctagonSurfaceSweepAction : public BT::StatefulActionNode {
     SteadyClock::time_point deadline_;
     std::uint64_t start_updates_ = 0;
     std::string task_;
+    std::string surface_class_id_ = "0";
+    std::string diversion_class_id_ = "1";
     double min_score_ = 0.0;
     double yaw_step_deg_ = 30.0;
     double diversion_deg_ = 90.0;
