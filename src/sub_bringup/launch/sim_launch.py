@@ -356,7 +356,7 @@ def control_and_state_entities() -> list[Node]:
             PathJoinSubstitution(
                 [
                     FindPackageShare("sub_bringup"),
-                    "config/ekf.yaml",
+                    "config/ekf_sim.yaml",
                 ]
             ),
         ],
