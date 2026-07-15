@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="GateSlalomTest">
+  <BehaviorTree ID="GateSlalomTest">
+    <Sequence name="gate_then_three_layer_slalom">
+      <!-- Face straight down-course after clearing the gate. -->
+      <SetBlackboard output_key="gate_exit_yaw" value="0.0"/>
+      <SubTree ID="GateMission"/>
+      <!-- GateMission has already established the -1.00 m crossing depth.
+           Do not issue a depth-only PosSetpoint here: unspecified XY axes
+           retain the pre-transit position command and would pull the vehicle
+           backward through the gate after its velocity-based transit. -->
+      <Sleep msec="5000"/>
+      <SubTree ID="SlalomMission"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
