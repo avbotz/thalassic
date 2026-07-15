@@ -23,9 +23,32 @@ class ControlSetpointAction : public BT::StatefulActionNode {
         : BT::StatefulActionNode(name, config), client_(std::move(client)), command_type_(command_type), ports_(std::move(ports)), logger_(logger) {}
 
     BT::NodeStatus onStart() override {
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            terminal_status_.reset();
+            goal_handle_.reset();
+            goal_sent_ = false;
+        }
+        server_deadline_ = std::chrono::steady_clock::now() + ACTION_SERVER_TIMEOUT;
+        warned_server_wait_ = false;
+        return sendWhenReady();
+    }
+
+    BT::NodeStatus sendWhenReady() {
         if (!client_->wait_for_action_server(std::chrono::seconds(0))) {
-            RCLCPP_ERROR(logger_, "ControlSetpoint action server is unavailable.");
-            return BT::NodeStatus::FAILURE;
+            if (!warned_server_wait_) {
+                RCLCPP_WARN(logger_, "Waiting for ControlSetpoint action server...");
+                warned_server_wait_ = true;
+            }
+            if (std::chrono::steady_clock::now() >= server_deadline_) {
+                RCLCPP_ERROR(logger_, "ControlSetpoint action server did not become available within %ld seconds.",
+                             ACTION_SERVER_TIMEOUT.count());
+                std::lock_guard<std::mutex> lock(state_mutex_);
+                terminal_status_ = BT::NodeStatus::FAILURE;
+                goal_sent_ = true;
+                return BT::NodeStatus::FAILURE;
+            }
+            return BT::NodeStatus::RUNNING;
         }
 
         ControlSetpoint::Goal goal;
@@ -47,11 +70,6 @@ class ControlSetpointAction : public BT::StatefulActionNode {
             getInput("z", goal.setpoint.setpoint.z);
         }
 
-        {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            terminal_status_.reset();
-            goal_handle_.reset();
-        }
         typename rclcpp_action::Client<ControlSetpoint>::SendGoalOptions options;
         options.goal_response_callback = [this](GoalHandleControlSetpoint::SharedPtr handle) {
             std::lock_guard<std::mutex> lock(state_mutex_);
@@ -66,12 +84,22 @@ class ControlSetpointAction : public BT::StatefulActionNode {
             if (result.result) RCLCPP_INFO(logger_, "ControlSetpoint finished: %s", result.result->message.c_str());
         };
         client_->async_send_goal(goal, options);
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            goal_sent_ = true;
+        }
+        RCLCPP_DEBUG(logger_, "ControlSetpoint action server available; goal sent.");
         return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus onRunning() override {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        return terminal_status_.value_or(BT::NodeStatus::RUNNING);
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            if (goal_sent_) {
+                return terminal_status_.value_or(BT::NodeStatus::RUNNING);
+            }
+        }
+        return sendWhenReady();
     }
 
     void onHalted() override {
@@ -79,15 +107,20 @@ class ControlSetpointAction : public BT::StatefulActionNode {
         if (goal_handle_) client_->async_cancel_goal(goal_handle_);
         goal_handle_.reset();
         terminal_status_.reset();
+        goal_sent_ = false;
     }
 
    private:
+    static constexpr auto ACTION_SERVER_TIMEOUT = std::chrono::seconds(30);
     rclcpp_action::Client<ControlSetpoint>::SharedPtr client_;
     uint8_t command_type_;
     BT::PortsList ports_;
     rclcpp::Logger logger_;
     GoalHandleControlSetpoint::SharedPtr goal_handle_;
     std::optional<BT::NodeStatus> terminal_status_;
+    std::chrono::steady_clock::time_point server_deadline_;
+    bool warned_server_wait_{false};
+    bool goal_sent_{false};
     std::mutex state_mutex_;
 };
 

@@ -5,7 +5,7 @@
     <Sequence name="torp_mission">
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-0.7"/>
+                   z="-0.55"/>
       <AttSetpoint name="torp_search_heading"
                    roll="nan"
                    pitch="nan"
