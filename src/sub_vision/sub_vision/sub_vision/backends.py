@@ -32,6 +32,7 @@ class DetectionBackend(ABC):
         input_size: int,
         conf_threshold: float,
         class_count: int | None = None,
+        end2end: bool = False,
     ):
         self.input_size = input_size
         self.conf_threshold = conf_threshold
@@ -39,7 +40,7 @@ class DetectionBackend(ABC):
         # ONNX exports with embedded NMS retain a [x1, y1, x2, y2,
         # confidence, class, ...mask_coefficients] row.  The optional mask
         # coefficients mean those exports are not necessarily six columns.
-        self._end2end = False
+        self.end2end = end2end
 
     # Context managers ensure backend resources (like CUDA pointers) are safely freed
     def __enter__(self):
@@ -106,7 +107,7 @@ class DetectionBackend(ABC):
         # Distinguish embedded-NMS/end-to-end outputs from older raw YOLO
         # heads.  Segmentation exports have 6 + mask-coefficient columns, so
         # width alone cannot identify them.
-        if self._end2end or out.shape[1] == 6:
+        if self.end2end or out.shape[1] == 6:
             dets = out[out[:, 4] >= self.conf_threshold]
         else:
             dets = self._decode_raw_head(out)
@@ -235,14 +236,14 @@ class OnnxBackend(DetectionBackend):
         )
 
         self._session = ort.InferenceSession(onnx_path, providers=providers)
+        metadata = self._session.get_modelmeta().custom_metadata_map
         super().__init__(
             input_size,
             conf_threshold,
             class_count=self._class_count_from_metadata(self._session),
+            end2end=str(metadata.get("end2end", "false")).lower() == "true",
         )
         self._input_name = self._session.get_inputs()[0].name
-        self._end2end = self._session.get_modelmeta().custom_metadata_map.get("end2end", "").lower() == "true"
-
         # Lock to static graph size if available
         shape = self._session.get_inputs()[0].shape
         if len(shape) == 4 and isinstance(shape[2], int):

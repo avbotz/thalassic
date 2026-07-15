@@ -9,6 +9,13 @@ import numpy as np
 
 from sub_vision import backends
 
+MODEL_TASK_ALIASES = {
+    # The competition gate task uses the supplied Front-Facing Camera role
+    # icon model.  Keep the logical task name "gate" so detections still run
+    # through the gate post-processor and mission filters.
+    "gate": "ffc_rs_26",
+}
+
 
 @dataclass
 class LoadResult:
@@ -88,10 +95,11 @@ class ModelManager:
             return LoadResult(True, f"'{task}' already active", self.active_model, 0.0)
 
         start = time.perf_counter()
+        model_task = MODEL_TASK_ALIASES.get(task, task)
         try:
             # Slow path (model load) runs outside the lock.
             backend = backends.build_backend(
-                task=task,
+                task=model_task,
                 model_dir=self._model_dir,
                 backend_pref=self._backend_pref,
                 device_pref=self._device_pref,
@@ -100,7 +108,12 @@ class ModelManager:
                 log=self._log,
             )
         except Exception as exc:  # noqa: BLE001 - report load failures to caller
-            return LoadResult(False, f"failed to load '{task}': {exc}", self.active_model, 0.0)
+            return LoadResult(
+                False,
+                f"failed to load '{task}' using model '{model_task}': {exc}",
+                self.active_model,
+                0.0,
+            )
 
         warmup = self._warmup(backend)
 
@@ -114,7 +127,8 @@ class ModelManager:
             old.close()
 
         load_time = time.perf_counter() - start
-        msg = f"loaded '{task}' via {backend.name}"
+        model_note = f" using '{model_task}'" if model_task != task else ""
+        msg = f"loaded '{task}'{model_note} via {backend.name}"
         if warmup is not None:
             msg += f" (warmup {warmup.mean_ms:.1f} ms/iter)"
         self._log(msg)

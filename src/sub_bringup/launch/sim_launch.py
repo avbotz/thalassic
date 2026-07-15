@@ -81,6 +81,7 @@ def _render_scn(context, *_, **__):
     scenario_name = LaunchConfiguration("scenario").perform(context)
     scenario_templates = {
         "woollett": "woollett.scn.j2",
+        "slalom_regression": "slalom_regression.scn.j2",
     }
     if scenario_name not in scenario_templates:
         choices = ", ".join(sorted(scenario_templates))
@@ -245,6 +246,9 @@ def sim_entities() -> list:
                     {
                         "frame_id": [LaunchConfiguration("robot_name"), "/odom"],
                         "child_frame_id": [LaunchConfiguration("robot_name"), "/base_link"],
+                        # Stonefish publishes hydrostatic gauge pressure, not
+                        # absolute pressure including one atmosphere.
+                        "surface_pressure_pa": 0.0,
                     }
                 ],
             ),

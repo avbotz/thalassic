@@ -38,6 +38,7 @@ namespace {
 
 void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, const rclcpp::Logger logger,
                           PointCmdPublisher::SharedPtr position_publisher,
+                          PointCmdPublisher::SharedPtr linear_velocity_publisher,
                           QuaternionCmdPublisher::SharedPtr attitude_publisher,
                           PointCmdPublisher::SharedPtr angular_velocity_publisher,
                           SpinCmdPublisher::SharedPtr spin_publisher, rclcpp::Clock::SharedPtr clock) {
@@ -60,6 +61,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
             node.get_node_base_interface(), node.get_node_graph_interface(), node.get_node_logging_interface(),
             node.get_node_waitables_interface(), "control_setpoint"),
         logger);
+    registerTimedVelocityAction(factory, node, linear_velocity_publisher, clock, logger);
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);
     registerMoveRelativePosAction(factory, node, position_publisher, clock, logger);
@@ -200,7 +202,8 @@ bool MissionNode::load_mission() {
         const auto linear_velocity_publisher = position_publisher;
         const auto angular_velocity_publisher = attitude_publisher;
         const auto spin_publisher = this->create_publisher<SpinCmdMsg>("spin_setpoint", 10);
-        registerMissionNodes(factory, *this, this->get_logger(), position_publisher, attitude_publisher,
+        registerMissionNodes(factory, *this, this->get_logger(), position_publisher, linear_velocity_publisher,
+                             attitude_publisher,
                              angular_velocity_publisher, spin_publisher, this->get_clock());
         registerVisionNodes(factory, *this, this->get_logger(), position_publisher, linear_velocity_publisher,
                             attitude_publisher, this->get_clock());

@@ -54,6 +54,7 @@ set(MISSION_ACTION_SOURCES
     src/nodes/actions/save_gate_home.cpp
     src/nodes/actions/sleep.cpp
     src/nodes/actions/spin.cpp
+    src/nodes/actions/velocity_setpoint.cpp
     src/nodes/actions/wait_until_hit.cpp
 )
 

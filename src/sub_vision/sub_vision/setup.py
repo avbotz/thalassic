@@ -16,6 +16,12 @@ setup(
         # Depth Anything is an optional runtime model, but installing it makes
         # the simulation debug launch self-contained.
         (os.path.join("share", package_name, "weights"), glob("weights/*.onnx")),
+        # Task weights are resolved from the installed package in simulation,
+        # keeping the mission independent of the shell's working directory.
+        (
+            os.path.join("share", package_name, "models"),
+            glob("models/*.onnx"),
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

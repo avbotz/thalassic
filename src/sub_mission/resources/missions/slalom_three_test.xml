@@ -1,60 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4" main_tree_to_execute="SlalomThreeLayerTest">
+  <!-- Direct simulator regression for the yaw-locked SlalomLayer tree. -->
   <BehaviorTree ID="SlalomThreeLayerTest">
-    <Fallback name="three_layer_test_or_breach">
-      <Sequence name="slalom_three_layer_regression">
-        <Parallel success_count="-1" failure_count="1">
-          <PosSetpoint x="nan" y="nan" z="-1.1"/>
-          <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
-        </Parallel>
-        <!-- The deterministic simulator pose begins facing the nearest row.
-             Each pass independently acquires one left-most pole while
-             stationary before it is allowed to translate. -->
-        <AttSetpoint roll="nan" pitch="nan" yaw="0.0"/>
-        <SubTree ID="SlalomLayer" name="test_slalom_layer_1"
-                 max_transit_distance="5.5" pass_distance="0.35"/>
-        <SubTree ID="SlalomLayer" name="test_slalom_layer_2"
-                 max_transit_distance="5.5" pass_distance="0.35"/>
-        <SubTree ID="SlalomLayer" name="test_slalom_layer_3"
-                 max_transit_distance="5.5" pass_distance="0.35"/>
-      </Sequence>
-      <SubTree ID="SlalomAbortBreach"/>
-    </Fallback>
+    <Sequence name="yaw_locked_three_layer_slalom">
+      <!-- This test starts at the post-gate handoff depth, so do not wait for
+           an unrelated depth move before beginning red-pole acquisition. -->
+      <LoadModel camera="front" task="slalom_redpoles_osu" timeout_msec="30000"/>
+      <SubTree ID="SlalomLayer" name="test_slalom_layer_1"
+               pole_class_id="2" search_lateral_velocity="0.10"
+               search_left_distance_m="5.0" search_right_distance_m="10.0"
+               search_timeout_msec="140000"
+               max_transit_distance="6.0"/>
+      <TimedVelocity x="0.0" y="0.0" z="-0.10" duration_msec="2000"/>
+      <SubTree ID="SlalomLayer" name="test_slalom_layer_2"
+               pole_class_id="2" search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0" search_right_distance_m="0.0"
+               search_timeout_msec="10000"
+               max_transit_distance="6.0"/>
+      <SubTree ID="SlalomLayer" name="test_slalom_layer_3"
+               pole_class_id="2" search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0" search_right_distance_m="0.0"
+               search_timeout_msec="0"
+               max_transit_distance="6.0"/>
+    </Sequence>
   </BehaviorTree>
-
-  <TreeNodesModel>
-    <Action ID="AttSetpoint">
-      <input_port name="roll" default="nan">Roll setpoint in radians</input_port>
-      <input_port name="pitch" default="nan">Pitch setpoint in radians</input_port>
-      <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
-    </Action>
-    <Action ID="ForwardSweepAlign">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="attempts"
-                  default="4">Detection frames sampled at each yaw</input_port>
-      <input_port name="num_sweeps"
-                  default="3">Forward sweep passes before FAILURE</input_port>
-      <input_port name="forward_step"
-                  default="2.0">Forward move between sweeps in meters</input_port>
-      <input_port name="sample_timeout_msec"
-                  default="2500.0">Maximum detection sample time per yaw</input_port>
-      <input_port name="move_timeout_msec"
-                  default="20000">Maximum wait for each commanded movement</input_port>
-    </Action>
-    <Action ID="LoadModel">
-      <input_port name="camera" default="front">Camera name</input_port>
-      <input_port name="task">Model task</input_port>
-      <input_port name="timeout_msec" default="20000">Load timeout</input_port>
-    </Action>
-    <Action ID="PosSetpoint">
-      <input_port name="x" default="nan">Odom x target</input_port>
-      <input_port name="y" default="nan">Odom y target</input_port>
-      <input_port name="z" default="nan">Odom z target</input_port>
-    </Action>
-  </TreeNodesModel>
 </root>

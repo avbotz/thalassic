@@ -1,141 +1,203 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
       main_tree_to_execute="SlalomMission">
-  <BehaviorTree ID="SlalomAbortBreach">
-    <Sequence name="stop_and_breach_after_slalom_failure">
-      <VelocitySetpoint x="0.0"
-                        y="0.0"
-                        z="0.0"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="0.0"/>
-      <AlwaysFailure/>
-    </Sequence>
+  <!--
+    Keep the entry yaw for the entire task. Each layer uses the front camera
+    only to translate onto the red divider's center ray; it then translates
+    0.75 m to port, putting the divider to starboard, and makes one bounded
+    forward pass through the red/white opening. No node in this tree commands
+    attitude.
+  -->
+  <BehaviorTree ID="AlignToSlalomPole">
+    <!-- Follow the live red-pole bearing instead of locking one projected
+         odom target. An edge-of-frame/partially visible pole can have an
+         inflated height-based range and would otherwise cause overshoot. -->
+    <LateralAlignToDetection camera="front"
+                             task="slalom_redpoles_osu"
+                             class_id="{pole_class_id}"
+                             min_score="0.20"
+                             use_detection_distance="true"
+                             max_alignment_projection_distance="1.0"
+                             lock_board_aim="false"
+                             reset_timeout_on_lock="false"
+                             lock_aim_frames="1"
+                             align_depth="false"
+                             lateral_bearing_gain="-1.0"
+                             target_distance="2.0"
+                             tolerance="0.15"
+                             max_bearing_jump_rad="0.35"
+                             bearing_filter_alpha="0.60"
+                             use_lateral_velocity_alignment="true"
+                             lateral_alignment_velocity="0.10"
+                             velocity_detection_grace_msec="2000"
+                             blind_alignment_frames="3"
+                             max_lateral_step="0.20"
+                             max_depth_step="0.08"
+                             settle_frames="1"
+                             min_msec="800"
+                             timeout_msec="60000"
+                             update_msec="250"
+                             initial_detection_max_age_msec="1500"
+                             detection_loss_msec="8000"
+                             detection_distance_m="{detection_distance_m}"/>
   </BehaviorTree>
 
   <BehaviorTree ID="SlalomLayer">
-    <Sequence name="scan_leftmost_pole_then_fixed_pass">
-      <StationarySweepAlign camera="front"
-                            task="slalom"
-                            class_id="2"
-                            min_score="0.70"
-                            attempts="2"
-                            num_sweeps="1"
-                            required_pole_count="1"
-                            max_left_offset_deg="45"
-                            sample_timeout_msec="3500"
-                            move_timeout_msec="12000"
-                            transit_distance_m="{slalom_transit_distance}"/>
-      <ForwardFixedTransit vision_distance_m="{slalom_transit_distance}"
-                           pass_distance="{pass_distance}"
-                           min_transit_distance="0.4"
-                           completion_tolerance_m="0.10"
+    <Sequence name="center_red_then_pass_port_gap">
+      <!-- Default to a 1.15 m nominal port strafe. A moving acquisition has
+           lateral momentum, so shorten the later strafe by 0.20 m. -->
+      <Script code="post_align_strafe_msec := 4600"/>
+      <!-- A lone stationary detection is not enough: its alignment must also
+           remain visible. Loss for 8 s fails this branch into moving search. -->
+      <Fallback name="stationary_alignment_then_moving_reacquisition">
+        <Sequence name="stationary_acquisition_and_alignment">
+          <WaitForDetection camera="front"
+                            task="slalom_redpoles_osu"
+                            class_id="{pole_class_id}"
+                            min_score="0.20"
+                            start_timeout_after_first_frame="true"
+                            timeout_msec="20000"/>
+          <SubTree ID="AlignToSlalomPole"
+                   pole_class_id="{pole_class_id}"
+                   detection_distance_m="{red_pole_distance}"/>
+        </Sequence>
+        <Sequence name="moving_acquisition_and_alignment">
+          <SearchForDetection camera="front"
+                              task="slalom_redpoles_osu"
+                              class_id="{pole_class_id}"
+                              min_score="0.20"
+                              x="0.0"
+                              y="{search_lateral_velocity}"
+                              z="0.0"
+                              sweep_left_m="{search_left_distance_m}"
+                              sweep_right_m="{search_right_distance_m}"
+                              timeout_msec="{search_timeout_msec}"/>
+          <Script code="post_align_strafe_msec := 3800"/>
+          <SubTree ID="AlignToSlalomPole"
+                   pole_class_id="{pole_class_id}"
+                   detection_distance_m="{red_pole_distance}"/>
+        </Sequence>
+      </Fallback>
+      <!-- White poles are 1.524 m from the divider. Command 1.15 m body-left
+           (0.95 m after moving acquisition) to center the port opening with
+           the red divider on the right. -->
+      <!-- Fixed body-left strafe deliberately avoids the simulator's
+           unreliable odom-frame position controller. -->
+      <TimedVelocity x="0.0" y="0.25" z="0.0"
+                     duration_msec="{post_align_strafe_msec}"/>
+      <ForwardFixedTransit vision_distance_m="{red_pole_distance}"
+                           pass_distance="0.60"
+                           min_transit_distance="0.0"
+                           max_planned_distance="1.2"
                            max_dist="{max_transit_distance}"
-                           forward_velocity="0.24"
-                           timeout_msec="35000"
-                           min_progress_m="0.10"
-                           progress_timeout_msec="4000"/>
+                           forward_velocity="0.25"
+                           timeout_msec="30000"/>
     </Sequence>
   </BehaviorTree>
 
   <BehaviorTree ID="SlalomMission">
-    <Fallback name="complete_slalom_or_breach">
-      <Sequence name="slalom_mission">
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="-1.1"/>
-        <LoadModel camera="down"
-                   task="path_marker"
-                   timeout_msec="30000"/>
-        <LoadModel camera="front"
-                   task="slalom"
-                   timeout_msec="30000"/>
-        <SubTree ID="SlalomLayer"
-                 name="slalom_layer_1"
-                 max_transit_distance="5.5"
-                 pass_distance="0.25"/>
-        <RetryUntilSuccessful num_attempts="2">
-          <SubTree ID="SlalomLayer"
-                   name="slalom_layer_2"
-                   max_transit_distance="5.5"
-                   pass_distance="0.25"/>
-        </RetryUntilSuccessful>
-        <ForceSuccess>
-          <SubTree ID="SlalomLayer"
-                   name="slalom_layer_3"
-                   max_transit_distance="5.5"
-                   pass_distance="0.25"/>
-        </ForceSuccess>
-      </Sequence>
-      <SubTree ID="SlalomAbortBreach"/>
-    </Fallback>
+    <Sequence name="yaw_locked_slalom_mission">
+      <LoadModel camera="front"
+                 task="slalom_redpoles_osu"
+                 timeout_msec="120000"/>
+      <!-- Every layer uses the nearest candidate that passes the OpenCV red
+           appearance filter; there is no screen-half restriction. -->
+      <SubTree ID="SlalomLayer" name="slalom_layer_1"
+               pole_class_id="2" search_lateral_velocity="0.10"
+               search_left_distance_m="5.0" search_right_distance_m="10.0"
+               search_timeout_msec="140000"
+               max_transit_distance="6.0"/>
+      <!-- Descend 0.20 m nominally after clearing the first pipe layer. -->
+      <TimedVelocity x="0.0" y="0.0" z="-0.10" duration_msec="2000"/>
+      <SubTree ID="SlalomLayer" name="slalom_layer_2"
+               pole_class_id="2" search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0" search_right_distance_m="0.0"
+               search_timeout_msec="10000"
+               max_transit_distance="6.0"/>
+      <SubTree ID="SlalomLayer" name="slalom_layer_3"
+               pole_class_id="2" search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0" search_right_distance_m="0.0"
+               search_timeout_msec="0"
+               max_transit_distance="6.0"/>
+    </Sequence>
   </BehaviorTree>
 
-  <!-- Description of Node Models (used by Groot) -->
+  <!-- Description of node ports for Groot. -->
   <TreeNodesModel>
+    <Action ID="WaitForDetection">
+      <input_port name="camera" default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="start_timeout_after_first_frame" default="false">Start timeout after the first new camera frame</input_port>
+      <input_port name="timeout_msec" default="15000">Maximum detection wait</input_port>
+    </Action>
+    <Action ID="SearchForDetection">
+      <input_port name="camera" default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="x" default="0.0">Body-forward search velocity</input_port>
+      <input_port name="y" default="0.0">Body-left search velocity</input_port>
+      <input_port name="z" default="0.0">Body-up search velocity</input_port>
+      <input_port name="sweep_left_m" default="0.0">Distance to search left before reversing</input_port>
+      <input_port name="sweep_right_m" default="0.0">Distance to search right after reversing</input_port>
+      <input_port name="timeout_msec" default="5000">Maximum moving search time; zero waits until detection</input_port>
+    </Action>
+    <Action ID="LateralAlignToDetection">
+      <input_port name="camera" default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="use_detection_distance" default="false">Use detection distance to project lateral translation</input_port>
+      <input_port name="max_alignment_projection_distance" default="0.0">Maximum range used to scale lateral corrections</input_port>
+      <input_port name="reset_timeout_on_lock" default="false">Restart alignment timeout when the target locks</input_port>
+      <input_port name="lock_aim_frames" default="3">Consistent rays required before locking the target</input_port>
+      <input_port name="align_depth" default="true">Center vertical bearing by changing depth</input_port>
+      <input_port name="lateral_bearing_gain" default="-1.0">Signed horizontal-bearing to body-left gain</input_port>
+      <input_port name="target_distance" default="1.15">Fallback camera-to-target distance</input_port>
+      <input_port name="tolerance" default="0.012">Centering tolerance in radians</input_port>
+      <input_port name="max_bearing_jump_rad" default="0.15">Maximum accepted frame-to-frame bearing change</input_port>
+      <input_port name="bearing_filter_alpha" default="0.25">New-frame bearing filter weight</input_port>
+      <input_port name="use_lateral_velocity_alignment" default="false">Use continuous lateral velocity while aligning</input_port>
+      <input_port name="lateral_alignment_velocity" default="0.10">Absolute lateral alignment speed</input_port>
+      <input_port name="velocity_detection_grace_msec" default="2000">Maximum blind velocity interval</input_port>
+      <input_port name="blind_alignment_frames" default="1">Detections required before bounded blind alignment</input_port>
+      <input_port name="max_lateral_step" default="0.10">Maximum lateral correction in meters</input_port>
+      <input_port name="max_depth_step" default="0.08">Maximum depth correction in meters</input_port>
+      <input_port name="settle_frames" default="8">Consecutive centered frames before success</input_port>
+      <input_port name="min_msec" default="1500">Minimum alignment time</input_port>
+      <input_port name="timeout_msec" default="15000">Maximum alignment time</input_port>
+      <input_port name="update_msec" default="300">Minimum time between translation corrections</input_port>
+      <input_port name="initial_detection_max_age_msec" default="0">Maximum age of the acquisition frame reused for initial alignment</input_port>
+      <input_port name="detection_loss_msec" default="0">Maximum detection loss before requesting reacquisition</input_port>
+      <output_port name="detection_distance_m">Forward range to the centered red pole</output_port>
+    </Action>
+    <Action ID="MoveRelative">
+      <input_port name="x" default="0.0">Forward offset in meters</input_port>
+      <input_port name="y" default="0.0">Right offset in meters</input_port>
+      <input_port name="z" default="0.0">Vertical offset in meters</input_port>
+      <input_port name="min_travel_m" default="0.0">Measured horizontal travel required before success</input_port>
+    </Action>
+    <Action ID="TimedVelocity">
+      <input_port name="x" default="0.0">Body-forward velocity in meters per second</input_port>
+      <input_port name="y" default="0.0">Body-left velocity in meters per second</input_port>
+      <input_port name="z" default="0.0">Body-up velocity in meters per second</input_port>
+      <input_port name="duration_msec" default="1000">Velocity command duration</input_port>
+    </Action>
     <Action ID="ForwardFixedTransit">
-      <input_port name="vision_distance_m">Range along the just-confirmed pole-clearance path</input_port>
-      <input_port name="pass_distance"
-                  default="0.0">Distance to continue past the gap plane</input_port>
-      <input_port name="min_transit_distance"
-                  default="0.0">Minimum safe transit distance</input_port>
-      <input_port name="completion_tolerance_m"
-                  default="0.15">Odometry shortfall accepted within pass margin</input_port>
-      <input_port name="max_dist"
-                  default="10.0">Hard transit distance safety limit</input_port>
-      <input_port name="forward_velocity"
-                  default="0.3">Forward velocity</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Transit timeout</input_port>
-      <input_port name="min_progress_m"
-                  default="0.10">Minimum odometry advance that proves motion</input_port>
-      <input_port name="progress_timeout_msec"
-                  default="4000">Maximum time without sufficient progress</input_port>
+      <input_port name="vision_distance_m">Forward range produced while centering the red pole</input_port>
+      <input_port name="pass_distance" default="0.0">Distance beyond the pipe plane</input_port>
+      <input_port name="min_transit_distance" default="0.0">Minimum forward pass distance</input_port>
+      <input_port name="max_planned_distance" default="0.0">Maximum planned pass for one pipe layer</input_port>
+      <input_port name="max_dist" default="10.0">Hard maximum forward distance</input_port>
+      <input_port name="forward_velocity" default="0.3">Body-forward transit velocity</input_port>
+      <input_port name="timeout_msec" default="30000">Maximum transit time</input_port>
     </Action>
     <Action ID="LoadModel">
-      <input_port name="camera"
-                  default="front">Camera whose vision node loads the model</input_port>
-      <input_port name="task">Task model to load, e.g. gate</input_port>
-      <input_port name="timeout_msec"
-                  default="20000">Maximum wait for service + load</input_port>
-    </Action>
-    <Action ID="PosSetpoint">
-      <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
-      <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
-      <input_port name="z"
-                  default="nan">Vertical position setpoint; negative is down</input_port>
-    </Action>
-    <Action ID="StationarySweepAlign">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="attempts"
-                  default="3">Stable matching frames required for an acquisition</input_port>
-      <input_port name="num_sweeps"
-                  default="1">Complete stationary left/right sweeps before acquisition</input_port>
-      <input_port name="required_pole_count"
-                  default="1">Exactly one selected pole is required</input_port>
-      <input_port name="max_left_offset_deg"
-                  default="45">Largest safe port-side scan offset before using the least-oblique pole</input_port>
-      <input_port name="sample_timeout_msec"
-                  default="1800.0">Maximum detection sampling time at each heading</input_port>
-      <input_port name="move_timeout_msec"
-                  default="20000">Maximum wait for each in-place yaw command</input_port>
-      <output_port name="transit_distance_m">Vision range to the selected pole's right-clearance path</output_port>
-    </Action>
-    <Action ID="VelocitySetpoint">
-      <input_port name="x"
-                  default="0.0">Forward velocity in meters per second</input_port>
-      <input_port name="y"
-                  default="0.0">Right velocity in meters per second</input_port>
-      <input_port name="z"
-                  default="0.0">Up velocity in meters per second</input_port>
+      <input_port name="camera" default="front">Camera whose vision node loads the model</input_port>
+      <input_port name="task">Task model to load</input_port>
+      <input_port name="timeout_msec" default="20000">Maximum wait for model load</input_port>
     </Action>
   </TreeNodesModel>
-
 </root>

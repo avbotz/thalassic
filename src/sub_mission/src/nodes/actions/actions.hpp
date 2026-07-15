@@ -12,6 +12,9 @@ class MissionNode;
 void registerControlSetpointActions(
     BT::BehaviorTreeFactory& factory,
     rclcpp_action::Client<sub_control_interfaces::action::ControlSetpoint>::SharedPtr client, rclcpp::Logger logger);
+void registerTimedVelocityAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
+                                 PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
+                                 rclcpp::Logger logger);
 void registerAngularVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                            PointCmdPublisher::SharedPtr angular_velocity_publisher,
                                            rclcpp::Clock::SharedPtr clock, rclcpp::Logger logger);
