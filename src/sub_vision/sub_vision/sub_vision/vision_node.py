@@ -3,6 +3,7 @@ import os
 import cv2
 import numpy as np
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from rclpy.node import Node
@@ -52,7 +53,12 @@ class VisionNode(Node):
         self.declare_parameter("depth_debug_topic", "vision/depth_anything")
         self.declare_parameter("depth_debug_color_topic", "vision/depth_anything_color")
 
-        self._model_dir = self.get_parameter("model_dir").value
+        raw_model_dir = self.get_parameter("model_dir").value
+        self._model_dir = (
+            raw_model_dir
+            if os.path.isabs(raw_model_dir)
+            else os.path.join(get_package_share_directory("sub_vision"), raw_model_dir)
+        )
         self._detections_task = ""
         self._bridge = CvBridge()
         self._camera_info: CameraInfo | None = None

@@ -50,6 +50,11 @@ class MoveRelativeAction : public BT::StatefulActionNode {
         }
 
         initial_position_ = measuredPosition();
+        if (!initial_position_) {
+            RCLCPP_ERROR(logger_, "MoveRelative unable to get current position.");
+            return BT::NodeStatus::FAILURE;
+        }
+        node_.commanded_pos = *initial_position_;
         min_travel_m_ = min_travel_m;
 
         const double yaw = node_.commanded_att[2];

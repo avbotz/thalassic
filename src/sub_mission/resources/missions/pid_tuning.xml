@@ -3,7 +3,7 @@
       main_tree_to_execute="PidTuningRun">
   <BehaviorTree ID="PidTuningRun">
     <Sequence name="pid_tuning">
-      <SubTree ID="BinsMission"/>
+      <SubTree ID="OctagonMission"/>
     </Sequence>
   </BehaviorTree>
 

@@ -39,6 +39,12 @@ class MoveRelativePosAction : public BT::StatefulActionNode {
         if (std::isnan(z))
             z = 0.0;
 
+        const auto measured = measuredPosition();
+        if (!measured) {
+            RCLCPP_ERROR(logger_, "MoveRelativePos unable to get current position.");
+            return BT::NodeStatus::FAILURE;
+        }
+        node_.commanded_pos = *measured;
         node_.commanded_pos[0] += x;
         node_.commanded_pos[1] += y;
         node_.commanded_pos[2] += z;
@@ -72,6 +78,20 @@ class MoveRelativePosAction : public BT::StatefulActionNode {
             return BT::NodeStatus::SUCCESS;
         }
         return BT::NodeStatus::RUNNING;
+    }
+
+    std::optional<std::array<double, 3>> measuredPosition() const {
+        const std::string ns = node_.get_namespace();
+        const std::string prefix = ns.empty() || ns == "/" ? "" : (ns.front() == '/' ? ns.substr(1) : ns) + "/";
+        try {
+            const auto transform =
+                node_.tfBuffer().lookupTransform(prefix + "odom", prefix + "base_link", tf2::TimePointZero);
+            return std::array<double, 3>{transform.transform.translation.x, transform.transform.translation.y,
+                                         transform.transform.translation.z};
+        } catch (const tf2::TransformException &error) {
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000, "MoveRelativePos waiting for odom TF: %s", error.what());
+            return std::nullopt;
+        }
     }
 
     MissionNode &node_;
