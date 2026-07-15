@@ -5,7 +5,9 @@ import time
 import pytest
 import rclpy
 from aiohttp import web
+from geometry_msgs.msg import TwistStamped
 from rcl_interfaces.msg import ParameterType
+from sub_control_interfaces.msg import Error, Setpoint
 
 from sub_pid_tuner.ros_adapter import RosAdapter, coerce_parameter
 from sub_pid_tuner.server import BROADCAST_HZ, DashboardServer
@@ -50,6 +52,44 @@ class FakeRos:
     def stop_tracking(self):
         self.tracking = {"active": False, "status": "stopped"}
         return self.tracking
+
+    def advance_tracking(self):
+        self.tracking["waypoint_index"] = self.tracking.get("waypoint_index", 0) + 1
+        return self.tracking
+
+    def start_characterization(self, axis, amplitude, slow_slope, fast_slope, dwell):
+        self.characterization = {
+            "active": True,
+            "axis": axis,
+            "amplitude": amplitude,
+            "slow_slope": slow_slope,
+            "fast_slope": fast_slope,
+            "dwell": dwell,
+        }
+        return self.characterization
+
+    def stop_characterization(self):
+        self.characterization = {"active": False, "status": "stopped"}
+        return self.characterization
+
+    def stop_all(self):
+        return {
+            "tracking": self.stop_tracking(),
+            "characterization": self.stop_characterization(),
+            "holding": "pose",
+            "message": "All dashboard routines stopped; holding measured pose",
+        }
+
+    def characterization_changes(self):
+        return [
+            {"node": "/sub", "name": "model.linear_drag", "value": [12.0] * 6}
+        ]
+
+    def mark_characterization_applied(self):
+        self.characterization = {"active": False, "status": "complete", "applied": True}
+
+    def characterization_snapshot(self):
+        return self.characterization
 
     def refresh_parameters(self):
         pass
@@ -96,6 +136,21 @@ def test_setpoint_request():
         )
     )
     assert result["values"] == [1.0, 2.0, -1.0]
+
+
+def test_stop_all_request_stops_both_dashboard_routines():
+    ros = FakeRos()
+    ros.tracking = {"active": True}
+    ros.characterization = {"active": True}
+    result = asyncio.run(
+        DashboardServer(ros, None).handle(
+            {"type": "stop_all", "request_id": "stop-now"}
+        )
+    )
+    assert result["type"] == "stop_all_result"
+    assert result["tracking"] == {"active": False, "status": "stopped"}
+    assert result["characterization"] == {"active": False, "status": "stopped"}
+    assert result["holding"] == "pose"
 
 
 def test_minimum_jerk_profile_moves_holds_and_returns_smoothly():
@@ -226,6 +281,29 @@ def test_tracking_start_and_stop_requests():
     assert stop["tracking"] == {"active": False, "status": "stopped"}
 
 
+def test_characterization_start_stop_and_apply_requests():
+    ros = FakeRos()
+    server = DashboardServer(ros, None)
+    started = asyncio.run(
+        server.handle(
+            {
+                "type": "start_characterization",
+                "axis": "x",
+                "amplitude": 0.12,
+                "slow_slope": 0.02,
+                "fast_slope": 0.08,
+                "dwell": 1.5,
+            }
+        )
+    )
+    assert started["characterization"]["active"] is True
+    stopped = asyncio.run(server.handle({"type": "stop_characterization"}))
+    assert stopped["characterization"]["status"] == "stopped"
+    applied = asyncio.run(server.handle({"type": "apply_characterization"}))
+    assert applied["applied"][0]["name"] == "model.linear_drag"
+    assert applied["characterization"]["applied"] is True
+
+
 def test_path_tracking_request_forwards_the_lag_limit():
     ros = FakeRos()
     server = DashboardServer(ros, None)
@@ -247,6 +325,15 @@ def test_path_tracking_request_forwards_the_lag_limit():
     assert result["tracking"]["max_tracking_error"] == pytest.approx(0.15)
 
 
+def test_advance_tracking_request_is_forwarded():
+    ros = FakeRos()
+    ros.tracking = {"active": True, "waypoint_index": 0}
+    result = asyncio.run(
+        DashboardServer(ros, None).handle({"type": "advance_tracking"})
+    )
+    assert result["tracking"]["waypoint_index"] == 1
+
+
 def test_dashboard_assets_are_not_cached(tmp_path):
     server = DashboardServer(FakeRos(), tmp_path)
 
@@ -261,6 +348,26 @@ def test_dashboard_stream_rate_is_suitable_for_live_tuning():
     assert BROADCAST_HZ >= 30
     state = DashboardServer(FakeRos(), None).state(include_parameters=False)
     assert isinstance(state["server_time"], float)
+
+
+def test_broadcast_tolerates_a_client_removing_itself():
+    ros = FakeRos()
+    server = DashboardServer(ros, None)
+
+    class DisconnectingSocket:
+        async def send_str(self, _message):
+            server.clients.discard(self)
+
+    async def run():
+        server.clients.add(DisconnectingSocket())
+        task = asyncio.create_task(server.broadcast_loop())
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(run())
 
 
 def test_remote_parameter_cache_does_not_replace_rclpy_parameter_store():
@@ -303,6 +410,141 @@ def test_ros_adapter_runs_and_completes_a_tracking_profile():
         completed = adapter.tracking_snapshot()
         assert completed["active"] is False
         assert completed["status"] == "complete"
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_ros_adapter_characterization_owns_commands_and_stops_safely():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        adapter._last_allocated_wrench = time.monotonic()
+        started = adapter.start_characterization("x", 0.08, 0.04, 0.1, 0.5)
+        assert started["active"] is True
+        assert started["axis"] == "x"
+        with pytest.raises(RuntimeError, match="characterization"):
+            adapter.start_tracking(
+                "minimum_jerk", "position", "x", 0.1, 0.5, 0.2, 1
+            )
+        stopped = adapter.stop_characterization()
+        assert stopped["active"] is False
+        assert stopped["status"] == "stopped"
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_stop_all_holds_the_measured_pose_when_armed_and_live():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    published = []
+    adapter.publish_setpoint = lambda mode, values, altitude=False: published.append(
+        (mode, list(values), altitude)
+    ) or {"mode": mode, "values": list(values), "altitude": altitude}
+    try:
+        with adapter._lock:
+            adapter._signals.update(
+                {
+                    "pid.position.x.current": 1.2,
+                    "pid.position.y.current": -0.4,
+                    "pid.position.z.current": 0.7,
+                    "pid.attitude.x.current": 0.1,
+                    "pid.attitude.y.current": -0.2,
+                    "pid.attitude.z.current": 0.3,
+                }
+            )
+        result = adapter.stop_all()
+        assert result["holding"] == "pose"
+        assert published == [
+            ("position", [1.2, -0.4, 0.7], False),
+            ("attitude", [0.1, -0.2, 0.3], False),
+        ]
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_stop_all_clears_rate_commands_when_pose_is_not_safe_to_hold():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    published = []
+    adapter.publish_setpoint = lambda mode, values, altitude=False: published.append(
+        (mode, list(values), altitude)
+    ) or {"mode": mode, "values": list(values), "altitude": altitude}
+    try:
+        with adapter._lock:
+            adapter._kill = True
+            adapter._last_odom = 0.0
+            adapter._last_error = 0.0
+        result = adapter.stop_all()
+        assert result["holding"] == "zero_rate"
+        assert published == [
+            ("velocity", [0.0, 0.0, 0.0], False),
+            ("angular_velocity", [0.0, 0.0, 0.0], False),
+        ]
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_inner_loop_target_does_not_spike_between_async_callbacks():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        reference = TwistStamped()
+        reference.twist.linear.x = 0.18
+        reference.twist.angular.z = -0.12
+        adapter._reference_velocity_cb(reference)
+
+        command = Setpoint()
+        command.velocity = True
+        command.setpoint.x = 0.25
+        adapter._pos_setpoint_cb(command)
+        angular_command = Setpoint()
+        angular_command.velocity = True
+        angular_command.setpoint.yaw = -0.2
+        adapter._att_setpoint_cb(angular_command)
+
+        with adapter._lock:
+            adapter._signals["pid.velocity.x.current"] = 0.07
+            adapter._signals["pid.angular_velocity.z.current"] = -0.03
+        error = Error()
+        error.vel_error[0] = 0.06
+        error.angvel_error[2] = -0.04
+        adapter._error_cb(error)
+
+        # The raw command and current+error reconstruction are useful
+        # diagnostics, but neither may overwrite the controller's published
+        # acceleration-limited reference used by the graph.
+        assert adapter._signals["command.velocity.x"] == pytest.approx(0.25)
+        assert adapter._signals["command.angular_velocity.z"] == pytest.approx(-0.2)
+        assert adapter._signals["pid.velocity.x.target"] == pytest.approx(0.18)
+        assert adapter._signals["pid.angular_velocity.z.target"] == pytest.approx(-0.12)
+    finally:
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_legacy_inner_loop_target_uses_recent_command_then_error_fallback():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        command = Setpoint()
+        command.velocity = True
+        command.setpoint.x = 0.25
+        adapter._pos_setpoint_cb(command)
+        with adapter._lock:
+            adapter._signals["pid.velocity.x.current"] = 0.10
+
+        error = Error()
+        error.vel_error[0] = 0.12
+        adapter._error_cb(error)
+        assert adapter._signals["pid.velocity.x.target"] == pytest.approx(0.25)
+
+        adapter._last_inner_command["velocity"] -= 1.0
+        adapter._error_cb(error)
+        assert adapter._signals["pid.velocity.x.target"] == pytest.approx(0.22)
     finally:
         adapter.destroy_node()
         rclpy.shutdown()
@@ -362,6 +604,73 @@ def test_path_reference_pauses_for_lag_and_resumes_after_catchup():
         assert resumed["reference_limited"] is False
     finally:
         adapter.stop_tracking()
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_square_test_waits_for_each_corner_and_requires_settling():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        started = adapter.start_tracking(
+            "square_test", "position", "xy", 0.4, 60.0, 1.0, 1, 0.05
+        )
+        assert started["manual_advance"] is True
+        assert started["ready_for_next"] is False
+        assert started["waypoint_index"] == 0
+
+        adapter._tracking_tick()
+        assert adapter.tracking_snapshot()["ready_for_next"] is True
+
+        first = adapter.advance_tracking()
+        assert first["waypoint_index"] == 1
+        assert first["ready_for_next"] is False
+        assert first["current_reference"] == pytest.approx([0.4, 0.0, 0.0])
+        with pytest.raises(RuntimeError, match="reach and settle"):
+            adapter.advance_tracking()
+
+        with adapter._lock:
+            for axis, value in zip("xyz", first["current_reference"]):
+                adapter._signals[f"pid.position.{axis}.current"] = value
+            adapter._signals["pid.velocity.x.current"] = 0.08
+            adapter._signals["pid.velocity.y.current"] = 0.0
+        adapter._tracking_tick()
+        assert adapter.tracking_snapshot()["ready_for_next"] is False
+
+        with adapter._lock:
+            adapter._signals["pid.velocity.x.current"] = 0.0
+        adapter._tracking_tick()
+        reached = adapter.tracking_snapshot()
+        assert reached["ready_for_next"] is True
+        assert "press Next corner" in reached["message"]
+    finally:
+        adapter.stop_tracking()
+        adapter.destroy_node()
+        rclpy.shutdown()
+
+
+def test_square_test_completes_only_after_returning_home():
+    rclpy.init()
+    adapter = RosAdapter("test_robot", demo=True)
+    try:
+        adapter.start_tracking(
+            "square_test", "position", "xy", 0.2, 60.0, 1.0, 1, 0.05
+        )
+        adapter._tracking_tick()
+        for waypoint in range(1, 5):
+            state = adapter.advance_tracking()
+            with adapter._lock:
+                for axis, value in zip("xyz", state["current_reference"]):
+                    adapter._signals[f"pid.position.{axis}.current"] = value
+                    adapter._signals[f"pid.velocity.{axis}.current"] = 0.0
+            adapter._tracking_tick()
+            if waypoint < 4:
+                assert adapter.tracking_snapshot()["ready_for_next"] is True
+        completed = adapter.tracking_snapshot()
+        assert completed["active"] is False
+        assert completed["status"] == "complete"
+        assert completed["progress"] == pytest.approx(1.0)
+    finally:
         adapter.destroy_node()
         rclpy.shutdown()
 

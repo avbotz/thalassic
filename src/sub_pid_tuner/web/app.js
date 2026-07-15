@@ -10,11 +10,13 @@ const state = {
   history: [],
   paused: false,
   saving: false,
+  stoppingAll: false,
   nodeKey: "",
   parameterKey: "",
   signalKey: "",
   legendKey: "",
   drawPending: false,
+  lastDrawAt: 0,
   lastTelemetryRender: 0,
   feedTimes: [],
   serverClockOffset: null,
@@ -75,9 +77,13 @@ function connect() {
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   const socket = new WebSocket(protocol + "://" + location.host + "/api/ws");
   state.socket = socket;
-  socket.onopen = () => setPill("connection", "Connected", "good");
+  socket.onopen = () => {
+    setPill("connection", "Connected", "good");
+    $("stop-all").disabled = false;
+  };
   socket.onclose = () => {
     setPill("connection", "Disconnected", "bad");
+    $("stop-all").disabled = true;
     for (const pending of state.pending.values()) {
       clearTimeout(pending.timeout);
       pending.reject(new Error("Dashboard disconnected during the save"));
@@ -122,6 +128,7 @@ function handleMessage(message) {
     renderFeedRate();
     updateSaveControls();
     renderTracking();
+    renderCharacterization();
     return;
   }
 
@@ -152,6 +159,8 @@ function updateStatus() {
       formatAge(s.control_error_age);
   setPill("kill", s.killed === null || s.killed === undefined ? "Kill unknown" : s.killed ? "Killed" : "Armed",
     s.killed === null || s.killed === undefined ? "warn" : s.killed ? "good" : "warn");
+  $("stop-all").disabled = state.stoppingAll || !state.socket ||
+    state.socket.readyState !== WebSocket.OPEN;
 }
 
 function formatAge(value) {
@@ -206,11 +215,28 @@ function isPid(name, metadata) {
     metadata.type === "double_array" && Array.isArray(metadata.value) && metadata.value.length >= 3;
 }
 
+function structuredArrayLabels(name, metadata) {
+  if (metadata.type !== "double_array" || !Array.isArray(metadata.value)) return null;
+  if (name === "reference.position_kp") return ["X", "Y", "Z"];
+  if (name === "reference.attitude_kp") return ["Roll", "Pitch", "Yaw"];
+  if (/^(reference\.(max_velocity|max_acceleration)|model\.|feedback\.)/.test(name) &&
+      metadata.value.length === 6) {
+    return ["X", "Y", "Z", "Roll", "Pitch", "Yaw"];
+  }
+  return null;
+}
+
 function groupName(name) {
   if (name.startsWith("pos_pid.")) return "Position PID";
   if (name.startsWith("vel_pid.")) return "Velocity PID";
   if (name.startsWith("att_pid.")) return "Attitude PID";
   if (name.startsWith("ang_pid.")) return "Angular-rate PID";
+  if (name.startsWith("reference.")) return "Reference shaping";
+  if (name.startsWith("model.")) return "Feedforward model";
+  if (name.startsWith("feedback.")) return "Feedback PI";
+  if (name.startsWith("spin.")) return "Spin control";
+  if (["power_limit", "odom_timeout_s", "cmd_vel_timeout_s", "antiwindup_gain",
+      "feedforward_enabled"].includes(name)) return "Controller and safety";
   return "Other parameters";
 }
 
@@ -218,6 +244,14 @@ function editorHtml(name, metadata, value) {
   if (isPid(name, metadata)) {
     const labels = value.length === 4 ? ["Kp", "Ki", "Kd", "Limit"] : ["Kp", "Ti", "Td"];
     return labels.map((label, index) =>
+      '<label class="array-label">' + label +
+      '<input data-index="' + index + '" type="number" step="any" value="' +
+      escapeHtml(value[index]) + '"></label>'
+    ).join("");
+  }
+  const structuredLabels = structuredArrayLabels(name, metadata);
+  if (structuredLabels) {
+    return structuredLabels.map((label, index) =>
       '<label class="array-label">' + label +
       '<input data-index="' + index + '" type="number" step="any" value="' +
       escapeHtml(value[index]) + '"></label>'
@@ -235,7 +269,7 @@ function editorHtml(name, metadata, value) {
 }
 
 function readRow(row, metadata) {
-  if (isPid(row.dataset.name, metadata)) {
+  if (isPid(row.dataset.name, metadata) || structuredArrayLabels(row.dataset.name, metadata)) {
     const values = [...row.querySelectorAll(".parameter-editor input")].map(input => Number(input.value));
     if (values.some(value => !Number.isFinite(value))) throw new Error(row.dataset.name + " must contain finite numbers");
     return values;
@@ -341,9 +375,12 @@ function renderParameters(force) {
 
     const value = dirty ? state.staged.get(key) : metadata.value;
     const differs = profileDiff(node, name, metadata);
+    const structuredLabels = structuredArrayLabels(name, metadata);
+    const structuredClass = structuredLabels ? " structured-array structured-array-" + structuredLabels.length : "";
     const row = document.createElement("div");
     row.className = "parameter-row " + (dirty ? "dirty " : "") +
-      (metadata.read_only ? "readonly " : "") + (differs ? "profile-diff" : "");
+      (metadata.read_only ? "readonly " : "") + (differs ? "profile-diff " : "") +
+      (structuredLabels ? "structured-row structured-row-" + structuredLabels.length : "");
     row.dataset.node = node;
     row.dataset.name = name;
     row.dataset.testid = "parameter-" + name;
@@ -352,7 +389,7 @@ function renderParameters(force) {
       '</strong><small>' + escapeHtml(metadata.type) +
       (metadata.read_only ? " · read only" : "") +
       (differs ? " · differs from profile" : "") +
-      '</small></div><div class="parameter-editor">' +
+      '</small></div><div class="parameter-editor' + structuredClass + '">' +
       editorHtml(name, metadata, value) +
       '</div><button class="apply-one" title="Apply this value to the running node" ' +
       (metadata.read_only || !dirty || state.saving ? "disabled" : "") + '>Apply</button>';
@@ -512,16 +549,16 @@ function recordTelemetry(receivedAt, serverTime) {
 function scheduleGraphDraw() {
   if (state.drawPending) return;
   state.drawPending = true;
-  let completed = false;
+  const minimumFrameMs = 50;
+  const delay = Math.max(0, minimumFrameMs - (performance.now() - state.lastDrawAt));
   const run = () => {
-    if (completed) return;
-    completed = true;
     state.drawPending = false;
+    state.lastDrawAt = performance.now();
     drawGraph();
     drawPathViewer();
   };
-  requestAnimationFrame(run);
-  setTimeout(run, 34);
+  if (delay <= 1) requestAnimationFrame(run);
+  else setTimeout(() => requestAnimationFrame(run), delay);
 }
 
 function graphNow() {
@@ -893,11 +930,13 @@ function drawPathViewer() {
   ctx.fillText("local pool plane · auto fit", plot.left + 6, plot.top + 16);
   const pathNames = {follower_pid: "Follower PID", square_test: "Square Test", spline_test: "Spline Test"};
   const rate = Number(tracking.reference_rate);
+  const manualStatus = tracking.manual_advance ?
+    tracking.ready_for_next ? " · press Next corner" : " · target held" : "";
   const governorStatus = tracking.reference_limited ?
     rate < 0.05 ? " · catching up" : " · target " + Math.round(rate * 100) + "% speed" : "";
   $("path-status").textContent = tracking.active && pathNames[tracking.experiment] ?
     pathNames[tracking.experiment] + " · " + Math.round((tracking.progress || 0) * 100) + "% · " +
-      (validTarget ? "target live" : "target unavailable") + governorStatus :
+      (validTarget ? "target live" : "target unavailable") + manualStatus + governorStatus :
     planned.length ? "Last target path" : validTarget ? "Live target and pose" : "Live pose trail";
 }
 
@@ -947,8 +986,8 @@ const trackingDefaults = {
     step: {amplitude: 0.25, ramp: 3, hold: 3, cycles: 1},
     sine: {amplitude: 0.25, ramp: 8, hold: 3, cycles: 3},
     hold: {amplitude: 0, ramp: 1, hold: 20, cycles: 1},
-    follower_pid: {amplitude: 0.5, ramp: 45, hold: 5, cycles: 1, maxError: 0.12},
-    square_test: {amplitude: 0.5, ramp: 60, hold: 5, cycles: 1, maxError: 0.12},
+    follower_pid: {amplitude: 0.5, ramp: 75, hold: 5, cycles: 1, maxError: 0.08},
+    square_test: {amplitude: 0.5, ramp: 60, hold: 5, cycles: 1, maxError: 0.05},
     spline_test: {amplitude: 0.5, ramp: 40, hold: 5, cycles: 1, maxError: 0.12}
   },
   velocity: {
@@ -976,7 +1015,7 @@ const trackingHints = {
   sine: "Smooth zero-mean tracking with a fade-in/out; shorten the period gradually to expose phase lag.",
   hold: "Captures the measured pose. Gently disturb one axis and watch recovery without commanding a move.",
   follower_pid: "Repeats a slow, smooth planar loop from the measured pose. Tune from both position errors and the pool trail.",
-  square_test: "Runs four slow straight sides with a settle at each corner to validate the tuned planar follower.",
+  square_test: "Commands one corner at a time and waits for the vehicle to arrive and settle before enabling Next corner.",
   spline_test: "Runs a slow planar Bezier out and back to validate coupled tracking without target jumps."
 };
 
@@ -990,7 +1029,13 @@ function updateTrackingHint() {
       hint += " Current ramp duration: " + (amplitude / slope).toFixed(2) + " s.";
     }
   }
-  if (pathExperiments.has(experiment)) {
+  if (experiment === "square_test") {
+    const arrivalRadius = Number($("tracking-max-error").value);
+    if (Number.isFinite(arrivalRadius)) {
+      hint += " Arrival requires position error within " + arrivalRadius.toFixed(2) +
+        " m and planar speed below 0.05 m/s.";
+    }
+  } else if (pathExperiments.has(experiment)) {
     const amplitude = Math.abs(Number($("tracking-amplitude").value));
     const traversal = Number($("tracking-ramp").value);
     const maxError = Number($("tracking-max-error").value);
@@ -1030,9 +1075,11 @@ function updateTrackingLabels(loadDefaults) {
   $("tracking-amplitude").max = limit;
   $("tracking-amplitude-label").textContent = (pathExperiment ? "Path span" : mode === "position" || mode === "attitude" ? "Travel" : "Command") + " (" + unit + ")";
   $("tracking-amplitude-wrap").hidden = experiment === "hold";
-  $("tracking-primary-wrap").hidden = experiment === "hold";
+  $("tracking-primary-wrap").hidden = experiment === "hold" || experiment === "square_test";
   $("tracking-max-error-wrap").hidden = !pathExperiment;
-  $("tracking-cycles-wrap").hidden = experiment === "hold";
+  $("tracking-max-error-label").textContent = experiment === "square_test" ? "Arrival radius (m)" : "Max lag (m)";
+  $("tracking-cycles-wrap").hidden = experiment === "hold" || experiment === "square_test";
+  $("next-waypoint").hidden = experiment !== "square_test";
   const slopeUnit = mode === "angular_velocity" ? "rad/s²" : "m/s²";
   $("tracking-primary-label").textContent = pathExperiment ? "Nominal traversal (s)" : experiment === "minimum_jerk" ? "Move (s)" : experiment === "trapezoid" ? "Ramp slope (" + slopeUnit + ")" : experiment === "step" ? "Step (s)" : "Period (s)";
   $("tracking-ramp").min = pathExperiment ? "4" : experiment === "trapezoid" ? "0.005" : "0.5";
@@ -1132,6 +1179,186 @@ async function stopTracking() {
   }
 }
 
+async function advanceTracking() {
+  try {
+    const result = await request("advance_tracking");
+    state.server.tracking = result.tracking;
+    renderTracking();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+const characterizationDefaults = {
+  x: [0.08, 0.02, 0.06, 3.0],
+  y: [0.08, 0.02, 0.06, 3.0],
+  z: [0.06, 0.012, 0.045, 3.0],
+  roll: [0.08, 0.015, 0.06, 2.0],
+  pitch: [0.08, 0.015, 0.06, 2.0],
+  yaw: [0.15, 0.03, 0.11, 3.0]
+};
+
+function updateCharacterizationLabels(loadDefaults) {
+  const axis = $("characterization-axis").value;
+  const rotational = ["roll", "pitch", "yaw"].includes(axis);
+  const velocityUnit = rotational ? "rad/s" : "m/s";
+  const accelerationUnit = rotational ? "rad/s²" : "m/s²";
+  $("characterization-amplitude-label").textContent = "Maximum speed (" + velocityUnit + ")";
+  $("characterization-slow-label").textContent = "Slow slope (" + accelerationUnit + ")";
+  $("characterization-fast-label").textContent = "Fast slope (" + accelerationUnit + ")";
+  if (loadDefaults) {
+    const defaults = characterizationDefaults[axis];
+    $("characterization-amplitude").value = defaults[0];
+    $("characterization-slow").value = defaults[1];
+    $("characterization-fast").value = defaults[2];
+    $("characterization-dwell").value = defaults[3];
+  }
+}
+
+function selectCharacterizationGraph(axis) {
+  const rotational = ["roll", "pitch", "yaw"].includes(axis);
+  $("loop-select").value = rotational ? "angular_velocity" : "velocity";
+  updateGraphAxisLabels();
+  $("axis-select").value = rotational ? {roll: "x", pitch: "y", yaw: "z"}[axis] : axis;
+  selectPidPreset();
+  state.history = [];
+}
+
+async function startCharacterization() {
+  const values = {
+    axis: $("characterization-axis").value,
+    amplitude: Number($("characterization-amplitude").value),
+    slow_slope: Number($("characterization-slow").value),
+    fast_slope: Number($("characterization-fast").value),
+    dwell: Number($("characterization-dwell").value)
+  };
+  if (!Object.values(values).slice(1).every(Number.isFinite)) {
+    toast("Enter finite feedforward identification values", true);
+    return;
+  }
+  try {
+    const result = await request("start_characterization", values);
+    state.server.characterization = result.characterization;
+    selectCharacterizationGraph(values.axis);
+    renderCharacterization();
+    renderTracking();
+    toast("Feedforward identification started");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function stopCharacterization() {
+  try {
+    const result = await request("stop_characterization");
+    state.server.characterization = result.characterization;
+    renderCharacterization();
+    renderTracking();
+    toast("Identification stopped; holding measured pose");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function stopAll() {
+  if (state.stoppingAll) return;
+  state.stoppingAll = true;
+  $("stop-all").disabled = true;
+  try {
+    const result = await request("stop_all");
+    state.server.tracking = result.tracking;
+    state.server.characterization = result.characterization;
+    renderTracking();
+    renderCharacterization();
+    toast(result.message || "All dashboard routines stopped");
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    state.stoppingAll = false;
+    $("stop-all").disabled = !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  }
+}
+
+async function applyCharacterization() {
+  try {
+    const result = await request("apply_characterization");
+    acceptApplied(result.applied);
+    state.server.characterization = result.characterization;
+    renderCharacterization();
+    toast("Feedforward estimates applied and verified at runtime");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function characterizationNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toPrecision(6) : "—";
+}
+
+function renderCharacterization() {
+  const characterization = state.server.characterization || {
+    active: false, status: "idle", message: "Ready to characterize one body axis"
+  };
+  const active = Boolean(characterization.active);
+  const result = characterization.result;
+  const passed = Boolean(result && result.passed);
+  const telemetryReady = Number.isFinite(state.server.telemetry_age) && state.server.telemetry_age < 0.5;
+  const robotReady = state.server.killed === false && telemetryReady && duplicateSources().length === 0;
+  const statusText = active ? "Running" : characterization.status === "complete" ? "Fit passed" :
+    characterization.status === "rejected" ? "Fit rejected" :
+    characterization.status === "idle" ? "Idle" :
+    characterization.status ? characterization.status[0].toUpperCase() + characterization.status.slice(1) : "Idle";
+  setPill("characterization-status", statusText,
+    active ? "warn" : passed ? "good" : characterization.status === "rejected" ? "bad" : "");
+  document.querySelectorAll(".characterization-form input, .characterization-form select").forEach(control => {
+    control.disabled = active;
+  });
+  const trackingActive = Boolean(state.server.tracking?.active);
+  $("start-characterization").disabled = active || trackingActive || !robotReady ||
+    !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  $("stop-characterization").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  $("apply-characterization").disabled = active || !passed || Boolean(characterization.applied) ||
+    !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  if (active) {
+    const progress = Math.round(Number(characterization.progress || 0) * 100);
+    $("characterization-progress").textContent =
+      (characterization.phase || "running") + " · " + progress + "% · " +
+      Number(characterization.samples || 0) + " samples";
+    $("characterization-quality").textContent =
+      "command " + Number(characterization.command || 0).toFixed(3);
+  } else {
+    $("characterization-progress").textContent = characterization.message || "Ready";
+    $("characterization-quality").textContent = result ?
+      "steady R² " + Number(result.quality.drag_r_squared).toFixed(3) + " · " +
+      Math.round(Number(result.quality.rejected_fraction) * 100) + "% rejected" : "No fit yet";
+  }
+  const root = $("characterization-results");
+  root.hidden = !result;
+  if (!result) {
+    root.innerHTML = "";
+    return;
+  }
+  const coefficients = result.coefficients || {};
+  const entries = [
+    ["bias / trim", coefficients.trim],
+    ["kV · linear drag", coefficients.linear_drag],
+    ["kQ · quadratic drag", coefficients.quadratic_drag],
+    ["kA · retained mass", coefficients.effective_mass]
+  ];
+  if (["roll", "pitch"].includes(characterization.axis)) {
+    entries.push(["restoring", coefficients.restoring_stiffness]);
+  }
+  root.innerHTML = entries.map(entry =>
+    '<div class="characterization-result"><small>' + escapeHtml(entry[0]) +
+    '</small><strong>' + characterizationNumber(entry[1]) + '</strong></div>'
+  ).join("") + (result.warnings?.length ?
+    '<div class="characterization-warnings">' +
+      result.warnings.map(escapeHtml).join("; ") + '</div>' : "") +
+    (result.failures?.length ?
+    '<div class="characterization-failures">Not safe to apply: ' +
+      result.failures.map(escapeHtml).join("; ") + '</div>' : "");
+}
+
 function renderTracking() {
   const tracking = state.server.tracking || {active: false, status: "idle", message: "Ready"};
   const active = Boolean(tracking.active);
@@ -1146,21 +1373,37 @@ function renderTracking() {
     state.server.killed !== false ? "Killed" : tracking.status === "stopped" ? "Ready" :
       tracking.status === "idle" ? "Idle" : tracking.status[0].toUpperCase() + tracking.status.slice(1);
   const referenceRate = Number(tracking.reference_rate);
-  const activeStatus = Number.isFinite(referenceRate) && referenceRate < 0.05 ? "Catching up" :
+  const waypointIndex = Number(tracking.waypoint_index || 0);
+  const waypointCount = Number(tracking.waypoint_count || 4);
+  const activeStatus = tracking.manual_advance ?
+    tracking.ready_for_next ? "Corner reached" : waypointIndex === 0 ? "Settling" : "Moving" :
+    Number.isFinite(referenceRate) && referenceRate < 0.05 ? "Catching up" :
     Number.isFinite(referenceRate) && referenceRate < 0.999 ? "Target slowed" : "Running";
   setPill("tracking-status", active ? activeStatus : inactiveStatus, statusKind);
+  const characterizationActive = Boolean(state.server.characterization?.active);
   document.querySelectorAll(".tracking-form input, .tracking-form select").forEach(control => {
-    control.disabled = active;
+    control.disabled = active || characterizationActive;
   });
-  $("start-tracking").disabled = active || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  $("start-tracking").disabled = active || characterizationActive || !robotReady || !state.socket || state.socket.readyState !== WebSocket.OPEN;
   $("stop-tracking").disabled = !active || !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  const squareSelected = $("tracking-experiment").value === "square_test";
+  $("next-waypoint").hidden = !squareSelected;
+  $("next-waypoint").disabled = !active || !tracking.manual_advance || !tracking.ready_for_next ||
+    !state.socket || state.socket.readyState !== WebSocket.OPEN;
+  $("next-waypoint").textContent = waypointIndex === 0 ? "First corner" :
+    waypointIndex >= waypointCount - 1 ? "Return home" : "Next corner";
   const progress = Number.isFinite(tracking.progress) ? Math.round(tracking.progress * 100) : 0;
+  const waypointProgress = tracking.manual_advance ?
+    (waypointIndex === 0 ? "At start" : waypointIndex === waypointCount ? "Returning home" :
+      "Corner " + waypointIndex + " / " + (waypointCount - 1)) + " · error " +
+      Number(tracking.tracking_error || 0).toFixed(2) + " m · speed " +
+      Number(tracking.vehicle_speed || 0).toFixed(2) + " m/s" : null;
   const pathProgress = pathExperiments.has(tracking.experiment) ?
     progress + "% path · " + Number(tracking.wall_elapsed || 0).toFixed(1) + " s wall · lag " +
       Number(tracking.tracking_error || 0).toFixed(2) + " m · target " +
       Math.round(Math.max(0, Math.min(1, Number.isFinite(referenceRate) ? referenceRate : 1)) * 100) + "%" : null;
   $("tracking-progress").textContent = active ?
-    pathProgress || progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
+    waypointProgress || pathProgress || progress + "% · " + Number(tracking.elapsed || 0).toFixed(1) + " / " + Number(tracking.duration || 0).toFixed(1) + " s" :
     !topologyReady ? "Stop the duplicate sim/controller launch: " + duplicates.join(", ") :
       !telemetryReady ? "Waiting for live telemetry" : state.server.killed !== false ?
       "Release kill switch to tune" : tracking.message || "Ready";
@@ -1358,13 +1601,24 @@ $("tracking-amplitude").addEventListener("input", updateTrackingHint);
 $("tracking-ramp").addEventListener("input", updateTrackingHint);
 $("tracking-max-error").addEventListener("input", updateTrackingHint);
 $("start-tracking").addEventListener("click", startTracking);
+$("next-waypoint").addEventListener("click", advanceTracking);
 $("stop-tracking").addEventListener("click", stopTracking);
+$("characterization-axis").addEventListener("change", () => updateCharacterizationLabels(true));
+$("start-characterization").addEventListener("click", startCharacterization);
+$("stop-characterization").addEventListener("click", stopCharacterization);
+$("apply-characterization").addEventListener("click", applyCharacterization);
+$("stop-all").addEventListener("click", stopAll);
 $("export").addEventListener("click", exportCsv);
 $("reset-layout").addEventListener("click", () => {
   localStorage.removeItem("avbotz-layout-v4");
   location.reload();
 });
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    stopAll();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "s") {
     event.preventDefault();
     if (event.shiftKey) saveProfile();
@@ -1378,5 +1632,7 @@ updateGraphAxisLabels();
 updateSetpointLabels();
 updateTrackingLabels(true);
 renderTracking();
+updateCharacterizationLabels(true);
+renderCharacterization();
 updateSaveControls();
 connect();
