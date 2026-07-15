@@ -29,15 +29,22 @@
       <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
     </Action>
     <Action ID="ForwardSweepAlign">
-      <input_port name="camera" default="front">Detection source</input_port>
-      <input_port name="task">Detection task</input_port>
-      <input_port name="class_id">Detection class</input_port>
-      <input_port name="min_score" default="0.0">Minimum confidence</input_port>
-      <input_port name="attempts" default="4">Frames sampled per heading</input_port>
-      <input_port name="num_sweeps" default="3">Search sweeps</input_port>
-      <input_port name="forward_step" default="2.0">Forward search step</input_port>
-      <input_port name="sample_timeout_msec" default="2500">Sampling timeout</input_port>
-      <input_port name="move_timeout_msec" default="20000">Movement timeout</input_port>
+      <input_port name="camera"
+                  default="front">Detection source: front or down</input_port>
+      <input_port name="task">Only accept detections from this task</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score"
+                  default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts"
+                  default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="num_sweeps"
+                  default="3">Forward sweep passes before FAILURE</input_port>
+      <input_port name="forward_step"
+                  default="2.0">Forward move between sweeps in meters</input_port>
+      <input_port name="sample_timeout_msec"
+                  default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec"
+                  default="20000">Maximum wait for each commanded movement</input_port>
     </Action>
     <Action ID="LoadModel">
       <input_port name="camera" default="front">Camera name</input_port>

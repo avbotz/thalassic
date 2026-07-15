@@ -10,11 +10,11 @@ post layout estimated from the RGB crop.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import math
 
 from diagnostic_msgs.msg import KeyValue
 import numpy as np
 
+from sub_vision import pnp
 from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
@@ -136,21 +136,6 @@ def _bbox_xyxy(det) -> tuple[float, float, float, float]:
     return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
 
 
-def _deproject_pixel(
-    u: float, v: float, depth_m: float, camera_k: np.ndarray
-) -> np.ndarray:
-    fx, fy = camera_k[0, 0], camera_k[1, 1]
-    cx, cy = camera_k[0, 2], camera_k[1, 2]
-    return np.array(
-        [
-            (u - cx) * depth_m / fx,
-            (v - cy) * depth_m / fy,
-            depth_m,
-        ],
-        dtype=np.float64,
-    )
-
-
 @register_post_processor("gate")
 class GatePostProcessor(TaskPostProcessor):
     """Keep gate detections and add aim/range/layout metadata."""
@@ -204,15 +189,14 @@ class GatePostProcessor(TaskPostProcessor):
                 det.pose_valid = False
                 continue
 
-            point = _deproject_pixel(selected_u, selected_v, distance_m, k)
+            point = pnp.deproject_pixel(selected_u, selected_v, distance_m, camera_info)
             det.pose.position.x = float(point[0])
             det.pose.position.y = float(point[1])
             det.pose.position.z = float(point[2])
             det.pose.orientation.w = 1.0
             det.pose_valid = True
 
-            bearing_h = math.atan2(selected_u - k[0, 2], k[0, 0])
-            bearing_v = math.atan2(selected_v - k[1, 2], k[1, 1])
+            bearing_h, bearing_v = pnp.bearings_from_pixel(selected_u, selected_v, camera_info)
             det.extra.append(
                 KeyValue(key="aim_bearing_horizontal", value=f"{bearing_h:.6f}")
             )

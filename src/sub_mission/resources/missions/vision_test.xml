@@ -3,7 +3,8 @@
       main_tree_to_execute="VisionTestRun">
   <BehaviorTree ID="VisionTestRun">
     <Sequence name="vision_test_run">
-      <SetBlackboard output_key="torp_search_yaw" value="-0.211"/>
+      <SetBlackboard output_key="torp_search_yaw"
+                     value="0"/>
       <ForceSuccess>
         <SubTree ID="TorpMission"
                  _autoremap="true"/>

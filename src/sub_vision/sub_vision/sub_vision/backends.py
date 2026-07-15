@@ -36,6 +36,10 @@ class DetectionBackend(ABC):
         self.input_size = input_size
         self.conf_threshold = conf_threshold
         self.class_count = class_count
+        # ONNX exports with embedded NMS retain a [x1, y1, x2, y2,
+        # confidence, class, ...mask_coefficients] row.  The optional mask
+        # coefficients mean those exports are not necessarily six columns.
+        self._end2end = False
 
     # Context managers ensure backend resources (like CUDA pointers) are safely freed
     def __enter__(self):
@@ -99,8 +103,10 @@ class DetectionBackend(ABC):
         if out.ndim != 2:
             raise ValueError(f"Unexpected model output shape {output.shape}")
 
-        # Distinguish between YOLOv10 (end-to-end) and older YOLOv8 heads
-        if out.shape[1] == 6:
+        # Distinguish embedded-NMS/end-to-end outputs from older raw YOLO
+        # heads.  Segmentation exports have 6 + mask-coefficient columns, so
+        # width alone cannot identify them.
+        if self._end2end or out.shape[1] == 6:
             dets = out[out[:, 4] >= self.conf_threshold]
         else:
             dets = self._decode_raw_head(out)
@@ -235,6 +241,7 @@ class OnnxBackend(DetectionBackend):
             class_count=self._class_count_from_metadata(self._session),
         )
         self._input_name = self._session.get_inputs()[0].name
+        self._end2end = self._session.get_modelmeta().custom_metadata_map.get("end2end", "").lower() == "true"
 
         # Lock to static graph size if available
         shape = self._session.get_inputs()[0].shape
@@ -260,78 +267,88 @@ class OnnxBackend(DetectionBackend):
         return None
 
 
-class TensorRTBackend(DetectionBackend):
-    """TensorRT execution backend via CUDA-Python."""
+class TensorRTRunner:
+    """Run a one-input TensorRT engine through CUDA-Python.
 
-    name = "tensorrt"
+    Detector and depth models intentionally share this low-level runner. Their
+    image preprocessing and postprocessing remain model-specific.
+    """
 
-    def __init__(self, engine_path: str, input_size: int, conf_threshold: float):
-        super().__init__(input_size, conf_threshold)
+    def __init__(self, engine_path: str, fallback_input_shape: tuple[int, ...]):
         import tensorrt as trt
-        from cuda import cudart
+        from cuda.bindings import runtime as cudart
 
         self._cudart = cudart
-
-        self._load_engine(engine_path, trt)
+        self._load_engine(engine_path, trt, fallback_input_shape)
         self._allocate_buffers()
 
-    def _load_engine(self, engine_path: str, trt_module):
+    def _load_engine(self, engine_path: str, trt_module, fallback_input_shape: tuple[int, ...]):
         """Deserializes the TensorRT engine and extracts metadata."""
-        logger = trt_module.Logger(trt_module.Logger.WARNING)
+        # The runtime must outlive every engine it deserializes.  Keeping these
+        # references also makes the ownership relationship explicit.
+        self._logger = trt_module.Logger(trt_module.Logger.WARNING)
+        self._runtime = trt_module.Runtime(self._logger)
         with open(engine_path, "rb") as f:
-            self._engine = trt_module.Runtime(logger).deserialize_cuda_engine(f.read())
+            self._engine = self._runtime.deserialize_cuda_engine(f.read())
 
         if self._engine is None:
             raise RuntimeError(f"Failed to deserialize TensorRT engine '{engine_path}'")
 
         self._context = self._engine.create_execution_context()
+        if self._context is None:
+            raise RuntimeError("Failed to create TensorRT execution context")
 
         # Identify input and output tensor names
         names = [
             self._engine.get_tensor_name(i) for i in range(self._engine.num_io_tensors)
         ]
-        self._input_name = next(
-            n
-            for n in names
-            if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.INPUT
+        input_names = [n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.INPUT]
+        self.output_names = tuple(
+            n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.OUTPUT
         )
-        self._output_name = next(
-            n
-            for n in names
-            if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.OUTPUT
-        )
+        if len(input_names) != 1 or not self.output_names:
+            raise ValueError(
+                "TensorRT engines must have one input and at least one output; "
+                f"found {len(input_names)} input(s) and {len(self.output_names)} output(s)"
+            )
+        self._input_name = input_names[0]
 
         # Handle dynamic vs static shapes
         in_shape = list(self._engine.get_tensor_shape(self._input_name))
         if -1 in in_shape:
-            in_shape = [1, 3, self.input_size, self.input_size]
-            self._context.set_input_shape(self._input_name, tuple(in_shape))
-        elif len(in_shape) == 4:
-            self.input_size = int(in_shape[2])
+            in_shape = list(fallback_input_shape)
+            if not self._context.set_input_shape(self._input_name, tuple(in_shape)):
+                raise ValueError(f"TensorRT engine rejected input shape {tuple(in_shape)}")
 
-        self._input_shape = tuple(in_shape)
-        self._output_shape = tuple(self._context.get_tensor_shape(self._output_name))
-
-        self._input_dtype = np.dtype(
+        self.input_shape = tuple(in_shape)
+        self.input_dtype = np.dtype(
             trt_module.nptype(self._engine.get_tensor_dtype(self._input_name))
         )
-        self._output_dtype = np.dtype(
-            trt_module.nptype(self._engine.get_tensor_dtype(self._output_name))
-        )
+        self._output_specs = []
+        for name in self.output_names:
+            shape = tuple(self._context.get_tensor_shape(name))
+            if -1 in shape:
+                raise ValueError(f"TensorRT engine has unresolved output dimensions for '{name}': {shape}")
+            dtype = np.dtype(trt_module.nptype(self._engine.get_tensor_dtype(name)))
+            self._output_specs.append((name, shape, dtype))
 
     def _allocate_buffers(self):
         """Allocates GPU memory pointers and streams for execution."""
-        self._host_output = np.empty(self._output_shape, dtype=self._output_dtype)
+        self._host_outputs = {
+            name: np.empty(shape, dtype=dtype) for name, shape, dtype in self._output_specs
+        }
 
-        in_bytes = int(np.prod(self._input_shape)) * self._input_dtype.itemsize
-        out_bytes = self._host_output.nbytes
-
+        in_bytes = int(np.prod(self.input_shape)) * self.input_dtype.itemsize
         self._d_input = self._check_cuda(self._cudart.cudaMalloc(in_bytes))
-        self._d_output = self._check_cuda(self._cudart.cudaMalloc(out_bytes))
+        self._d_outputs = {
+            name: self._check_cuda(self._cudart.cudaMalloc(host_output.nbytes))
+            for name, host_output in self._host_outputs.items()
+        }
         self._stream = self._check_cuda(self._cudart.cudaStreamCreate())
 
         self._context.set_tensor_address(self._input_name, self._d_input)
-        self._context.set_tensor_address(self._output_name, self._d_output)
+        for name, device_output in self._d_outputs.items():
+            self._context.set_tensor_address(name, device_output)
 
     def _check_cuda(self, result):
         """Unwrap a cuda-python result, raising an exception on error."""
@@ -340,9 +357,13 @@ class TensorRTBackend(DetectionBackend):
             raise RuntimeError(f"CUDA runtime error: {err}")
         return values[0] if values else None
 
-    def _run(self, blob: np.ndarray) -> np.ndarray:
-        """Executes inference asychronously on the GPU."""
-        host_input = np.ascontiguousarray(blob, dtype=self._input_dtype)
+    def infer(self, host_input: np.ndarray) -> list[np.ndarray]:
+        """Run inference and return a copied result for every output tensor."""
+        host_input = np.ascontiguousarray(host_input, dtype=self.input_dtype)
+        if host_input.shape != self.input_shape:
+            raise ValueError(
+                f"TensorRT input shape mismatch: engine expects {self.input_shape}, got {host_input.shape}"
+            )
 
         # 1. Copy input data to GPU
         self._check_cuda(
@@ -360,21 +381,23 @@ class TensorRTBackend(DetectionBackend):
             raise RuntimeError("TensorRT inference failed")
 
         # 3. Copy results back to Host
-        self._check_cuda(
-            self._cudart.cudaMemcpyAsync(
-                self._host_output.ctypes.data,
-                self._d_output,
-                self._host_output.nbytes,
-                self._cudart.cudaMemcpyKind.cudaMemcpyDeviceToHost,
-                self._stream,
+        for name, host_output in self._host_outputs.items():
+            self._check_cuda(
+                self._cudart.cudaMemcpyAsync(
+                    host_output.ctypes.data,
+                    self._d_outputs[name],
+                    host_output.nbytes,
+                    self._cudart.cudaMemcpyKind.cudaMemcpyDeviceToHost,
+                    self._stream,
+                )
             )
-        )
 
         # 4. Wait for completion
         self._check_cuda(self._cudart.cudaStreamSynchronize(self._stream))
 
-        # Must return a copy so the array safely survives frame-to-frame loop overwrites
-        return self._host_output.astype(np.float32, copy=True)
+        # Copies safely survive frame-to-frame buffer reuse. Keep TensorRT's
+        # output ordering so segmentation prototypes remain available.
+        return [self._host_outputs[name].copy() for name in self.output_names]
 
     def close(self) -> None:
         """Safely free CUDA device buffers and engines."""
@@ -384,13 +407,32 @@ class TensorRTBackend(DetectionBackend):
 
         if getattr(self, "_d_input", None) is not None:
             cudart.cudaFree(self._d_input)
-        if getattr(self, "_d_output", None) is not None:
-            cudart.cudaFree(self._d_output)
+        for device_output in getattr(self, "_d_outputs", {}).values():
+            cudart.cudaFree(device_output)
         if getattr(self, "_stream", None) is not None:
             cudart.cudaStreamDestroy(self._stream)
 
-        self._d_input = self._d_output = self._stream = None
-        self._context = self._engine = None
+        self._d_input = self._stream = None
+        self._d_outputs = {}
+        self._context = self._engine = self._runtime = self._logger = None
+
+
+class TensorRTBackend(DetectionBackend):
+    """TensorRT detector backend using the shared CUDA-Python engine runner."""
+
+    name = "tensorrt"
+
+    def __init__(self, engine_path: str, input_size: int, conf_threshold: float):
+        super().__init__(input_size, conf_threshold)
+        self._runner = TensorRTRunner(engine_path, (1, 3, input_size, input_size))
+        if len(self._runner.input_shape) == 4:
+            self.input_size = int(self._runner.input_shape[2])
+
+    def _run(self, blob: np.ndarray) -> list[np.ndarray]:
+        return [output.astype(np.float32, copy=False) for output in self._runner.infer(blob)]
+
+    def close(self) -> None:
+        self._runner.close()
 
 
 def build_backend(

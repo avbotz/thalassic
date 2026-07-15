@@ -13,6 +13,9 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        # Depth Anything is an optional runtime model, but installing it makes
+        # the simulation debug launch self-contained.
+        (os.path.join("share", package_name, "weights"), glob("weights/*.onnx")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

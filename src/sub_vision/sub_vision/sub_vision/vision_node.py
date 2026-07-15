@@ -1,6 +1,7 @@
-import math
 import os
 
+import cv2
+import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
@@ -13,7 +14,8 @@ from vision_msgs.msg import (
     ObjectHypothesisWithPose,
 )
 
-from sub_vision import constants, post_processors
+from sub_vision import constants, pnp, post_processors
+from sub_vision.depth_backend import DepthManager
 from sub_vision.model_manager import ModelManager
 from sub_vision_interfaces.msg import Detection, DetectionArray
 from sub_vision_interfaces.srv import LoadModel
@@ -39,12 +41,26 @@ class VisionNode(Node):
         # "raw" subscribes <rgb_topic>; "compressed" subscribes
         # <rgb_topic>/compressed — use it when frames cross the network.
         self.declare_parameter("image_transport", "raw")
+        self.declare_parameter("depth_enabled", False)
+        self.declare_parameter("depth_model_path", "weights/depth_anything_v2_vits.onnx")
+        self.declare_parameter("depth_backend", "auto")
+        self.declare_parameter("depth_device", "auto")
+        self.declare_parameter("depth_input_size", 518)
+        self.declare_parameter("depth_rate_hz", 5.0)
+        self.declare_parameter("depth_max_age_s", 0.15)
+        self.declare_parameter("depth_debug_enabled", False)
+        self.declare_parameter("depth_debug_topic", "vision/depth_anything")
+        self.declare_parameter("depth_debug_color_topic", "vision/depth_anything_color")
 
         self._model_dir = self.get_parameter("model_dir").value
         self._detections_task = ""
         self._bridge = CvBridge()
         self._camera_info: CameraInfo | None = None
         self._last_infer_ms = float("nan")
+        self._depth_manager = None
+        self._depth_debug_pub = None
+        self._depth_debug_color_pub = None
+        self._processors = {}
 
         self._manager = ModelManager(
             model_dir=self._model_dir,
@@ -55,6 +71,20 @@ class VisionNode(Node):
             warmup_iterations=int(self.get_parameter("warmup_iterations").value),
             log=self.get_logger().info,
         )
+        if self.get_parameter("depth_enabled").value:
+            depth_device = self.get_parameter("depth_device").value
+            if depth_device == "auto":
+                try:
+                    import onnxruntime as ort
+                    depth_device = "cuda" if "CUDAExecutionProvider" in ort.get_available_providers() else "cpu"
+                except ImportError:
+                    depth_device = "cpu"
+            self._depth_manager = DepthManager(
+                self.get_parameter("depth_model_path").value, self.get_parameter("depth_backend").value, depth_device,
+                int(self.get_parameter("depth_input_size").value),
+                float(self.get_parameter("depth_rate_hz").value),
+                float(self.get_parameter("depth_max_age_s").value), self.get_logger().info,
+            )
 
         # Register the shipped per-task post-processors (gate, ...).
         post_processors.load_builtin_post_processors()
@@ -64,6 +94,15 @@ class VisionNode(Node):
             DetectionArray, self.get_parameter("detections_topic").value, qos_profile_sensor_data
         )
         self._diag_pub = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
+        if self.get_parameter("depth_debug_enabled").value:
+            if not self.get_parameter("depth_enabled").value:
+                self.get_logger().warn("depth debug requested while depth_enabled is false")
+            self._depth_debug_pub = self.create_publisher(
+                Image, self.get_parameter("depth_debug_topic").value, qos_profile_sensor_data
+            )
+            self._depth_debug_color_pub = self.create_publisher(
+                Image, self.get_parameter("depth_debug_color_topic").value, qos_profile_sensor_data
+            )
 
         self.create_subscription(
             CameraInfo,
@@ -125,13 +164,17 @@ class VisionNode(Node):
 
     def _process_frame(self, header, decode) -> None:
         task = self._manager.active_task
+        rgb = decode()
+        source_stamp_ns = int(header.stamp.sec) * 1_000_000_000 + int(header.stamp.nanosec)
+        depth = self._depth_manager.infer_if_due(rgb, source_stamp_ns) if self._depth_manager else None
+        if depth is not None and depth.produced:
+            self._publish_depth_debug(header, depth.map)
+
         if task is None:
-            return  # no model loaded yet
+            return  # depth debug may run without a detector task
         if self._camera_info is None:
             self.get_logger().warn("no CameraInfo yet; skipping frame", throttle_duration_sec=5.0)
             return
-
-        rgb = decode()
 
         t0 = self.get_clock().now()
         raw = self._manager.infer(rgb)
@@ -140,14 +183,42 @@ class VisionNode(Node):
             return
 
         msg = self._build_detection_array(header, task, raw.boxes, self._camera_info)
-
         # Per-task OpenCV enrichment (pose, extra). No-op fallback keeps the 2D
         # metadata when a task has no registered processor.
-        processor = post_processors.get_post_processor(task)
+        processor = self._processors.get(task)
+        if processor is None:
+            processor = post_processors.get_post_processor(task)
+            self._processors[task] = processor
         if processor is not None:
-            msg = processor.process(msg, rgb, None, self._camera_info, raw.masks)
+            # A cached relative-depth result must never influence a new RGB
+            # frame. The torp processor only receives an exact source-stamp
+            # match; its established YOLO/OpenCV outline path remains active
+            # on all other frames.
+            current_depth = depth if depth is not None and depth.current else None
+            msg = processor.process(msg, rgb, current_depth, self._camera_info, raw.masks)
 
         self._pub.publish(msg)
+
+    def _publish_depth_debug(self, header, depth: np.ndarray) -> None:
+        """Publish raw relative depth and an auto-normalized color view."""
+        if self._depth_debug_pub is None or self._depth_debug_color_pub is None:
+            return
+        raw = np.ascontiguousarray(depth.astype(np.float32))
+        raw_msg = self._bridge.cv2_to_imgmsg(raw, encoding="32FC1")
+        raw_msg.header = header
+        self._depth_debug_pub.publish(raw_msg)
+
+        valid = raw[np.isfinite(raw)]
+        if valid.size == 0:
+            gray = np.zeros(raw.shape, dtype=np.uint8)
+        else:
+            low, high = np.percentile(valid, (1.0, 99.0))
+            if high <= low:
+                high = low + 1.0
+            gray = np.clip((raw - low) * 255.0 / (high - low), 0, 255).astype(np.uint8)
+        color_msg = self._bridge.cv2_to_imgmsg(cv2.applyColorMap(gray, cv2.COLORMAP_TURBO), encoding="bgr8")
+        color_msg.header = header
+        self._depth_debug_color_pub.publish(color_msg)
 
     # ----------------------------------------------------------------------- #
     # Message assembly
@@ -171,19 +242,15 @@ class VisionNode(Node):
 
     @staticmethod
     def _bearings(center, camera_info) -> tuple[float, float]:
-        """Angles from the optical axis to a pixel, via the pinhole intrinsics.
+        """Angles from the optical axis to a pixel, correcting for lens distortion.
 
-        K = [fx 0 cx; 0 fy cy; 0 0 1]. Positive horizontal = right of center,
-        positive vertical = below center (optical-frame convention).
+        Positive horizontal = right of center, positive vertical = below
+        center (optical-frame convention). See ``sub_vision.pnp`` for the
+        undistortion this relies on.
         """
-        fx, cx = camera_info.k[0], camera_info.k[2]
-        fy, cy = camera_info.k[4], camera_info.k[5]
-        if fx <= 0.0 or fy <= 0.0:  # uncalibrated source: no usable bearing
+        if camera_info.k[0] <= 0.0 or camera_info.k[4] <= 0.0:  # uncalibrated source: no usable bearing
             return 0.0, 0.0
-        return (
-            float(math.atan2(center.x - cx, fx)),
-            float(math.atan2(center.y - cy, fy)),
-        )
+        return pnp.bearings_from_pixel(center.x, center.y, camera_info)
 
     @staticmethod
     def _make_detection2d(header, x1, y1, x2, y2, score, cls) -> Detection2D:
@@ -216,6 +283,9 @@ class VisionNode(Node):
         )
         status.values.append(KeyValue(key="active_task", value=str(self._manager.active_task)))
         status.values.append(KeyValue(key="last_infer_ms", value=f"{self._last_infer_ms:.1f}"))
+        if self._depth_manager is not None:
+            status.values.append(KeyValue(key="depth_last_infer_ms", value=f"{self._depth_manager.last_infer_ms:.1f}"))
+            status.values.append(KeyValue(key="depth_stale_frames", value=str(self._depth_manager.stale_frames)))
         warmup = self._manager.last_warmup
         if warmup is not None:
             status.values.append(KeyValue(key="warmup_mean_ms", value=f"{warmup.mean_ms:.1f}"))
@@ -234,6 +304,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        if node._depth_manager is not None:
+            node._depth_manager.close()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

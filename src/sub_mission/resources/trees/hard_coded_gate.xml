@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
       main_tree_to_execute="HardCodedGateMission">
-  <!-- <BehaviorTree ID="HardCodedCoinFlipMission">
+  <BehaviorTree ID="HardCodedCoinFlipMission">
     <Sequence name="hard_coded_coin_flip_mission">
       <PosSetpoint x="nan"
                    y="nan"
                    z="-1.0"/>
-      <Sleep msec="3500"/>
       <AttSetpoint roll="nan"
                    pitch="nan"
                    yaw="0.0"/>
     </Sequence>
-  </BehaviorTree> -->
+  </BehaviorTree>
 
   <BehaviorTree ID="HardCodedGateMission">
     <Sequence name="hard_coded_gate_mission">
-      <!-- <SubTree ID="HardCodedCoinFlipMission"/> -->
+      <SubTree ID="HardCodedCoinFlipMission"/>
       <SaveGateHome x="{@gate_home_x}"
                     y="{@gate_home_y}"/>
       <PosSetpoint x="nan"

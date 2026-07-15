@@ -29,3 +29,17 @@
     # subscribes <rgb_topic>/compressed (use when frames cross the network,
     # e.g. running vision on a laptop against the sub's cameras).
     image_transport: "raw"
+
+    # Optional Depth Anything V2 Small relative-depth sidecar. It does not
+    # replace calibrated PnP; torp uses it only after PnP establishes scale.
+    depth_enabled: false
+    depth_model_path: "weights/depth_anything_v2_vits.onnx"
+    depth_backend: "auto"  # prefers a sibling .engine on Jetson
+    depth_device: "auto"
+    depth_input_size: 518
+    depth_rate_hz: 5.0
+    depth_max_age_s: 0.15
+    # Publishing is off by default; simulation enables both debug streams.
+    depth_debug_enabled: false
+    depth_debug_topic: "vision/depth_anything"          # 32FC1 relative depth
+    depth_debug_color_topic: "vision/depth_anything_color"  # bgr8 Turbo view
