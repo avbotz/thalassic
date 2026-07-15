@@ -5,17 +5,17 @@
     <Sequence name="octagon_mission">
       <PosSetpoint x="nan"
                    y="nan"
-                   z="-1.5"/>
+                   z="-1.0"/>
       <AttSetpoint name="octagon_search_heading"
                    roll="nan"
                    pitch="nan"
                    yaw="{@octagon_search_yaw}"/>
       <LoadModel camera="front"
-                 task="octagon"
+                 task="octagon_table"
                  timeout_msec="30000"/>
       <Fallback name="find_octagon_front">
         <SweepCheck camera="front"
-                    task="octagon"
+                    task="octagon_table"
                     class_id=""
                     min_score="0.0"
                     attempts="4"
@@ -26,7 +26,7 @@
                         y="0.0"
                         z="0.0"/>
           <ForwardSweepAlign camera="front"
-                             task="octagon"
+                             task="octagon_table"
                              class_id=""
                              min_score="0.0"
                              attempts="4"
@@ -37,10 +37,10 @@
         </Sequence>
       </Fallback>
       <ForwardContinuousAlign camera="front"
-                              task="octagon"
+                              task="octagon_table"
                               class_id=""
                               min_score="0.0"
-                              max_dist="4.0"
+                              max_dist="5.0"
                               forward_velocity="1.0"
                               close_distance="3.0"
                               detection_loss_msec="3000"
@@ -56,16 +56,16 @@
                               fixed_distance_from_detection="false"
                               pass_distance="0.0"
                               min_transit_distance="0.0"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.5"/>
+      <Sleep msec="100000"/>
       <MoveRelative x="1.0"
                     y="0.0"
                     z="0.0"/>
       <LoadModel camera="front"
-                 task="octagon_gate_buoy_compass_sos_hammer"
+                 task="octagon_search_image"
                  timeout_msec="30000"/>
-      <OctagonSurfaceSweep task="octagon_gate_buoy_compass_sos_hammer"
+      <OctagonSurfaceSweep task="octagon_search_image"
+                           surface_class_id="0"
+                           diversion_class_id="1"
                            min_score="0.0"
                            yaw_step_deg="30.0"
                            diversion_deg="90.0"
@@ -74,9 +74,6 @@
       <PosSetpoint x="nan"
                    y="nan"
                    z="0.0"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.5"/>
     </Sequence>
   </BehaviorTree>
 
@@ -165,14 +162,18 @@
     </Action>
     <Action ID="OctagonSurfaceSweep">
       <input_port name="task">Front-camera model task to inspect</input_port>
+      <input_port name="surface_class_id"
+                  default="0">Class that triggers surfacing</input_port>
+      <input_port name="diversion_class_id"
+                  default="1">Class that triggers yaw diversion</input_port>
       <input_port name="min_score"
                   default="0.0">Minimum detection confidence</input_port>
       <input_port name="yaw_step_deg"
-                  default="30.0">Yaw increment while searching for class 0</input_port>
+                  default="30.0">Yaw increment while searching for surface class</input_port>
       <input_port name="diversion_deg"
-                  default="90.0">One-time yaw increment after seeing class 2</input_port>
+                  default="90.0">One-time yaw increment after seeing diversion class</input_port>
       <input_port name="surface_z"
-                  default="-0.3">Final ENU z setpoint after seeing class 0</input_port>
+                  default="-0.3">Final ENU z setpoint after seeing surface class</input_port>
       <input_port name="move_timeout_msec"
                   default="20000">Maximum wait for each yaw or depth command</input_port>
     </Action>
