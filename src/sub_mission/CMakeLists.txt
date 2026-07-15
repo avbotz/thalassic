@@ -25,6 +25,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
 find_package(sub_vision_interfaces REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
@@ -90,6 +91,7 @@ foreach(node IN ITEMS mission restart)
         "sub_control_interfaces"
         "sub_driver_interfaces"
         "sub_vision_interfaces"
+        "std_srvs"
         "tf2"
         "tf2_ros"
     )

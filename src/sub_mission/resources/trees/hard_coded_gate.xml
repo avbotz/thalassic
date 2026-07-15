@@ -9,6 +9,7 @@
       <AttSetpoint roll="nan"
                    pitch="nan"
                    yaw="0.0"/>
+      <ResetStateOnRevive timeout_msec="5000"/>
     </Sequence>
   </BehaviorTree>
 
@@ -63,6 +64,10 @@
     <Action ID="SaveGateHome">
       <output_port name="x">Saved gate-home x coordinate</output_port>
       <output_port name="y">Saved gate-home y coordinate</output_port>
+    </Action>
+    <Action ID="ResetStateOnRevive">
+      <input_port name="timeout_msec"
+                  default="5000">Maximum wait for control reset response</input_port>
     </Action>
     <Action ID="Spin">
       <input_port name="yaw"

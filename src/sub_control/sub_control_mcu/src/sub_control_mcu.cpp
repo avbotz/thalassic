@@ -115,6 +115,12 @@ SubControlMcu::SubControlMcu() : Node("sub_control_mcu") {
     error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
 
     set_pose_client_ = this->create_client<robot_localization::srv::SetPose>("set_pose");
+    reset_state_service_ = this->create_service<std_srvs::srv::Trigger>(
+        "reset_state_on_revive",
+        [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+               std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+            reset_state_service_callback(request, response);
+        });
     setpoint_action_server_ = rclcpp_action::create_server<ControlSetpoint>(
         this, "control_setpoint",
         [this](const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const ControlSetpoint::Goal> goal) {
@@ -482,6 +488,16 @@ void SubControlMcu::reset_state_on_revive() {
         pause_ = true;
         pause_end_ = this->get_clock()->now() + rclcpp::Duration::from_seconds(startup_pause_s_);
     }
+}
+
+void SubControlMcu::reset_state_service_callback(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    reset_state_on_revive();
+    response->success = true;
+    response->message = "Control state reset";
+    RCLCPP_INFO(this->get_logger(), "Control state reset by service request");
 }
 
 void SubControlMcu::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {

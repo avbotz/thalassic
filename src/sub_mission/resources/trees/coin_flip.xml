@@ -38,6 +38,7 @@
           <AttSetpoint roll="nan"
                        pitch="nan"
                        yaw="-1.57079633"/>
+          <ResetStateOnRevive timeout_msec="5000"/>
           <WaitForDetection camera="front"
                             task="gate"
                             class_id="1"
@@ -102,6 +103,10 @@
                   default="nan">East/right position setpoint</input_port>
       <input_port name="z"
                   default="nan">Vertical position setpoint; negative is down</input_port>
+    </Action>
+    <Action ID="ResetStateOnRevive">
+      <input_port name="timeout_msec"
+                  default="5000">Maximum wait for control reset response</input_port>
     </Action>
     <Action ID="WaitForDetection">
       <input_port name="camera"
