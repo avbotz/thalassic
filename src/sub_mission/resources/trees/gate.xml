@@ -1,71 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4"
-      main_tree_to_execute="GateMission">
-  <BehaviorTree ID="AlignWithGate">
-    <ForceSuccess>
-      <Sequence name="align_with_gate">
-        <LoadModel camera="front"
-                   task="gate"
-                   timeout_msec="20000"/>
-        <WaitForDetection camera="front"
-                          task="gate"
-                          class_id=""
-                          min_score="0.0"
-                          timeout_msec="15000"/>
-        <AlignToDetection camera="front"
-                          task="gate"
-                          class_id=""
-                          min_score="0.0"
-                          yaw="true"
-                          depth="false"
-                          tolerance="0.05"
-                          depth_gain="1.5"
-                          max_depth_step="0.5"
-                          timeout_msec="30000"/>
-      </Sequence>
-    </ForceSuccess>
-  </BehaviorTree>
-
+<root BTCPP_format="4" main_tree_to_execute="GateMission">
   <BehaviorTree ID="GateMission">
-    <Sequence name="gate_mission">
-      <SaveGateHome x="{@gate_home_x}"
-                    y="{@gate_home_y}"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.65"/>
-      <LoadModel camera="front"
-                 task="gate"
-                 timeout_msec="30000"/>
-      <OrientToDetectionAtDist camera="front"
+    <Sequence name="left_icon_gate_mission">
+      <SaveGateHome x="{@gate_home_x}" y="{@gate_home_y}"/>
+
+      <!-- Do not issue a startup depth command.  The simulator spawns the
+           front camera at the artwork height; forward acquisition holds zero
+           body-z velocity and begins its timeout only after camera startup. -->
+      <LoadModel camera="front" task="gate" timeout_msec="120000"/>
+
+      <!-- Begin closing the initial stand-off immediately.  Stop and capture
+           the current odometry position as soon as a valid LEFT-side icon
+           target appears; the timeout limits a no-detection run to 2.0 m. -->
+      <SearchForDetection camera="front"
+                          task="gate"
+                          class_id="8"
+                          min_score="0.20"
+                          x="0.10"
+                          y="0.0"
+                          z="0.0"
+                          start_timeout_after_first_frame="true"
+                          timeout_msec="20000"/>
+
+      <!-- Class 8 is synthesized by the gate post-processor at the centre of
+           the left role panel.  Three independent frames choose and log the
+           role printed over the opening we will actually traverse. -->
+      <SelectGateRole camera="front"
+                      task="gate"
+                      class_id="8"
+                      min_score="0.20"
+                      confirmation_frames="3"
+                      timeout_msec="30000"/>
+
+      <!-- Translate to the left lane while holding the original forward yaw.
+           Three rays lock one absolute odometry target; later intermittent
+           frames cannot move that target farther left or cause overshoot. -->
+      <LateralAlignToDetection camera="front"
                                task="gate"
-                               class_id="1"
-                               min_score="0.2"
-                               desired_distance="7.8"
-                               max_detection_distance="0.0"
-                               tolerance="0.35"
-                               distance_tolerance="0.5"
-                               orient_tolerance_deg="5.0"
-                               max_position_step="0.6"
-                               require_heading="false"
-                               settle_frames="1"
-                               min_msec="4500"
+                               class_id="8"
+                               min_score="0.20"
+                               target_distance="3.25"
+                               use_detection_distance="true"
+                               max_alignment_projection_distance="3.25"
+                               align_depth="false"
+                               lateral_bearing_gain="-1.0"
+                               target_offset_right_m="0.15"
+                               lock_board_aim="true"
+                               lock_aim_frames="5"
+                               reset_timeout_on_lock="true"
+                               tolerance="0.040"
+                               max_bearing_jump_rad="0.25"
+                               bearing_filter_alpha="0.35"
+                               use_lateral_velocity_alignment="false"
+                               settle_frames="2"
+                               min_msec="0"
                                timeout_msec="30000"
-                               update_msec="300"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-1.3"/>
-      <MoveRelative x="1"
-                    y="0.0"
-                    z="0.0"/>
-      <Spin yaw="12.56637061"
-            rate="3.14159265"/>
-      <MoveRelative x="1.2"
-                    y="nan"
-                    z="nan"
-                    _description="barely enough to pass out of gate if stuck"/>
-      <PosSetpoint x="nan"
-                   y="nan"
-                   z="-0.8"/>
+                               update_msec="150"
+                               initial_detection_max_age_msec="1000"
+                               detection_loss_msec="0"
+                               detection_distance_m="{gate_distance_m}"/>
+
+      <!-- Once the role and left opening are locked, descend below the signs
+           and upper crossbar for the actual gate crossing. -->
+      <PosSetpoint x="nan" y="nan" z="-1.00"/>
+
+      <!-- Use the range measured after the forward acquisition, then clear
+           the gate plane by 0.80 m.  This prevents the acquisition distance
+           from being added on top of a fixed-length crossing. -->
+      <ForwardFixedTransit vision_distance_m="{gate_distance_m}"
+                           pass_distance="0.80"
+                           min_transit_distance="1.0"
+                           max_planned_distance="3.90"
+                           max_dist="4.25"
+                           forward_velocity="0.25"
+                           timeout_msec="35000"/>
       <AttSetpoint name="pool_exit_heading"
                    roll="nan"
                    pitch="nan"
@@ -73,109 +81,65 @@
     </Sequence>
   </BehaviorTree>
 
-  <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="AlignToDetection">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="yaw"
-                  default="true">Steer yaw to zero the horizontal bearing</input_port>
-      <input_port name="depth"
-                  default="false">Steer depth to zero the vertical bearing</input_port>
-      <input_port name="tolerance"
-                  default="0.05">Aligned when |bearing| &lt;= tolerance (rad)</input_port>
-      <input_port name="depth_gain"
-                  default="1.5">Meters of depth change per radian of bearing</input_port>
-      <input_port name="max_depth_step"
-                  default="0.5">Depth correction clamp per frame (m)</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Maximum align time before FAILURE</input_port>
+    <Action ID="SelectGateRole">
+      <input_port name="camera" default="front">Detection source</input_port>
+      <input_port name="task">Logical vision task</input_port>
+      <input_port name="class_id">Synthetic left-lane target class</input_port>
+      <input_port name="min_score" default="0.20">Minimum target confidence</input_port>
+      <input_port name="confirmation_frames" default="3">Stable role frames</input_port>
+      <input_port name="timeout_msec" default="20000">Selection timeout</input_port>
     </Action>
-    <Action ID="AttSetpoint">
-      <input_port name="roll"
-                  default="nan">Roll setpoint in radians</input_port>
-      <input_port name="pitch"
-                  default="nan">Pitch setpoint in radians</input_port>
-      <input_port name="yaw"
-                  default="nan">Yaw setpoint in radians</input_port>
+    <Action ID="SearchForDetection">
+      <input_port name="camera" default="front">Detection source</input_port>
+      <input_port name="task">Logical vision task</input_port>
+      <input_port name="class_id">Synthetic left-lane target class</input_port>
+      <input_port name="min_score" default="0.20">Minimum target confidence</input_port>
+      <input_port name="x" default="0.10">Body-forward approach velocity</input_port>
+      <input_port name="y" default="0.0">Body-left velocity</input_port>
+      <input_port name="z" default="0.0">Body-up velocity</input_port>
+      <input_port name="start_timeout_after_first_frame" default="true">Arm timeout on first camera frame</input_port>
+      <input_port name="timeout_msec" default="20000">Maximum approach duration</input_port>
     </Action>
     <Action ID="LoadModel">
-      <input_port name="camera"
-                  default="front">Camera whose vision node loads the model</input_port>
-      <input_port name="task">Task model to load, e.g. gate</input_port>
-      <input_port name="timeout_msec"
-                  default="20000">Maximum wait for service + load</input_port>
+      <input_port name="camera" default="front">Camera whose model is loaded</input_port>
+      <input_port name="task">Logical task name</input_port>
+      <input_port name="timeout_msec" default="20000">Load timeout</input_port>
     </Action>
-    <Action ID="MoveRelative">
-      <input_port name="x"
-                  default="0.0">Forward offset in meters</input_port>
-      <input_port name="y"
-                  default="0.0">Right offset in meters</input_port>
-      <input_port name="z"
-                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    <Action ID="LateralAlignToDetection">
+      <input_port name="camera" default="front">Detection source</input_port>
+      <input_port name="task">Logical vision task</input_port>
+      <input_port name="class_id">Target class</input_port>
+      <input_port name="min_score" default="0.0">Minimum confidence</input_port>
+      <input_port name="target_distance" default="3.25">Projection range</input_port>
+      <input_port name="use_detection_distance" default="true">Use icon-size range</input_port>
+      <input_port name="max_alignment_projection_distance" default="3.25">Range projection cap</input_port>
+      <input_port name="align_depth" default="false">Translate vertically</input_port>
+      <input_port name="lateral_bearing_gain" default="-1.0">Bearing-to-left sign</input_port>
+      <input_port name="target_offset_right_m" default="0.15">Move the left-lane target toward the divider for outer-pole clearance</input_port>
+      <input_port name="lock_board_aim" default="true">Lock one odometry target</input_port>
+      <input_port name="lock_aim_frames" default="5">Rays required before locking and range-plane filtering</input_port>
+      <input_port name="reset_timeout_on_lock" default="true">Restart timeout after lock</input_port>
+      <input_port name="tolerance" default="0.04">Bearing tolerance</input_port>
+      <input_port name="max_bearing_jump_rad" default="0.25">Ray continuity bound</input_port>
+      <input_port name="bearing_filter_alpha" default="0.35">Ray filter weight</input_port>
+      <input_port name="use_lateral_velocity_alignment" default="false">Use body velocity</input_port>
+      <input_port name="settle_frames" default="2">Settled confirmations</input_port>
+      <input_port name="min_msec" default="0">Minimum alignment time</input_port>
+      <input_port name="timeout_msec" default="30000">Alignment timeout</input_port>
+      <input_port name="update_msec" default="150">Command interval</input_port>
+      <input_port name="initial_detection_max_age_msec" default="1000">Reuse role frame</input_port>
+      <input_port name="detection_loss_msec" default="0">Loss failure timeout</input_port>
+      <output_port name="detection_distance_m">Icon-derived remaining range</output_port>
     </Action>
-    <Action ID="OrientToDetectionAtDist">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="desired_distance"
-                  default="2.0">Distance to hold from the target in meters</input_port>
-      <input_port name="max_detection_distance"
-                  default="0.0">Reject pose observations beyond this range; zero disables the bound</input_port>
-      <input_port name="tolerance"
-                  default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
-      <input_port name="distance_tolerance"
-                  default="0.5">Distance error allowed at completion (m)</input_port>
-      <input_port name="orient_tolerance_deg"
-                  default="5.0">Orientation error allowed at completion</input_port>
-      <input_port name="max_position_step"
-                  default="0.5">Maximum translation correction per update (m)</input_port>
-      <input_port name="require_heading"
-                  default="false">Fail when no calibrated board-normal heading is available</input_port>
-      <input_port name="settle_frames"
-                  default="1">Consecutive in-tolerance detection frames required before SUCCESS</input_port>
-      <input_port name="min_msec"
-                  default="6500">Minimum closed-loop alignment time</input_port>
-      <input_port name="timeout_msec"
-                  default="30000">Maximum align time before FAILURE</input_port>
-      <input_port name="update_msec"
-                  default="300">Minimum time between movement corrections</input_port>
-    </Action>
-    <Action ID="PosSetpoint">
-      <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
-      <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
-      <input_port name="z"
-                  default="nan">Vertical position setpoint; negative is down</input_port>
-    </Action>
-    <Action ID="SaveGateHome">
-      <output_port name="x">Saved gate-home x coordinate</output_port>
-      <output_port name="y">Saved gate-home y coordinate</output_port>
-    </Action>
-    <Action ID="Spin">
-      <input_port name="yaw"
-                  default="12.56637061">Yaw distance to spin in radians (positive = CCW)</input_port>
-      <input_port name="rate"
-                  default="3.14159265">Maximum yaw rate in radians per second</input_port>
-    </Action>
-    <Action ID="WaitForDetection">
-      <input_port name="camera"
-                  default="front">Detection source: front or down</input_port>
-      <input_port name="task">Only accept detections from this task's model</input_port>
-      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-      <input_port name="min_score"
-                  default="0.0">Minimum detection confidence</input_port>
-      <input_port name="timeout_msec"
-                  default="15000">Maximum wait before returning FAILURE</input_port>
+    <Action ID="ForwardFixedTransit">
+      <input_port name="vision_distance_m">Remaining range after alignment</input_port>
+      <input_port name="pass_distance" default="0.75">Distance beyond gate plane</input_port>
+      <input_port name="min_transit_distance" default="1.0">Minimum crossing distance</input_port>
+      <input_port name="max_planned_distance" default="3.85">Planned crossing cap</input_port>
+      <input_port name="max_dist" default="4.25">Hard crossing cap</input_port>
+      <input_port name="forward_velocity" default="0.25">Body-forward speed</input_port>
+      <input_port name="timeout_msec" default="35000">Crossing timeout</input_port>
     </Action>
   </TreeNodesModel>
-
 </root>

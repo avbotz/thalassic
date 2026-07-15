@@ -1,9 +1,8 @@
-"""Single-pole slalom steering.
+"""Red-divider selection for the yaw-locked slalom mission.
 
-Each stationary scan publishes one synthetic target: the image-leftmost
-detected pole, displaced a fixed safe distance to its right.  Mission control
-then compares these targets over the complete spin and selects the globally
-leftmost pole.  No row association or three-pole geometry is needed.
+``slalom_redpoles_osu`` may occasionally classify a white pole as red. Keep
+the nearest candidate anywhere in frame only when its image crop passes the
+OpenCV red-appearance test.
 """
 
 from __future__ import annotations
@@ -18,15 +17,14 @@ from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
 
-RAW_POLE_CLASS_IDS = {0, 1}
-SLALOM_TARGET_CLASS_ID = '2'
+RAW_POLE_CLASS_IDS = {0}
+SLALOM_RED_POLE_CLASS_ID = '2'
 MIN_POLE_SCORE = 0.10
 MIN_POLE_HEIGHT_PX = 8.0
 POLE_NMS_IOU = 0.70
-# The pole is 0.9 m tall in Stonefish.  Staying 0.9 m to its right clears a
-# pole and the vehicle hull without needing to identify the other poles.
+MIN_RED_PIXEL_FRACTION = 0.05
+# The pole is 0.9 m tall in Stonefish.
 POLE_HEIGHT_M = 0.90
-RIGHT_CLEARANCE_M = 0.90
 
 
 def _class_id(det) -> int:
@@ -42,8 +40,37 @@ def _score(det) -> float:
     return float(det.detection.results[0].hypothesis.score) if det.detection.results else 0.0
 
 
-def _center_x(det) -> float:
-    return float(det.detection.bbox.center.position.x)
+def _has_red_appearance(det, image_bgr: np.ndarray) -> bool:
+    """Reject white-pole boxes that the red-only model occasionally emits."""
+    if image_bgr is None or image_bgr.ndim != 3 or image_bgr.shape[2] < 3:
+        return False
+
+    image_height, image_width = image_bgr.shape[:2]
+    x1, y1, x2, y2 = _bbox_xyxy(det)
+    x1 = max(0, min(image_width, int(math.floor(x1))))
+    y1 = max(0, min(image_height, int(math.floor(y1))))
+    x2 = max(0, min(image_width, int(math.ceil(x2))))
+    y2 = max(0, min(image_height, int(math.ceil(y2))))
+    if x2 <= x1 or y2 <= y1:
+        return False
+
+    # Inset horizontally so the pool background and annotation edges do not
+    # dominate a narrow pole crop.
+    inset = int((x2 - x1) * 0.20)
+    crop = image_bgr[y1:y2, x1 + inset:x2 - inset]
+    if crop.size == 0:
+        return False
+
+    pixels = crop.astype(np.float32)
+    blue, green, red = np.moveaxis(pixels[..., :3], -1, 0)
+    strongest_other = np.maximum(blue, green)
+    red_pixels = (
+        (red >= 25.0)
+        & (red >= 1.08 * blue)
+        & (red >= 1.08 * green)
+        & ((red - strongest_other) >= 8.0)
+    )
+    return float(np.mean(red_pixels)) >= MIN_RED_PIXEL_FRACTION
 
 
 def _bbox_xyxy(det) -> tuple[float, float, float, float]:
@@ -68,63 +95,56 @@ def _deduplicate(poles) -> list:
     return unique
 
 
-def _right_of_pole_target(pole, k: np.ndarray):
-    """Aim at a point RIGHT_CLEARANCE_M right of one detected pole."""
-    fx, fy = float(k[0, 0]), float(k[1, 1])
+def _red_pole_target(pole, k: np.ndarray, output_class_id: str, target_name: str):
+    """Publish the red pole's center ray and forward range."""
+    _, fy = float(k[0, 0]), float(k[1, 1])
     height_px = float(pole.detection.bbox.size_y)
-    if fx <= 0.0 or fy <= 0.0 or height_px < MIN_POLE_HEIGHT_PX:
+    if fy <= 0.0 or height_px < MIN_POLE_HEIGHT_PX:
         return None
 
-    pole_bearing = float(pole.bearing_horizontal)
     pole_range = POLE_HEIGHT_M * fy / height_px
-    forward_range = pole_range * math.cos(pole_bearing)
-    if not math.isfinite(forward_range) or forward_range <= 0.0:
+    if not math.isfinite(pole_range) or pole_range <= 0.0:
         return None
 
-    # Optical x is right-positive.  The command conversion below maps that
-    # rightward optical aim into the vehicle's REP-103 yaw convention.
-    desired_bearing = math.atan2(
-        forward_range * math.tan(pole_bearing) + RIGHT_CLEARANCE_M,
-        forward_range,
-    )
-    path_distance = forward_range / math.cos(desired_bearing)
-    if not math.isfinite(path_distance) or path_distance <= 0.0:
-        return None
-
-    target = copy.deepcopy(pole)
-    hypothesis = target.detection.results[0].hypothesis
-    hypothesis.class_id = SLALOM_TARGET_CLASS_ID
-    target.bearing_horizontal = desired_bearing
-    target.distance_m = path_distance
-    target.pose_valid = False
-    target.extra = [
-        KeyValue(key='yaw_deg', value=f'{-math.degrees(desired_bearing):.6f}'),
-        KeyValue(key='target', value='right_of_leftmost_pole'),
-        KeyValue(key='pole_count', value='1'),
+    source_class = _class_id(pole)
+    hypothesis = pole.detection.results[0].hypothesis
+    hypothesis.class_id = output_class_id
+    # A vertical pole's image height yields its optical-axis (body-forward)
+    # range directly; do not shorten it when the pole starts off-center.
+    pole.distance_m = pole_range
+    pole.pose_valid = False
+    pole.extra = [
+        KeyValue(key='target', value=target_name),
         KeyValue(key='pole_range_m', value=f'{pole_range:.3f}'),
-        KeyValue(key='right_clearance_m', value=f'{RIGHT_CLEARANCE_M:.3f}'),
-        KeyValue(key='source_class', value=str(_class_id(pole))),
-        KeyValue(key='source_pole_x_px', value=f'{_center_x(pole):.1f}'),
-        KeyValue(key='pose_semantics', value='orientation'),
+        KeyValue(key='source_class', value=str(source_class)),
+        KeyValue(key='pose_semantics', value='pole_center'),
     ]
-    return target
+    return pole
 
 
 @register_post_processor('slalom_redpoles_osu')
 @register_post_processor('slalom')
 class SlalomPostProcessor(TaskPostProcessor):
-    """Create one right-clearance target from the image-leftmost raw pole."""
+    """Keep the closest model-detected red divider for yaw-locked navigation."""
 
     def process(self, detections, rgb_image, depth_image, camera_info, model_masks=None):
+        k = np.array(camera_info.k, dtype=np.float64).reshape(3, 3)
         poles = _deduplicate([
             det for det in detections.detections
-            if _class_id(det) in RAW_POLE_CLASS_IDS and _score(det) >= MIN_POLE_SCORE
+            if _class_id(det) in RAW_POLE_CLASS_IDS
+            and _score(det) >= MIN_POLE_SCORE
+            and _has_red_appearance(det, rgb_image)
         ])
         if not poles:
             detections.detections = []
             return detections
 
-        leftmost = min(poles, key=_center_x)
-        target = _right_of_pole_target(leftmost, np.array(camera_info.k, dtype=np.float64).reshape(3, 3))
-        detections.detections = [leftmost, target] if target is not None else [leftmost]
+        nearest = max(poles, key=lambda pole: (pole.detection.bbox.size_y, _score(pole)))
+        target = _red_pole_target(
+            copy.deepcopy(nearest),
+            k,
+            SLALOM_RED_POLE_CLASS_ID,
+            'red_divider_center',
+        )
+        detections.detections = [target] if target is not None else []
         return detections

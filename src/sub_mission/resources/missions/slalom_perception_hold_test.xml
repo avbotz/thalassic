@@ -5,7 +5,7 @@
        or model problem. The launch harness stops this mission explicitly. -->
   <BehaviorTree ID="SlalomPerceptionHoldTest">
     <Sequence name="hold_for_slalom_perception">
-      <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
+      <LoadModel camera="front" task="slalom_redpoles_osu" timeout_msec="30000"/>
       <Sleep msec="180000"/>
     </Sequence>
   </BehaviorTree>

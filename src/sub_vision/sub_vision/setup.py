@@ -13,6 +13,12 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        # Task weights are resolved from the installed package in simulation,
+        # keeping the mission independent of the shell's working directory.
+        (
+            os.path.join("share", package_name, "models"),
+            ["models/slalom_redpoles_osu.onnx", "models/ffc_rs_26.onnx"],
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

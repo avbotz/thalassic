@@ -9,6 +9,8 @@
  *   DetectionVisible  -- condition: a fresh matching detection exists.
  *   WaitForDetection  -- wait until a matching detection arrives, or fail
  *                        after a timeout.
+ *   SearchForDetection -- translate at a fixed body velocity until a matching
+ *                         detection arrives, then stop immediately.
  *   AlignToDetection  -- closed-loop centering: steer yaw and/or depth until
  *                        the detection's bearing is within tolerance.
  *
@@ -106,6 +108,15 @@ std::optional<double> extraDouble(const Detection &detection, const std::string 
             return std::stod(entry.value);
         } catch (const std::exception &) {
             return std::nullopt;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> extraString(const Detection &detection, const std::string &key) {
+    for (const auto &entry : detection.extra) {
+        if (entry.key == key) {
+            return entry.value;
         }
     }
     return std::nullopt;
@@ -283,15 +294,22 @@ class WaitForDetectionAction : public BT::StatefulActionNode {
     static BT::PortsList providedPorts() {
         BT::PortsList ports = DetectionFilter::ports();
         ports.insert(BT::InputPort<int>("timeout_msec", 15000, "Maximum wait before returning FAILURE"));
+        ports.insert(BT::InputPort<bool>("start_timeout_after_first_frame", false,
+                                         "Start the timeout only after a new camera frame arrives"));
         return ports;
     }
 
     BT::NodeStatus onStart() override {
         int timeout_msec = 15000;
         getInput("timeout_msec", timeout_msec);
+        getInput("start_timeout_after_first_frame", start_timeout_after_first_frame_);
         filter_ = DetectionFilter::read(*this);
         started_at_ = SteadyClock::now();
-        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec);
+        timeout_msec_ = timeout_msec;
+        deadline_armed_ = !start_timeout_after_first_frame_;
+        if (deadline_armed_) {
+            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        }
         return check();
     }
 
@@ -303,6 +321,16 @@ class WaitForDetectionAction : public BT::StatefulActionNode {
     // No kill-switch guard (passive, bounded by timeout_msec): still usable
     // for bench tests while the sub is killed.
     BT::NodeStatus check() {
+        if (!deadline_armed_) {
+            const VisionClient::Snapshot snapshot = node_.vision().latest(filter_.camera);
+            if (snapshot.detections && snapshot.received_at >= started_at_) {
+                deadline_ = snapshot.received_at + std::chrono::milliseconds(timeout_msec_);
+                deadline_armed_ = true;
+                RCLCPP_INFO(logger_, "WaitForDetection: first %s camera frame received; starting %dms timeout.",
+                            filter_.camera.c_str(), timeout_msec_);
+            }
+        }
+
         // Only frames that arrived after this node started count: a stale
         // detection from a previous task must not satisfy the wait.
         const Match match = latestMatch(node_, filter_, started_at_);
@@ -314,7 +342,7 @@ class WaitForDetectionAction : public BT::StatefulActionNode {
             return BT::NodeStatus::SUCCESS;
         }
 
-        if (SteadyClock::now() >= deadline_) {
+        if (deadline_armed_ && SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "WaitForDetection timed out: %s.", filter_.describe().c_str());
             return BT::NodeStatus::FAILURE;
         }
@@ -326,6 +354,334 @@ class WaitForDetectionAction : public BT::StatefulActionNode {
     DetectionFilter filter_;
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
+    int timeout_msec_ = 15000;
+    bool start_timeout_after_first_frame_ = false;
+    bool deadline_armed_ = false;
+};
+
+class SelectGateRoleAction : public BT::StatefulActionNode {
+   public:
+    SelectGateRoleAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                         rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config), node_(node), logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        BT::PortsList ports = DetectionFilter::ports();
+        ports.insert(BT::InputPort<int>("confirmation_frames", 3,
+                                        "Matching left-side role frames required before selection"));
+        ports.insert(BT::InputPort<int>("timeout_msec", 20000, "Maximum role-selection wait"));
+        return ports;
+    }
+
+    BT::NodeStatus onStart() override {
+        filter_ = DetectionFilter::read(*this);
+        getInput("confirmation_frames", confirmation_frames_);
+        getInput("timeout_msec", timeout_msec_);
+        if (filter_.task.empty() || filter_.class_id.empty() || confirmation_frames_ <= 0 || timeout_msec_ <= 0) {
+            RCLCPP_ERROR(logger_, "SelectGateRole needs task/class_id and positive confirmation/time limits.");
+            return BT::NodeStatus::FAILURE;
+        }
+        started_at_ = SteadyClock::now();
+        last_processed_ = started_at_;
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        candidate_role_.clear();
+        candidate_frames_ = 0;
+        return check();
+    }
+
+    BT::NodeStatus onRunning() override { return check(); }
+
+    void onHalted() override { RCLCPP_INFO(logger_, "SelectGateRole halted."); }
+
+   private:
+    BT::NodeStatus check() {
+        if (SteadyClock::now() >= deadline_) {
+            RCLCPP_WARN(logger_, "SelectGateRole timed out waiting for stable LEFT-side gate icons.");
+            return BT::NodeStatus::FAILURE;
+        }
+        const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
+        if (match.detection == nullptr) {
+            return BT::NodeStatus::RUNNING;
+        }
+        last_processed_ = match.received_at;
+
+        const auto role = extraString(*match.detection, "gate_role");
+        if (!role || (*role != "SURVEY" && *role != "SEARCH")) {
+            candidate_role_.clear();
+            candidate_frames_ = 0;
+            return BT::NodeStatus::RUNNING;
+        }
+        if (*role != candidate_role_) {
+            candidate_role_ = *role;
+            candidate_frames_ = 1;
+        } else {
+            ++candidate_frames_;
+        }
+        RCLCPP_INFO_THROTTLE(logger_, *node_.get_clock(), 500,
+                             "SelectGateRole: LEFT-side icons indicate %s (%d/%d frames).", role->c_str(),
+                             candidate_frames_, confirmation_frames_);
+        if (candidate_frames_ < confirmation_frames_) {
+            return BT::NodeStatus::RUNNING;
+        }
+
+        node_.role = candidate_role_;
+        const std::string label = extraString(*match.detection, "gate_role_label").value_or(candidate_role_);
+        const std::string icons = extraString(*match.detection, "left_icon_names").value_or("unknown");
+        RCLCPP_INFO(logger_,
+                    "Gate role selected from LEFT-side icons: %s [%s]. Passing through the LEFT gate opening.",
+                    label.c_str(), icons.c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    MissionNode &node_;
+    rclcpp::Logger logger_;
+    DetectionFilter filter_;
+    SteadyClock::time_point started_at_;
+    SteadyClock::time_point last_processed_;
+    SteadyClock::time_point deadline_;
+    std::string candidate_role_;
+    int confirmation_frames_ = 3;
+    int candidate_frames_ = 0;
+    int timeout_msec_ = 20000;
+};
+
+class SearchForDetectionAction : public BT::StatefulActionNode {
+   public:
+    SearchForDetectionAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                             PointCmdPublisher::SharedPtr velocity_publisher,
+                             PointCmdPublisher::SharedPtr position_publisher,
+                             QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
+                             rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config),
+          node_(node),
+          velocity_publisher_(velocity_publisher),
+          position_publisher_(position_publisher),
+          attitude_publisher_(attitude_publisher),
+          clock_(clock),
+          logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        BT::PortsList ports = DetectionFilter::ports();
+        ports.insert(BT::InputPort<double>("x", 0.0, "Body-forward search velocity in meters per second"));
+        ports.insert(BT::InputPort<double>("y", 0.0, "Body-left search velocity in meters per second"));
+        ports.insert(BT::InputPort<double>("z", 0.0, "Body-up search velocity in meters per second"));
+        ports.insert(BT::InputPort<double>("sweep_left_m", 0.0, "Distance to search left before reversing"));
+        ports.insert(BT::InputPort<double>("sweep_right_m", 0.0, "Distance to search right after reversing"));
+        ports.insert(BT::InputPort<int>("timeout_msec", 30000,
+                                        "Maximum moving search time; zero waits until detection"));
+        ports.insert(BT::InputPort<bool>("start_timeout_after_first_frame", false,
+                                         "Start the moving-search timeout after the first new camera frame"));
+        return ports;
+    }
+
+    BT::NodeStatus onStart() override {
+        getInput("x", target_[0]);
+        getInput("y", target_[1]);
+        getInput("z", target_[2]);
+        getInput("sweep_left_m", sweep_left_m_);
+        getInput("sweep_right_m", sweep_right_m_);
+        getInput("timeout_msec", timeout_msec_);
+        getInput("start_timeout_after_first_frame", start_timeout_after_first_frame_);
+        filter_ = DetectionFilter::read(*this);
+
+        const double speed = std::hypot(target_[0], std::hypot(target_[1], target_[2]));
+        distance_sweep_ = sweep_left_m_ > 0.0 || sweep_right_m_ > 0.0;
+        if (!std::isfinite(speed) || speed <= 0.0 || timeout_msec_ < 0 || !std::isfinite(sweep_left_m_) ||
+            !std::isfinite(sweep_right_m_) || sweep_left_m_ < 0.0 || sweep_right_m_ < 0.0 ||
+            (distance_sweep_ && (sweep_left_m_ <= 0.0 || sweep_right_m_ <= 0.0 || target_[1] == 0.0 ||
+                                 target_[0] != 0.0 || target_[2] != 0.0))) {
+            RCLCPP_ERROR(logger_,
+                         "SearchForDetection needs finite velocity/distances, a nonnegative timeout, and lateral-only "
+                         "velocity for a distance sweep.");
+            stopAndHold();
+            return BT::NodeStatus::FAILURE;
+        }
+        if (!node_.subAlive()) {
+            RCLCPP_WARN(logger_, "SearchForDetection cannot start while the kill switch is engaged.");
+            stopAndHold();
+            return BT::NodeStatus::FAILURE;
+        }
+
+        entry_yaw_ = actualYaw(node_);
+        node_.commanded_att[2] = entry_yaw_;
+        attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
+        if (distance_sweep_) {
+            const auto position = horizontalPosition();
+            if (!position) {
+                stopAndHold();
+                return BT::NodeStatus::FAILURE;
+            }
+            initial_position_ = *position;
+            sweeping_right_ = false;
+            target_ = {0.0, std::fabs(target_[1]), 0.0};
+        }
+        started_at_ = SteadyClock::now();
+        deadline_armed_ = timeout_msec_ == 0 || !start_timeout_after_first_frame_;
+        if (deadline_armed_) {
+            deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        }
+        commandVelocity(target_);
+        if (distance_sweep_) {
+            RCLCPP_INFO(logger_,
+                        "SearchForDetection: holding yaw %.3f; sweeping %.2fm left then %.2fm right at %.2fm/s "
+                        "for %s.",
+                        entry_yaw_, sweep_left_m_, sweep_right_m_, std::fabs(target_[1]),
+                        filter_.describe().c_str());
+        } else {
+            if (timeout_msec_ == 0) {
+                RCLCPP_INFO(logger_,
+                            "SearchForDetection: holding yaw %.3f with body xyz=(%.3f, %.3f, %.3f) while seeking "
+                            "%s until detection.",
+                            entry_yaw_, target_[0], target_[1], target_[2], filter_.describe().c_str());
+            } else {
+                RCLCPP_INFO(logger_,
+                            "SearchForDetection: holding yaw %.3f with body xyz=(%.3f, %.3f, %.3f) while seeking "
+                            "%s for at most %dms.",
+                            entry_yaw_, target_[0], target_[1], target_[2], filter_.describe().c_str(), timeout_msec_);
+            }
+        }
+        return check();
+    }
+
+    BT::NodeStatus onRunning() override { return check(); }
+
+    void onHalted() override { stopAndHold(); }
+
+   private:
+    BT::NodeStatus check() {
+        if (!node_.subAlive()) {
+            RCLCPP_WARN(logger_, "SearchForDetection failed because kill switch is engaged.");
+            stopAndHold();
+            return BT::NodeStatus::FAILURE;
+        }
+
+        if (!deadline_armed_) {
+            const VisionClient::Snapshot snapshot = node_.vision().latest(filter_.camera);
+            if (snapshot.detections && snapshot.received_at >= started_at_) {
+                deadline_ = snapshot.received_at + std::chrono::milliseconds(timeout_msec_);
+                deadline_armed_ = true;
+                RCLCPP_INFO(logger_,
+                            "SearchForDetection: first %s camera frame received; starting %dms moving timeout.",
+                            filter_.camera.c_str(), timeout_msec_);
+            }
+        }
+
+        const Match match = latestMatch(node_, filter_, started_at_);
+        if (match.detection != nullptr) {
+            const auto &hypothesis = match.detection->detection.results[0].hypothesis;
+            RCLCPP_INFO(logger_,
+                        "SearchForDetection: acquired class=%s score=%.2f bearing=(%.3f, %.3f); stopping and "
+                        "holding immediately.",
+                        hypothesis.class_id.c_str(), hypothesis.score, match.detection->bearing_horizontal,
+                        match.detection->bearing_vertical);
+            stopAndHold();
+            return BT::NodeStatus::SUCCESS;
+        }
+
+        if (distance_sweep_) {
+            const auto position = horizontalPosition();
+            if (!position) {
+                stopAndHold();
+                return BT::NodeStatus::FAILURE;
+            }
+            if (!sweeping_right_) {
+                const double left_travel = lateralDisplacement(initial_position_, *position);
+                if (left_travel >= sweep_left_m_) {
+                    reversal_position_ = *position;
+                    sweeping_right_ = true;
+                    commandVelocity({0.0, -std::fabs(target_[1]), 0.0});
+                    RCLCPP_INFO(logger_,
+                                "SearchForDetection: completed %.2fm left sweep; reversing for %.2fm right.",
+                                left_travel, sweep_right_m_);
+                }
+            } else {
+                const double right_travel = -lateralDisplacement(reversal_position_, *position);
+                if (right_travel >= sweep_right_m_) {
+                    RCLCPP_WARN(logger_,
+                                "SearchForDetection completed %.2fm left / %.2fm right sweep without finding %s.",
+                                sweep_left_m_, right_travel, filter_.describe().c_str());
+                    stopAndHold();
+                    return BT::NodeStatus::FAILURE;
+                }
+            }
+        }
+
+        if (timeout_msec_ > 0 && deadline_armed_ && SteadyClock::now() >= deadline_) {
+            RCLCPP_WARN(logger_, "SearchForDetection timed out without finding %s.", filter_.describe().c_str());
+            stopAndHold();
+            return BT::NodeStatus::FAILURE;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    std::optional<std::array<double, 3>> measuredPosition() const {
+        const std::string ns = node_.get_namespace();
+        const std::string prefix = ns.empty() || ns == "/" ? "" : (ns.front() == '/' ? ns.substr(1) : ns) + "/";
+        try {
+            const auto transform =
+                node_.tfBuffer().lookupTransform(prefix + "odom", prefix + "base_link", tf2::TimePointZero);
+            return std::array<double, 3>{transform.transform.translation.x, transform.transform.translation.y,
+                                         transform.transform.translation.z};
+        } catch (const tf2::TransformException &error) {
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000, "SearchForDetection waiting for odom TF: %s", error.what());
+            return std::nullopt;
+        }
+    }
+
+    std::optional<std::array<double, 2>> horizontalPosition() const {
+        const auto position = measuredPosition();
+        if (!position) {
+            return std::nullopt;
+        }
+        return std::array<double, 2>{(*position)[0], (*position)[1]};
+    }
+
+    double lateralDisplacement(const std::array<double, 2> &start, const std::array<double, 2> &finish) const {
+        const double dx = finish[0] - start[0];
+        const double dy = finish[1] - start[1];
+        return -std::sin(entry_yaw_) * dx + std::cos(entry_yaw_) * dy;
+    }
+
+    void commandVelocity(const std::array<double, 3> &velocity) {
+        node_.last_velocity_setpoint = velocity;
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_active_ = true;
+    }
+
+    void stopAndHold() {
+        node_.last_velocity_setpoint = {0.0, 0.0, 0.0};
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_active_ = false;
+        const auto position = measuredPosition();
+        if (position) {
+            node_.commanded_pos = *position;
+            position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
+        }
+        node_.commanded_att[2] = entry_yaw_;
+        attitude_publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
+    }
+
+    MissionNode &node_;
+    PointCmdPublisher::SharedPtr velocity_publisher_;
+    PointCmdPublisher::SharedPtr position_publisher_;
+    QuaternionCmdPublisher::SharedPtr attitude_publisher_;
+    rclcpp::Clock::SharedPtr clock_;
+    rclcpp::Logger logger_;
+    DetectionFilter filter_;
+    std::array<double, 3> target_{};
+    std::array<double, 2> initial_position_{};
+    std::array<double, 2> reversal_position_{};
+    SteadyClock::time_point started_at_;
+    SteadyClock::time_point deadline_;
+    double sweep_left_m_ = 0.0;
+    double sweep_right_m_ = 0.0;
+    double entry_yaw_ = 0.0;
+    int timeout_msec_ = 30000;
+    bool distance_sweep_ = false;
+    bool sweeping_right_ = false;
+    bool velocity_active_ = false;
+    bool start_timeout_after_first_frame_ = false;
+    bool deadline_armed_ = false;
 };
 
 class AlignToDetectionAction : public BT::StatefulActionNode {
@@ -441,11 +797,13 @@ class AlignToDetectionAction : public BT::StatefulActionNode {
 class LateralAlignToDetectionAction : public BT::StatefulActionNode {
    public:
     LateralAlignToDetectionAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
-                                  PointCmdPublisher::SharedPtr position_publisher, rclcpp::Clock::SharedPtr clock,
+                                  PointCmdPublisher::SharedPtr position_publisher,
+                                  PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
                                   rclcpp::Logger logger)
         : BT::StatefulActionNode(name, config),
           node_(node),
           position_publisher_(position_publisher),
+          velocity_publisher_(velocity_publisher),
           clock_(clock),
           logger_(logger) {}
 
@@ -454,15 +812,39 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<bool>("use_board_aim_bearing", false,
                                          "Use calibrated fixed-hole bearings published with a board detection"));
         ports.insert(BT::InputPort<bool>("lock_board_aim", false,
-                                         "Lock three consistent aim rays into an odom-frame lateral/depth target"));
+                                         "Lock consistent aim rays into an odom-frame lateral/depth target"));
+        ports.insert(BT::InputPort<bool>("reset_timeout_on_lock", false,
+                                         "Restart the alignment timeout when the odom-frame target locks"));
+        ports.insert(BT::InputPort<int>("lock_aim_frames", 3,
+                                        "Consistent detection rays required before locking the lateral target"));
         ports.insert(BT::InputPort<double>("target_distance", 1.15,
                                            "Camera-to-target plane distance used to project pixel bearings"));
+        ports.insert(BT::InputPort<bool>("use_detection_distance", false,
+                                         "Project bearing using each detection's finite distance_m"));
+        ports.insert(BT::InputPort<double>("max_alignment_projection_distance", 0.0,
+                                           "Cap range used for lateral corrections when positive"));
         ports.insert(BT::InputPort<double>("target_offset_right_m", 0.0,
                                            "Fixed target offset to camera-right from the detected item, in meters"));
         ports.insert(BT::InputPort<double>("target_offset_down_m", 0.0,
                                            "Fixed target offset downward from the detected item, in meters"));
+        ports.insert(BT::InputPort<bool>("align_depth", true,
+                                         "Translate vertically to center the detection's vertical bearing"));
+        ports.insert(BT::InputPort<double>("lateral_bearing_gain", -1.0,
+                                           "Signed gain converting horizontal bearing into body-left translation"));
         ports.insert(BT::InputPort<double>(
             "tolerance", 0.012, "Centered when horizontal and vertical bearing are within this radian bound"));
+        ports.insert(BT::InputPort<double>("max_bearing_jump_rad", 0.15,
+                                           "Largest frame-to-frame bearing change accepted as the same target"));
+        ports.insert(BT::InputPort<double>("bearing_filter_alpha", 0.25,
+                                           "New-frame weight for bearing low-pass filtering"));
+        ports.insert(BT::InputPort<bool>("use_lateral_velocity_alignment", false,
+                                         "Continuously translate laterally according to bearing sign"));
+        ports.insert(BT::InputPort<double>("lateral_alignment_velocity", 0.10,
+                                           "Absolute body-left/right alignment speed"));
+        ports.insert(BT::InputPort<int>("velocity_detection_grace_msec", 2000,
+                                        "Stop continuous velocity after this long without a matching frame"));
+        ports.insert(BT::InputPort<int>("blind_alignment_frames", 1,
+                                        "Accepted detections required before odometry may finish alignment blind"));
         ports.insert(
             BT::InputPort<double>("max_lateral_step", 0.10, "Maximum body-lateral correction per update in meters"));
         ports.insert(BT::InputPort<double>("max_depth_step", 0.08, "Maximum vertical correction per update in meters"));
@@ -471,6 +853,12 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         ports.insert(BT::InputPort<int>("min_msec", 1500, "Minimum closed-loop alignment time"));
         ports.insert(BT::InputPort<int>("timeout_msec", 15000, "Maximum alignment time before FAILURE"));
         ports.insert(BT::InputPort<int>("update_msec", 300, "Minimum time between translation corrections"));
+        ports.insert(BT::InputPort<int>("initial_detection_max_age_msec", 0,
+                                        "Allow the acquisition frame to seed the first alignment correction"));
+        ports.insert(BT::InputPort<int>("detection_loss_msec", 0,
+                                        "Fail after this long without a matching frame (zero disables)"));
+        ports.insert(BT::OutputPort<double>("detection_distance_m",
+                                            "Finite target distance from the detection used for alignment"));
         return ports;
     }
 
@@ -478,20 +866,40 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         filter_ = DetectionFilter::read(*this);
         getInput("use_board_aim_bearing", use_board_aim_bearing_);
         getInput("lock_board_aim", lock_board_aim_);
+        getInput("reset_timeout_on_lock", reset_timeout_on_lock_);
+        getInput("lock_aim_frames", lock_aim_frames_);
         getInput("target_distance", target_distance_);
+        getInput("use_detection_distance", use_detection_distance_);
+        getInput("max_alignment_projection_distance", max_alignment_projection_distance_);
         getInput("target_offset_right_m", target_offset_right_m_);
         getInput("target_offset_down_m", target_offset_down_m_);
+        getInput("align_depth", align_depth_);
+        getInput("lateral_bearing_gain", lateral_bearing_gain_);
         getInput("tolerance", tolerance_);
+        getInput("max_bearing_jump_rad", max_bearing_jump_rad_);
+        getInput("bearing_filter_alpha", bearing_filter_alpha_);
+        getInput("use_lateral_velocity_alignment", use_lateral_velocity_alignment_);
+        getInput("lateral_alignment_velocity", lateral_alignment_velocity_);
+        getInput("velocity_detection_grace_msec", velocity_detection_grace_msec_);
+        getInput("blind_alignment_frames", blind_alignment_frames_);
         getInput("max_lateral_step", max_lateral_step_);
         getInput("max_depth_step", max_depth_step_);
         getInput("settle_frames", settle_frames_);
         getInput("min_msec", min_msec_);
         getInput("timeout_msec", timeout_msec_);
         getInput("update_msec", update_msec_);
+        getInput("initial_detection_max_age_msec", initial_detection_max_age_msec_);
+        getInput("detection_loss_msec", detection_loss_msec_);
         if (filter_.task.empty() || filter_.class_id.empty() || target_distance_ <= 0.0 || tolerance_ <= 0.0 ||
-            max_lateral_step_ <= 0.0 || max_depth_step_ <= 0.0 || settle_frames_ <= 0 || min_msec_ < 0 ||
+            !std::isfinite(max_alignment_projection_distance_) || max_alignment_projection_distance_ < 0.0 ||
+            max_bearing_jump_rad_ <= 0.0 || bearing_filter_alpha_ <= 0.0 || bearing_filter_alpha_ > 1.0 ||
+            !std::isfinite(lateral_alignment_velocity_) || lateral_alignment_velocity_ <= 0.0 ||
+            velocity_detection_grace_msec_ < 0 || blind_alignment_frames_ <= 0 ||
+            max_lateral_step_ <= 0.0 || max_depth_step_ <= 0.0 || settle_frames_ <= 0 || lock_aim_frames_ <= 0 ||
+            min_msec_ < 0 || initial_detection_max_age_msec_ < 0 || detection_loss_msec_ < 0 ||
             timeout_msec_ <= 0 || update_msec_ <= 0 || !std::isfinite(target_offset_right_m_) ||
-            !std::isfinite(target_offset_down_m_)) {
+            !std::isfinite(target_offset_down_m_) || !std::isfinite(lateral_bearing_gain_) ||
+            lateral_bearing_gain_ == 0.0) {
             RCLCPP_ERROR(
                 logger_,
                 "LateralAlignToDetection needs task, class_id, positive geometry/timing values, and settle_frames.");
@@ -499,13 +907,26 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         }
         started_at_ = SteadyClock::now();
         deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
-        last_processed_ = started_at_;
+        // WaitForDetection has already confirmed a matching frame immediately
+        // before this node. Reusing that bounded-age frame avoids requiring a
+        // duplicate edge-of-FOV detection before making the first correction.
+        last_processed_ = started_at_ - std::chrono::milliseconds(initial_detection_max_age_msec_);
+        last_detection_at_ = started_at_;
         last_commanded_ = started_at_ - std::chrono::milliseconds(update_msec_);
         have_filtered_bearing_ = false;
         have_locked_target_ = false;
+        velocity_active_ = false;
+        have_velocity_target_ = false;
+        accepted_alignment_frames_ = 0;
+        aligned_detection_distance_ = std::numeric_limits<double>::quiet_NaN();
+        detection_plane_samples_.clear();
+        locked_detection_plane_forward_ = std::numeric_limits<double>::quiet_NaN();
+        have_detection_range_reference_ = false;
         locked_aim_frames_ = 0;
         settled_frames_ = 0;
-        return BT::NodeStatus::RUNNING;
+        // Consume WaitForDetection's confirmed snapshot during the same tree
+        // tick, before the next empty inference frame can replace it.
+        return onRunning();
     }
 
     BT::NodeStatus onRunning() override {
@@ -515,6 +936,7 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         }
         if (SteadyClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "LateralAlignToDetection timed out: %s.", filter_.describe().c_str());
+            holdPosition();
             return BT::NodeStatus::FAILURE;
         }
         if (have_locked_target_) {
@@ -522,11 +944,52 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         }
         const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
         if (match.detection == nullptr) {
+            // Once several real frames agree on the pole, finish the bounded
+            // last-known bearing correction from odometry. Real-trained
+            // detectors are intermittent in simulation, so an empty
+            // inference frame does not mean that the stationary pole moved.
+            if (use_lateral_velocity_alignment_ && have_velocity_target_) {
+                const auto status = tickVelocityTarget(true);
+                if (status != BT::NodeStatus::RUNNING) {
+                    return status;
+                }
+            }
+            if (use_lateral_velocity_alignment_ && velocity_active_ &&
+                !have_velocity_target_ &&
+                SteadyClock::now() - last_detection_at_ >=
+                    std::chrono::milliseconds(velocity_detection_grace_msec_)) {
+                RCLCPP_WARN(logger_,
+                            "LateralAlignToDetection: no matching frame for %dms; stopping lateral velocity and "
+                            "holding position.",
+                            velocity_detection_grace_msec_);
+                holdPosition();
+            }
+            if (detection_loss_msec_ > 0 &&
+                SteadyClock::now() - last_detection_at_ >= std::chrono::milliseconds(detection_loss_msec_)) {
+                RCLCPP_WARN(logger_, "LateralAlignToDetection lost %s for %dms; requesting reacquisition.",
+                            filter_.describe().c_str(), detection_loss_msec_);
+                holdPosition();
+                return BT::NodeStatus::FAILURE;
+            }
             return BT::NodeStatus::RUNNING;
         }
         last_processed_ = match.received_at;
+        last_detection_at_ = match.received_at;
         double horizontal = match.detection->bearing_horizontal;
         double vertical = match.detection->bearing_vertical;
+        double projection_distance = target_distance_;
+        if (use_detection_distance_) {
+            if (!validDistanceValue(match.detection->distance_m)) {
+                RCLCPP_WARN_THROTTLE(logger_, *clock_, 1000,
+                                     "LateralAlignToDetection: waiting for a finite detection distance.");
+                return BT::NodeStatus::RUNNING;
+            }
+            projection_distance = match.detection->distance_m;
+            aligned_detection_distance_ = projection_distance;
+            if (max_alignment_projection_distance_ > 0.0) {
+                projection_distance = std::min(projection_distance, max_alignment_projection_distance_);
+            }
+        }
         if (use_board_aim_bearing_) {
             const auto aim_horizontal = extraDouble(*match.detection, "aim_bearing_horizontal");
             const auto aim_vertical = extraDouble(*match.detection, "aim_bearing_vertical");
@@ -553,35 +1016,60 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         } else {
             // Hole boxes are model detections, but a score-order swap or a
             // partial ring must not produce a large sideways shot correction.
-            static constexpr double MAX_BEARING_JUMP_RAD = 0.15;
-            if (std::fabs(horizontal - filtered_horizontal_) > MAX_BEARING_JUMP_RAD ||
-                std::fabs(vertical - filtered_vertical_) > MAX_BEARING_JUMP_RAD) {
+            if (std::fabs(horizontal - filtered_horizontal_) > max_bearing_jump_rad_ ||
+                std::fabs(vertical - filtered_vertical_) > max_bearing_jump_rad_) {
                 locked_aim_frames_ = 0;
+                detection_plane_samples_.clear();
+                have_detection_range_reference_ = false;
                 RCLCPP_WARN_THROTTLE(
                     logger_, *clock_, 1000,
                     "LateralAlignToDetection rejected discontinuous aim bearing (%.3f, %.3f)->(%.3f, %.3f).",
                     filtered_horizontal_, filtered_vertical_, horizontal, vertical);
                 return BT::NodeStatus::RUNNING;
             }
-            static constexpr double FILTER_ALPHA = 0.25;
-            filtered_horizontal_ += FILTER_ALPHA * (horizontal - filtered_horizontal_);
-            filtered_vertical_ += FILTER_ALPHA * (vertical - filtered_vertical_);
+            filtered_horizontal_ += bearing_filter_alpha_ * (horizontal - filtered_horizontal_);
+            filtered_vertical_ += bearing_filter_alpha_ * (vertical - filtered_vertical_);
+        }
+        ++accepted_alignment_frames_;
+
+        // A monocular bbox range changes as the detector trims or expands an
+        // icon box.  Convert every accepted range into one position along a
+        // fixed odom-frame forward axis, then use the median plane position.
+        // This also compensates for a detection acquired earlier or later in
+        // the moving approach: vehicle progress and remaining range are
+        // combined before filtering.
+        if (use_detection_distance_ && lock_board_aim_) {
+            if (const auto filtered_remaining = recordDetectionPlaneSample(aligned_detection_distance_)) {
+                aligned_detection_distance_ = *filtered_remaining;
+                projection_distance = *filtered_remaining;
+                if (max_alignment_projection_distance_ > 0.0) {
+                    projection_distance = std::min(projection_distance, max_alignment_projection_distance_);
+                }
+            }
         }
 
         if (lock_board_aim_) {
-            if (++locked_aim_frames_ < 3) {
+            if (++locked_aim_frames_ < lock_aim_frames_) {
                 return BT::NodeStatus::RUNNING;
             }
-            lockTarget();
+            if (!lockTarget(projection_distance)) {
+                return BT::NodeStatus::RUNNING;
+            }
             return tickLockedTarget();
         }
 
         const bool old_enough = SteadyClock::now() - started_at_ >= std::chrono::milliseconds(min_msec_);
-        const bool centered =
-            std::fabs(filtered_horizontal_) <= tolerance_ && std::fabs(filtered_vertical_) <= tolerance_;
+        const bool centered = std::fabs(filtered_horizontal_) <= tolerance_ &&
+                              (!align_depth_ || std::fabs(filtered_vertical_) <= tolerance_);
         if (old_enough && centered) {
+            if (use_lateral_velocity_alignment_) {
+                holdPosition();
+            }
             ++settled_frames_;
             if (settled_frames_ >= settle_frames_) {
+                if (use_detection_distance_) {
+                    setOutput("detection_distance_m", aligned_detection_distance_);
+                }
                 RCLCPP_INFO(logger_,
                             "LateralAlignToDetection: centered %s after %d settled frame(s), preserving yaw %.3f.",
                             filter_.describe().c_str(), settled_frames_, actualYaw(node_));
@@ -591,21 +1079,40 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         }
         settled_frames_ = 0;
 
+        if (use_lateral_velocity_alignment_) {
+            if (accepted_alignment_frames_ < blind_alignment_frames_) {
+                RCLCPP_INFO_THROTTLE(
+                    logger_, *clock_, 1000,
+                    "LateralAlignToDetection: confirming red pole (%d/%d frames) before bounded blind alignment.",
+                    accepted_alignment_frames_, blind_alignment_frames_);
+                return BT::NodeStatus::RUNNING;
+            }
+            if (!updateVelocityTarget(projection_distance)) {
+                return BT::NodeStatus::RUNNING;
+            }
+            return tickVelocityTarget(false);
+        }
         if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
             return BT::NodeStatus::RUNNING;
         }
-        const auto measured = actualPosition(node_);
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return BT::NodeStatus::RUNNING;
+        }
         const double yaw = actualYaw(node_);
         // Positive image-horizontal is camera-right, while mission body y is
         // left. Move the camera to the hole's projected plane position, not
         // yaw the vehicle away from the already-verified board normal.
         const double left_step =
-            std::clamp(-target_distance_ * std::tan(filtered_horizontal_), -max_lateral_step_, max_lateral_step_);
-        const double z_step =
-            std::clamp(-target_distance_ * std::tan(filtered_vertical_), -max_depth_step_, max_depth_step_);
-        node_.commanded_pos[0] = measured[0] - std::sin(yaw) * left_step;
-        node_.commanded_pos[1] = measured[1] + std::cos(yaw) * left_step;
-        node_.commanded_pos[2] = measured[2] + z_step;
+            std::clamp(lateral_bearing_gain_ * projection_distance * std::tan(filtered_horizontal_),
+                       -max_lateral_step_, max_lateral_step_);
+        const double z_step = align_depth_
+                                  ? std::clamp(-projection_distance * std::tan(filtered_vertical_), -max_depth_step_,
+                                               max_depth_step_)
+                                  : 0.0;
+        node_.commanded_pos[0] = (*measured)[0] - std::sin(yaw) * left_step;
+        node_.commanded_pos[1] = (*measured)[1] + std::cos(yaw) * left_step;
+        node_.commanded_pos[2] = (*measured)[2] + z_step;
         position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         RCLCPP_INFO_THROTTLE(logger_, *clock_, 500,
                              "LateralAlignToDetection: adjusted bearing=(%.3f, %.3f) offset=(%.3f right, %.3f down) "
@@ -616,36 +1123,158 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         return BT::NodeStatus::RUNNING;
     }
 
-    void onHalted() override { RCLCPP_INFO(logger_, "LateralAlignToDetection halted."); }
+    void onHalted() override {
+        holdPosition();
+        RCLCPP_INFO(logger_, "LateralAlignToDetection halted.");
+    }
 
    private:
-    void lockTarget() {
-        const auto measured = actualPosition(node_);
+    // Position-controller errors are not a pose source while body velocity is
+    // active. Read odometry directly so a completed transit cannot make the
+    // next position target jump back to the pre-transit setpoint.
+    std::optional<std::array<double, 3>> measuredPosition() const {
+        const std::string ns = node_.get_namespace();
+        const std::string prefix =
+            ns.empty() || ns == "/" ? "" : (ns.front() == '/' ? ns.substr(1) : ns) + "/";
+        try {
+            const auto transform = node_.tfBuffer().lookupTransform(prefix + "odom", prefix + "base_link",
+                                                                     tf2::TimePointZero);
+            return std::array<double, 3>{transform.transform.translation.x, transform.transform.translation.y,
+                                         transform.transform.translation.z};
+        } catch (const tf2::TransformException &error) {
+            RCLCPP_WARN_THROTTLE(logger_, *clock_, 2000,
+                                 "LateralAlignToDetection waiting for odom TF: %s", error.what());
+            return std::nullopt;
+        }
+    }
+
+    void holdPosition() {
+        if (velocity_active_) {
+            node_.last_velocity_setpoint = {0.0, 0.0, 0.0};
+            velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+            velocity_active_ = false;
+        }
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return;
+        }
+        node_.commanded_pos = *measured;
+        position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
+    }
+
+    bool updateVelocityTarget(const double projection_distance) {
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return false;
+        }
         const double yaw = actualYaw(node_);
-        const double left_offset = -target_distance_ * std::tan(filtered_horizontal_);
-        const double z_offset = -target_distance_ * std::tan(filtered_vertical_);
-        locked_target_x_ = measured[0] - std::sin(yaw) * left_offset;
-        locked_target_y_ = measured[1] + std::cos(yaw) * left_offset;
-        locked_target_z_ = measured[2] + z_offset;
+        const double left_offset = lateral_bearing_gain_ * projection_distance * std::tan(filtered_horizontal_);
+        velocity_target_x_ = (*measured)[0] - std::sin(yaw) * left_offset;
+        velocity_target_y_ = (*measured)[1] + std::cos(yaw) * left_offset;
+        velocity_target_projection_distance_ = projection_distance;
+        have_velocity_target_ = true;
+        return true;
+    }
+
+    BT::NodeStatus tickVelocityTarget(const bool detection_missing) {
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return BT::NodeStatus::RUNNING;
+        }
+        const double yaw = actualYaw(node_);
+        const double dx = velocity_target_x_ - (*measured)[0];
+        const double dy = velocity_target_y_ - (*measured)[1];
+        const double left_error = -std::sin(yaw) * dx + std::cos(yaw) * dy;
+        const double position_tolerance =
+            std::max(0.02, velocity_target_projection_distance_ * std::tan(tolerance_));
+        if (std::fabs(left_error) <= position_tolerance) {
+            holdPosition();
+            if (use_detection_distance_) {
+                setOutput("detection_distance_m", aligned_detection_distance_);
+            }
+            RCLCPP_INFO(logger_,
+                        "LateralAlignToDetection: completed bounded %s alignment from %d confirmed frame(s); "
+                        "remaining body-left error %.3fm.",
+                        detection_missing ? "last-known-bearing" : "velocity", accepted_alignment_frames_,
+                        left_error);
+            return BT::NodeStatus::SUCCESS;
+        }
+        if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
+            return BT::NodeStatus::RUNNING;
+        }
+        const double left_velocity = std::copysign(lateral_alignment_velocity_, left_error);
+        node_.last_velocity_setpoint = {0.0, left_velocity, 0.0};
+        velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
+        velocity_active_ = true;
+        last_commanded_ = SteadyClock::now();
+        RCLCPP_INFO_THROTTLE(
+            logger_, *clock_, 500,
+            "LateralAlignToDetection: velocity-align bearing=(%.3f, %.3f) body_left_velocity=%.3f "
+            "remaining_left=%.3f%s yaw=%.3f.",
+            filtered_horizontal_, filtered_vertical_, left_velocity, left_error,
+            detection_missing ? " (last known)" : "", yaw);
+        return BT::NodeStatus::RUNNING;
+    }
+
+    bool lockTarget(const double projection_distance) {
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return false;
+        }
+        const double yaw = actualYaw(node_);
+        const double left_offset = -projection_distance * std::tan(filtered_horizontal_);
+        const double z_offset = align_depth_ ? -projection_distance * std::tan(filtered_vertical_) : 0.0;
+        locked_target_x_ = (*measured)[0] - std::sin(yaw) * left_offset;
+        locked_target_y_ = (*measured)[1] + std::cos(yaw) * left_offset;
+        locked_target_z_ = (*measured)[2] + z_offset;
         have_locked_target_ = true;
+        locked_target_distance_ = projection_distance;
+        if (!detection_plane_samples_.empty()) {
+            locked_detection_plane_forward_ = median(detection_plane_samples_);
+        }
         settled_frames_ = 0;
+        if (reset_timeout_on_lock_) {
+            deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec_);
+        }
         RCLCPP_INFO(logger_,
-                    "LateralAlignToDetection: locked three consistent model/PnP aim rays at lateral/depth target "
-                    "(%.2f, %.2f, %.2f).",
-                    locked_target_x_, locked_target_y_, locked_target_z_);
+                    "LateralAlignToDetection: locked aim ray at lateral/depth target "
+                    "(%.2f, %.2f, %.2f)%s.",
+                    locked_target_x_, locked_target_y_, locked_target_z_,
+                    reset_timeout_on_lock_ ? "; alignment timeout restarted" : "");
+        return true;
     }
 
     BT::NodeStatus tickLockedTarget() {
-        const auto measured = actualPosition(node_);
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return BT::NodeStatus::RUNNING;
+        }
         const double yaw = actualYaw(node_);
-        const double dx = locked_target_x_ - measured[0];
-        const double dy = locked_target_y_ - measured[1];
+        const double dx = locked_target_x_ - (*measured)[0];
+        const double dy = locked_target_y_ - (*measured)[1];
         const double left_error = -std::sin(yaw) * dx + std::cos(yaw) * dy;
-        const double z_error = locked_target_z_ - measured[2];
-        const double position_tolerance = target_distance_ * std::tan(tolerance_);
+        const double z_error = align_depth_ ? locked_target_z_ - (*measured)[2] : 0.0;
+        const double position_tolerance = locked_target_distance_ * std::tan(tolerance_);
         const bool old_enough = SteadyClock::now() - started_at_ >= std::chrono::milliseconds(min_msec_);
-        if (old_enough && std::fabs(left_error) <= position_tolerance && std::fabs(z_error) <= position_tolerance) {
+        if (old_enough && std::fabs(left_error) <= position_tolerance &&
+            (!align_depth_ || std::fabs(z_error) <= position_tolerance)) {
             if (++settled_frames_ >= settle_frames_) {
+                if (use_detection_distance_) {
+                    double remaining_distance = aligned_detection_distance_;
+                    if (have_detection_range_reference_ && std::isfinite(locked_detection_plane_forward_)) {
+                        remaining_distance = locked_detection_plane_forward_ - detectionForwardProgress(*measured);
+                    }
+                    if (!validDistanceValue(remaining_distance)) {
+                        RCLCPP_ERROR(logger_,
+                                     "LateralAlignToDetection produced an invalid remaining target-plane distance.");
+                        return BT::NodeStatus::FAILURE;
+                    }
+                    setOutput("detection_distance_m", remaining_distance);
+                    RCLCPP_INFO(logger_,
+                                "LateralAlignToDetection: locked target plane from %zu range sample(s); "
+                                "remaining forward distance %.2fm.",
+                                detection_plane_samples_.size(), remaining_distance);
+                }
                 RCLCPP_INFO(logger_,
                             "LateralAlignToDetection: locked aim target reached after %d settled frame(s), preserving "
                             "yaw %.3f.",
@@ -658,29 +1287,75 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
         if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
             return BT::NodeStatus::RUNNING;
         }
-        const double left_step = std::clamp(left_error, -max_lateral_step_, max_lateral_step_);
-        const double z_step = std::clamp(z_error, -max_depth_step_, max_depth_step_);
-        node_.commanded_pos[0] = measured[0] - std::sin(yaw) * left_step;
-        node_.commanded_pos[1] = measured[1] + std::cos(yaw) * left_step;
-        node_.commanded_pos[2] = measured[2] + z_step;
+        // Once a slalom pole is locked, reassert exactly that one odom-frame
+        // target. Do not add a fresh step from each controller estimate:
+        // doing so turns a stale/error-prone estimate into unbounded lateral
+        // drift when another pole or the pool wall enters the camera view.
+        node_.commanded_pos = {locked_target_x_, locked_target_y_, locked_target_z_};
         position_publisher_->publish(positionCommand(*clock_, node_.commanded_pos));
         last_commanded_ = SteadyClock::now();
         return BT::NodeStatus::RUNNING;
     }
 
+    static double median(std::vector<double> values) {
+        const std::size_t middle = values.size() / 2;
+        std::nth_element(values.begin(), values.begin() + middle, values.end());
+        if (values.size() % 2 != 0) {
+            return values[middle];
+        }
+        const double upper = values[middle];
+        std::nth_element(values.begin(), values.begin() + middle - 1, values.begin() + middle);
+        return 0.5 * (values[middle - 1] + upper);
+    }
+
+    double detectionForwardProgress(const std::array<double, 3> &measured) const {
+        const double dx = measured[0] - detection_range_reference_position_[0];
+        const double dy = measured[1] - detection_range_reference_position_[1];
+        return dx * detection_range_forward_axis_[0] + dy * detection_range_forward_axis_[1];
+    }
+
+    std::optional<double> recordDetectionPlaneSample(const double detection_distance) {
+        if (!validDistanceValue(detection_distance)) {
+            return std::nullopt;
+        }
+        const auto measured = measuredPosition();
+        if (!measured) {
+            return std::nullopt;
+        }
+        if (!have_detection_range_reference_) {
+            detection_range_reference_position_ = {(*measured)[0], (*measured)[1]};
+            const double yaw = actualYaw(node_);
+            detection_range_forward_axis_ = {std::cos(yaw), std::sin(yaw)};
+            have_detection_range_reference_ = true;
+        }
+        detection_plane_samples_.push_back(detectionForwardProgress(*measured) + detection_distance);
+        constexpr std::size_t max_samples = 15;
+        if (detection_plane_samples_.size() > max_samples) {
+            detection_plane_samples_.erase(detection_plane_samples_.begin());
+        }
+        return median(detection_plane_samples_) - detectionForwardProgress(*measured);
+    }
+
     MissionNode &node_;
     PointCmdPublisher::SharedPtr position_publisher_;
+    PointCmdPublisher::SharedPtr velocity_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     DetectionFilter filter_;
     SteadyClock::time_point started_at_;
     SteadyClock::time_point deadline_;
     SteadyClock::time_point last_processed_;
+    SteadyClock::time_point last_detection_at_;
     SteadyClock::time_point last_commanded_;
     double target_distance_ = 1.15;
+    double max_alignment_projection_distance_ = 0.0;
     double target_offset_right_m_ = 0.0;
     double target_offset_down_m_ = 0.0;
+    double lateral_bearing_gain_ = -1.0;
     double tolerance_ = 0.012;
+    double max_bearing_jump_rad_ = 0.15;
+    double bearing_filter_alpha_ = 0.25;
+    double lateral_alignment_velocity_ = 0.10;
     double max_lateral_step_ = 0.10;
     double max_depth_step_ = 0.08;
     double filtered_horizontal_ = 0.0;
@@ -688,16 +1363,38 @@ class LateralAlignToDetectionAction : public BT::StatefulActionNode {
     double locked_target_x_ = 0.0;
     double locked_target_y_ = 0.0;
     double locked_target_z_ = 0.0;
+    double locked_target_distance_ = 1.15;
+    double aligned_detection_distance_ = std::numeric_limits<double>::quiet_NaN();
+    std::array<double, 2> detection_range_reference_position_ = {};
+    std::array<double, 2> detection_range_forward_axis_ = {1.0, 0.0};
+    std::vector<double> detection_plane_samples_;
+    double locked_detection_plane_forward_ = std::numeric_limits<double>::quiet_NaN();
+    double velocity_target_x_ = 0.0;
+    double velocity_target_y_ = 0.0;
+    double velocity_target_projection_distance_ = 1.0;
     int settle_frames_ = 8;
     int settled_frames_ = 0;
     int min_msec_ = 1500;
     int timeout_msec_ = 15000;
     int update_msec_ = 300;
+    int initial_detection_max_age_msec_ = 0;
+    int detection_loss_msec_ = 0;
+    int velocity_detection_grace_msec_ = 2000;
+    int blind_alignment_frames_ = 1;
+    int accepted_alignment_frames_ = 0;
     int locked_aim_frames_ = 0;
+    int lock_aim_frames_ = 3;
     bool use_board_aim_bearing_ = false;
+    bool use_detection_distance_ = false;
+    bool align_depth_ = true;
     bool lock_board_aim_ = false;
+    bool use_lateral_velocity_alignment_ = false;
+    bool reset_timeout_on_lock_ = false;
     bool have_filtered_bearing_ = false;
     bool have_locked_target_ = false;
+    bool have_detection_range_reference_ = false;
+    bool velocity_active_ = false;
+    bool have_velocity_target_ = false;
 };
 
 class ForwardSweepAlignAction : public BT::StatefulActionNode {
@@ -1916,6 +2613,8 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         return {BT::InputPort<double>("vision_distance_m", "Range produced by StationarySweepAlign"),
                 BT::InputPort<double>("pass_distance", 0.0, "Meters to travel beyond the detected gap plane"),
                 BT::InputPort<double>("min_transit_distance", 0.0, "Minimum safe fixed transit distance in meters"),
+                BT::InputPort<double>("max_planned_distance", 0.0,
+                                      "Clamp the planned pass distance when positive"),
                 BT::InputPort<double>("max_dist", 10.0, "Hard maximum forward distance in meters"),
                 BT::InputPort<double>("forward_velocity", 0.3, "Body-forward transit velocity in meters per second"),
                 BT::InputPort<int>("timeout_msec", 30000, "Maximum transit time before a safe failure")};
@@ -1925,11 +2624,13 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         getInput("vision_distance_m", vision_distance_m_);
         getInput("pass_distance", pass_distance_);
         getInput("min_transit_distance", min_transit_distance_);
+        getInput("max_planned_distance", max_planned_distance_);
         getInput("max_dist", max_dist_);
         getInput("forward_velocity", forward_velocity_);
         getInput("timeout_msec", timeout_msec_);
 
         if (!validDistanceValue(vision_distance_m_) || pass_distance_ < 0.0 || min_transit_distance_ < 0.0 ||
+            max_planned_distance_ < 0.0 ||
             max_dist_ <= 0.0 || forward_velocity_ <= 0.0 || timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_,
                          "ForwardFixedTransit received invalid range, distance, velocity, or timeout settings.");
@@ -1938,6 +2639,12 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
         }
 
         planned_distance_ = std::max(min_transit_distance_, vision_distance_m_ + pass_distance_);
+        if (max_planned_distance_ > 0.0 && planned_distance_ > max_planned_distance_) {
+            RCLCPP_WARN(logger_,
+                        "ForwardFixedTransit: clamping vision-derived %.2fm pass to %.2fm layer-spacing limit.",
+                        planned_distance_, max_planned_distance_);
+            planned_distance_ = max_planned_distance_;
+        }
         if (planned_distance_ > max_dist_) {
             RCLCPP_WARN(logger_, "ForwardFixedTransit: requested %.2fm exceeds %.2fm safety limit.", planned_distance_,
                         max_dist_);
@@ -1951,6 +2658,12 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
         initial_position_ = *initial_position;
+        // A slalom pass has a direction.  Using just the magnitude of the
+        // odom displacement makes a reverse (or purely lateral) motion look
+        // like successful forward progress, which can advance the next layer
+        // with the vehicle still on the entry side of the poles.
+        const double entry_yaw = actualYaw(node_);
+        forward_axis_ = {std::cos(entry_yaw), std::sin(entry_yaw)};
         deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec_);
         node_.last_velocity_setpoint = {forward_velocity_, 0.0, 0.0};
         velocity_publisher_->publish(linearVelocityCommand(*clock_, node_.last_velocity_setpoint));
@@ -1971,16 +2684,28 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
             stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
-        const double travel =
-            std::hypot((*current_position)[0] - initial_position_[0], (*current_position)[1] - initial_position_[1]);
-        if (travel >= planned_distance_) {
+        const double dx = (*current_position)[0] - initial_position_[0];
+        const double dy = (*current_position)[1] - initial_position_[1];
+        const double displacement = std::hypot(dx, dy);
+        const double forward_progress = dx * forward_axis_[0] + dy * forward_axis_[1];
+        if (forward_progress <= -reverse_abort_distance_) {
+            RCLCPP_ERROR(logger_,
+                         "ForwardFixedTransit detected %.2fm of reverse travel; stopping before the next slalom "
+                         "layer.",
+                         -forward_progress);
+            stopVelocity();
+            return BT::NodeStatus::FAILURE;
+        }
+        if (forward_progress >= planned_distance_) {
             RCLCPP_INFO(logger_, "ForwardFixedTransit: completed %.2fm confirmed-gap pass.", planned_distance_);
             stopVelocity();
             return BT::NodeStatus::SUCCESS;
         }
-        if (travel >= max_dist_ || SteadyClock::now() >= deadline_) {
-            RCLCPP_WARN(logger_, "ForwardFixedTransit stopped before completing its confirmed-gap pass (travel=%.2fm).",
-                        travel);
+        if (displacement >= max_dist_ || SteadyClock::now() >= deadline_) {
+            RCLCPP_WARN(logger_,
+                        "ForwardFixedTransit stopped before completing its confirmed-gap pass "
+                        "(forward=%.2fm, displacement=%.2fm).",
+                        forward_progress, displacement);
             stopVelocity();
             return BT::NodeStatus::FAILURE;
         }
@@ -2017,13 +2742,16 @@ class ForwardFixedTransitAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<double, 2> initial_position_ = {};
+    std::array<double, 2> forward_axis_ = {1.0, 0.0};
     SteadyClock::time_point deadline_;
     double vision_distance_m_ = std::numeric_limits<double>::quiet_NaN();
     double pass_distance_ = 0.0;
     double min_transit_distance_ = 0.0;
+    double max_planned_distance_ = 0.0;
     double max_dist_ = 10.0;
     double forward_velocity_ = 0.3;
     double planned_distance_ = 0.0;
+    static constexpr double reverse_abort_distance_ = 0.10;
     int timeout_msec_ = 30000;
     bool velocity_active_ = false;
 };
@@ -3119,6 +3847,19 @@ void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, co
             return std::make_unique<WaitForDetectionAction>(name, config, node, logger);
         });
 
+    factory.registerBuilder<SelectGateRoleAction>(
+        "SelectGateRole", [&node, logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<SelectGateRoleAction>(name, config, node, logger);
+        });
+
+    factory.registerBuilder<SearchForDetectionAction>(
+        "SearchForDetection",
+        [&node, linear_velocity_publisher, position_publisher, attitude_publisher, clock, logger](
+            const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<SearchForDetectionAction>(name, config, node, linear_velocity_publisher,
+                                                              position_publisher, attitude_publisher, clock, logger);
+        });
+
     factory.registerBuilder<AlignToDetectionAction>(
         "AlignToDetection", [&node, position_publisher, attitude_publisher, clock, logger](
                                 const std::string &name, const BT::NodeConfig &config) {
@@ -3128,9 +3869,10 @@ void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, co
 
     factory.registerBuilder<LateralAlignToDetectionAction>(
         "LateralAlignToDetection",
-        [&node, position_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<LateralAlignToDetectionAction>(name, config, node, position_publisher, clock,
-                                                                   logger);
+        [&node, position_publisher, linear_velocity_publisher, clock, logger](const std::string &name,
+                                                                              const BT::NodeConfig &config) {
+            return std::make_unique<LateralAlignToDetectionAction>(name, config, node, position_publisher,
+                                                                   linear_velocity_publisher, clock, logger);
         });
 
     factory.registerBuilder<ForwardSweepAlignAction>(

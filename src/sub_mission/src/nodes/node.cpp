@@ -57,6 +57,7 @@ void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, c
 
     registerPosSetpointAction(factory, node, position_publisher, clock, logger);
     registerVelocitySetpointAction(factory, node, linear_velocity_publisher, clock, logger);
+    registerTimedVelocityAction(factory, node, linear_velocity_publisher, clock, logger);
     registerAttSetpointAction(factory, node, attitude_publisher, clock, logger);
     registerAngularVelocitySetpointAction(factory, node, angular_velocity_publisher, clock, logger);
     registerMoveRelativeAction(factory, node, position_publisher, clock, logger);

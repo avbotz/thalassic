@@ -13,6 +13,9 @@ void registerPosSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &no
 void registerVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                     PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
                                     rclcpp::Logger logger);
+void registerTimedVelocityAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
+                                 PointCmdPublisher::SharedPtr velocity_publisher, rclcpp::Clock::SharedPtr clock,
+                                 rclcpp::Logger logger);
 void registerAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
                                rclcpp::Logger logger);
