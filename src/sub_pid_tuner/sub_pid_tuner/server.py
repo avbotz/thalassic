@@ -27,6 +27,7 @@ class DashboardServer:
         self.profile = profile
         self.clients: set[web.WebSocketResponse] = set()
         self.tracking_owner: web.WebSocketResponse | None = None
+        self.characterization_owner: web.WebSocketResponse | None = None
         self.write_lock = asyncio.Lock()
 
     def state(self, include_parameters: bool = True) -> dict:
@@ -71,9 +72,15 @@ class DashboardServer:
         app["broadcast_task"] = asyncio.create_task(self.broadcast_loop())
 
     async def on_shutdown(self, app: web.Application) -> None:
-        # A graceful dashboard shutdown must never leave a rate command active.
+        # Finish owned routines before the ROS executor begins shutting down.
+        # Do not publish a new hold for an idle dashboard here: launch may
+        # already be destroying the ROS graph, and the controller has its own
+        # command timeout. The explicit Stop all request remains the operator
+        # path for clearing manual commands while the stack is live.
         with contextlib.suppress(Exception):
             self.ros.stop_tracking()
+        with contextlib.suppress(Exception):
+            self.ros.stop_characterization()
         for socket in list(self.clients):
             await socket.close(code=WSCloseCode.GOING_AWAY, message=b"dashboard stopping")
         self.clients.clear()
@@ -94,7 +101,7 @@ class DashboardServer:
                     }
                 )
                 dead = []
-                for socket in self.clients:
+                for socket in list(self.clients):
                     try:
                         await socket.send_str(message)
                     except (ConnectionError, RuntimeError):
@@ -121,6 +128,16 @@ class DashboardServer:
                         self.tracking_owner = socket
                     elif payload.get("type") == "stop_tracking" and self.tracking_owner is socket:
                         self.tracking_owner = None
+                    elif payload.get("type") == "start_characterization":
+                        self.characterization_owner = socket
+                    elif (
+                        payload.get("type") == "stop_characterization"
+                        and self.characterization_owner is socket
+                    ):
+                        self.characterization_owner = None
+                    elif payload.get("type") == "stop_all":
+                        self.tracking_owner = None
+                        self.characterization_owner = None
                 except Exception as exc:  # noqa: BLE001
                     response = {
                         "type": "error",
@@ -134,6 +151,10 @@ class DashboardServer:
                 self.tracking_owner = None
                 with contextlib.suppress(Exception):
                     self.ros.stop_tracking()
+            if self.characterization_owner is socket:
+                self.characterization_owner = None
+                with contextlib.suppress(Exception):
+                    self.ros.stop_characterization()
         return socket
 
     async def handle(self, message: dict) -> dict:
@@ -207,6 +228,48 @@ class DashboardServer:
                 "request_id": request_id,
                 "tracking": self.ros.stop_tracking(),
             }
+        if kind == "advance_tracking":
+            return {
+                "type": "tracking_result",
+                "request_id": request_id,
+                "tracking": self.ros.advance_tracking(),
+            }
+        if kind == "start_characterization":
+            result = self.ros.start_characterization(
+                str(message.get("axis", "")),
+                message.get("amplitude"),
+                message.get("slow_slope"),
+                message.get("fast_slope"),
+                message.get("dwell"),
+            )
+            return {
+                "type": "characterization_result",
+                "request_id": request_id,
+                "characterization": result,
+            }
+        if kind == "stop_characterization":
+            return {
+                "type": "characterization_result",
+                "request_id": request_id,
+                "characterization": self.ros.stop_characterization(),
+            }
+        if kind == "stop_all":
+            return {
+                "type": "stop_all_result",
+                "request_id": request_id,
+                **self.ros.stop_all(),
+            }
+        if kind == "apply_characterization":
+            async with self.write_lock:
+                changes = self.ros.characterization_changes()
+                applied = await self.apply_changes(changes)
+                self.ros.mark_characterization_applied()
+            return {
+                "type": "characterization_apply_result",
+                "request_id": request_id,
+                "applied": applied,
+                "characterization": self.ros.characterization_snapshot(),
+            }
         raise ValueError(f"unknown request type: {kind}")
 
     async def apply_changes(self, changes) -> list[dict]:
@@ -263,11 +326,16 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
-        executor.shutdown(timeout_sec=1.0)
+        # Stop executor callbacks before invalidating the ROS context.  Shutting
+        # rclpy down while the executor thread still owns subscriptions leaves
+        # queued futures touching already-destroyed handles during Ctrl-C.
+        executor.shutdown(timeout_sec=2.0)
+        thread.join(timeout=2.0)
+        with contextlib.suppress(Exception):
+            executor.remove_node(ros)
+        ros.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-        thread.join(timeout=1.0)
-        ros.destroy_node()
 
 
 if __name__ == "__main__":
