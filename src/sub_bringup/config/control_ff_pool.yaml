@@ -1,39 +1,92 @@
 /**:
   ros__parameters:
-    # This runs the same sub_control_ff executable and control pipeline as sim.
-    # Only the physical model and conservative safety limits differ here.
     control_rate_hz: 30.0
-    power_limit: 0.25
+    power_limit: 0.6
     odom_timeout_s: 0.5
     cmd_vel_timeout_s: 0.5
     feedforward_enabled: true
     antiwindup_gain: 1.0
-
     reference:
-      position_kp: [0.25, 0.25, 0.3]
-      attitude_kp: [0.6, 0.6, 0.8]
-      # Begin tethered pool characterization at deliberately low speeds.
-      max_velocity: [0.15, 0.15, 0.12, 0.25, 0.25, 0.35]
-      max_acceleration: [0.04, 0.04, 0.03, 0.06, 0.06, 0.08]
-
-    # Diagonal AUV model:
-    # M*a + D1*v + D2*|v|*v + trim + hydrostatic restoring.
-    # Mass/inertia are safe starting estimates. Drag, trim, and restoring terms
-    # must be characterized on the assembled vehicle before raising limits.
+      position_kp:
+      - 0.25
+      - 0.25
+      - 2.7
+      attitude_kp:
+      - 0.6
+      - 0.6
+      - 0.8
+      max_velocity:
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.25
+      - 0.25
+      - 0.5
+      max_acceleration:
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
     model:
-      effective_mass: [45.0, 45.0, 48.0, 28.81, 44.12, 101.779]
-      linear_drag: [120.0, 120.0, 120.0, 12.0, 12.0, 30.0]
-      quadratic_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      trim: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      restoring_stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-
-    # PI feedback is in physical wrench units [N or N*m]. It corrects model
-    # error; it is not responsible for producing the nominal motion by itself.
+      effective_mass:
+      - 45.0
+      - 45.0
+      - 48.0
+      - 28.81
+      - 44.12
+      - 45.0
+      linear_drag:
+      - 90.35191108084881
+      - 103.69737431703253
+      - 120.0
+      - 12.0
+      - 20.0
+      - 12.169589932141498
+      quadratic_drag:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      trim:
+      - -0.09782123973408854
+      - -2.3075458702372247
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.02537478692750328
+      restoring_stiffness:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.1
+      - 0.0
     feedback:
-      kp: [80.0, 80.0, 100.0, 15.0, 15.0, 30.0]
-      ki: [0.5, 0.5, 1.0, 0.1, 0.1, 0.25]
-      integral_limit: [15.0, 15.0, 15.0, 8.0, 8.0, 8.0]
-
+      kp:
+      - 80.0
+      - 20.0
+      - 100.0
+      - 80.0
+      - 30.0
+      - 30.0
+      ki:
+      - 0.5
+      - 0.5
+      - 20.0
+      - 0.1
+      - 0.1
+      - 0.25
+      integral_limit:
+      - 15.0
+      - 15.0
+      - 14.0
+      - 8.0
+      - 8.0
+      - 8.0
     spin:
       max_yaw_rate: 0.35
       done_angle: 0.05

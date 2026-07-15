@@ -63,7 +63,7 @@ depth-plane board outline; if that outline is not bounded and valid, torp
 falls back to its existing YOLO-mask and HSV/OpenCV outline extraction.
 
 The workspace includes the fixed-shape `518x518` export at
-`sub_vision/weights/depth_anything_v2_vits.onnx` (Depth Anything V2 Small,
+`weights/depth_anything_v2_vits.onnx` (Depth Anything V2 Small,
 opset 18).
 Its SHA-256 is `6b52116339c20be5acf4f1e800b9a85fa21304dbe5e49ef1897a9feb912a7f36`.
 

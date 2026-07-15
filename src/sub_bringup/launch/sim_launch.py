@@ -487,14 +487,10 @@ def vision_entities() -> list[Node | IncludeLaunchDescription]:
                 "rgb_topic": "front_camera/image_raw",
                 "camera_info_topic": "front_camera/camera_info",
                 "image_transport": "raw",
-                "model_dir": PathJoinSubstitution(
-                    [FindPackageShare("sub_vision"), "models"]
-                ),
+                "model_dir": "weights",
                 # Depth Anything debug is simulation-only.
                 "depth_enabled": True,
-                "depth_model_path": PathJoinSubstitution(
-                    [FindPackageShare("sub_vision"), "weights/depth_anything_v2_vits.onnx"]
-                ),
+                "depth_model_path": "weights/depth_anything_v2_vits.onnx",
                 "depth_debug_enabled": True,
             },
         ],

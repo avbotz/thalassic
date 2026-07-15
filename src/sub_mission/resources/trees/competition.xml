@@ -4,36 +4,31 @@
   <BehaviorTree ID="CompetitionRun">
     <Fallback>
       <Sequence name="competition_run">
-        <SubTree ID="CoinFlipMission"/>
+        <AttSetpoint x="0.0"
+                     y="0.0"
+                     z="0.0"/>
         <SubTree ID="GateMission"/>
         <PosSetpoint x="nan"
                      y="nan"
                      z="-1.2"/>
-        <SubTree ID="SlalomMission"/>
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="-1.0"/>
-        <MoveRelative x="1.5"
-                      y="-0.8"
+        <MoveRelative x="17.0"
+                     y="0.0"
+                     z=""/>
+        <MoveRelative x="0.0"
+                      y="-0.6"
                       z="0.0"/>
-        <ForceSuccess>
-          <SubTree ID="TorpMission"/>
-        </ForceSuccess>
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="-1.0"/>
-        <MoveRelative x="3.0"
-                      y="-1.0"
-                      z="0.0"/>
-        <ForceSuccess>
-          <SubTree ID="OctagonMission"/>
-        </ForceSuccess>
-      </Sequence>
-      <Sequence>
         <PosSetpoint x="nan"
                      y="nan"
                      z="0.0"/>
-        <AlwaysFailure/>
+        <PosSetpoint x="nan"
+            y="nan"
+            z="-0.6"/>
+        <MoveRelative x="-20.0"
+            y="nan"
+            z="-1.2"/>
+        <PosSetpoint x="nan"
+            y="nan"
+            z="0.0">
       </Sequence>
     </Fallback>
   </BehaviorTree>

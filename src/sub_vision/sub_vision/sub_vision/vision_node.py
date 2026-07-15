@@ -53,12 +53,7 @@ class VisionNode(Node):
         self.declare_parameter("depth_debug_topic", "vision/depth_anything")
         self.declare_parameter("depth_debug_color_topic", "vision/depth_anything_color")
 
-        raw_model_dir = self.get_parameter("model_dir").value
-        self._model_dir = (
-            raw_model_dir
-            if os.path.isabs(raw_model_dir)
-            else os.path.join(get_package_share_directory("sub_vision"), raw_model_dir)
-        )
+        self._model_dir = self.get_parameter("model_dir").value
         self._detections_task = ""
         self._bridge = CvBridge()
         self._camera_info: CameraInfo | None = None
