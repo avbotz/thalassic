@@ -205,6 +205,9 @@
             <input_port name="task">Task model to load, e.g. gate</input_port>
             <input_port name="timeout_msec" default="20000">Maximum wait for service + load</input_port>
         </Action>
+        <Action ID="ResetStateOnRevive">
+            <input_port name="timeout_msec" default="5000">Maximum wait for control reset response</input_port>
+        </Action>
         <Action ID="LateralAlignToDetection">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
             <input_port name="task">Only accept detections from this task's model</input_port>

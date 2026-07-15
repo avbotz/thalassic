@@ -17,6 +17,7 @@
   <depend>sub_control_interfaces</depend>
   <depend>sub_driver_interfaces</depend>
   <depend>sub_vision_interfaces</depend>
+  <depend>std_srvs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
 

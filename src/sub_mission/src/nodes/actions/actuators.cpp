@@ -10,12 +10,85 @@
 
 #include "sub_driver_interfaces/srv/launch_torpedo.hpp"
 #include "sub_driver_interfaces/srv/set_dropper.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace {
 
 using LaunchTorpedo = sub_driver_interfaces::srv::LaunchTorpedo;
 using SetDropper = sub_driver_interfaces::srv::SetDropper;
+using Trigger = std_srvs::srv::Trigger;
 using SteadyClock = std::chrono::steady_clock;
+
+class ResetStateOnReviveAction : public BT::StatefulActionNode {
+   public:
+    ResetStateOnReviveAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                             rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config),
+          logger_(logger),
+          client_(node.create_client<Trigger>("reset_state_on_revive")) {}
+
+    static BT::PortsList providedPorts() {
+        return {BT::InputPort<int>("timeout_msec", 5000, "Maximum wait for control reset response")};
+    }
+
+    BT::NodeStatus onStart() override {
+        int timeout_msec = 5000;
+        getInput("timeout_msec", timeout_msec);
+        deadline_ = SteadyClock::now() + std::chrono::milliseconds(timeout_msec);
+        sent_request_ = false;
+        return tickImpl();
+    }
+
+    BT::NodeStatus onRunning() override { return tickImpl(); }
+    void onHalted() override { dropPendingRequest(); }
+
+   private:
+    BT::NodeStatus tickImpl() {
+        if (!sent_request_) {
+            if (!client_->service_is_ready()) {
+                if (SteadyClock::now() >= deadline_) {
+                    RCLCPP_ERROR(logger_, "ResetStateOnRevive timed out waiting for service.");
+                    return BT::NodeStatus::FAILURE;
+                }
+                return BT::NodeStatus::RUNNING;
+            }
+            auto future_and_id = client_->async_send_request(std::make_shared<Trigger::Request>());
+            request_id_ = future_and_id.request_id;
+            future_ = future_and_id.future.share();
+            sent_request_ = true;
+        }
+        if (future_.valid() && future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            const auto response = future_.get();
+            if (!response->success) {
+                RCLCPP_ERROR(logger_, "ResetStateOnRevive failed: %s", response->message.c_str());
+                return BT::NodeStatus::FAILURE;
+            }
+            RCLCPP_INFO(logger_, "ResetStateOnRevive succeeded: %s", response->message.c_str());
+            return BT::NodeStatus::SUCCESS;
+        }
+        if (SteadyClock::now() >= deadline_) {
+            RCLCPP_ERROR(logger_, "ResetStateOnRevive timed out waiting for response.");
+            dropPendingRequest();
+            return BT::NodeStatus::FAILURE;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    void dropPendingRequest() {
+        if (sent_request_ && future_.valid() &&
+            future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            client_->remove_pending_request(request_id_);
+        }
+        sent_request_ = false;
+    }
+
+    rclcpp::Logger logger_;
+    rclcpp::Client<Trigger>::SharedPtr client_;
+    std::shared_future<Trigger::Response::SharedPtr> future_;
+    std::int64_t request_id_ = 0;
+    SteadyClock::time_point deadline_;
+    bool sent_request_ = false;
+};
 
 class DropBallsAction : public BT::StatefulActionNode {
    public:
@@ -216,6 +289,11 @@ class ShootTorpedoAction : public BT::StatefulActionNode {
 }  // namespace
 
 void registerActuatorActions(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger) {
+    factory.registerBuilder<ResetStateOnReviveAction>(
+        "ResetStateOnRevive", [&node, logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<ResetStateOnReviveAction>(name, config, node, logger);
+        });
+
     factory.registerBuilder<DropBallsAction>("DropBalls",
                                              [&node, logger](const std::string &name, const BT::NodeConfig &config) {
                                                  return std::make_unique<DropBallsAction>(name, config, node, logger);
