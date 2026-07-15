@@ -79,12 +79,16 @@ class VisionNode(Node):
                     depth_device = "cuda" if "CUDAExecutionProvider" in ort.get_available_providers() else "cpu"
                 except ImportError:
                     depth_device = "cpu"
-            self._depth_manager = DepthManager(
-                self.get_parameter("depth_model_path").value, self.get_parameter("depth_backend").value, depth_device,
-                int(self.get_parameter("depth_input_size").value),
-                float(self.get_parameter("depth_rate_hz").value),
-                float(self.get_parameter("depth_max_age_s").value), self.get_logger().info,
-            )
+            try:
+                self._depth_manager = DepthManager(
+                    self.get_parameter("depth_model_path").value, self.get_parameter("depth_backend").value, depth_device,
+                    int(self.get_parameter("depth_input_size").value),
+                    float(self.get_parameter("depth_rate_hz").value),
+                    float(self.get_parameter("depth_max_age_s").value), self.get_logger().info,
+                )
+            except Exception as e:
+                self.get_logger().error(f"Failed to initialize depth manager: {e}")
+                self.get_logger().warn("Continuing without depth sidecar.")
 
         # Register the shipped per-task post-processors (gate, ...).
         post_processors.load_builtin_post_processors()
