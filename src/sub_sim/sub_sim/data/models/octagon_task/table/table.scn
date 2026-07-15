@@ -2,8 +2,8 @@
 <scenario>
   <looks>
     <look name="table_white" gray="1.0" roughness="0.7"/>  <!-- 255, 255, 255 -->
-    <look name="table_yellow" rgb="1.0 1.0 0.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
-    <look name="table_red" rgb="1.0 0.008 0.008" roughness="0.7"/>  <!-- 255, 2, 2 -->
+    <look name="table_yellow" rgb="1.0 1.0 1.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
+    <look name="table_red" rgb="1.0 1.0 1.0" roughness="0.7"/>  <!-- 255, 2, 2 -->
   </looks>
 
   <static name="table_main_part" type="model">
