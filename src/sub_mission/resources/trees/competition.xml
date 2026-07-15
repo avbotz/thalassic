@@ -1,53 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4"
-      main_tree_to_execute="CompetitionRun">
+<root BTCPP_format="4" main_tree_to_execute="CompetitionRun">
   <BehaviorTree ID="CompetitionRun">
-    <SubTree ID="HardCodedGateMission"/>
-    <Fallback>
-      <Sequence name="competition_run">
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="-1.2"/>
-        <MoveRelativePos x="17.0"
-                     y="0.0"
-                     z="0.0"/>
-        <MoveRelativePos x="0.0"
-                      y="-0.6"
-                      z="0.0"/>
-        <PosSetpoint x="nan"
-                     y="nan"
-                     z="0.0"/>
-        <PosSetpoint x="nan"
-            y="nan"
-            z="-0.6"/>
-        <MoveRelativePos x="-20.0"
-            y="nan"
-            z="-1.2"/>
-        <PosSetpoint x="nan"
-            y="nan"
-            z="0.0"/>
-      </Sequence>
-    </Fallback>
+    <Sequence name="competition_run">
+      <PosSetpoint     x="nan" y="nan"  z="-1.0"/>
+      <MoveRelativePos x="5.0"  y="0.0"  z="0.0"/>
+      <Spin yaw="50.265" rate="3.14159265"/>
+      <PosSetpoint     x="nan" y="nan"  z="-1.2"/>
+      <MoveRelativePos x="17.0" y="0.0"  z="0.0"/>
+      <MoveRelativePos x="0.0"  y="-0.6" z="0.0"/>
+      <PosSetpoint     x="nan" y="nan"  z="-0.6"/>
+      <MoveRelativePos x="-20.0" y="0.0" z="0.0"/>
+      <PosSetpoint     x="nan" y="nan"  z="0.0"/>
+    </Sequence>
   </BehaviorTree>
 
-  <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="MoveRelative">
-      <input_port name="x"
-                  default="0.0">Forward offset in meters</input_port>
-      <input_port name="y"
-                  default="0.0">Right offset in meters</input_port>
-      <input_port name="z"
-                  default="0.0">Vertical offset in meters; negative is down</input_port>
+    <Action ID="MoveRelativePos">
+      <input_port name="x" default="0.0">Forward offset in meters</input_port>
+      <input_port name="y" default="0.0">Right offset in meters</input_port>
+      <input_port name="z" default="0.0">Vertical offset in meters; negative is down</input_port>
     </Action>
     <Action ID="PosSetpoint">
-      <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
-      <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
-      <input_port name="z"
-                  default="nan">Vertical position setpoint; negative is down</input_port>
+      <input_port name="x" default="nan">North/forward position setpoint</input_port>
+      <input_port name="y" default="nan">East/right position setpoint</input_port>
+      <input_port name="z" default="nan">Vertical position setpoint; negative is down</input_port>
     </Action>
   </TreeNodesModel>
-
 </root>
