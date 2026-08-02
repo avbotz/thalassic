@@ -14,6 +14,8 @@ from launch.actions import (
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
+    AndSubstitution,
+    EqualsSubstitution,
     LaunchConfiguration,
     NotEqualsSubstitution,
     PathJoinSubstitution,
@@ -362,7 +364,7 @@ def control_and_state_entities() -> list[Node]:
         ],
     )
 
-    sub_control_node = Node(
+    legacy_control_node = Node(
         package="sub_control",
         executable="sub_control",
         name="sub_control",
@@ -377,6 +379,29 @@ def control_and_state_entities() -> list[Node]:
             ),
             {"robot_name": LaunchConfiguration("robot_name"), "start_un_killed": True},
         ],
+        condition=IfCondition(
+            EqualsSubstitution(LaunchConfiguration("controller"), "legacy")
+        ),
+    )
+
+    feedforward_control_node = Node(
+        package="sub_control",
+        executable="sub_control_ff",
+        name="sub_control",
+        output="both",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/control_ff_sim.yaml",
+                ]
+            ),
+            {"robot_name": LaunchConfiguration("robot_name")},
+        ],
+        condition=IfCondition(
+            EqualsSubstitution(LaunchConfiguration("controller"), "feedforward")
+        ),
     )
 
     return [
@@ -385,7 +410,8 @@ def control_and_state_entities() -> list[Node]:
         # rgbd_sync,
         # depth_camera_visual_odom,
         robot_localization_node,
-        sub_control_node,
+        legacy_control_node,
+        feedforward_control_node,
     ]
 
 
@@ -561,6 +587,12 @@ def generate_launch_description():
     declare_dashboard_port = DeclareLaunchArgument(
         "dashboard_port", default_value="8080"
     )
+    declare_controller = DeclareLaunchArgument(
+        "controller",
+        default_value="feedforward",
+        choices=["feedforward", "legacy"],
+        description="High-level controller implementation to run",
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -589,7 +621,7 @@ def generate_launch_description():
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
-    dashboard_node = Node(
+    legacy_dashboard_node = Node(
         package="sub_pid_tuner",
         executable="dashboard",
         name="dashboard_server",
@@ -603,7 +635,36 @@ def generate_launch_description():
             "--host", LaunchConfiguration("dashboard_host"),
             "--port", LaunchConfiguration("dashboard_port"),
         ],
-        condition=IfCondition(LaunchConfiguration("dashboard")),
+        condition=IfCondition(
+            AndSubstitution(
+                LaunchConfiguration("dashboard"),
+                EqualsSubstitution(LaunchConfiguration("controller"), "legacy"),
+            )
+        ),
+    )
+
+    feedforward_dashboard_node = Node(
+        package="sub_pid_tuner",
+        executable="dashboard",
+        name="dashboard_server",
+        output="screen",
+        arguments=[
+            "--robot-name", LaunchConfiguration("robot_name"),
+            "--controller-node", "sub_control",
+            "--profile", PathJoinSubstitution(
+                [FindPackageShare("sub_bringup"), "config", "control_ff_sim.yaml"]
+            ),
+            "--host", LaunchConfiguration("dashboard_host"),
+            "--port", LaunchConfiguration("dashboard_port"),
+        ],
+        condition=IfCondition(
+            AndSubstitution(
+                LaunchConfiguration("dashboard"),
+                EqualsSubstitution(
+                    LaunchConfiguration("controller"), "feedforward"
+                ),
+            )
+        ),
     )
 
     return LaunchDescription(
@@ -615,11 +676,13 @@ def generate_launch_description():
             declare_dashboard,
             declare_dashboard_host,
             declare_dashboard_port,
+            declare_controller,
             OpaqueFunction(function=_reject_second_sim),
             include_transforms,
             *sim_entities(),
             sub_mission_node,
-            dashboard_node,
+            legacy_dashboard_node,
+            feedforward_dashboard_node,
             *control_and_state_entities(),
             *vision_entities(),
             *foxglove_entities(),

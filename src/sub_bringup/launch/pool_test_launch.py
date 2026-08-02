@@ -7,6 +7,8 @@ from launch.actions import (
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
+    AndSubstitution,
+    EqualsSubstitution,
     LaunchConfiguration,
     NotEqualsSubstitution,
     PathJoinSubstitution,
@@ -187,22 +189,25 @@ def control_and_state_entities():
         ],
     )
 
-    # sub_control_node = Node(
-    #     package="sub_control",
-    #     executable="sub_control",
-    #     name="sub_control",
-    #     output="both",
-    #     namespace=LaunchConfiguration("robot_name"),
-    #     parameters=[
-    #         PathJoinSubstitution(
-    #             [
-    #                 FindPackageShare("sub_bringup"),
-    #                 "config/control_gains.yaml",
-    #             ]
-    #         ),
-    #         {"robot_name": LaunchConfiguration("robot_name")}
-    #     ],
-    # )
+    feedforward_control_node = Node(
+        package="sub_control",
+        executable="sub_control_ff",
+        name="sub_control",
+        output="both",
+        namespace=LaunchConfiguration("robot_name"),
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config/control_ff_pool.yaml",
+                ]
+            ),
+            {"robot_name": LaunchConfiguration("robot_name")},
+        ],
+        condition=IfCondition(
+            EqualsSubstitution(LaunchConfiguration("controller"), "feedforward")
+        ),
+    )
 
     sub_control_mcu_node = Node(
         package="sub_control_mcu",
@@ -219,11 +224,14 @@ def control_and_state_entities():
             ),
             {"robot_name": LaunchConfiguration("robot_name")},
         ],
+        condition=IfCondition(
+            EqualsSubstitution(LaunchConfiguration("controller"), "mcu")
+        ),
     )
 
     return [
         robot_localization_node,
-        # sub_control_node,
+        feedforward_control_node,
         sub_control_mcu_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),
         # *lifecycle_startup(naviguider_imu_driver_node),
@@ -282,6 +290,12 @@ def generate_launch_description():
     declare_dashboard_port = DeclareLaunchArgument(
         "dashboard_port", default_value="8080"
     )
+    declare_controller = DeclareLaunchArgument(
+        "controller",
+        default_value="feedforward",
+        choices=["feedforward", "mcu"],
+        description="High-level controller implementation; MCU remains the pool fallback",
+    )
 
     include_transforms = IncludeLaunchDescription(
         PathJoinSubstitution(
@@ -302,7 +316,35 @@ def generate_launch_description():
         condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
     )
 
-    dashboard_node = Node(
+    feedforward_dashboard_node = Node(
+        package="sub_pid_tuner",
+        executable="dashboard",
+        name="dashboard_server",
+        output="screen",
+        arguments=[
+            "--robot-name", LaunchConfiguration("robot_name"),
+            "--controller-node", "sub_control",
+            "--profile", PathJoinSubstitution(
+                [
+                    FindPackageShare("sub_bringup"),
+                    "config",
+                    "control_ff_pool.yaml",
+                ]
+            ),
+            "--host", LaunchConfiguration("dashboard_host"),
+            "--port", LaunchConfiguration("dashboard_port"),
+        ],
+        condition=IfCondition(
+            AndSubstitution(
+                LaunchConfiguration("dashboard"),
+                EqualsSubstitution(
+                    LaunchConfiguration("controller"), "feedforward"
+                ),
+            )
+        ),
+    )
+
+    mcu_dashboard_node = Node(
         package="sub_pid_tuner",
         executable="dashboard",
         name="dashboard_server",
@@ -320,7 +362,12 @@ def generate_launch_description():
             "--host", LaunchConfiguration("dashboard_host"),
             "--port", LaunchConfiguration("dashboard_port"),
         ],
-        condition=IfCondition(LaunchConfiguration("dashboard")),
+        condition=IfCondition(
+            AndSubstitution(
+                LaunchConfiguration("dashboard"),
+                EqualsSubstitution(LaunchConfiguration("controller"), "mcu"),
+            )
+        ),
     )
 
     return LaunchDescription(
@@ -330,9 +377,11 @@ def generate_launch_description():
             declare_dashboard,
             declare_dashboard_host,
             declare_dashboard_port,
+            declare_controller,
             include_transforms,
             sub_mission_node,
-            dashboard_node,
+            feedforward_dashboard_node,
+            mcu_dashboard_node,
             *control_and_state_entities(),
             *camera_entities(),
             *vision_entities(),
