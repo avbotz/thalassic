@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 project(sub_sim_sensors)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -12,15 +12,12 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(stonefish_ros2 REQUIRED)
-find_package(marine_acoustic_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(OpenCV REQUIRED)
 find_package(tf2 REQUIRED)
 
 if(BUILD_TESTING)
@@ -44,19 +41,16 @@ add_library(${PROJECT_NAME}_components SHARED
   src/sim_torpedo_launcher.cpp
   src/sim_dropper.cpp
 )
-target_include_directories(${PROJECT_NAME}_components PRIVATE include ${OpenCV_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME}_components PRIVATE include)
 ament_target_dependencies(${PROJECT_NAME}_components
   rclcpp
   rclcpp_components
   stonefish_ros2
-  marine_acoustic_msgs
   std_msgs
   std_srvs
   sensor_msgs
   geometry_msgs
   sub_driver_interfaces
-  cv_bridge
-  OpenCV
   nav_msgs
   tf2
 )

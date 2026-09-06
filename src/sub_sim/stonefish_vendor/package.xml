@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>stonefish_vendor</name>
+  <version>1.6.0</version>
+  <description>
+    Builds the AVBotz fork of the Stonefish. No global (/usr/local) Stonefish install
+    is needed and the simulator version is pinned by the submodule commit.
+  </description>
+  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <license>GPL-3.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_vendor_package</buildtool_depend>
+
+  <build_depend>libsdl2-dev</build_depend>
+  <build_depend>libfreetype-dev</build_depend>
+  <build_depend>libglm-dev</build_depend>
+  <build_depend>opengl</build_depend>
+
+  <exec_depend>libsdl2-dev</exec_depend>
+  <exec_depend>libfreetype-dev</exec_depend>
+  <exec_depend>opengl</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

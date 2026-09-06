@@ -1,0 +1,4 @@
+# FLIR / Point Grey USB3 Vision cameras: let members of "flirimaging" open them.
+# Installed on the Jetson by deploy/jetson/setup.sh (from the spinnaker_camera_driver README).
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1e10", GROUP="flirimaging"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1724", GROUP="flirimaging"

@@ -8,7 +8,7 @@ src/
 ├── sub_control/
 │   ├── sub_control/             # Control algorithm
 │   └── sub_control_interfaces/  # ROS2 messages for control
-├── sub_mission/            # BehaviorTree.CPP mission execution
+├── sub_mission/                 # BehaviorTree.CPP mission execution
 ├── sub_drivers/
 │   ├── flir_camera_driver/      # FLIR / Spinnaker camera driver (submodule)
 │   ├── sub_driver_interfaces/   # Dropper / torpedo service definitions
@@ -16,7 +16,8 @@ src/
 │   └── waterlinked_dvl/         # WaterLinked DVL driver (submodule)
 ├── sub_sim/
 │   ├── sub_sim/                 # Scenario generation, robot description
-│   └── sub_sim_sensors/         # Sim sensor bridges (DVL, thrusters)
+│   ├── sub_sim_sensors/         # Sim sensor bridges (DVL, thrusters)
+│   └── stonefish_vendor/        # Builds the Stonefish library from its submodule
 ├── sub_vision/                  # Vision processing nodes, WIP
 └── stonefish_ros2/              # Stonefish simulator ROS2 bridge (submodule)
 ```
@@ -54,6 +55,8 @@ thruster allocation at 50 Hz. See [control.md](control.md) for details.
 
 PID gain arrays are loaded from the hardware or simulation control profile at
 startup. See [control.md](control.md).
+
+TODO: Replace PID with LQR modelled via Simulink. Replace bounded pseudo-inverse thrust allocator with quadratic-programming thrust allocator that minimizes power draw and is resilient to thruster failure. Migrate to some VESC instead of BlueRobotics ESCs for torque / RPM control, which is more reliable than proportional voltage approach.
 
 ### `sub_mission` (`sub_mission/mission`)
 
@@ -153,7 +156,7 @@ Stonefish
   ├─ (IMU, NED) ───► sim_imu_remapper ──► imu/data ───────────────────────────────► EKF
   ├─ sim/kill_switch ► sim_kill_switch ─► kill_switch ──────────────────────────► sub_control
   └─ sim/thruster_setpoints ◄── sim_thruster_republisher ◄── control/thruster_i ◄── sub_control
-                                                                                      ▲
+                                                                                     ▲
                                                       odometry/filtered (EKF) ───────┤
                                                       cmd_* (sub_mission) ───────────┘
 ```
