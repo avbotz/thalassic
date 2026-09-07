@@ -2,6 +2,13 @@
     "build": {
         "symlink-install": true,
         "merge-install": true,
-        "cmake-args": ["-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON"]
+        "cmake-args": [
+            "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
+            "-DPython_FIND_VIRTUALENV=ONLY",
+            "-DPython3_FIND_VIRTUALENV=ONLY"
+        ]
+    },
+    "test": {
+        "merge-install": true
     }
 }

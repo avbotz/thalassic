@@ -2,7 +2,7 @@
 
 ## Overview
 
-The simulator is [Stonefish](https://github.com/patrykcieslak/stonefish), a physics engine built for underwater vehicles. `stonefish_ros2` provides the ROS2 bridge. A custom fork (`avbotz/stonefish`, branch `fixes-merged`) is required.
+The simulator is [Stonefish](https://github.com/patrykcieslak/stonefish), a physics engine built for underwater vehicles. `stonefish_ros2` provides the ROS2 bridge. A custom fork (`avbotz/stonefish`, branch `fixes-merged`) is required; it is built inside the workspace by the `stonefish_vendor` package from the submodule at `src/sub_sim/stonefish_vendor/stonefish`, so no global install is needed (see [setup.md](setup.md#stonefish) for switching versions).
 
 Scenarios are described with Stonefish `.scn` XML files. Thalassic generates them at launch time from Jinja2 templates so task-object positions can be randomized.
 

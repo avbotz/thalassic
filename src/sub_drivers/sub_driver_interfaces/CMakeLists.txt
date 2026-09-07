@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 project(sub_driver_interfaces)
 
 find_package(ament_cmake REQUIRED)

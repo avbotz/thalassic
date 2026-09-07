@@ -1,0 +1,26 @@
+{
+    "names": {
+        "stonefish_ros2": {
+            "dependencies": [
+                "stonefish_vendor"
+            ]
+        },
+        "libwaterlinked": {
+            "cmake-args": [
+                "-DCMAKE_CXX_FLAGS=-pthread"
+            ]
+        },
+        "spinnaker_camera_driver": {
+            "cmake-args": [
+                "-DCMAKE_CXX_FLAGS=-include cstdint",
+                "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined"
+            ]
+        },
+        "spinnaker_synchronized_camera_driver": {
+            "cmake-args": [
+                "-DCMAKE_CXX_FLAGS=-include cstdint",
+                "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined"
+            ]
+        }
+    }
+}

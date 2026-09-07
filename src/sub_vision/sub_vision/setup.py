@@ -20,7 +20,6 @@ setup(
     maintainer_email="avbotzco@gmail.com",
     description="YOLOv10 perception pipeline (ONNX Runtime / TensorRT) for the Marlin V2 AUV.",
     license="Proprietary",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "sub_vision = sub_vision.vision_node:main",

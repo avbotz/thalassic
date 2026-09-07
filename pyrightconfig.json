@@ -2,11 +2,14 @@
   "extraPaths": [
     "build/sub_sim",
     "install/lib/python3.12/site-packages",
-    "/opt/ros/jazzy/lib/python3.12/site-packages",
+    ".pixi/envs/default/lib/python3.12/site-packages"
   ],
   "include": [
     "src"
   ],
+  "exclude": [
+    "src/sub_sim/stonefish_vendor/stonefish"
+  ],
   "reportUnusedCallResult": false,
-  "typeCheckingMode": "standard",
+  "typeCheckingMode": "standard"
 }

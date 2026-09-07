@@ -1,3 +1,5 @@
+.pixi/
+# legacy virtualenv from before the pixi migration
 .venv
 
 **/.vscode/
@@ -7,17 +9,13 @@
 **/install/
 **/devel/
 **/log/
-**/logs/
 
 **/__pycache__/
 *.pyc
 
-images/*
-videos/*
 weights/*
 !**/.gitkeep
 
-.catkin_workspace
 *.log
 
 train_imgs/

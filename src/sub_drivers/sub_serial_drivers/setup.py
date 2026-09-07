@@ -16,7 +16,6 @@ setup(
     maintainer_email="avbotzco@gmail.com",
     description="Serial bridge drivers (Nautical / Maritime, NaviGuider IMU) for the Marlin V2 AUV.",
     license="Proprietary",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "sub_low = sub_serial_drivers.sub_low:main",
