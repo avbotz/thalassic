@@ -86,6 +86,7 @@ scripts = ["scripts/setup.sh"]
 [tasks]
 build = { cmd = "colcon build", description = "Build the workspace (colcon_defaults.yaml applies)" }
 clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
+prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
 test = { cmd = "colcon test && colcon test-result --verbose", description = "Run colcon tests" }
 sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation (append launch args, e.g. seed:=42)" }
 pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
