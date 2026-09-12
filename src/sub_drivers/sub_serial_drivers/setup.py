@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="avbotzco@gmail.com",
-    description="Serial bridge drivers (Nautical / Maritime, NaviGuider IMU) for the Marlin V2 AUV.",
+    description="Serial bridge drivers (Nautical / Maritime, NaviGuider IMU) for the Marlin V3 AUV.",
     license="Proprietary",
     entry_points={
         "console_scripts": [

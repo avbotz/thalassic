@@ -26,8 +26,7 @@ src/
 
 ### `sub_control` (`sub_control/sub_control`)
 
-The main control node. Runs a 6-DOF cascade PID with bounded pseudo-inverse
-thruster allocation at 50 Hz. See [control.md](control.md) for details.
+The main control node. Runs a 6-DOF cascade PID with bounded pseudo-inverse thruster allocation at 50 Hz. See [control.md](control.md) for details.
 
 | | Topic | Type |
 |---|---|---|
@@ -53,16 +52,13 @@ thruster allocation at 50 Hz. See [control.md](control.md) for details.
 | `att_pid.{x,y,z}` | — | Attitude → rate PID `[kp, ki, kd, max]` |
 | `ang_pid.{x,y,z}` | — | Angular-rate → torque PID `[kp, ki, kd, max]` |
 
-PID gain arrays are loaded from the hardware or simulation control profile at
-startup. See [control.md](control.md).
+PID gain arrays are loaded from the hardware or simulation control profile at startup. See [control.md](control.md).
 
 TODO: Replace PID with LQR modelled via Simulink. Replace bounded pseudo-inverse thrust allocator with quadratic-programming thrust allocator that minimizes power draw and is resilient to thruster failure. Migrate to some VESC instead of BlueRobotics ESCs for torque / RPM control, which is more reliable than proportional voltage approach.
 
 ### `sub_mission` (`sub_mission/mission`)
 
-Runs the selected mission as BehaviorTree.CPP XML. See
-[mission.md](mission.md) for behavior tree structure, movement nodes, and
-implementation boundaries.
+Runs the selected mission as BehaviorTree.CPP XML. See [mission.md](mission.md) for behavior tree structure, movement nodes, and implementation boundaries.
 
 | | Topic | Type |
 |---|---|---|
@@ -73,19 +69,15 @@ implementation boundaries.
 
 ### `waterlinked_dvl_driver` (`waterlinked_dvl`) — hardware only
 
-Driver for the WaterLinked A50 DVL. Its `~/odom` output is remapped to
-`odometry/dvl` (velocity-only `nav_msgs/Odometry`) for the EKF.
+Driver for the WaterLinked A50 DVL. Its `~/odom` output is remapped to `odometry/dvl` (velocity-only `nav_msgs/Odometry`) for the EKF.
 
 ### `sub_low` / `naviguider_imu_driver` (`sub_serial_drivers`) — hardware only
 
-`sub_low` talks to the RPi Pico over `/dev/pico` (thruster output, kill switch).
-`naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and
-publishes ENU `imu/data` with `frame_id` `marlin_v2/imu_link`.
+`sub_low` talks to the RPi Pico over `/dev/pico` (thruster output, kill switch). `naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and publishes ENU `imu/data` with `frame_id` `marlin_v3/imu_link`.
 
 ### `sim_dvl_remapper` (`sub_sim_sensors`) — sim only
 
-Converts Stonefish's proprietary DVL message into the velocity-only
-`nav_msgs/Odometry` the EKF expects, matching the hardware DVL topic.
+Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Odometry` the EKF expects, matching the hardware DVL topic.
 
 | | Topic | Type |
 |---|---|---|
@@ -103,8 +95,7 @@ Re-expresses Stonefish's NED IMU stream as ENU and stamps it with `imu_link`.
 
 ### `sim_thruster_republisher` (`sub_sim_sensors`) — sim only
 
-Collects the 8 individual thruster topics into a single `Float64MultiArray` for
-Stonefish, scaling each normalized command by 400 (T200 count).
+Collects the 8 individual thruster topics into a single `Float64MultiArray` for Stonefish, scaling each normalized command by 400 (T200 count).
 
 | | Topic | Type |
 |---|---|---|
@@ -113,9 +104,7 @@ Stonefish, scaling each normalized command by 400 (T200 count).
 
 ### `sim_kill_switch` (`sub_sim_sensors`) — sim only
 
-Starts killed, releases the kill switch after a startup delay (`off_delay`, 8 s),
-then passes `sim/kill_switch` through to `kill_switch`. `sim_torpedo_launcher`
-and `sim_dropper` provide the corresponding actuator services in simulation.
+Starts killed, releases the kill switch after a startup delay (`off_delay`, 8 s), then passes `sim/kill_switch` through to `kill_switch`. `sim_torpedo_launcher` and `sim_dropper` provide the corresponding actuator services in simulation.
 
 ### `ekf_filter_node` (`robot_localization`)
 
@@ -129,24 +118,21 @@ Fuses IMU orientation and DVL velocity into a filtered odometry estimate.
 
 ```
 map
-└── marlin_v2/odom          (static, identity)
-    └── marlin_v2/base_link  (published by EKF; ENU/FLU control frame)
-        ├── marlin_v2/imu_link            (relative to base_link)
-        └── marlin_v2/base_link_ned       (roll=π, yaw=−π/2 — static mounting frame)
-            ├── marlin_v2/front_camera
-            ├── marlin_v2/dvl_link
-            ├── marlin_v2/dropper_link
-            ├── marlin_v2/left_grabber_link
-            ├── marlin_v2/right_grabber_link
-            ├── marlin_v2/thruster_0_link
+└── marlin_v3/odom          (static, identity)
+    └── marlin_v3/base_link  (published by EKF; ENU/FLU control frame)
+        ├── marlin_v3/imu_link            (relative to base_link)
+        └── marlin_v3/base_link_ned       (roll=π, yaw=−π/2 — static mounting frame)
+            ├── marlin_v3/front_camera
+            ├── marlin_v3/dvl_link
+            ├── marlin_v3/dropper_link
+            ├── marlin_v3/left_grabber_link
+            ├── marlin_v3/right_grabber_link
+            ├── marlin_v3/thruster_0_link
             ├── ...
-            └── marlin_v2/thruster_7_link
+            └── marlin_v3/thruster_7_link
 ```
 
-Control runs in `base_link` (ENU/FLU). `base_link_ned` is a static mounting frame
-— most sensor and thruster offsets in
-`src/sub_bringup/launch/marlin_v2_launch.py` are defined relative to it, except
-`imu_link`, which hangs off `base_link`.
+Control runs in `base_link` (ENU/FLU). `base_link_ned` is a static mounting frame — most sensor and thruster offsets in `src/sub_bringup/config/marlin_v3.yaml` are defined relative to it, except `imu_link`, which hangs off `base_link`. `description_launch.py` turns that file into the static transform publishers above.
 
 ## Data Flow (Simulation)
 
@@ -161,6 +147,4 @@ Stonefish
                                                       cmd_* (sub_mission) ───────────┘
 ```
 
-On hardware the same graph applies, with `waterlinked_dvl_driver` publishing
-`odometry/dvl` and `naviguider_imu_driver` publishing `imu/data` in place of the
-sim remappers, and `sub_low` driving the thrusters and kill switch.
+On hardware the same graph applies, with `waterlinked_dvl_driver` publishing `odometry/dvl` and `naviguider_imu_driver` publishing `imu/data` in place of the sim remappers, and `sub_low` driving the thrusters and kill switch.

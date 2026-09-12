@@ -3,23 +3,20 @@
 from __future__ import annotations
 
 import importlib
-from typing import Dict, List, Optional, Type
 
 from sub_vision.post_processors.base import TaskPostProcessor
 
 # Concrete post-processor classes that ship with this package. Imported lazily
 # so that simply importing the registry does not drag in OpenCV / numpy.
-_BUILTIN_MODULES = (
-    "sub_vision.post_processors.gate",
-)
+_BUILTIN_MODULES = ("sub_vision.post_processors.gate",)
 
-_REGISTRY: Dict[str, Type[TaskPostProcessor]] = {}
+_REGISTRY: dict[str, type[TaskPostProcessor]] = {}
 
 
 def register_post_processor(task: str):
     """Class decorator registering a post-processor for ``task``."""
 
-    def decorator(cls: Type[TaskPostProcessor]) -> Type[TaskPostProcessor]:
+    def decorator(cls: type[TaskPostProcessor]) -> type[TaskPostProcessor]:
         if not issubclass(cls, TaskPostProcessor):
             raise TypeError(f"{cls.__name__} must subclass TaskPostProcessor")
         _REGISTRY[task] = cls
@@ -34,7 +31,7 @@ def load_builtin_post_processors() -> None:
         importlib.import_module(module)
 
 
-def get_post_processor(task: str) -> Optional[TaskPostProcessor]:
+def get_post_processor(task: str) -> TaskPostProcessor | None:
     """Instantiate the processor registered for ``task``, or ``None``.
 
     Returning ``None`` lets the caller fall back to a no-op (detections keep
@@ -49,6 +46,6 @@ def get_post_processor(task: str) -> Optional[TaskPostProcessor]:
     return cls() if cls is not None else None
 
 
-def registered_tasks() -> List[str]:
+def registered_tasks() -> list[str]:
     """Names of all currently registered tasks."""
     return sorted(_REGISTRY)

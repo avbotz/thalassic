@@ -7,16 +7,16 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
+from sub_vision_interfaces.msg import Detection, DetectionArray
+from sub_vision_interfaces.srv import LoadModel
 from vision_msgs.msg import (
     BoundingBox2D,
     Detection2D,
     ObjectHypothesisWithPose,
 )
 
-from sub_vision import constants, post_processors
+from sub_vision import post_processors
 from sub_vision.model_manager import ModelManager
-from sub_vision_interfaces.msg import Detection, DetectionArray
-from sub_vision_interfaces.srv import LoadModel
 
 
 class VisionNode(Node):
@@ -29,7 +29,7 @@ class VisionNode(Node):
         self.declare_parameter("model_dir", default_model_dir)
         self.declare_parameter("default_task", "")
         self.declare_parameter("backend", "auto")  # auto|tensorrt|onnxruntime
-        self.declare_parameter("device", "auto")   # auto|cpu|cuda (onnxruntime only)
+        self.declare_parameter("device", "auto")  # auto|cpu|cuda (onnxruntime only)
         self.declare_parameter("input_size", 640)
         self.declare_parameter("conf_threshold", 0.25)
         self.declare_parameter("warmup_iterations", 3)
@@ -117,11 +117,14 @@ class VisionNode(Node):
         return response
 
     def _on_frame(self, rgb_msg: Image) -> None:
-        self._process_frame(rgb_msg.header, lambda: self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8"))
+        self._process_frame(
+            rgb_msg.header, lambda: self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
+        )
 
     def _on_compressed_frame(self, rgb_msg: CompressedImage) -> None:
         self._process_frame(
-            rgb_msg.header, lambda: self._bridge.compressed_imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
+            rgb_msg.header,
+            lambda: self._bridge.compressed_imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8"),
         )
 
     def _process_frame(self, header, decode) -> None:

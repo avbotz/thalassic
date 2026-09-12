@@ -18,8 +18,8 @@ setup(
     license="Proprietary",
     entry_points={
         "console_scripts": [
-            'labeling = sim_labeling.node:main',
-            'parse_ids = sim_labeling.parse_ids:main',
+            "labeling = sim_labeling.node:main",
+            "parse_ids = sim_labeling.parse_ids:main",
         ],
     },
 )

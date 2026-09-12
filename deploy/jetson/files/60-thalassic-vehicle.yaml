@@ -1,0 +1,21 @@
+# Vehicle network. Installed at /etc/netplan/60-thalassic-vehicle.yaml.
+
+network:
+  version: 2
+  ethernets:
+    # Jetson Default NIC
+    end0:
+      # Use static IP instead of assigned by DHCP
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - 192.168.5.245/24
+      # Default gateway to router, will not always be available (ex. autonomous runs)
+      routes:
+        - to: default
+          via: 192.168.5.1
+      # Ensure switches and router support MTU 9000.
+      # Used for FLIR GigE cameras.
+      mtu: 9000
+      # Don't wait for network to be available to boot.
+      optional: true

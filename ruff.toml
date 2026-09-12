@@ -1,0 +1,34 @@
+line-length = 100
+target-version = "py312"   # pin to Python version (3.12) on Ubuntu 24.04 matching Jetson
+
+# Exclude submodules
+extend-exclude = [
+    "src/stonefish_ros2",
+    "src/sub_drivers/flir_camera_driver",
+    "src/sub_drivers/waterlinked_dvl",
+    "src/sub_sim/stonefish_vendor/stonefish",
+]
+
+[lint]
+select = [
+    "F",    # pyflakes: unused imports and names, real mistakes
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "I",    # import ordering
+    "UP",   # constructs that are obsolete on 3.12
+    "B",    # bugbear: mutable defaults, loop-variable capture, ...
+    "C4",   # comprehension rewrites
+    "RUF",  # ruff's own checks
+]
+ignore = [
+    # The formatter decides line breaks. This prevents long string literals and URLs from being
+    # flagged.
+    "E501",
+    # RUF046 related to code like int(round(x)), which is usually redundant is able to be replaced
+    # by int(x). This codebase extensively uses numpy, which overloads various dunder-methods, so
+    # this doesn't hold.
+    "RUF046",
+]
+
+[format]
+docstring-code-format = true

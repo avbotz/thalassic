@@ -14,5 +14,4 @@ class MissionNode;
 // Task trees compose these in XML; new tasks need no C++.
 void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger,
                          PointCmdPublisher::SharedPtr position_publisher,
-                         QuaternionCmdPublisher::SharedPtr attitude_publisher,
-                         rclcpp::Clock::SharedPtr clock);
+                         QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock);

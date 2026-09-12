@@ -1,5 +1,5 @@
-[submodule "src/stonefish_ros2"]
-	path = src/stonefish_ros2
+[submodule "src/sub_sim/stonefish_ros2"]
+	path = src/sub_sim/stonefish_ros2
 	url = https://github.com/avbotz/stonefish_ros2
 	branch = errors-at-end
 [submodule "src/sub_drivers/waterlinked_dvl"]

@@ -476,9 +476,7 @@ class ForwardSweepAlignAction : public BT::StatefulActionNode {
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
-    void onHalted() override {
-        RCLCPP_INFO(logger_, "ForwardSweepAlign halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "ForwardSweepAlign halted."); }
 
    private:
     enum class Phase {
@@ -691,9 +689,7 @@ class SweepCheckAction : public BT::StatefulActionNode {
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
-    void onHalted() override {
-        RCLCPP_INFO(logger_, "SweepCheck halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "SweepCheck halted."); }
 
    private:
     enum class Phase {
@@ -865,9 +861,7 @@ class SweepAngleAction : public BT::StatefulActionNode {
 
     BT::NodeStatus onRunning() override { return tickImpl(); }
 
-    void onHalted() override {
-        RCLCPP_INFO(logger_, "SweepAngle halted.");
-    }
+    void onHalted() override { RCLCPP_INFO(logger_, "SweepAngle halted."); }
 
    private:
     enum class Phase {

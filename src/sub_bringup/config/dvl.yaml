@@ -3,8 +3,8 @@
     # Descriptions for all DVL configurations can be found on the Water Linked
     # Documentation: https://docs.waterlinked.com/dvl/dvl-protocol/
 
-    # Static IP address setup for the DVL-A50
-    ip_address: "192.168.0.250"
+    # The DVL's static address and the frame it reports in are vehicle
+    # identity, so they come from config/<robot_name>.yaml via the launch file.
 
     # Default port for the DVL-A50 and DVL-125
     port: 16171
@@ -18,7 +18,6 @@
     # - y: Right
     # - z: Down
     # This can be rotated using the mounting_rotation_offset parameter.
-    frame_id: "marlin_v2/dvl_link"
 
     speed_of_sound: 1481 # m/s
 

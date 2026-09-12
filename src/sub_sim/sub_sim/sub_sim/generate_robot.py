@@ -1,5 +1,5 @@
-import os
 import math
+import os
 import tempfile
 from pathlib import Path
 
@@ -22,9 +22,7 @@ def render_robot_scenario(
 
     template = env.get_template(robot_template_file.name)
 
-    rendered = template.render(
-        PI=math.pi, x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw
-    )
+    rendered = template.render(PI=math.pi, x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw)
 
     fd, temp_path = tempfile.mkstemp(
         prefix=robot_template_file.stem,

@@ -63,7 +63,8 @@ SubControl::SubControl() : Node("sub_control") {
     altitude_sub_ = this->create_subscription<std_msgs::msg::Float64>(
         "altitude", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) { altitude_callback(msg); });
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-        "kill_switch", rclcpp::QoS(1).transient_local(), [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
+        "kill_switch", rclcpp::QoS(1).transient_local(),
+        [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
 
     pos_setpoint_sub_ = this->create_subscription<sub_control_interfaces::msg::Setpoint>(
         "pos_setpoint", 10,
@@ -149,8 +150,8 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
                 return result;
             }
             pid->configure(gains);
-            RCLCPP_INFO(this->get_logger(), "%s set to [%f, %f, %f, %f]", param.get_name().c_str(), gains[0],
-                        gains[1], gains[2], gains.size() == 4 ? gains[3] : 0.0);
+            RCLCPP_INFO(this->get_logger(), "%s set to [%f, %f, %f, %f]", param.get_name().c_str(), gains[0], gains[1],
+                        gains[2], gains.size() == 4 ? gains[3] : 0.0);
         }
     }
 
@@ -182,8 +183,10 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
     velocity_control_enabled_ = msg->velocity;
     altitude_control_enabled_ = msg->altitude;
     if (velocity_control_enabled_) {
-        if (velocity_setpoint_[0] != msg->setpoint.x || velocity_setpoint_[1] != msg->setpoint.y || velocity_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+        if (velocity_setpoint_[0] != msg->setpoint.x || velocity_setpoint_[1] != msg->setpoint.y ||
+            velocity_setpoint_[2] != msg->setpoint.z) {
+            RCLCPP_INFO(this->get_logger(), "velocity_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y,
+                        msg->setpoint.z);
         }
 
         velocity_setpoint_[0] = msg->setpoint.x;
@@ -192,8 +195,10 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
 
         reset_pid();
     } else {
-        if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y || position_setpoint_[2] != msg->setpoint.z) {
-            RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y, msg->setpoint.z);
+        if (position_setpoint_[0] != msg->setpoint.x || position_setpoint_[1] != msg->setpoint.y ||
+            position_setpoint_[2] != msg->setpoint.z) {
+            RCLCPP_INFO(this->get_logger(), "position_setpoint_: [%f, %f, %f]", msg->setpoint.x, msg->setpoint.y,
+                        msg->setpoint.z);
         }
 
         position_setpoint_[0] = msg->setpoint.x;
@@ -207,8 +212,10 @@ void SubControl::pos_setpoint_callback(const sub_control_interfaces::msg::Setpoi
 void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoint::SharedPtr msg) {
     angvel_control_enabled_ = msg->velocity;
     if (angvel_control_enabled_) {
-        if (angvel_setpoint_[0] != msg->setpoint.roll || angvel_setpoint_[1] != msg->setpoint.pitch || angvel_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_INFO(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
+        if (angvel_setpoint_[0] != msg->setpoint.roll || angvel_setpoint_[1] != msg->setpoint.pitch ||
+            angvel_setpoint_[2] != msg->setpoint.yaw) {
+            RCLCPP_INFO(this->get_logger(), "angvel_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch,
+                        msg->setpoint.yaw);
         }
 
         angvel_setpoint_[0] = msg->setpoint.roll;
@@ -217,8 +224,10 @@ void SubControl::att_setpoint_callback(const sub_control_interfaces::msg::Setpoi
 
         reset_pid();
     } else {
-        if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch || attitude_setpoint_[2] != msg->setpoint.yaw) {
-            RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch, msg->setpoint.yaw);
+        if (attitude_setpoint_[0] != msg->setpoint.roll || attitude_setpoint_[1] != msg->setpoint.pitch ||
+            attitude_setpoint_[2] != msg->setpoint.yaw) {
+            RCLCPP_INFO(this->get_logger(), "attitude_setpoint_: [%f, %f, %f]", msg->setpoint.roll, msg->setpoint.pitch,
+                        msg->setpoint.yaw);
         }
 
         attitude_setpoint_[0] = angles::normalize_angle(msg->setpoint.roll);
@@ -316,10 +325,9 @@ void SubControl::run() {
         const double vertical = altitude_control_enabled_ ? altitude_ : position_[2];
         const double world_ez = position_setpoint_[2] - vertical;
 
-        tf2::Vector3 world_vel_sp{
-            position_pid_controllers_[0].update(position_[0], world_ex, dt),
-            position_pid_controllers_[1].update(position_[1], world_ey, dt),
-            position_pid_controllers_[2].update(vertical, world_ez, dt)};
+        tf2::Vector3 world_vel_sp{position_pid_controllers_[0].update(position_[0], world_ex, dt),
+                                  position_pid_controllers_[1].update(position_[1], world_ey, dt),
+                                  position_pid_controllers_[2].update(vertical, world_ez, dt)};
 
         tf2::Vector3 body_vel_sp = tf2::quatRotate(orientation.inverse(), world_vel_sp);
         velocity_setpoint_[0] = body_vel_sp.x();
@@ -352,7 +360,8 @@ void SubControl::run() {
 
     error_pub_->publish(error_msg);
 
-    const double alloc_max_force = std::min(std::abs(norm_to_force(power_limit_)), std::abs(norm_to_force(-power_limit_)));
+    const double alloc_max_force =
+        std::min(std::abs(norm_to_force(power_limit_)), std::abs(norm_to_force(-power_limit_)));
 
     std::array<double, NUM_THRUSTERS> thruster_forces = thruster_allocator_.allocate(body_force_, alloc_max_force);
     for (size_t i = 0; i < NUM_THRUSTERS; ++i) {

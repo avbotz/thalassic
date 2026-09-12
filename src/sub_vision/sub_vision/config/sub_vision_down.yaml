@@ -1,5 +1,5 @@
 # sub_vision perception node configuration.
-# Topics are relative to the node namespace (e.g. /marlin_v2/...). Each launch
+# Topics are relative to the node namespace (e.g. /marlin_v3/...). Each launch
 # file overrides rgb_topic/camera_info_topic with its camera source: Stonefish
 # publishes front_camera/image_color in sim, the usb_cam driver publishes
 # front_camera/image_raw at pool tests.

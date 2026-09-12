@@ -39,19 +39,19 @@ class LabelNode(Node):
         self.declare_parameter("scenario_file", "")
         self.declare_parameter("output_dir", "train_imgs")
         self.declare_parameter("min_bbox_area", 400)
-        self.declare_parameter("seg_topic", "/marlin_v2/sim/segment/image_raw")
-        self.declare_parameter("front_cam_topic", "/marlin_v2/oak/rgb/image_raw")
+        self.declare_parameter("seg_topic", "/marlin_v3/sim/segment/image_raw")
+        self.declare_parameter("front_cam_topic", "/marlin_v3/oak/rgb/image_raw")
 
         scenario_file = self.get_parameter("scenario_file").get_parameter_value().string_value
         self.output_dir = self.get_parameter("output_dir").get_parameter_value().string_value
         self.min_bbox_area = self.get_parameter("min_bbox_area").get_parameter_value().integer_value
         seg_topic = self.get_parameter("seg_topic").get_parameter_value().string_value
-        front_cam_topic = (
-            self.get_parameter("front_cam_topic").get_parameter_value().string_value
-        )
+        front_cam_topic = self.get_parameter("front_cam_topic").get_parameter_value().string_value
 
-        if not self.output_dir:
-            os.makedirs(self.output_dir, exist_ok=True)
+        # save_dataset_yaml writes straight into this directory, so it has to
+        # exist before the first frame arrives.
+        if self.output_dir:
+            Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         # ── Build pixel → class_id mapping from scenario ────────────────
         self.pixel_to_class: dict[int, int] = {}
@@ -75,8 +75,7 @@ class LabelNode(Node):
             save_dataset_yaml(self.class_names, self.output_dir)
         else:
             self.get_logger().error(
-                "No pixel-to-class mapping could be built! "
-                "Labeling will be non-functional."
+                "No pixel-to-class mapping could be built! Labeling will be non-functional."
             )
 
         # ── State ───────────────────────────────────────────────────────
@@ -87,9 +86,7 @@ class LabelNode(Node):
 
         # ── Subscriptions ───────────────────────────────────────────────
         self.seg_sub = self.create_subscription(Image, seg_topic, self.seg_callback, 10)
-        self.front_sub = self.create_subscription(
-            Image, front_cam_topic, self.front_callback, 10
-        )
+        self.front_sub = self.create_subscription(Image, front_cam_topic, self.front_callback, 10)
 
         self.get_logger().info(
             f"Label node started. "
@@ -115,22 +112,15 @@ class LabelNode(Node):
                 )
                 return
 
-            self.get_logger().info(
-                f"Parsing scenario: {scenario_file} with data_dir: {data_dir}"
-            )
+            self.get_logger().info(f"Parsing scenario: {scenario_file} with data_dir: {data_dir}")
 
-            self.pixel_to_class, self.class_names = build_pixel_to_class_id(
-                scenario_file, data_dir
-            )
+            self.pixel_to_class, self.class_names = build_pixel_to_class_id(scenario_file, data_dir)
 
             # Log the mapping for debugging
-            pixel_to_prop, prop_groups, all_objs = parse_scenario_ids(
-                scenario_file, data_dir
-            )
+            _pixel_to_prop, prop_groups, _all_objs = parse_scenario_ids(scenario_file, data_dir)
             for g in prop_groups:
                 self.get_logger().info(
-                    f'  Prop "{g.class_name}" (class {g.class_id}): '
-                    f"{len(g.seg_ids)} seg IDs"
+                    f'  Prop "{g.class_name}" (class {g.class_id}): {len(g.seg_ids)} seg IDs'
                 )
 
         except Exception as e:
@@ -195,9 +185,7 @@ class LabelNode(Node):
     def _load_scenario_with_data_dir(self, scenario_file: str, data_dir: str):
         """Load scenario with explicit data_dir."""
         try:
-            self.pixel_to_class, self.class_names = build_pixel_to_class_id(
-                scenario_file, data_dir
-            )
+            self.pixel_to_class, self.class_names = build_pixel_to_class_id(scenario_file, data_dir)
         except Exception as e:
             self.get_logger().error(f"Failed to parse scenario: {e}")
 

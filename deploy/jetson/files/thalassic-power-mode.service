@@ -1,0 +1,16 @@
+# Installed at /etc/systemd/system/thalassic-power-mode.service.
+[Unit]
+Description=Thalassic: Jetson power mode for the vehicle
+Documentation=https://github.com/avbotz/thalassic/blob/main/docs/deployment.md
+# nvpmodel.service applies the mode stored in /etc/nvpmodel.conf; run after it so this file is what decides, whatever a reflash left behind.
+After=nvpmodel.service
+ConditionPathExists=/usr/sbin/nvpmodel
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Mode 0 is MAXN: every CPU and GPU core unlocked, DVFS still running so the SoC throttles itself if the hull gets hot.
+ExecStart=/usr/sbin/nvpmodel -m 0
+
+[Install]
+WantedBy=multi-user.target

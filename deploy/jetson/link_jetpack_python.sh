@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# Expose JetPack's GPU Python modules (tensorrt, cuda-python) to the pixi
-# environment on the Jetson. Run as the vehicle user after `pixi install`.
+# Expose JetPack's GPU Python modules (tensorrt, cuda-python) to the pixi environment on the Jetson. Run as the vehicle user after `pixi install`.
 #
-# JetPack installs these bindings into the system interpreter only, and they
-# are not available from conda-forge or PyPI for the Orin. A .pth file appends
-# the system dist-packages directory to sys.path *after* the environment's own
-# site-packages, so environment packages always win and only modules missing
-# from the environment (tensorrt, cuda) are picked up from JetPack.
+# JetPack installs these bindings into the system interpreter only, and they are not available from conda-forge or PyPI for the Orin.
+# A .pth file appends the system dist-packages directory to sys.path *after* the environment's own site-packages.
 #
-# This only works when both interpreters share the same minor version, which
-# is why pixi.toml pins python = 3.12.* (Ubuntu 24.04's interpreter).
+# This only works when both interpreters share the same minor version, which is why pixi.toml pins python = 3.12.* (Ubuntu 24.04's interpreter).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."

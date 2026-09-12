@@ -9,11 +9,11 @@ post layout estimated from the RGB crop.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
-from diagnostic_msgs.msg import KeyValue
 import numpy as np
+from diagnostic_msgs.msg import KeyValue
 
 from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
@@ -136,9 +136,7 @@ def _bbox_xyxy(det) -> tuple[float, float, float, float]:
     return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
 
 
-def _deproject_pixel(
-    u: float, v: float, depth_m: float, camera_k: np.ndarray
-) -> np.ndarray:
+def _deproject_pixel(u: float, v: float, depth_m: float, camera_k: np.ndarray) -> np.ndarray:
     fx, fy = camera_k[0, 0], camera_k[1, 1]
     cx, cy = camera_k[0, 2], camera_k[1, 2]
     return np.array(
@@ -157,9 +155,7 @@ class GatePostProcessor(TaskPostProcessor):
 
     def process(self, detections, rgb_image, depth_image, camera_info):
         k = np.array(camera_info.k, dtype=np.float64).reshape(3, 3)
-        gates = [
-            det for det in detections.detections if _class_id(det) == GATE_CLASS_ID
-        ]
+        gates = [det for det in detections.detections if _class_id(det) == GATE_CLASS_ID]
         gates.sort(key=_score, reverse=True)
         detections.detections = gates
 
@@ -174,20 +170,12 @@ class GatePostProcessor(TaskPostProcessor):
             selected_side = "right" if layout.red_right_above else "left"
             selected_u, selected_v = aims[selected_side]
 
-            det.extra.append(
-                KeyValue(key="aim_left_px", value=_format_pixel(aims["left"]))
-            )
-            det.extra.append(
-                KeyValue(key="aim_center_px", value=_format_pixel(aims["center"]))
-            )
-            det.extra.append(
-                KeyValue(key="aim_right_px", value=_format_pixel(aims["right"]))
-            )
+            det.extra.append(KeyValue(key="aim_left_px", value=_format_pixel(aims["left"])))
+            det.extra.append(KeyValue(key="aim_center_px", value=_format_pixel(aims["center"])))
+            det.extra.append(KeyValue(key="aim_right_px", value=_format_pixel(aims["right"])))
             det.extra.append(KeyValue(key="selected_aim", value=selected_side))
             det.extra.append(
-                KeyValue(
-                    key="red_right_above", value=str(layout.red_right_above).lower()
-                )
+                KeyValue(key="red_right_above", value=str(layout.red_right_above).lower())
             )
             det.extra.append(
                 KeyValue(
@@ -213,12 +201,8 @@ class GatePostProcessor(TaskPostProcessor):
 
             bearing_h = math.atan2(selected_u - k[0, 2], k[0, 0])
             bearing_v = math.atan2(selected_v - k[1, 2], k[1, 1])
-            det.extra.append(
-                KeyValue(key="aim_bearing_horizontal", value=f"{bearing_h:.6f}")
-            )
-            det.extra.append(
-                KeyValue(key="aim_bearing_vertical", value=f"{bearing_v:.6f}")
-            )
+            det.extra.append(KeyValue(key="aim_bearing_horizontal", value=f"{bearing_h:.6f}"))
+            det.extra.append(KeyValue(key="aim_bearing_vertical", value=f"{bearing_v:.6f}"))
             det.extra.append(
                 KeyValue(
                     key="aim_point_m",

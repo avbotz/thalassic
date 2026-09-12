@@ -32,7 +32,7 @@ position ──P──▶ body vel sp (±1 m/s) ──PID──▶ force  (±1) 
 - Altitude mode holds a distance off the floor: `down error = altitude −
   altitude_sp` (MCU `'b'` command → `Setpoint.altitude` flag).
 - Mixer: `sub_mix_data` ported byte-for-byte. Deriving the sign matrix from
-  Marlin V2's `THRUSTER_GEOMETRY` (sub_control/utils.cpp) and rotating
+  Marlin V3's `THRUSTER_GEOMETRY` (sub_control/utils.cpp) and rotating
   FLU→FRD reproduces the MCU matrix row-for-row in the same channel order, so
   the mixer output feeds `control/thruster_{0..7}` directly (±1 = ±400
   counts, the same scale as the MCU's `send_thrusts`).

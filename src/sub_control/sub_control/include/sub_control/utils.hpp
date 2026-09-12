@@ -20,9 +20,9 @@ class ThrusterAllocator {
 
     // Bounded weighted least-squares allocation. Higher axis weights preserve
     // those wrench components when the requested wrench is not fully achievable.
-    std::array<double, NUM_THRUSTERS> allocate(
-        const std::array<double, NUM_DOF>& wrench, double max_force,
-        const std::array<double, NUM_DOF>& axis_weights = {1.0, 1.0, 2.0, 2.0, 2.0, 1.5}) const;
+    std::array<double, NUM_THRUSTERS> allocate(const std::array<double, NUM_DOF>& wrench, double max_force,
+                                               const std::array<double, NUM_DOF>& axis_weights = {1.0, 1.0, 2.0, 2.0,
+                                                                                                  2.0, 1.5}) const;
 
     // Largest single-axis wrench magnitude reachable before any thruster hits
     // max_force, per DOF: max_force / max_t |A[t][dof]|. Used to size the inner
@@ -58,7 +58,6 @@ double norm_to_force(double normalized);
 // yaw] for R = Rz(yaw) * Ry(pitch) * Rx(roll). Unlike per-axis Euler differences
 // this stays in the same frame as the body angular-rate loop and has no gimbal
 // singularity, so it does not leak roll/pitch torque during large yaw moves.
-std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
-                                     const std::array<double, 3>& current_rpy);
+std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy, const std::array<double, 3>& current_rpy);
 
 #endif  // SUB_CONTROL_UTILS_HPP_

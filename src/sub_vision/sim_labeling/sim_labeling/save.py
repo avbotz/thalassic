@@ -9,11 +9,11 @@ This uses the segmentation camera's pixel-perfect silhouettes directly,
 which is more accurate than bounding box detection.
 """
 
+import time
+from pathlib import Path
+
 import cv2
 import numpy as np
-import time
-import os
-from pathlib import Path
 
 # Minimum contour area (in pixels) to keep an annotation.
 # Discard very small detections that are likely noise or distant objects.
@@ -65,9 +65,7 @@ def compute_segmentation_polygons(
             continue  # not a labeled prop
 
         mask = (seg_img == pv_int).astype(np.uint8)
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for cnt in contours:
             # Skip tiny contours

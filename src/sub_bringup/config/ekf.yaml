@@ -6,10 +6,9 @@
         # Waterlinked a50 DVL can output measurements at 4 Hz - 15 Hz
         sensor_timeout: 0.65
 
+        # map_frame is global; odom_frame, base_link_frame and world_frame are
+        # namespaced per vehicle and are set from robot_name by the launch file.
         map_frame: map
-        odom_frame: marlin_v2/odom
-        base_link_frame: marlin_v2/base_link
-        world_frame: marlin_v2/odom
 
         # Use relative measurements for yaw
         # AUV should always start at yaw = 0 when unkilled

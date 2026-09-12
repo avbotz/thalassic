@@ -12,6 +12,7 @@
 
 **/__pycache__/
 *.pyc
+.ruff_cache/
 
 weights/*
 !**/.gitkeep

@@ -1,0 +1,20 @@
+# FLIR Blackfly S GigE down camera. Driver tuning only; the serial number that
+# picks out this particular unit is in the vehicle description
+# (config/marlin_v3.yaml) because it changes when the camera is swapped.
+/**:
+  ros__parameters:
+    buffer_queue_size: 1
+    stream_buffer_handling_mode: "NewestOnly"
+
+    pixel_format: "BayerBG8"
+    gain_auto: "Continuous"
+    exposure_auto: "Off"
+    exposure_time: 2000.0
+    trigger_mode: "Off"
+    frame_rate_enable: true
+    frame_rate: 5.0
+
+    # The vehicle interface runs at MTU 9000 (deploy/jetson/netplan), so jumbo
+    # GigE packets are available. Raising this to 9000 cuts the per-packet
+    # overhead but has not been tested end to end yet.
+    gev_scps_packet_size: 1500

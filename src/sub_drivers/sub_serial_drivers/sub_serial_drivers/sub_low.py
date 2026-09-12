@@ -1,7 +1,7 @@
 import threading
 
-import serial
 import rclpy
+import serial
 from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
@@ -13,7 +13,6 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from std_msgs.msg import Bool, Float64
-
 from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
 NUM_THRUSTERS = 8
@@ -28,7 +27,7 @@ class SubLow(LifecycleNode):
 
         self.declare_parameter("device", "/dev/ttyACM0")
         # default values for usb VID/PID are those of maritime
-        self.declare_parameter("device_vid", 0x2fe3)
+        self.declare_parameter("device_vid", 0x2FE3)
         self.declare_parameter("device_pid", 0x0004)
         self.declare_parameter("baud", 115200)
         self.declare_parameter("serial_timeout", 1.0)
@@ -153,9 +152,7 @@ class SubLow(LifecycleNode):
                 self._serial.write(command.encode("ascii"))
             return True
         except (serial.SerialException, UnicodeEncodeError) as exc:
-            self.get_logger().warning(
-                f"serial write failed: {exc}", throttle_duration_sec=1.0
-            )
+            self.get_logger().warning(f"serial write failed: {exc}", throttle_duration_sec=1.0)
             return False
 
     def _reader_loop(self) -> None:
@@ -174,7 +171,7 @@ class SubLow(LifecycleNode):
 
             try:
                 self._handle_line(line)
-            except Exception:  # noqa: BLE001 - never let the reader thread die silently
+            except Exception:  # never let the reader thread die silently
                 self.get_logger().warn("error while handling serial line")
 
     def _handle_line(self, line: bytes) -> None:

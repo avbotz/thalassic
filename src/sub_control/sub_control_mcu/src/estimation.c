@@ -1,23 +1,19 @@
 /* Ported verbatim from Nautical-Private src/estimation.c. Unused by the
  * ROS node (the EKF supplies position), kept for library completeness. */
 
-#include <mec/util.h>
 #include <mec/estimation.h>
+#include <mec/util.h>
 
-void mec_vehicle_position_init(struct mec_vehicle_position *pos)
-{
-	/* local frame, so just initialize with the current position as 0 */
-	pos->north = 0;
-	pos->east = 0;
-	pos->down = 0;
-	pos->altitude = 0;
+void mec_vehicle_position_init(struct mec_vehicle_position *pos) {
+    /* local frame, so just initialize with the current position as 0 */
+    pos->north = 0;
+    pos->east = 0;
+    pos->down = 0;
+    pos->altitude = 0;
 }
 
-void mec_vehicle_position_update(struct mec_vehicle_velocity_body *vel,
-        float altitude,
-        struct mec_vehicle_position *pos,
-        struct mec_vehicle_attitude *att, float dt)
-{
+void mec_vehicle_position_update(struct mec_vehicle_velocity_body *vel, float altitude,
+                                 struct mec_vehicle_position *pos, struct mec_vehicle_attitude *att, float dt) {
     /*
      * Takes in relative velocity, converts to absolute velocity, and
      * multiplies by dt to get change in absolute position

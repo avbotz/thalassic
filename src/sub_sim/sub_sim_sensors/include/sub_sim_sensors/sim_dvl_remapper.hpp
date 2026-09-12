@@ -1,9 +1,9 @@
 #ifndef SIM_DVL_REMAPPER_HPP_
 #define SIM_DVL_REMAPPER_HPP_
 
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 
 class SimDVLRemapper : public rclcpp::Node {
    public:

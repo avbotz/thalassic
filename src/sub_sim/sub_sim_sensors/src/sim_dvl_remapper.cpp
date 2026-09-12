@@ -1,10 +1,10 @@
 #include "sub_sim_sensors/sim_dvl_remapper.hpp"
 #include <rclcpp/qos.hpp>
 
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 
 using std::placeholders::_1;
 

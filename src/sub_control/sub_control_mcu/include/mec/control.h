@@ -3,7 +3,7 @@
  *
  * Frame note for thalassic: sub_mix_data is expressed in FRD body axes
  * (x fwd, y right, z down, right-handed moments). Deriving the sign matrix
- * from Marlin V2's THRUSTER_GEOMETRY (sub_control/utils.cpp) and rotating it
+ * from Marlin V3's THRUSTER_GEOMETRY (sub_control/utils.cpp) and rotating it
  * FLU->FRD reproduces this exact matrix, row for row, in the same channel
  * order (0-3 vertical FL/FR/BL/BR, 4-7 horizontal FL/FR/BL/BR) -- so the MCU
  * mixer, propeller handedness included, drives thalassic's normalized
@@ -22,41 +22,41 @@ static const int NUM_DOF = 6;
 
 /* NED frame */
 struct mec_force_setpoint {
-	float forward;
-	float right;
-	float down;
+    float forward;
+    float right;
+    float down;
 };
 
 /* NED, right-handed */
 struct mec_torque_setpoint {
-	float roll;
-	float pitch;
-	float yaw;
+    float roll;
+    float pitch;
+    float yaw;
 };
 
 struct att_controller {
-	struct pid_controller pid[3];
+    struct pid_controller pid[3];
 
-	struct mec_vehicle_attitude att_sp;
+    struct mec_vehicle_attitude att_sp;
 };
 
 struct angvel_controller {
-	struct pid_controller pid[3];
+    struct pid_controller pid[3];
 
-	struct mec_vehicle_angvel angvel_sp;
+    struct mec_vehicle_angvel angvel_sp;
 };
 
 struct velocity_controller {
-	struct pid_controller pid[3];
+    struct pid_controller pid[3];
 
-	struct mec_vehicle_velocity_body velocity_sp;
+    struct mec_vehicle_velocity_body velocity_sp;
 };
 
 struct position_controller {
-	struct pid_controller pid[3];
+    struct pid_controller pid[3];
 
-	struct mec_vehicle_position position_sp;
-	bool use_floor_altitude;
+    struct mec_vehicle_position position_sp;
+    bool use_floor_altitude;
 };
 
 /*
@@ -75,40 +75,40 @@ struct position_controller {
  *  The propeller config is right left left right right left left right
  *  in the same order as the thrusters in the rows.
  */
-static const float sub_mix_data[8][6] =
-{
-	{ 0.00, 0.00, 1.00, -1.0, -1.0, 0.00},
-	{ 0.00, 0.00, -1.0, -1.0, 1.00, 0.00},
-	{ 0.00, 0.00, -1.0, 1.00, -1.0, 0.00},
-	{ 0.00, 0.00, 1.00, 1.00, 1.00, 0.00},
-	{ 1.00, 1.00, 0.00, 0.00, 0.00, 1.00},
-	{ -1.0, 1.00, 0.00, 0.00, 0.00, 1.00},
-	{ -1.0, 1.00, 0.00, 0.00, 0.00, -1.0},
-	{ 1.00, 1.00, 0.00, 0.00, 0.00, -1.0},
+// clang-format off
+static const float sub_mix_data[8][6] = {
+    {0.00, 0.00, 1.00, -1.0, -1.0, 0.00},
+    {0.00, 0.00, -1.0, -1.0, 1.00, 0.00},
+    {0.00, 0.00, -1.0, 1.00, -1.0, 0.00},
+    {0.00, 0.00, 1.00, 1.00, 1.00, 0.00},
+    {1.00, 1.00, 0.00, 0.00, 0.00, 1.00},
+    {-1.0, 1.00, 0.00, 0.00, 0.00, 1.00},
+    {-1.0, 1.00, 0.00, 0.00, 0.00, -1.0},
+    {1.00, 1.00, 0.00, 0.00, 0.00, -1.0},
 };
+// clang-format on
 
-void mec_mix(struct mec_force_setpoint *force_sp, struct mec_torque_setpoint *torque_sp,
-		float mix[8][6], float power, float *thruster_outputs);
+void mec_mix(struct mec_force_setpoint *force_sp, struct mec_torque_setpoint *torque_sp, float mix[8][6], float power,
+             float *thruster_outputs);
 
 void att_controller_init(struct att_controller *ctrl);
 void att_controller_update_sp(struct att_controller *ctrl, struct mec_vehicle_attitude *att_sp);
 void att_controller_update(struct att_controller *ctrl, struct mec_vehicle_attitude *att,
-		struct mec_vehicle_angvel *output, float dt);
+                           struct mec_vehicle_angvel *output, float dt);
 
 void angvel_controller_init(struct angvel_controller *ctrl);
-void angvel_controller_update_sp(struct angvel_controller *ctrl,
-		struct mec_vehicle_angvel *angvel_sp);
+void angvel_controller_update_sp(struct angvel_controller *ctrl, struct mec_vehicle_angvel *angvel_sp);
 void angvel_controller_update(struct angvel_controller *ctrl, struct mec_vehicle_angvel *angvel,
-		struct mec_torque_setpoint *output, float dt);
+                              struct mec_torque_setpoint *output, float dt);
 
 void position_controller_init(struct position_controller *ctrl);
 void position_controller_update_sp(struct position_controller *ctrl, struct mec_vehicle_position *pos_sp);
 void position_controller_update(struct position_controller *ctrl, struct mec_vehicle_position *pos,
-		struct mec_vehicle_attitude *att, struct mec_vehicle_velocity_body *output, float dt);
+                                struct mec_vehicle_attitude *att, struct mec_vehicle_velocity_body *output, float dt);
 
 void velocity_controller_init(struct velocity_controller *ctrl);
 void velocity_controller_update_sp(struct velocity_controller *ctrl, struct mec_vehicle_velocity_body *vel_sp);
 void velocity_controller_update(struct velocity_controller *ctrl, struct mec_vehicle_velocity_body *vel,
-		struct mec_force_setpoint *output, float dt);
+                                struct mec_force_setpoint *output, float dt);
 
 #endif /* _MARITIME_EC_CONTROL_H */
