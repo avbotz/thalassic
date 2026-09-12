@@ -9,14 +9,14 @@
 #define _MARITIME_EC_PID_CONTROLLER_H
 
 struct pid_controller {
-	/* PID gains (proportional, integral, derivative) */
-	float kp, ti, td;
+    /* PID gains (proportional, integral, derivative) */
+    float kp, ti, td;
 
-	/* previous error, used for derivative term */
-	float prev_error;
+    /* previous error, used for derivative term */
+    float prev_error;
 
-	/* sum of errors, used for integral term */
-	float integral;
+    /* sum of errors, used for integral term */
+    float integral;
 };
 
 void pid_set_gains(struct pid_controller *pid, float kp, float ti, float td);

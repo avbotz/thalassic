@@ -168,7 +168,9 @@ class DeepSeeColorProcessor:
         self.is_initialized = True
         corrected = torch.clamp(corrected.detach(), 0.0, 1.0)
         if corrected.shape[-2:] != original_size:
-            corrected = F.interpolate(corrected, size=original_size, mode="bilinear", align_corners=False)
+            corrected = F.interpolate(
+                corrected, size=original_size, mode="bilinear", align_corners=False
+            )
 
         return corrected, DeepSeeColorStats(
             backscatter_loss=float(backscatter_loss.detach().cpu()),

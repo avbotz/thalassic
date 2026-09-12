@@ -5,7 +5,7 @@
 namespace {
 
 // Topic/service names are relative, so they resolve inside the node's
-// namespace (e.g. /marlin_v2/...) — the same convention sub_vision uses.
+// namespace (e.g. /marlin_v3/...) — the same convention sub_vision uses.
 struct CameraSpec {
     const char *name;
     const char *detections_topic;
@@ -19,8 +19,7 @@ constexpr CameraSpec kCameras[] = {
 
 }  // namespace
 
-VisionClient::VisionClient(rclcpp::Node &node)
-{
+VisionClient::VisionClient(rclcpp::Node &node) {
     for (const CameraSpec &spec : kCameras) {
         Source &source = sources_[spec.name];
         camera_names_.push_back(spec.name);
@@ -35,39 +34,29 @@ VisionClient::VisionClient(rclcpp::Node &node)
                 src.snapshot.received_at = std::chrono::steady_clock::now();
             });
 
-        source.load_model_client =
-            node.create_client<sub_vision_interfaces::srv::LoadModel>(spec.load_model_service);
+        source.load_model_client = node.create_client<sub_vision_interfaces::srv::LoadModel>(spec.load_model_service);
     }
 }
 
-std::vector<std::string> VisionClient::cameras() const
-{
-    return camera_names_;
-}
+std::vector<std::string> VisionClient::cameras() const { return camera_names_; }
 
-bool VisionClient::hasCamera(const std::string &camera) const
-{
-    return sources_.find(camera) != sources_.end();
-}
+bool VisionClient::hasCamera(const std::string &camera) const { return sources_.find(camera) != sources_.end(); }
 
-VisionClient::Snapshot VisionClient::latest(const std::string &camera) const
-{
+VisionClient::Snapshot VisionClient::latest(const std::string &camera) const {
     const std::lock_guard<std::mutex> lock(mutex_);
     const auto it = sources_.find(camera);
     return it != sources_.end() ? it->second.snapshot : Snapshot{};
 }
 
-rclcpp::Client<sub_vision_interfaces::srv::LoadModel>::SharedPtr
-VisionClient::loadModelClient(const std::string &camera) const
-{
+rclcpp::Client<sub_vision_interfaces::srv::LoadModel>::SharedPtr VisionClient::loadModelClient(
+    const std::string &camera) const {
     const auto it = sources_.find(camera);
     return it != sources_.end() ? it->second.load_model_client : nullptr;
 }
 
 const sub_vision_interfaces::msg::Detection *VisionClient::bestMatch(
-    const sub_vision_interfaces::msg::DetectionArray &array, const std::string &task,
-    const std::string &class_id, const double min_score)
-{
+    const sub_vision_interfaces::msg::DetectionArray &array, const std::string &task, const std::string &class_id,
+    const double min_score) {
     if (!task.empty() && array.task != task) {
         return nullptr;
     }

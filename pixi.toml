@@ -1,5 +1,5 @@
 # Everything the workspace needs is declared here and pinned in pixi.lock.
-# Nothing is installed with apt or pip by hand.
+# Nothing is installed with apt or pip.
 #
 #   pixi run build      colcon build
 #   pixi run sim        ros2 launch sub_bringup sim_launch.py
@@ -8,15 +8,14 @@
 [workspace]
 name = "thalassic"
 version = "0.1.0"
-description = "ROS 2 Jazzy stack for AVBotz's Marlin V2 AUV"
+description = "ROS 2 Jazzy stack for AVBotz's Marlin V3 AUV"
 channels = ["https://prefix.dev/robostack-jazzy", "https://prefix.dev/conda-forge"]
 # linux-64: developer machines and CI. linux-aarch64: the Jetson AGX Orin.
 platforms = ["linux-64", "linux-aarch64"]
 requires-pixi = ">=0.50"
 
 [dependencies]
-# Pinned to the Jetson's system interpreter (Ubuntu 24.04) so JetPack-only
-# modules such as tensorrt can be bridged into this environment on the vehicle.
+# Pinned to the Jetson's system interpreter (Ubuntu 24.04) so JetPack-only modules such as tensorrt can be bridged into this environment on the vehicle.
 python = "3.12.*"
 
 # --- build tooling ---
@@ -28,9 +27,6 @@ git = "*"
 colcon-common-extensions = "*"
 
 ros-jazzy-ros-base = "*"
-ros-jazzy-ament-lint-auto = "*"
-ros-jazzy-ament-lint-common = "*"
-ros-jazzy-ament-cmake-clang-format = "*"     # spinnaker_camera_driver test dependency
 ros-jazzy-ament-cmake-vendor-package = "*"   # stonefish_vendor
 ros-jazzy-eigen3-cmake-module = "*"          # libwaterlinked
 ros-jazzy-generate-parameter-library = "*"   # waterlinked_dvl_driver
@@ -77,7 +73,10 @@ torchvision = "*"                            # ultralytics imports it
 kornia = "*"                                 # sub_color_correction
 onnxruntime = "*"                            # sub_vision inference off the Jetson
 ultralytics = "*"                            # model export / run_gate_model
-pytest = "*"
+
+# lint and format
+ruff = ">=0.16.6,<0.17"          # Python: formatter and linter
+clang-format = ">=23.1.0,<24"    # C/C++: formatter, reads .clang-format
 
 # Environment activation: workspace overlay, DDS profile, FLIR GenTL path
 [activation]
@@ -88,6 +87,8 @@ build = { cmd = "colcon build", description = "Build the workspace (colcon_defau
 clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
 prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
 test = { cmd = "colcon test && colcon test-result --verbose", description = "Run colcon tests" }
+format = { cmd = "scripts/format.sh", description = "Format all Python and C/C++ in src/ (excludes submodules)" }
+lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }
 sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation (append launch args, e.g. seed:=42)" }
 pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
 reset-dds = { cmd = "pkill -f ros2 || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Kill stray ROS processes and stale Fast DDS shared memory (Linux)" }

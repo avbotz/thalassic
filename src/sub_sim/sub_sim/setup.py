@@ -1,4 +1,5 @@
 import os
+
 from setuptools import find_packages, setup
 
 package_name = "sub_sim"
@@ -7,7 +8,7 @@ package_name = "sub_sim"
 # Source - https://stackoverflow.com/a/65432634
 def generate_data_files(data_dir: str) -> list[tuple[str, list[str]]]:
     data_files: list[tuple[str, list[str]]] = []
-    for path, dirs, files in os.walk(data_dir):
+    for path, _dirs, files in os.walk(data_dir):
         install_dir = f"share/{package_name}/" + path
         list_entry = (install_dir, [os.path.join(path, f) for f in files if not f.startswith(".")])
         data_files.append(list_entry)

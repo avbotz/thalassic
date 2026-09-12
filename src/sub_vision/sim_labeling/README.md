@@ -77,7 +77,7 @@ Scenario object names are assigned to classes by prefix matching in
 | `ladle_yellow` | `ladle_yellow` |
 | `woollett_` | `background` |
 | `natatorium_` | `background` |
-| `marlin_v2/` | `background` |
+| `marlin_v3/` | `background` |
 
 Prefix order matters. If two prefixes can match the same object name, the first
 entry in `get_default_prop_definitions()` wins.

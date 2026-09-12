@@ -1,9 +1,8 @@
 import rclpy
-from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
-from sensor_msgs.msg import Imu
-
 import serial
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+from sensor_msgs.msg import Imu
 
 MAX_RX_BUFFER = 4096
 GYRO_SCALE_TO_RAD_PER_SEC = 1.0
@@ -55,34 +54,54 @@ class NaviGuiderIMUDriver(LifecycleNode):
             # timeout=0 -> non-blocking reads, so read() returns immediately
             # with whatever bytes are currently buffered.
             self._serial = serial.Serial(port=device, baudrate=baud, timeout=0)
-        except Exception as exc:  # noqa: BLE001 - report any open/config failure
+        except Exception as exc:  # report any open/config failure
             self.get_logger().error(f"could not open serial: {exc}")
             return TransitionCallbackReturn.FAILURE
 
         self.get_logger().info(f"naviguider_imu connected to {device} @ {baud} baud")
 
         self._imu_msg.orientation_covariance = [
-            6.801009e-04, -2.957911e-04, -4.988638e-05,
-            -2.957911e-04, 6.518145e-04, 1.541138e-05,
-            -4.988638e-05, 1.541138e-05, 1.107581e-05,
+            6.801009e-04,
+            -2.957911e-04,
+            -4.988638e-05,
+            -2.957911e-04,
+            6.518145e-04,
+            1.541138e-05,
+            -4.988638e-05,
+            1.541138e-05,
+            1.107581e-05,
         ]
         self._imu_msg.angular_velocity_covariance = [
-            2.234328e-06, 3.029158e-07, -2.190460e-08,
-            3.029158e-07, 1.560898e-05, 2.350362e-06,
-            -2.190460e-08, 2.350362e-06, 2.446427e-06,
+            2.234328e-06,
+            3.029158e-07,
+            -2.190460e-08,
+            3.029158e-07,
+            1.560898e-05,
+            2.350362e-06,
+            -2.190460e-08,
+            2.350362e-06,
+            2.446427e-06,
         ]
         self._imu_msg.linear_acceleration_covariance = [
-            1e-2, 0.0, 0.0,
-            0.0, 1e-2, 0.0,
-            0.0, 0.0, 1e-2,
+            1e-2,
+            0.0,
+            0.0,
+            0.0,
+            1e-2,
+            0.0,
+            0.0,
+            0.0,
+            1e-2,
         ]
 
         self._imu_pub = self.create_lifecycle_publisher(
-            Imu, "imu/data", QoSProfile(
+            Imu,
+            "imu/data",
+            QoSProfile(
                 reliability=QoSReliabilityPolicy.RELIABLE,
                 history=QoSHistoryPolicy.KEEP_LAST,
-                depth=10
-            )
+                depth=10,
+            ),
         )
 
         self._poll_timer = self.create_timer(0.005, self._poll_timer_callback)

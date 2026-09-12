@@ -1,0 +1,37 @@
+#!/bin/sh
+# Drive every Jetson fan at full speed. Installed at /usr/local/sbin/thalassic-fan-max and run at boot by thalassic-fan.service.
+
+set -eu
+
+found=0
+
+for hwmon in /sys/class/hwmon/hwmon*; do
+    [ -r "$hwmon/name" ] || continue
+    case "$(cat "$hwmon/name")" in
+        *fan*) ;;
+        *) continue ;;
+    esac
+    # pwm1, pwm2, ... only - not pwm1_enable or pwm1_max.
+    for pwm in "$hwmon"/pwm[0-9]; do
+        [ -w "$pwm" ] || continue
+        # Some drivers gate manual control behind pwmN_enable: 1 is manual.
+        if [ -w "${pwm}_enable" ]; then
+            echo 1 > "${pwm}_enable"
+        fi
+        echo 255 > "$pwm"          # pwm-fan takes 0-255; 255 is full speed
+        echo "  ${pwm} = 255"
+        found=$((found + 1))
+    done
+done
+
+# Older Jetson kernels expose the fan here instead of through hwmon.
+if [ "$found" -eq 0 ] && [ -w /sys/devices/pwm-fan/target_pwm ]; then
+    echo 255 > /sys/devices/pwm-fan/target_pwm
+    echo "  /sys/devices/pwm-fan/target_pwm = 255"
+    found=1
+fi
+
+if [ "$found" -eq 0 ]; then
+    echo "no fan PWM control found under /sys" >&2
+    exit 1
+fi

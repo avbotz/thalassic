@@ -1,6 +1,6 @@
 # sub_vision
 
-Perception for the Marlin V2 AUV: YOLOv10 detection with per-task OpenCV
+Perception for the Marlin V3 AUV: YOLOv10 detection with per-task OpenCV
 post-processing. Inference runs through
 **TensorRT** (serialized engine) or **ONNX Runtime**; pre-processing
 (letterbox) and post-processing (decode + box rescaling) live in
@@ -29,7 +29,7 @@ The input topics are plain parameters, so there are **no `if sim:` branches and
 no bridge nodes** — each launch file points the node at its camera source and
 `cv_bridge` normalizes any 8-bit color encoding to `bgr8` on receipt.
 
-All topics are relative to the node namespace (e.g. `/marlin_v2`):
+All topics are relative to the node namespace (e.g. `/marlin_v3`):
 
 | Topic (parameter) | Type | Notes |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ All topics are relative to the node namespace (e.g. `/marlin_v2`):
 | Launch file | Camera | Parameter override |
 | --- | --- | --- |
 | `sim_launch.py` | Stonefish `front_camera` | `rgb_topic: front_camera/image_color` (rgb8) |
-| `pool_test_launch.py` | Logitech C922 via `usb_cam` | `rgb_topic: front_camera/image_raw` (OAK-D driver block present but commented out) |
+| `pool_test_launch.py` | Logitech C922 via `usb_cam` | `rgb_topic: front_camera/image_raw` |
 
 The depth camera is **not** used: `sub_vision` subscribes to RGB only.
 Bounding boxes, bearings, and `pose` are expressed in the camera **optical**
@@ -63,7 +63,7 @@ fails fast at startup.
 `sub_vision` keeps **one** model resident. Swap it at runtime via the service:
 
 ```bash
-ros2 service call /marlin_v2/sub_vision/load_model \
+ros2 service call /marlin_v3/sub_vision/load_model \
     sub_vision_interfaces/srv/LoadModel "{task: 'gate'}"
 ```
 

@@ -1,154 +1,84 @@
+"""Bring the stack up on the vehicle.
+
+Everything specific to the hull - device names, the down camera's serial
+number, mounting geometry - comes from sub_bringup/config/<robot_name>.yaml
+via sub_bringup.vehicle.
+"""
+
 from launch import LaunchDescription
-from launch.actions import (
-    DeclareLaunchArgument,
-    IncludeLaunchDescription,
-    RegisterEventHandler,
-)
-from launch.conditions import IfCondition
-from launch.event_handlers import OnProcessExit
-from launch.substitutions import (
-    LaunchConfiguration,
-    NotEqualsSubstitution,
-    PathJoinSubstitution,
-)
+from launch.actions import OpaqueFunction
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import LifecycleNode, Node
-from launch_ros.actions.node import ExecuteProcess
 from launch_ros.substitutions import FindPackageShare
-
+from sub_bringup.entities import common_launch_include, package_config, vision_node
 from sub_bringup.launch_utils import lifecycle_startup
+from sub_bringup.vehicle import Vehicle, load_vehicle
 
 
-def camera_entities():
+def camera_entities(vehicle: Vehicle) -> list[Node]:
     blackfly_camera_driver = Node(
         package="spinnaker_camera_driver",
         executable="camera_driver_node",
-        namespace=LaunchConfiguration("robot_name"),
-        output="both",
         name="blackfly",
+        namespace=vehicle.name,
+        output="both",
         parameters=[
+            package_config("sub_bringup", "blackfly_down.yaml"),
             {
-                "buffer_queue_size": 1,
-                "serial_number": "16359776",
-                "gain_auto": "Continuous",
-                "pixel_format": "BayerBG8",
-                "exposure_auto": "Off",
-                "exposure_time": 2e3,
-                "frame_rate_enable": True,
-                "frame_rate": 5.0,
-                "trigger_mode": "Off",
-                "stream_buffer_handling_mode": "NewestOnly",
-                # TODO: Figure out how to get everything working with packet size of 9000
-                "gev_scps_packet_size": 1500,
-
-                "frame_id": [LaunchConfiguration("robot_name"), "/down_camera"],
+                "serial_number": vehicle.camera("down")["serial_number"],
+                "frame_id": vehicle.frame("down_camera"),
                 "parameter_file": PathJoinSubstitution(
-                    [
-                        FindPackageShare("spinnaker_camera_driver"),
-                        "config",
-                        "blackfly.yaml",
-                    ]
+                    [FindPackageShare("spinnaker_camera_driver"), "config", "blackfly.yaml"]
                 ),
             },
         ],
     )
 
-    # oak_driver_node = Node(
-    #     package="depthai_ros_driver_v3",
-    #     executable="driver_node",
-    #     name="oak",
-    #     namespace=LaunchConfiguration("robot_name"),
-    #     output="screen",
-    #     parameters=[
-    #         PathJoinSubstitution(
-    #             [
-    #                 FindPackageShare("sub_bringup"),
-    #                 "config/oak_d_pro.yaml",
-    #             ]
-    #         ),
-    #     ],
-    # )
-
     logitech_c922_driver = Node(
         package="usb_cam",
         executable="usb_cam_node_exe",
-        output="log",
         name="logitech_c922_driver",
-        namespace=[LaunchConfiguration("robot_name"), "/front_camera"],
+        namespace=f"{vehicle.name}/front_camera",
+        output="log",
         parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config/logitech_c922.yaml",
-                ]
-            ),
-        ],
-    )
-
-    return [
-        blackfly_camera_driver,
-        # Depth camera not on marlin
-        # oak_driver_node,
-        logitech_c922_driver,
-    ]
-
-
-def vision_entities():
-    sub_vision_node = Node(
-        package="sub_vision",
-        executable="sub_vision",
-        name="sub_vision",
-        namespace=LaunchConfiguration("robot_name"),
-        output="screen",
-        parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_vision"),
-                    "config/sub_vision.yaml",
-                ]
-            ),
-            # Logitech C922 front camera via usb_cam. Switch image_transport
-            # to "compressed" when running vision off-board.
+            package_config("sub_bringup", "logitech_c922.yaml"),
             {
-                "rgb_topic": "front_camera/image_raw",
-                "camera_info_topic": "front_camera/camera_info",
-                "image_transport": "raw",
+                "video_device": vehicle.camera("front")["video_device"],
+                "frame_id": vehicle.frame("front_camera"),
             },
         ],
     )
 
-    return [sub_vision_node]
+    return [blackfly_camera_driver, logitech_c922_driver]
 
 
-def control_and_state_entities():
+def driver_entities(vehicle: Vehicle) -> list:
     waterlinked_dvl_driver_node = LifecycleNode(
         package="waterlinked_dvl_driver",
         executable="waterlinked_dvl_driver",
         name="waterlinked_dvl_driver",
-        namespace=LaunchConfiguration("robot_name"),
+        namespace=vehicle.name,
         output="both",
         parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config/dvl.yaml",
-                ]
-            ),
+            package_config("sub_bringup", "dvl.yaml"),
+            {
+                "ip_address": vehicle.dvl_address(),
+                "frame_id": vehicle.frame("dvl_link"),
+            },
         ],
-        remappings=[
-            ("~/odom", "odometry/dvl"),
-        ],
+        remappings=[("~/odom", "odometry/dvl")],
     )
 
     sub_low_node = LifecycleNode(
         package="sub_serial_drivers",
         executable="sub_low",
         name="sub_low",
-        namespace=LaunchConfiguration("robot_name"),
+        namespace=vehicle.name,
         parameters=[
             {
-                "device": "/dev/pico",
-                "depth_frame_id": [LaunchConfiguration("robot_name"), "/odom"],
-                "depth_child_frame_id": [LaunchConfiguration("robot_name"), "/depth_link"],
+                "device": vehicle.device("maritime_mcu"),
+                "depth_frame_id": vehicle.frame("odom"),
+                "depth_child_frame_id": vehicle.frame("depth_link"),
             }
         ],
     )
@@ -157,141 +87,36 @@ def control_and_state_entities():
         package="sub_serial_drivers",
         executable="naviguider_imu_driver",
         name="naviguider_imu_driver",
-        namespace=LaunchConfiguration("robot_name"),
+        namespace=vehicle.name,
         output="both",
-        parameters=[{"device": "/dev/naviguider_imu", "frame_id": "marlin_v2/imu_link"}],
-    )
-
-    robot_localization_node = Node(
-        package="robot_localization",
-        executable="ekf_node",
-        name="ekf_filter_node",
-        output="both",
-        namespace=LaunchConfiguration("robot_name"),
         parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config/ekf.yaml",
-                ]
-            ),
+            {
+                "device": vehicle.device("imu"),
+                "frame_id": vehicle.frame("imu_link"),
+            }
         ],
     )
-
-    sub_control_node = Node(
-        package="sub_control",
-        executable="sub_control",
-        name="sub_control",
-        output="both",
-        namespace=LaunchConfiguration("robot_name"),
-        parameters=[
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("sub_bringup"),
-                    "config/control_gains.yaml",
-                ]
-            ),
-            {"robot_name": LaunchConfiguration("robot_name")}
-        ],
-    )
-
-
-    # sub_control_mcu_node = Node(
-    #     package="sub_control_mcu",
-    #     executable="sub_control_mcu",
-    #     name="sub_control_mcu",
-    #     output="both",
-    #     namespace=LaunchConfiguration("robot_name"),
-    #     parameters=[
-    #         PathJoinSubstitution(
-    #             [
-    #                 FindPackageShare("sub_control_mcu"),
-    #                 "config/control_gains_mcu.yaml",
-    #             ]
-    #         ),
-    #         {"robot_name": LaunchConfiguration("robot_name")}
-    #     ],
-    # )
 
     return [
-        robot_localization_node,
-        sub_control_node,
-        # sub_control_mcu_node,
         *lifecycle_startup(waterlinked_dvl_driver_node),
         *lifecycle_startup(naviguider_imu_driver_node),
         *lifecycle_startup(sub_low_node),
     ]
 
 
-def foxglove_entities() -> list:
-    clear_port = ExecuteProcess(
-        cmd=["fuser", "-k", "8765/tcp"],  # free port 8765
-        output="screen",
-    )
-
-    foxglove_bridge_node = Node(
-        package="foxglove_bridge",
-        executable="foxglove_bridge",
-        name="foxglove_bridge",
-        parameters=[
-            {
-                "port": 8765,
-                "use_compression": True,
-            }
-        ],
-        ros_arguments=["--disable-stdout-logs"],
-    )
-
-    bridge_after_port_clear = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=clear_port,
-            on_exit=[foxglove_bridge_node],
-        )
-    )
-
-    return [clear_port, bridge_after_port_clear]
+def _vehicle_entities(context, *_, **__):
+    """Entities that need the vehicle description, so robot_name must be resolved first."""
+    vehicle = load_vehicle(LaunchConfiguration("robot_name").perform(context))
+    return [*driver_entities(vehicle), *camera_entities(vehicle)]
 
 
 def generate_launch_description():
-    declare_robot_name = DeclareLaunchArgument("robot_name", default_value="marlin_v2")
-
-    # Empty (the default) brings the stack up without a mission; pass
-    # mission:=<name or path> to also run the mission executive, e.g.
-    #   ros2 launch sub_bringup pool_test_launch.py mission:=pool_test
-    declare_mission = DeclareLaunchArgument(
-        "mission",
-        default_value="",
-        description="Mission tree to execute (resources/missions/<name>.xml or a path); empty skips sub_mission",
-    )
-
-    include_transforms = IncludeLaunchDescription(
-        PathJoinSubstitution(
-            [
-                FindPackageShare("sub_bringup"),
-                "launch",
-                [LaunchConfiguration("robot_name"), "_launch.py"],
-            ]
-        )
-    )
-
-    sub_mission_node = Node(
-        package="sub_mission",
-        executable="mission",
-        output="screen",
-        namespace=LaunchConfiguration("robot_name"),
-        parameters=[{"mission": LaunchConfiguration("mission")}],
-        condition=IfCondition(NotEqualsSubstitution(LaunchConfiguration("mission"), "")),
-    )
-
     return LaunchDescription(
         [
-            declare_robot_name,
-            declare_mission,
-            include_transforms,
-            sub_mission_node,
-            *control_and_state_entities(),
-            *camera_entities(),
-            *vision_entities(),
-            *foxglove_entities(),
+            # Transforms, EKF, controller, mission executive, Foxglove bridge.
+            *common_launch_include("control_gains.yaml"),
+            OpaqueFunction(function=_vehicle_entities),
+            # The Logitech C922 publishes image_raw through usb_cam.
+            vision_node("sub_vision", "sub_vision.yaml", "front_camera", "image_raw"),
         ]
     )

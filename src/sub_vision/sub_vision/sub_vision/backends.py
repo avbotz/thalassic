@@ -1,5 +1,5 @@
-import os
 import ast
+import os
 from abc import ABC, abstractmethod
 
 import cv2
@@ -35,9 +35,8 @@ class DetectionBackend(ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027  (an optional hook, not an abstract method)
         """Release backend resources. Default is a no-op."""
-        pass
 
     @abstractmethod
     def _run(self, blob: np.ndarray) -> np.ndarray:
@@ -50,18 +49,14 @@ class DetectionBackend(ABC):
         raw_output = self._run(blob)
         return self._postprocess(raw_output, gain, pad, image_bgr.shape[:2])
 
-    def _preprocess(
-        self, image_bgr: MatLike
-    ) -> tuple[np.ndarray, float, tuple[int, int]]:
+    def _preprocess(self, image_bgr: MatLike) -> tuple[np.ndarray, float, tuple[int, int]]:
         """Letterbox and normalize image to network input size."""
         h, w = image_bgr.shape[:2]
         gain = min(self.input_size / h, self.input_size / w)
 
         new_w, new_h = int(round(w * gain)), int(round(h * gain))
         if (new_w, new_h) != (w, h):
-            image_bgr = cv2.resize(
-                image_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR
-            )
+            image_bgr = cv2.resize(image_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
         # Center the image
         pad_x, pad_y = (self.input_size - new_w) / 2, (self.input_size - new_h) / 2
@@ -151,9 +146,7 @@ class DetectionBackend(ABC):
         idx = np.asarray(idx).flatten()
         xyxy = np.hstack([x1y1, x1y1 + xywh[:, 2:]])
 
-        return np.hstack(
-            [xyxy[idx], confs[idx, None], cls_ids[idx, None].astype(np.float32)]
-        )
+        return np.hstack([xyxy[idx], confs[idx, None], cls_ids[idx, None].astype(np.float32)])
 
 
 class OnnxBackend(DetectionBackend):
@@ -161,9 +154,7 @@ class OnnxBackend(DetectionBackend):
 
     name = "onnxruntime"
 
-    def __init__(
-        self, onnx_path: str, device: str, input_size: int, conf_threshold: float
-    ):
+    def __init__(self, onnx_path: str, device: str, input_size: int, conf_threshold: float):
         import onnxruntime as ort
 
         providers = (
@@ -231,18 +222,12 @@ class TensorRTBackend(DetectionBackend):
         self._context = self._engine.create_execution_context()
 
         # Identify input and output tensor names
-        names = [
-            self._engine.get_tensor_name(i) for i in range(self._engine.num_io_tensors)
-        ]
+        names = [self._engine.get_tensor_name(i) for i in range(self._engine.num_io_tensors)]
         self._input_name = next(
-            n
-            for n in names
-            if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.INPUT
+            n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.INPUT
         )
         self._output_name = next(
-            n
-            for n in names
-            if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.OUTPUT
+            n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.OUTPUT
         )
 
         # Handle dynamic vs static shapes
@@ -369,17 +354,14 @@ def build_backend(
             if device_pref != "auto"
             else (
                 "cuda"
-                if "CUDAExecutionProvider"
-                in __import__("onnxruntime").get_available_providers()
+                if "CUDAExecutionProvider" in __import__("onnxruntime").get_available_providers()
                 else "cpu"
             )
         )
         backend = OnnxBackend(onnx_path, device, input_size, conf_threshold)
 
     else:
-        raise ValueError(
-            f"Unknown backend '{backend_pref}' (auto|tensorrt|onnxruntime)"
-        )
+        raise ValueError(f"Unknown backend '{backend_pref}' (auto|tensorrt|onnxruntime)")
 
     log(f"Loaded '{backend.name}' backend on device '{device}' for task '{task}'")
     return backend

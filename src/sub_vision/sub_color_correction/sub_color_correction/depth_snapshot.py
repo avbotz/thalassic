@@ -56,7 +56,7 @@ def _normalize_depth(depth, min_depth, max_depth):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Save a normalized depth image PNG.")
-    parser.add_argument("--topic", default="/marlin_v2/oak/stereo/image_raw")
+    parser.add_argument("--topic", default="/marlin_v3/oak/stereo/image_raw")
     parser.add_argument("--save", default="debug_outputs/depth_snapshot.png")
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--min-depth", type=float, default=None)

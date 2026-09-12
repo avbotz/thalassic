@@ -1,0 +1,16 @@
+# Installed at /etc/systemd/system/thalassic-fan.service.
+[Unit]
+Description=Thalassic: Jetson fan at full speed
+Documentation=https://github.com/avbotz/thalassic/blob/main/deploy/jetson/README.md
+# Must disable nvfancontrol to manually control fan speed
+After=nvfancontrol.service
+Conflicts=nvfancontrol.service
+ConditionPathExists=/usr/local/sbin/thalassic-fan-max
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/thalassic-fan-max
+
+[Install]
+WantedBy=multi-user.target

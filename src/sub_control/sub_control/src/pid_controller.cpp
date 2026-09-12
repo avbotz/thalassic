@@ -3,8 +3,7 @@
 #include <cmath>
 #include <span>
 
-PID_Controller::PID_Controller(double kp, double ki, double kd)
-    : kp_{kp}, ki_{ki}, kd_{kd}, output_limit_{0.0} {}
+PID_Controller::PID_Controller(double kp, double ki, double kd) : kp_{kp}, ki_{ki}, kd_{kd}, output_limit_{0.0} {}
 
 PID_Controller::PID_Controller(double kp, double ki, double kd, double output_limit)
     : kp_{kp}, ki_{ki}, kd_{kd}, output_limit_{output_limit} {}
@@ -56,7 +55,6 @@ void PID_Controller::configure(std::span<const double> params) {
 
     reset();
 }
-
 
 double PID_Controller::update(double measurement, double error, double dt) {
     dt = std::max(0.0, dt);

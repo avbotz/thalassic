@@ -13,17 +13,15 @@ It ignores sensors/actuators/ROS and Stonefish hydrodynamics tags.
 # While it has been tested and reviewed, it may contain subtle bugs.
 # Review the generated urdf file carefully after changing any robot's layout.scn.j2.
 
+import math
 import os
 import sys
-import math
 import tempfile
-from pathlib import Path
-from dataclasses import dataclass
 import typing
-
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from pathlib import Path
 from xml.dom import minidom
-
 
 Vec3 = tuple[float, float, float]
 Mat3 = list[list[float]]
@@ -89,9 +87,7 @@ def _rpy_to_mat(r: float, p: float, y: float) -> Mat3:
 
 
 def _mat_mul(A: Mat3, B: Mat3) -> Mat3:
-    return [
-        [sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)
-    ]
+    return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
 
 
 def _mat_vec(A: Mat3, v: Vec3) -> Vec3:
@@ -224,9 +220,7 @@ def _add_visual_or_collision(
     # origin (pose of geometry w.r.t link frame)
     rpy = _mat_to_rpy(origin_T.R)
     if any(abs(x) > 1e-12 for x in origin_T.t) or any(abs(a) > 1e-12 for a in rpy):
-        ET.SubElement(
-            top, "origin", {"xyz": _fmt_vec(origin_T.t), "rpy": _fmt_vec(rpy)}
-        )
+        ET.SubElement(top, "origin", {"xyz": _fmt_vec(origin_T.t), "rpy": _fmt_vec(rpy)})
 
     geom = ET.SubElement(top, "geometry")
 
@@ -362,9 +356,7 @@ def _convert_compound_into_link_geometries(
     externals = list(compound_node.findall("external_part"))
     internals = list(compound_node.findall("internal_part"))
 
-    parts_for_geometry = externals + (
-        internals if include_internal_parts_in_geometry else []
-    )
+    parts_for_geometry = externals + (internals if include_internal_parts_in_geometry else [])
 
     # Always sum mass from both external and internal parts if present (mass distribution).
     for p in externals + internals:
@@ -464,19 +456,13 @@ def _convert_body_node_to_urdf_link(
     # Visual
     if model_vis:
         gtype, kwargs, transform = model_vis
-        _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, transform, material_name=look
-        )
+        _add_visual_or_collision(urdf_link, "visual", gtype, kwargs, transform, material_name=look)
     elif prim:
         gtype, kwargs, transform = prim
-        _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, transform, material_name=look
-        )
+        _add_visual_or_collision(urdf_link, "visual", gtype, kwargs, transform, material_name=look)
     elif model_phys:
         gtype, kwargs, transform = model_phys
-        _add_visual_or_collision(
-            urdf_link, "visual", gtype, kwargs, transform, material_name=look
-        )
+        _add_visual_or_collision(urdf_link, "visual", gtype, kwargs, transform, material_name=look)
 
     # Collision
     if model_phys:
@@ -529,19 +515,13 @@ def _convert_joint_node_to_urdf(
     if parent is None or child is None:
         raise ValueError(f"Joint {name!r} missing <parent> or <child>")
 
-    ET.SubElement(
-        urdf_joint, "parent", {"link": f"{robot_name}/{parent.get('name', '')}"}
-    )
-    ET.SubElement(
-        urdf_joint, "child", {"link": f"{robot_name}/{child.get('name', '')}"}
-    )
+    ET.SubElement(urdf_joint, "parent", {"link": f"{robot_name}/{parent.get('name', '')}"})
+    ET.SubElement(urdf_joint, "child", {"link": f"{robot_name}/{child.get('name', '')}"})
 
     origin_T = _read_transform(joint_node.find("origin"))
     rpy = _mat_to_rpy(origin_T.R)
     if any(abs(x) > 1e-12 for x in origin_T.t) or any(abs(a) > 1e-12 for a in rpy):
-        ET.SubElement(
-            urdf_joint, "origin", {"xyz": _fmt_vec(origin_T.t), "rpy": _fmt_vec(rpy)}
-        )
+        ET.SubElement(urdf_joint, "origin", {"xyz": _fmt_vec(origin_T.t), "rpy": _fmt_vec(rpy)})
 
     axis_el = joint_node.find("axis")
     if axis_el is not None and axis_el.get("xyz"):

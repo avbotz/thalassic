@@ -88,8 +88,18 @@ CHATTER_WEIGHT = 10.0
 # Inner loops (velocity/rate) first: the outer loops command them.
 DEFAULT_PLAN = ["vel.z", "vel.x", "vel.y", "ang.z", "pos.z", "pos.x", "pos.y", "att.z"]
 ALL_LOOPS = [
-    "vel.z", "vel.x", "vel.y", "ang.z", "ang.x", "ang.y",
-    "pos.z", "pos.x", "pos.y", "att.z", "att.x", "att.y",
+    "vel.z",
+    "vel.x",
+    "vel.y",
+    "ang.z",
+    "ang.x",
+    "ang.y",
+    "pos.z",
+    "pos.x",
+    "pos.y",
+    "att.z",
+    "att.x",
+    "att.y",
 ]
 
 
@@ -117,6 +127,7 @@ def norm_angle(a: float) -> float:
 # Twiddle (coordinate descent) as an explicit, JSON-serializable state machine
 # so a trial boundary is always a valid checkpoint.
 # ---------------------------------------------------------------------------
+
 
 def new_twiddle(gains3: list, budget: int, trials_used: int = 0) -> dict:
     kp = gains3[0]
@@ -217,6 +228,7 @@ def twiddle_carve_ceiling(st: dict, status: str):
 # Trial scoring
 # ---------------------------------------------------------------------------
 
+
 def score_step_response(samples: list, step: float, duration: float):
     """Cost of one step response: ITAE + settling time + overshoot + oscillation.
 
@@ -262,10 +274,10 @@ def score_step_response(samples: list, step: float, duration: float):
 # ---------------------------------------------------------------------------
 
 ERR_CHANNELS = (
-    [("pos", i, 0.12) for i in range(3)]        # m
-    + [("att", i, 0.08) for i in range(3)]      # rad
-    + [("vel", i, 0.12) for i in range(3)]      # m/s
-    + [("angvel", i, 0.25) for i in range(3)]   # rad/s
+    [("pos", i, 0.12) for i in range(3)]  # m
+    + [("att", i, 0.08) for i in range(3)]  # rad
+    + [("vel", i, 0.12) for i in range(3)]  # m/s
+    + [("angvel", i, 0.25) for i in range(3)]  # rad/s
 )
 
 
@@ -292,8 +304,8 @@ class TunerNode(Node):
         self.create_subscription(Odometry, "odometry/filtered", self._odom_cb, 10)
         for i in range(NUM_THRUSTERS):
             self.create_subscription(
-                Float64, f"control/thruster_{i}",
-                lambda msg, i=i: self._thruster_cb(i, msg), 10)
+                Float64, f"control/thruster_{i}", lambda msg, i=i: self._thruster_cb(i, msg), 10
+            )
 
         self._pos_pub = self.create_publisher(Setpoint, "pos_setpoint", 10)
         self._att_pub = self.create_publisher(Setpoint, "att_setpoint", 10)
@@ -313,8 +325,12 @@ class TunerNode(Node):
 
     def _err_cb(self, msg: Error):
         now = time.monotonic()
-        chans = tuple(msg.pos_error) + tuple(msg.att_error) \
-            + tuple(msg.vel_error) + tuple(msg.angvel_error)
+        chans = (
+            tuple(msg.pos_error)
+            + tuple(msg.att_error)
+            + tuple(msg.vel_error)
+            + tuple(msg.angvel_error)
+        )
         with self._lock:
             self.err = msg
             self.err_time = now
@@ -380,8 +396,7 @@ class TunerNode(Node):
                         flips += 1
                     prev_sign = sign
             if flips >= min_flips:
-                return (f"{fam}_error[{'xyz'[ax]}] oscillating "
-                        f"({flips} flips in {window:.0f}s)")
+                return f"{fam}_error[{'xyz'[ax]}] oscillating ({flips} flips in {window:.0f}s)"
         return None
 
     def start_recording(self, extract):
@@ -428,6 +443,7 @@ class TunerNode(Node):
 # sub_control process management (gains are declare-only -> restart to apply)
 # ---------------------------------------------------------------------------
 
+
 class ControllerManager:
     def __init__(self, node: TunerNode, robot_name: str, state_dir: Path):
         self.node = node
@@ -465,8 +481,7 @@ class ControllerManager:
         pids = self._foreign_pids()
         if not pids:
             return
-        self.node.get_logger().info(
-            "stopping the stack's sub_control; the tuner manages its own")
+        self.node.get_logger().info("stopping the stack's sub_control; the tuner manages its own")
         for sig in (signal.SIGINT, signal.SIGKILL):
             for pid in pids:
                 try:
@@ -485,20 +500,28 @@ class ControllerManager:
             return
         self.stop()
         path = self.state_dir / "candidate.yaml"
-        path.write_text(yaml.safe_dump({"/**": {"ros__parameters": params}},
-                                       default_flow_style=None, sort_keys=False))
+        path.write_text(
+            yaml.safe_dump(
+                {"/**": {"ros__parameters": params}}, default_flow_style=None, sort_keys=False
+            )
+        )
         argv = [
-            str(self.binary), "--ros-args",
-            "-r", f"__ns:=/{self.robot_name}",
-            "-r", "__node:=sub_control",
-            "--params-file", str(path),
-            "-p", f"robot_name:={self.robot_name}",
+            str(self.binary),
+            "--ros-args",
+            "-r",
+            f"__ns:=/{self.robot_name}",
+            "-r",
+            "__node:=sub_control",
+            "--params-file",
+            str(path),
+            "-p",
+            f"robot_name:={self.robot_name}",
         ]
         self.log_file.write(f"\n=== {datetime.now().isoformat()} {argv}\n")
         self.log_file.flush()
         self.proc = subprocess.Popen(
-            argv, stdout=self.log_file, stderr=subprocess.STDOUT,
-            start_new_session=True)
+            argv, stdout=self.log_file, stderr=subprocess.STDOUT, start_new_session=True
+        )
         self.loaded_key = key
         self.started_at = time.monotonic()
 
@@ -524,6 +547,7 @@ class ControllerManager:
 # Persistent tuner state
 # ---------------------------------------------------------------------------
 
+
 class TunerState:
     def __init__(self, path: Path, data: dict):
         self.path = path
@@ -536,12 +560,14 @@ class TunerState:
             if data.get("version") != STATE_VERSION:
                 sys.exit(
                     f"{path} was written by an older tuner (version "
-                    f"{data.get('version')}); rerun with --fresh to discard it.")
+                    f"{data.get('version')}); rerun with --fresh to discard it."
+                )
             if data.get("plan") != plan:
                 sys.exit(
                     f"{path} was created for loops {data.get('plan')} but "
                     f"{plan} was requested; rerun with --fresh or a different "
-                    "--state-dir to start a new session.")
+                    "--state-dir to start a new session."
+                )
             return cls(path, data), True
         data = {
             "version": STATE_VERSION,
@@ -570,9 +596,7 @@ def gains_to_param_dict(gains: dict, extras: dict) -> dict:
         "power_limit": float(extras.get("power_limit", 0.6)),
     }
     for group in ("pos_pid", "vel_pid", "att_pid", "ang_pid"):
-        params[group] = {
-            ax: [float(v) for v in gains[f"{group}.{ax}"]] for ax in "xyz"
-        }
+        params[group] = {ax: [float(v) for v in gains[f"{group}.{ax}"]] for ax in "xyz"}
     return params
 
 
@@ -598,6 +622,7 @@ def load_base_gains(path: Path):
 # ---------------------------------------------------------------------------
 # The tuner itself
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TrialConfig:
@@ -657,28 +682,28 @@ class Tuner:
         if self.ctrl.proc is not None and not self.ctrl.alive():
             raise StackDead("sub_control process exited")
         started_for = time.monotonic() - self.ctrl.started_at
-        if (snap["err"] is not None and snap["err_age"] > 3.0 and started_for > 10.0):
+        if snap["err"] is not None and snap["err_age"] > 3.0 and started_for > 10.0:
             raise StackDead("control/error went stale")
         if env is not None:
             now = time.monotonic()
             if now - self._last_osc_check > 0.2:
                 self._last_osc_check = now
-                why = self.node.oscillation(self.cfg.osc_window,
-                                            self.cfg.osc_min_flips)
+                why = self.node.oscillation(self.cfg.osc_window, self.cfg.osc_min_flips)
                 if why is not None:
                     raise WatchdogAbort(why)
             od = snap["odom"]
             if od is not None:
-                if abs(od["roll"]) > self.cfg.max_roll_pitch or \
-                   abs(od["pitch"]) > self.cfg.max_roll_pitch:
+                if (
+                    abs(od["roll"]) > self.cfg.max_roll_pitch
+                    or abs(od["pitch"]) > self.cfg.max_roll_pitch
+                ):
                     raise WatchdogAbort("roll/pitch limit")
                 if od["ang_speed"] > self.cfg.max_ang_speed:
                     raise WatchdogAbort("angular rate limit")
                 speed_cap = self.cfg.max_speed * (1.25 if env == "settle" else 1.0)
                 if od["speed"] > speed_cap:
                     raise WatchdogAbort("speed limit")
-                if env == "step" and \
-                        not (self.cfg.z_min - 0.3 <= od["z"] <= self.cfg.z_max + 0.3):
+                if env == "step" and not (self.cfg.z_min - 0.3 <= od["z"] <= self.cfg.z_max + 0.3):
                     raise WatchdogAbort("depth bounds")
         return snap
 
@@ -707,8 +732,12 @@ class Tuner:
         t0 = time.monotonic()
         while True:
             snap = self._check()
-            if snap["err"] is not None and snap["err_age"] < 0.5 \
-                    and snap["odom"] is not None and snap["odom_age"] < 1.0:
+            if (
+                snap["err"] is not None
+                and snap["err_age"] < 0.5
+                and snap["odom"] is not None
+                and snap["odom_age"] < 1.0
+            ):
                 return
             if time.monotonic() - t0 > timeout:
                 raise StackDead("control/error or odometry/filtered not flowing")
@@ -791,19 +820,19 @@ class Tuner:
         else:
             yaw = home["yaw"]
             # Step along the body axis under test: surge for x, sway for y.
-            dx, dy = ((math.cos(yaw), math.sin(yaw)) if axis == 0
-                      else (-math.sin(yaw), math.cos(yaw)))
+            dx, dy = (
+                (math.cos(yaw), math.sin(yaw)) if axis == 0 else (-math.sin(yaw), math.cos(yaw))
+            )
             step = cfg.pos_step_xy
             target = {**home, "x": home["x"] + step * dx, "y": home["y"] + step * dy}
             self.node.start_recording(
-                lambda m, dx=dx, dy=dy: m.pos_error[0] * dx + m.pos_error[1] * dy)
+                lambda m, dx=dx, dy=dy: m.pos_error[0] * dx + m.pos_error[1] * dy
+            )
 
-        self._sleep(cfg.pos_duration, env="step",
-                    repub=lambda: self.hold_home(target))
+        self._sleep(cfg.pos_duration, env="step", repub=lambda: self.hold_home(target))
         samples, chatter = self.node.stop_recording()
         self.hold_home(home)  # come back; next trial settles here anyway
-        return self._score_or_fail(samples, step, cfg.pos_duration) \
-            + CHATTER_WEIGHT * chatter
+        return self._score_or_fail(samples, step, cfg.pos_duration) + CHATTER_WEIGHT * chatter
 
     def _trial_att(self, home, axis):
         cfg = self.cfg
@@ -811,13 +840,15 @@ class Tuner:
         step = cfg.att_step_yaw if axis == 2 else cfg.att_step_rp
         rpy[axis] = norm_angle(rpy[axis] + step)
         self.node.start_recording(lambda m, axis=axis: m.att_error[axis])
-        repub = lambda: (self.node.send_pos(home["x"], home["y"], home["z"]),
-                         self.node.send_att(*rpy))
+
+        def repub():
+            self.node.send_pos(home["x"], home["y"], home["z"])
+            self.node.send_att(*rpy)
+
         self._sleep(cfg.att_duration, env="step", repub=repub)
         samples, chatter = self.node.stop_recording()
         self.hold_home(home)
-        return self._score_or_fail(samples, step, cfg.att_duration) \
-            + CHATTER_WEIGHT * chatter
+        return self._score_or_fail(samples, step, cfg.att_duration) + CHATTER_WEIGHT * chatter
 
     def _trial_vel(self, home, axis):
         cfg = self.cfg
@@ -902,7 +933,8 @@ class Tuner:
                 if kills >= self.args.max_kill_rejects:
                     self.log.warn(
                         f"candidate killed {kills}x — treating as operator "
-                        "veto and scoring it as a failure")
+                        "veto and scoring it as a failure"
+                    )
                     return FAIL_COST, "kill-veto"
                 self.log.info("trial aborted by kill; will re-run after unkill")
                 self.wait_unkilled()
@@ -913,8 +945,9 @@ class Tuner:
                 # Do not leave an unstable candidate in charge of the
                 # thrusters: stop sub_control (zeroes them) and let the sub
                 # coast before the next candidate takes over.
-                self.log.warn(f"safety watchdog tripped ({e}) — stopping "
-                              "sub_control and scoring as failure")
+                self.log.warn(
+                    f"safety watchdog tripped ({e}) — stopping sub_control and scoring as failure"
+                )
                 self.ctrl.stop()
                 time.sleep(3.0)
                 return FAIL_COST, "watchdog"
@@ -923,13 +956,12 @@ class Tuner:
                 return FAIL_COST, "no-settle"
             except StackDead as e:
                 restarts += 1
-                self.log.warn(f"stack problem ({e}); restarting sub_control "
-                              f"(attempt {restarts})")
+                self.log.warn(f"stack problem ({e}); restarting sub_control (attempt {restarts})")
                 self.ctrl.stop()
                 if restarts >= 5:
                     raise RuntimeError(
-                        "sub_control keeps dying — check "
-                        f"{self.ctrl.state_dir / 'sub_control.log'}") from e
+                        f"sub_control keeps dying — check {self.ctrl.state_dir / 'sub_control.log'}"
+                    ) from e
 
     # ---- top level -----------------------------------------------------------
 
@@ -938,13 +970,36 @@ class Tuner:
         with open(self.csv_path, "a", newline="") as f:
             w = csv.writer(f)
             if new:
-                w.writerow(["seq", "time", "loop", "phase", "gain", "kp", "ki",
-                            "kd", "cost", "best_cost", "status"])
-            w.writerow([seq, datetime.now().isoformat(timespec="seconds"),
-                        loop_key, st["phase"], GAIN_NAMES[twiddle_idx(st)],
-                        f"{cand[0]:.4f}", f"{cand[1]:.4f}", f"{cand[2]:.4f}",
-                        f"{cost:.4f}", f"{st['best_cost']:.4f}" if st["best_cost"]
-                        is not None else "", status])
+                w.writerow(
+                    [
+                        "seq",
+                        "time",
+                        "loop",
+                        "phase",
+                        "gain",
+                        "kp",
+                        "ki",
+                        "kd",
+                        "cost",
+                        "best_cost",
+                        "status",
+                    ]
+                )
+            w.writerow(
+                [
+                    seq,
+                    datetime.now().isoformat(timespec="seconds"),
+                    loop_key,
+                    st["phase"],
+                    GAIN_NAMES[twiddle_idx(st)],
+                    f"{cand[0]:.4f}",
+                    f"{cand[1]:.4f}",
+                    f"{cand[2]:.4f}",
+                    f"{cost:.4f}",
+                    f"{st['best_cost']:.4f}" if st["best_cost"] is not None else "",
+                    status,
+                ]
+            )
 
     def _rebaseline(self, st: dict, param_key: str) -> dict:
         """The baseline gains themselves failed twice: shrink toward a more
@@ -955,7 +1010,8 @@ class Tuner:
         self.log.warn(
             f"baseline gains unstable — shrinking kp {old[0]:.3f}->{shrunk[0]:.3f} "
             f"ki {old[1]:.3f}->{shrunk[1]:.3f} kd {old[2]:.3f}->{shrunk[2]:.3f} "
-            "and re-baselining")
+            "and re-baselining"
+        )
         fresh = new_twiddle(shrunk, st["budget"], trials_used=st["trials"])
         self.state.data["gains"][param_key][:3] = shrunk
         return fresh
@@ -969,8 +1025,10 @@ class Tuner:
         while self.node.snapshot()["killed"] is None and time.monotonic() - t0 < 10.0:
             time.sleep(0.2)
         if self.node.snapshot()["killed"] is None:
-            self.log.warn("no kill_switch publisher found — assuming not killed "
-                          "(fine on a bench, do NOT ignore this in the water)")
+            self.log.warn(
+                "no kill_switch publisher found — assuming not killed "
+                "(fine on a bench, do NOT ignore this in the water)"
+            )
 
         plan = data["plan"]
         while data["loop_idx"] < len(plan):
@@ -978,18 +1036,23 @@ class Tuner:
             group, ax = loop_key.split(".")
             param_key = f"{GROUP_TO_PARAM[group]}.{ax}"
             if data["twiddle"] is None:
-                data["twiddle"] = new_twiddle(data["gains"][param_key][:3],
-                                              self.args.trials_per_loop)
+                data["twiddle"] = new_twiddle(
+                    data["gains"][param_key][:3], self.args.trials_per_loop
+                )
                 self.state.save()
             st = data["twiddle"]
             self.log.info(
                 f"=== tuning {loop_key} ({data['loop_idx'] + 1}/{len(plan)}), "
-                f"{st['trials']}/{st['budget']} trials used ===")
+                f"{st['trials']}/{st['budget']} trials used ==="
+            )
 
             while not st["done"]:
                 cand = twiddle_candidate(st)
+                # twiddle_candidate copies st["params"], so the two are
+                # always the same length; strict= says so.
                 if st["phase"] != "baseline" and all(
-                        abs(c - p) < 1e-9 for c, p in zip(cand, st["params"])):
+                    abs(c - p) < 1e-9 for c, p in zip(cand, st["params"], strict=True)
+                ):
                     # Clamped into the current best: no new information, and
                     # no water time spent, so it does not consume the budget.
                     twiddle_record(st, FAIL_COST, count_trial=False)
@@ -999,7 +1062,8 @@ class Tuner:
                 self.log.info(
                     f"[{loop_key}] trial {st['trials'] + 1}/{st['budget']} "
                     f"({st['phase']} gain {GAIN_NAMES[twiddle_idx(st)]}): "
-                    f"kp={cand[0]:.3f} ki={cand[1]:.3f} kd={cand[2]:.3f}")
+                    f"kp={cand[0]:.3f} ki={cand[1]:.3f} kd={cand[2]:.3f}"
+                )
                 cost, status = self.evaluate(loop_key, cand)
                 self.log_trial(seq, loop_key, st, cand, cost, status)
 
@@ -1011,7 +1075,8 @@ class Tuner:
                     if st["trials"] >= st["budget"]:
                         self.log.error(
                             f"[{loop_key}] budget exhausted without a stable "
-                            "baseline — keeping the original gains")
+                            "baseline — keeping the original gains"
+                        )
                         st["done"] = True
                     elif st["baseline_fails"] >= 2:
                         st = data["twiddle"] = self._rebaseline(st, param_key)
@@ -1022,23 +1087,22 @@ class Tuner:
                 improved = twiddle_record(st, cost)
                 data["gains"][param_key][:3] = st["params"]
                 self.state.save()
-                write_gains_yaml(self.ctrl.state_dir / "tuned_gains.yaml",
-                                 data["gains"], data["extras"])
+                write_gains_yaml(
+                    self.ctrl.state_dir / "tuned_gains.yaml", data["gains"], data["extras"]
+                )
                 marker = "IMPROVED" if improved else status
-                self.log.info(
-                    f"[{loop_key}] cost={cost:.4f} best={st['best_cost']:.4f} "
-                    f"[{marker}]")
+                self.log.info(f"[{loop_key}] cost={cost:.4f} best={st['best_cost']:.4f} [{marker}]")
 
             self.log.info(
                 f"=== {loop_key} done: kp={st['params'][0]:.3f} "
                 f"ki={st['params'][1]:.3f} kd={st['params'][2]:.3f} "
-                f"(cost {st['best_cost'] if st['best_cost'] is not None else 'n/a'}) ===")
+                f"(cost {st['best_cost'] if st['best_cost'] is not None else 'n/a'}) ==="
+            )
             data["loop_idx"] += 1
             data["twiddle"] = None
             self.state.save()
 
-        write_gains_yaml(self.ctrl.state_dir / "tuned_gains.yaml",
-                         data["gains"], data["extras"])
+        write_gains_yaml(self.ctrl.state_dir / "tuned_gains.yaml", data["gains"], data["extras"])
         self.log.info("tuning complete")
 
 
@@ -1046,45 +1110,68 @@ class Tuner:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args(argv):
     p = argparse.ArgumentParser(
-        prog="pid_tuner", description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--mode", choices=("sim", "real"), required=True,
-                   help="selects the base gains file and the state directory")
-    p.add_argument("--robot-name", default="marlin_v2")
-    p.add_argument("--loops", default=",".join(DEFAULT_PLAN),
-                   help="comma-separated loops to tune in order, or 'all'; "
-                        f"default: {','.join(DEFAULT_PLAN)}")
-    p.add_argument("--base-gains", default=None,
-                   help="gains yaml to start from (default: the mode's "
-                        "control_gains yaml from the sub_bringup share dir)")
-    p.add_argument("--state-dir", default=None,
-                   help="checkpoint directory (default: ~/.thalassic_pid_tuner/<mode>)")
+        prog="pid_tuner", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "--mode",
+        choices=("sim", "real"),
+        required=True,
+        help="selects the base gains file and the state directory",
+    )
+    p.add_argument("--robot-name", default="marlin_v3")
+    p.add_argument(
+        "--loops",
+        default=",".join(DEFAULT_PLAN),
+        help=f"comma-separated loops to tune in order, or 'all'; default: {','.join(DEFAULT_PLAN)}",
+    )
+    p.add_argument(
+        "--base-gains",
+        default=None,
+        help="gains yaml to start from (default: the mode's "
+        "control_gains yaml from the sub_bringup share dir)",
+    )
+    p.add_argument(
+        "--state-dir",
+        default=None,
+        help="checkpoint directory (default: ~/.thalassic_pid_tuner/<mode>)",
+    )
     p.add_argument("--trials-per-loop", type=int, default=24)
-    p.add_argument("--max-kill-rejects", type=int, default=2,
-                   help="kills of the same candidate before it is scored as "
-                        "a failure instead of retried")
-    p.add_argument("--step-scale", type=float, default=1.0,
-                   help="scale factor on all trial step sizes; use <1 for "
-                        "gentler trials on the real sub (e.g. 0.6)")
-    p.add_argument("--home-depth", type=float, default=-1.0,
-                   help="trial depth in FLU z (negative = underwater)")
-    p.add_argument("--z-min", type=float, default=-3.0,
-                   help="deepest allowed z during trials")
-    p.add_argument("--z-max", type=float, default=-0.3,
-                   help="shallowest allowed z during trials")
+    p.add_argument(
+        "--max-kill-rejects",
+        type=int,
+        default=2,
+        help="kills of the same candidate before it is scored as a failure instead of retried",
+    )
+    p.add_argument(
+        "--step-scale",
+        type=float,
+        default=1.0,
+        help="scale factor on all trial step sizes; use <1 for "
+        "gentler trials on the real sub (e.g. 0.6)",
+    )
+    p.add_argument(
+        "--home-depth",
+        type=float,
+        default=-1.0,
+        help="trial depth in FLU z (negative = underwater)",
+    )
+    p.add_argument("--z-min", type=float, default=-3.0, help="deepest allowed z during trials")
+    p.add_argument("--z-max", type=float, default=-0.3, help="shallowest allowed z during trials")
     p.add_argument("--settle-timeout", type=float, default=60.0)
-    p.add_argument("--status", action="store_true",
-                   help="print checkpoint progress and exit")
-    p.add_argument("--fresh", action="store_true",
-                   help="discard the checkpoint and start over")
+    p.add_argument("--status", action="store_true", help="print checkpoint progress and exit")
+    p.add_argument("--fresh", action="store_true", help="discard the checkpoint and start over")
     return p.parse_args(argv)
 
 
 def resolve_plan(loops_arg: str):
-    plan = ALL_LOOPS if loops_arg.strip() == "all" else [
-        s.strip() for s in loops_arg.split(",") if s.strip()]
+    plan = (
+        ALL_LOOPS
+        if loops_arg.strip() == "all"
+        else [s.strip() for s in loops_arg.split(",") if s.strip()]
+    )
     for loop in plan:
         if loop not in ALL_LOOPS:
             sys.exit(f"unknown loop '{loop}'; valid: {', '.join(ALL_LOOPS)}")
@@ -1104,19 +1191,20 @@ def print_status(state_path: Path):
             mark = "done"
         elif i == d["loop_idx"]:
             tw = d.get("twiddle")
-            mark = (f"in progress ({tw['trials']}/{tw['budget']} trials, "
-                    f"best {tw['best_cost']})" if tw else "next")
+            mark = (
+                f"in progress ({tw['trials']}/{tw['budget']} trials, best {tw['best_cost']})"
+                if tw
+                else "next"
+            )
         else:
             mark = "pending"
-        print(f"  {loop:7s} kp={g[0]:8.3f} ki={g[1]:8.3f} kd={g[2]:8.3f} "
-              f"lim={g[3]:6.2f}  {mark}")
+        print(f"  {loop:7s} kp={g[0]:8.3f} ki={g[1]:8.3f} kd={g[2]:8.3f} lim={g[3]:6.2f}  {mark}")
 
 
 def main(argv=None):
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
-    state_dir = Path(args.state_dir or
-                     Path.home() / ".thalassic_pid_tuner" / args.mode)
+    state_dir = Path(args.state_dir or Path.home() / ".thalassic_pid_tuner" / args.mode)
     state_dir.mkdir(parents=True, exist_ok=True)
     state_path = state_dir / "state.json"
 
@@ -1132,6 +1220,7 @@ def main(argv=None):
         base_path = Path(args.base_gains)
     else:
         from ament_index_python.packages import get_package_share_directory
+
         name = "control_gains_sim.yaml" if args.mode == "sim" else "control_gains.yaml"
         base_path = Path(get_package_share_directory("sub_bringup")) / "config" / name
 
@@ -1144,6 +1233,7 @@ def main(argv=None):
     # explicitly because a backgrounded process inherits SIGINT as ignored.
     def _sig_handler(signum, frame):
         raise KeyboardInterrupt
+
     signal.signal(signal.SIGINT, _sig_handler)
     signal.signal(signal.SIGTERM, _sig_handler)
     rclpy.init(signal_handler_options=rclpy.signals.SignalHandlerOptions.NO)
@@ -1167,10 +1257,22 @@ def main(argv=None):
 
     if not (0.1 <= args.step_scale <= 1.0):
         sys.exit("--step-scale must be in [0.1, 1.0]")
-    cfg = TrialConfig(home_depth=args.home_depth, z_min=args.z_min,
-                      z_max=args.z_max, settle_timeout=args.settle_timeout)
-    for field in ("pos_step_xy", "pos_step_z", "att_step_yaw", "att_step_rp",
-                  "vel_step_xy", "vel_step_z", "ang_step_yaw", "ang_step_rp"):
+    cfg = TrialConfig(
+        home_depth=args.home_depth,
+        z_min=args.z_min,
+        z_max=args.z_max,
+        settle_timeout=args.settle_timeout,
+    )
+    for field in (
+        "pos_step_xy",
+        "pos_step_z",
+        "att_step_yaw",
+        "att_step_rp",
+        "vel_step_xy",
+        "vel_step_z",
+        "ang_step_yaw",
+        "ang_step_rp",
+    ):
         setattr(cfg, field, getattr(cfg, field) * args.step_scale)
     if not (cfg.z_min < cfg.home_depth < cfg.z_max):
         sys.exit("--home-depth must lie between --z-min and --z-max")
@@ -1180,11 +1282,12 @@ def main(argv=None):
 
     try:
         tuner.run()
-        log.info(f"tuned gains written to {state_dir / 'tuned_gains.yaml'} — "
-                 "copy into src/sub_bringup/config/ and rebuild to adopt them")
+        log.info(
+            f"tuned gains written to {state_dir / 'tuned_gains.yaml'} — "
+            "copy into src/sub_bringup/config/ and rebuild to adopt them"
+        )
     except KeyboardInterrupt:
-        log.info(f"interrupted — progress saved; rerun the same command to "
-                 f"resume ({state_path})")
+        log.info(f"interrupted — progress saved; rerun the same command to resume ({state_path})")
     finally:
         # A late Ctrl+C must not interrupt the cleanup itself (it stops
         # sub_control and zeroes the thrusters).

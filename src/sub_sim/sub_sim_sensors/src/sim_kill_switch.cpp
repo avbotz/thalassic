@@ -6,7 +6,6 @@
 #include "rclcpp_components/register_node_macro.hpp"
 #include "std_msgs/msg/bool.hpp"
 
-
 SimKillSwitch::SimKillSwitch(const rclcpp::NodeOptions& options) : Node("sim_kill_switch", options) {
     const double off_delay = this->declare_parameter("off_delay", 5.0);
 

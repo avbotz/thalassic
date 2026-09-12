@@ -210,10 +210,8 @@ void registerActuatorActions(BT::BehaviorTreeFactory &factory, MissionNode &node
                                                  return std::make_unique<DropBallsAction>(name, config, node, logger);
                                              });
 
-    factory.registerBuilder<ShootTorpedoAction>("ShootTorpedo",
-                                                [&node, logger](const std::string &name,
-                                                                const BT::NodeConfig &config) {
-                                                    return std::make_unique<ShootTorpedoAction>(name, config, node,
-                                                                                                logger);
-                                                });
+    factory.registerBuilder<ShootTorpedoAction>(
+        "ShootTorpedo", [&node, logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<ShootTorpedoAction>(name, config, node, logger);
+        });
 }

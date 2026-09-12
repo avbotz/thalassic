@@ -9,15 +9,15 @@ pile of boolean task-selection parameters.
 
 ```sh
 # By name -> resources/missions/<name>.xml from the installed share directory
-ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=pool_a
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v3 -p mission:=pool_a
 
 # Or with an explicit path (useful while iterating without rebuilding)
-ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v2 -p mission:=/path/to/my_mission.xml
+ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v3 -p mission:=/path/to/my_mission.xml
 ```
 
 Use the same namespace as the rest of the stack when starting `mission` or
-`restart` manually. The bringup launch files use `robot_name:=marlin_v2` by
-default, so manual `ros2 run` commands normally need `-r __ns:=/marlin_v2`.
+`restart` manually. The bringup launch files use `robot_name:=marlin_v3` by
+default, so manual `ros2 run` commands normally need `-r __ns:=/marlin_v3`.
 Without it, mission commands publish to root-level topics such as
 `/pos_setpoint`, and the namespaced controller will not receive them.
 
@@ -26,7 +26,7 @@ spawns. Launching without `mission` (or with a bad name) prints the available
 mission names and exits — before the node starts waiting on the kill switch.
 
 ```sh
-ros2 run sub_mission restart --ros-args -r __ns:=/marlin_v2 -p mission:=pool_a
+ros2 run sub_mission restart --ros-args -r __ns:=/marlin_v3 -p mission:=pool_a
 ```
 
 ## Layout

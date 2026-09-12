@@ -26,26 +26,27 @@ The segmentation pixel value for an object is: graObjectId + 1
 """
 
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import Optional
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
 class SegObject:
     """Represents an entity that gets one or more segmentation IDs."""
+
     name: str
-    entity_type: str          # "static", "dynamic", "robot_part"
-    gra_object_id: int        # graphical object id (used by segmentation cam)
-    phy_object_id: int        # physical object id
-    seg_pixel_value: int      # = gra_object_id + 1
-    parent_prop: str          # the "prop" or task-level group this belongs to
-    class_id: int             # YOLOv11 class id for the parent prop
+    entity_type: str  # "static", "dynamic", "robot_part"
+    gra_object_id: int  # graphical object id (used by segmentation cam)
+    phy_object_id: int  # physical object id
+    seg_pixel_value: int  # = gra_object_id + 1
+    parent_prop: str  # the "prop" or task-level group this belongs to
+    class_id: int  # YOLOv11 class id for the parent prop
 
 
 @dataclass
 class PropGroup:
     """A logical prop composed of one or more SegObjects."""
+
     name: str
     class_name: str
     class_id: int
@@ -182,10 +183,10 @@ def parse_scenario_ids(
     # Filter: only top-level elements (direct children of root or included)
     # Actually, after include resolution, everything that was a direct child
     # of <scenario> in any file is now a direct child of root.
-    statics = [e for e in root.findall("static")]
-    animateds = [e for e in root.findall("animated")]
-    dynamics = [e for e in root.findall("dynamic")]
-    robots = [e for e in root.findall("robot")]
+    statics = root.findall("static")
+    animateds = root.findall("animated")
+    dynamics = root.findall("dynamic")
+    robots = root.findall("robot")
 
     # The ocean (if present) builds one OpenGL object before any entities,
     # consuming object ID 0.  We must account for this offset.
@@ -211,52 +212,60 @@ def parse_scenario_ids(
             # then phyMesh SECOND.  Segmentation camera uses graObjectId.
             gra_id = alloc_id()
             phy_id = alloc_id()
-            all_objects.append(SegObject(
-                name=name,
-                entity_type="static",
-                gra_object_id=gra_id,
-                phy_object_id=phy_id,
-                seg_pixel_value=gra_id + 1,
-                parent_prop="",
-                class_id=-1,
-            ))
+            all_objects.append(
+                SegObject(
+                    name=name,
+                    entity_type="static",
+                    gra_object_id=gra_id,
+                    phy_object_id=phy_id,
+                    seg_pixel_value=gra_id + 1,
+                    parent_prop="",
+                    class_id=-1,
+                )
+            )
         elif etype == "plane":
             # Plane: 1 ID (StaticEntity::BuildGraphicalObject)
             phy_id = alloc_id()
-            all_objects.append(SegObject(
-                name=name,
-                entity_type="static",
-                gra_object_id=phy_id,
-                phy_object_id=phy_id,
-                seg_pixel_value=phy_id + 1,
-                parent_prop="",
-                class_id=-1,
-            ))
+            all_objects.append(
+                SegObject(
+                    name=name,
+                    entity_type="static",
+                    gra_object_id=phy_id,
+                    phy_object_id=phy_id,
+                    seg_pixel_value=phy_id + 1,
+                    parent_prop="",
+                    class_id=-1,
+                )
+            )
         elif etype == "terrain":
             # Terrain: 1 ID
             phy_id = alloc_id()
-            all_objects.append(SegObject(
-                name=name,
-                entity_type="static",
-                gra_object_id=phy_id,
-                phy_object_id=phy_id,
-                seg_pixel_value=phy_id + 1,
-                parent_prop="",
-                class_id=-1,
-            ))
+            all_objects.append(
+                SegObject(
+                    name=name,
+                    entity_type="static",
+                    gra_object_id=phy_id,
+                    phy_object_id=phy_id,
+                    seg_pixel_value=phy_id + 1,
+                    parent_prop="",
+                    class_id=-1,
+                )
+            )
         elif etype in ("box", "cylinder", "sphere"):
             # Obstacle primitive: 2 IDs (gra first, phy second)
             gra_id = alloc_id()
             phy_id = alloc_id()
-            all_objects.append(SegObject(
-                name=name,
-                entity_type="static",
-                gra_object_id=gra_id,
-                phy_object_id=phy_id,
-                seg_pixel_value=gra_id + 1,
-                parent_prop="",
-                class_id=-1,
-            ))
+            all_objects.append(
+                SegObject(
+                    name=name,
+                    entity_type="static",
+                    gra_object_id=gra_id,
+                    phy_object_id=phy_id,
+                    seg_pixel_value=gra_id + 1,
+                    parent_prop="",
+                    class_id=-1,
+                )
+            )
 
     # --- Process animated elements ---
     for elem in animateds:
@@ -270,15 +279,17 @@ def parse_scenario_ids(
             else:
                 gra_id = alloc_id()
                 phy_id = gra_id
-            all_objects.append(SegObject(
-                name=name,
-                entity_type="animated",
-                gra_object_id=gra_id,
-                phy_object_id=phy_id,
-                seg_pixel_value=gra_id + 1,
-                parent_prop="",
-                class_id=-1,
-            ))
+            all_objects.append(
+                SegObject(
+                    name=name,
+                    entity_type="animated",
+                    gra_object_id=gra_id,
+                    phy_object_id=phy_id,
+                    seg_pixel_value=gra_id + 1,
+                    parent_prop="",
+                    class_id=-1,
+                )
+            )
         elif etype == "empty":
             pass  # No mesh, no ID
 
@@ -293,13 +304,11 @@ def parse_scenario_ids(
         # base_link is parsed first
         base_link = robot_elem.find("base_link")
         if base_link is not None:
-            _parse_solid_ids(base_link, "robot_part", alloc_id, all_objects,
-                             ns=robot_name)
+            _parse_solid_ids(base_link, "robot_part", alloc_id, all_objects, ns=robot_name)
 
         # Then other links in document order
         for link_elem in robot_elem.findall("link"):
-            _parse_solid_ids(link_elem, "robot_part", alloc_id, all_objects,
-                             ns=robot_name)
+            _parse_solid_ids(link_elem, "robot_part", alloc_id, all_objects, ns=robot_name)
 
         # Sensors with <visual> (rare but possible)
         for sensor_elem in robot_elem.findall("sensor"):
@@ -307,15 +316,17 @@ def parse_scenario_ids(
             if vis is not None:
                 s_name = sensor_elem.get("name", "sensor")
                 gra_id = alloc_id()
-                all_objects.append(SegObject(
-                    name=f"{robot_name}/{s_name}",
-                    entity_type="sensor",
-                    gra_object_id=gra_id,
-                    phy_object_id=gra_id,
-                    seg_pixel_value=gra_id + 1,
-                    parent_prop="",
-                    class_id=-1,
-                ))
+                all_objects.append(
+                    SegObject(
+                        name=f"{robot_name}/{s_name}",
+                        entity_type="sensor",
+                        gra_object_id=gra_id,
+                        phy_object_id=gra_id,
+                        seg_pixel_value=gra_id + 1,
+                        parent_prop="",
+                        class_id=-1,
+                    )
+                )
 
     # --- Assign prop groups ---
     if prop_definitions is None:
@@ -359,27 +370,31 @@ def _parse_solid_ids(
         # (graObjectId = BuildObject(phyMesh); phyObjectId = graObjectId)
         gra_id = alloc_id()
         phy_id = gra_id
-        all_objects.append(SegObject(
-            name=full_name,
-            entity_type=entity_type,
-            gra_object_id=gra_id,
-            phy_object_id=phy_id,
-            seg_pixel_value=gra_id + 1,
-            parent_prop="",
-            class_id=-1,
-        ))
+        all_objects.append(
+            SegObject(
+                name=full_name,
+                entity_type=entity_type,
+                gra_object_id=gra_id,
+                phy_object_id=phy_id,
+                seg_pixel_value=gra_id + 1,
+                parent_prop="",
+                class_id=-1,
+            )
+        )
     elif etype in ("box", "cylinder", "sphere", "torus", "wing"):
         # Simple shapes: SolidEntity::BuildGraphicalObject → 1 ID
         gra_id = alloc_id()
-        all_objects.append(SegObject(
-            name=full_name,
-            entity_type=entity_type,
-            gra_object_id=gra_id,
-            phy_object_id=gra_id,
-            seg_pixel_value=gra_id + 1,
-            parent_prop="",
-            class_id=-1,
-        ))
+        all_objects.append(
+            SegObject(
+                name=full_name,
+                entity_type=entity_type,
+                gra_object_id=gra_id,
+                phy_object_id=gra_id,
+                seg_pixel_value=gra_id + 1,
+                parent_prop="",
+                class_id=-1,
+            )
+        )
 
 
 def get_default_prop_definitions() -> dict[str, str]:
@@ -396,22 +411,16 @@ def get_default_prop_definitions() -> dict[str, str]:
         # Pool (not annotated — background)
         "woollett_": "background",
         "natatorium_": "background",
-
         # Gate task
         "gate_": "gate",
-
         # Path markers
         "path_": "path",
-
         # Slalom
         "slalom_": "slalom",
-
         # Bin task
         "bin_": "bin",
-
         # Torpedo board
         "torpboard_": "torpboard",
-
         # Octagon task
         "octagon": "octagon",
         "table_": "table",
@@ -419,25 +428,24 @@ def get_default_prop_definitions() -> dict[str, str]:
         "bottle_yellow": "bottle_yellow",
         "ladle_red": "ladle_red",
         "ladle_yellow": "ladle_yellow",
-
         # Robot parts (not annotated)
-        "marlin_v2/": "background",
+        "marlin_v3/": "background",
     }
 
 
 def get_class_names() -> list[str]:
     """Return the ordered list of YOLO class names (index = class_id)."""
     return [
-        "gate",       # 0
-        "path",       # 1
-        "slalom",     # 2
-        "bin",        # 3
+        "gate",  # 0
+        "path",  # 1
+        "slalom",  # 2
+        "bin",  # 3
         "torpboard",  # 4
-        "octagon",    # 5
-        "table",      # 6
-        "bottle_red",    # 7
-        "bottle_yellow", # 8
-        "ladle_red",     # 9
+        "octagon",  # 5
+        "table",  # 6
+        "bottle_red",  # 7
+        "bottle_yellow",  # 8
+        "ladle_red",  # 9
         "ladle_yellow",  # 10
     ]
 
@@ -483,12 +491,14 @@ def _assign_props(
     for class_name, objects in prop_objects.items():
         class_id = class_name_to_id.get(class_name, -1)
         seg_ids = [o.seg_pixel_value for o in objects]
-        prop_groups.append(PropGroup(
-            name=class_name,
-            class_name=class_name,
-            class_id=class_id,
-            seg_ids=seg_ids,
-        ))
+        prop_groups.append(
+            PropGroup(
+                name=class_name,
+                class_name=class_name,
+                class_id=class_id,
+                seg_ids=seg_ids,
+            )
+        )
 
     # Build pixel -> prop mapping
     pixel_to_prop: dict[int, str] = {}
@@ -512,7 +522,7 @@ def build_pixel_to_class_id(
         pixel_to_class: dict[pixel_value -> class_id]
         class_names: list of class name strings (index = class_id)
     """
-    pixel_to_prop, prop_groups, all_objects = parse_scenario_ids(
+    pixel_to_prop, _prop_groups, _all_objects = parse_scenario_ids(
         scenario_path, data_dir, prop_definitions
     )
 
@@ -542,14 +552,15 @@ def main():
 
     print("=== All Objects ===")
     for o in all_objs:
-        print(f"  ID {o.gra_object_id:3d}  seg_px={o.seg_pixel_value:3d}  "
-              f"type={o.entity_type:12s}  prop={o.parent_prop:15s}  "
-              f"name={o.name}")
+        print(
+            f"  ID {o.gra_object_id:3d}  seg_px={o.seg_pixel_value:3d}  "
+            f"type={o.entity_type:12s}  prop={o.parent_prop:15s}  "
+            f"name={o.name}"
+        )
 
     print("\n=== Prop Groups ===")
     for g in prop_groups:
-        print(f"  class={g.class_id:2d}  name={g.class_name:15s}  "
-              f"seg_ids={g.seg_ids}")
+        print(f"  class={g.class_id:2d}  name={g.class_name:15s}  seg_ids={g.seg_ids}")
 
     print("\n=== Pixel -> Prop ===")
     for px, prop in sorted(pixel_to_prop.items()):

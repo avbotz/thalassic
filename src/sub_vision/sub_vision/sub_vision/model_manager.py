@@ -1,9 +1,9 @@
 """Thread-safe loading, swapping, and inference of a single resident model."""
 
-import time
 import threading
-from dataclasses import dataclass
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -99,7 +99,7 @@ class ModelManager:
                 conf_threshold=self._conf_threshold,
                 log=self._log,
             )
-        except Exception as exc:  # noqa: BLE001 - report load failures to caller
+        except Exception as exc:  # report load failures to the caller
             return LoadResult(False, f"failed to load '{task}': {exc}", self.active_model, 0.0)
 
         warmup = self._warmup(backend)
@@ -137,7 +137,7 @@ class ModelManager:
             t0 = time.perf_counter()
             try:
                 backend.infer(dummy)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._log(f"warmup inference failed: {exc}")
                 return None
             times.append((time.perf_counter() - t0) * 1000.0)

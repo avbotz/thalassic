@@ -1,10 +1,8 @@
 # Thalassic
 
-ROS 2 Jazzy software stack for AVBotz's **Marlin V2** AUV. Runs on the vehicle's
-Jetson AGX Orin and, with the Stonefish simulator, on developer machines.
+ROS 2 Jazzy software stack for AVBotz's **Marlin V3** AUV. Runs on the vehicle's Jetson AGX Orin and, with the Stonefish simulator, on developer machines.
 
-Everything the workspace needs is declared in `pixi.toml` and pinned in
-`pixi.lock`. See [docs/setup.md](docs/setup.md) for the workflow.
+Everything the workspace needs is declared in `pixi.toml` and pinned in `pixi.lock`. See [docs/setup.md](docs/setup.md) for the workflow.
 
 ## Quick start
 
@@ -22,16 +20,19 @@ Common tasks (`pixi task list` shows all):
 | Command | Does |
 |---|---|
 | `pixi run build` | `colcon build` with the repo defaults (symlink + merge install) |
+| `pixi run prune-symlink` | removes deleted dangling symlinks left behind by `colcon build` |
 | `pixi run sim` | launch simulation |
 | `pixi run pool` | launch with real hardware in pool |
 | `pixi run test` | `colcon test` |
+| `pixi run format` | format Python (ruff) and C/C++ (clang-format) |
+| `pixi run lint` | check formatting and lint without rewriting |
 | `pixi run clean` | delete `build/ install/ log/` |
 | `pixi run reset-dds` | kill stray ROS processes and stale Fast DDS shared memory |
 
 ## Docs
 
-- [Setup & Build](docs/setup.md)irs
-- [Deployment](docs/deployment.md) — Jetson provisioning
+- [Setup & Build](docs/setup.md)
+- [Deployment](docs/deployment.md)
 - [Decisions](docs/decisions.md)
 - [Architecture](docs/architecture.md)
 - [Control](docs/control.md)

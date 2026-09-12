@@ -1,13 +1,13 @@
 /**:
   ros__parameters:
-    video_device: "/dev/front_camera"
+    # video_device and frame_id are vehicle identity and come from
+    # config/<robot_name>.yaml via the launch file.
     image_width: 1920
     image_height: 1080
     framerate: 24.0
     pixel_format: "mjpeg2rgb"
     output_encoding: "rgb8"
     io_method: "mmap"
-    frame_id: "marlin_v2/front_camera"
     camera_name: "logitech_c922_webcam"
 
     # Camera Control Parameters

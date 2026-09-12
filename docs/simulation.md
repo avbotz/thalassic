@@ -10,7 +10,7 @@ Scenarios are described with Stonefish `.scn` XML files. Thalassic generates the
 
 `sim_launch.py` runs this pipeline before starting any nodes:
 
-1. **Render robot layout** — `generate_robot.py` renders `data/robots/marlin_v2/layout.scn.j2` into a temporary `.scn` file. The template uses a `thruster.j2` macro to stamp out all 8 thruster definitions.
+1. **Render robot layout** — `generate_robot.py` renders `data/robots/marlin_v3/layout.scn.j2` into a temporary `.scn` file. The template uses a `thruster.j2` macro to stamp out all 8 thruster definitions.
 
 2. **Convert to URDF** — `robot_scenario_to_urdf.py` parses the rendered robot `.scn` and emits a URDF for `robot_state_publisher`. This is used by RViz and `tf2` for visualization.
 
@@ -36,8 +36,7 @@ Use `seed` in the launch argument to get reproducible scenarios.
 
 The following nodes are launched in simulation mode (in addition to the real-hardware nodes):
 
-The sim sensor bridges run together inside a single composable-node container
-(`sim_sensors_container`):
+The sim sensor bridges run together inside a single composable-node container (`sim_sensors_container`):
 
 | Node | Package | Purpose |
 |---|---|---|
@@ -54,20 +53,15 @@ The sim sensor bridges run together inside a single composable-node container
 
 ### DVL
 
-Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper`
-converts it directly to a velocity-only `nav_msgs/Odometry` on `odometry/dvl` —
-the same topic the hardware WaterLinked driver publishes — which the EKF fuses.
+Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` converts it directly to a velocity-only `nav_msgs/Odometry` on `odometry/dvl` — the same topic the hardware WaterLinked driver publishes — which the EKF fuses.
 
 ### Thrusters
 
-`sub_control` publishes 8 normalized `Float64` commands on
-`control/thruster_0` through `control/thruster_7`. `sim_thruster_republisher`
-combines them into a `Float64MultiArray` on `sim/thruster_setpoints`, scaling
-each command by 400 (T200 count), and publishes the array consumed by Stonefish.
+`sub_control` publishes 8 normalized `Float64` commands on `control/thruster_0` through `control/thruster_7`. `sim_thruster_republisher` combines them into a `Float64MultiArray` on `sim/thruster_setpoints`, scaling each command by 400 (T200 count), and publishes the array consumed by Stonefish.
 
 ## Simulation Settings
 
-Hardcoded in `sim_launch.py`:
+Fixed in `sim_launch.py`:
 
 | Setting | Value |
 |---|---|
@@ -93,8 +87,10 @@ The Woollett pool model (`data/models/pools/woollett/`) is the default scenario.
 
 ## Robot Model
 
-The Marlin V2 robot definition lives in `src/sub_sim/sub_sim/data/robots/marlin_v2/`:
+The Marlin V3 robot definition lives in `src/sub_sim/sub_sim/data/robots/marlin_v3/`:
 
 - `layout.scn.j2` — Jinja2 template for the full robot Stonefish scenario (links, joints, sensors, actuators)
 - `thruster.j2` — macro for a single thruster definition
 - `frame/`, `dropper/`, `grabber/`, `torpedoes/`, etc. — mesh files (`.obj`)
+
+The eight thruster poses in `layout.scn.j2` are the same numbers as the `thrusters:` block of `src/sub_bringup/config/marlin_v3.yaml` (the TF tree) and the allocation matrix in `sub_control/src/utils.cpp`. Stonefish parses the scenario before any node starts and the allocator's geometry is a compile-time constant, so neither can read the vehicle description; a change to the hull is a change to all three. See [Decision 7](decisions.md).

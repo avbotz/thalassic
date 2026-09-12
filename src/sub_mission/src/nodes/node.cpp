@@ -84,9 +84,7 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
     RCLCPP_INFO(this->get_logger(), "Mission role: %s", this->role.c_str());
 }
 
-std::string MissionNode::visionModelTask(const std::string &task) const {
-    return task;
-}
+std::string MissionNode::visionModelTask(const std::string &task) const { return task; }
 
 bool MissionNode::visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const {
     return logical_task.empty() || reported_task == logical_task || reported_task == visionModelTask(logical_task);

@@ -1,13 +1,11 @@
 import cv2
 import rclpy
-
 from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-
 from sensor_msgs.msg import Image
-
 from sub_vision_interfaces.msg import DetectionArray
+
 
 class AnnotatedNode(Node):
     def __init__(self):
@@ -22,7 +20,6 @@ class AnnotatedNode(Node):
             "vision/debug_image",
             qos_profile_sensor_data,
         )
-        
 
         self.create_subscription(
             Image,
@@ -36,6 +33,7 @@ class AnnotatedNode(Node):
             self.detection_callback,
             qos_profile_sensor_data,
         )
+
     def image_callback(self, msg):
         self._latest_header = msg.header
         self._latest_image = self._bridge.imgmsg_to_cv2(
@@ -44,9 +42,11 @@ class AnnotatedNode(Node):
         )
 
         self.publish_debug()
+
     def detection_callback(self, msg):
         self._latest_detections = msg
         self.publish_debug()
+
     def publish_debug(self):
 
         if self._latest_image is None or self._latest_detections is None:
@@ -55,9 +55,7 @@ class AnnotatedNode(Node):
         annotated = self._latest_image.copy()
 
         if self._latest_detections is not None:
-
             for det in self._latest_detections.detections:
-
                 bbox = det.detection.bbox
 
                 cx = bbox.center.position.x
@@ -66,10 +64,10 @@ class AnnotatedNode(Node):
                 w = bbox.size_x
                 h = bbox.size_y
 
-                x1 = int(cx - w/2)
-                y1 = int(cy - h/2)
-                x2 = int(cx + w/2)
-                y2 = int(cy + h/2)
+                x1 = int(cx - w / 2)
+                y1 = int(cy - h / 2)
+                x2 = int(cx + w / 2)
+                y2 = int(cy + h / 2)
 
                 result = det.detection.results[0]
 
@@ -80,17 +78,17 @@ class AnnotatedNode(Node):
                     annotated,
                     (x1, y1),
                     (x2, y2),
-                    (0,255,0),
+                    (0, 255, 0),
                     2,
                 )
 
                 cv2.putText(
                     annotated,
                     f"{cls} {score:.2f}",
-                    (x1, y1-5),
+                    (x1, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
-                    (0,255,0),
+                    (0, 255, 0),
                     2,
                 )
 
@@ -101,7 +99,6 @@ class AnnotatedNode(Node):
             msg.header = self._latest_header
             self._pub.publish(msg)
 
-    
 
 def main(args=None):
     rclpy.init(args=args)
@@ -114,6 +111,7 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+
 
 if __name__ == "__main__":
     main()

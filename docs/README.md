@@ -2,7 +2,7 @@
 
 > These docs are mostly AI written. Proceed at your own risk.
 
-Thalassic is the ROS2 software stack for AVBotz's **Marlin V2** AUV (Autonomous Underwater Vehicle). It targets ROS2 Jazzy (from RoboStack, via pixi) and uses Stonefish for physics simulation.
+Thalassic is the ROS2 software stack for AVBotz's **Marlin V3** AUV (Autonomous Underwater Vehicle). It targets ROS2 Jazzy (from RoboStack, via pixi) and uses Stonefish for physics simulation.
 
 ## Docs
 

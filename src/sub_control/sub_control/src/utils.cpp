@@ -10,7 +10,7 @@
 
 namespace {
 
-enum class PROPELLER_DIRECTION { CLOCKWISE=1, COUNTER_CLOCKWISE=-1 };
+enum class PROPELLER_DIRECTION { CLOCKWISE = 1, COUNTER_CLOCKWISE = -1 };
 
 struct ThrusterPose {
     double x;
@@ -29,9 +29,7 @@ struct ThrusterMap {
     double force;
 };
 
-constexpr double thrust_sign(PROPELLER_DIRECTION direction) {
-    return static_cast<double>(direction);
-}
+constexpr double thrust_sign(PROPELLER_DIRECTION direction) { return static_cast<double>(direction); }
 
 // Should match sim thruster layout from layout.scn.j2
 // Thruster positions below are in NED, so they live in base_link_ned frame (X=Right, Y=Back, Z=Down).
@@ -39,6 +37,7 @@ constexpr double thrust_sign(PROPELLER_DIRECTION direction) {
 // Same thruster configuration as BlueROV2 Heavy.
 // Thrusters 0-3: vertical units (pitch 90)  -> heave / roll / pitch
 // Thrusters 4-7 : horizontal units (45-deg) -> surge / sway / yaw
+// clang-format off
 constexpr std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
     // x, y, z, roll, pitch, yaw, direction
     {-0.23, -0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},             // vertical front left (0)
@@ -50,7 +49,12 @@ constexpr std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
     {-0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal back left (6)
     {0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},               // horizontal back right (7)
 }};
+// clang-format on
 
+// Measured T200 thrust curve, one row per 0.01 of normalised command. Left
+// aligned by hand; the formatter would reflow 201 rows into an unreadable
+// block.
+// clang-format off
 constexpr auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.90792904},
                                                          {-0.99, -39.72258662},
                                                          {-0.98, -39.45569354},
@@ -252,14 +256,17 @@ constexpr auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.9079
                                                          {0.98, 51.43622732},
                                                          {0.99, 51.43622732},
                                                          {1, 51.43622732}});
+// clang-format on
 
 }  // namespace
 
 ThrusterAllocator::ThrusterAllocator() {
     Eigen::Matrix3d ned_to_flu;
+    // clang-format off
     ned_to_flu << 0.0, -1.0, 0.0,
                   -1.0, 0.0, 0.0,
                   0.0, 0.0, -1.0;
+    // clang-format on
 
     Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> B;
     for (int i = 0; i < NUM_THRUSTERS; ++i) {

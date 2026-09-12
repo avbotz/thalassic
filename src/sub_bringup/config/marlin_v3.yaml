@@ -1,0 +1,72 @@
+# Marlin V3 hardware description.
+#
+# Everything here is a property of this physical vehicle: mounting offsets,
+# thruster geometry, the serial numbers and udev names of the devices bolted
+# to it. Launch files read this file; none of it belongs inline in a launch
+# file, and a second hull only needs a sibling <robot_name>.yaml.
+#
+# Node tuning (PID gains, EKF configuration, camera exposure) is not vehicle
+# identity and stays in its own config file.
+
+# Frames not namespaced with the robot name. "map" is shared by every vehicle
+# in a graph; everything else below is published as <robot_name>/<frame>.
+global_frames: [map]
+
+# Static transforms, published by tf2_ros/static_transform_publisher.
+# Translations are metres; roll/pitch/yaw are degrees, applied Z-Y-X.
+#
+# base_link is REP-103 FLU. base_link_ned (X right, Y back, Z down) is the
+# frame the mechanical drawings dimension the vehicle in, so most offsets are
+# measured from it.
+transforms:
+  - {parent: map, child: odom}
+  - {parent: base_link, child: base_link_ned, roll: 180, yaw: -90}
+
+  - {parent: base_link_ned, child: front_camera, y: -0.33, z: -0.16631, roll: 90}
+  - {parent: base_link_ned, child: down_camera, x: -0.071, y: 0.194, z: 0.05}
+
+  - {parent: base_link_ned, child: dvl_link, z: 0.015797, yaw: -90}
+  - {parent: base_link_ned, child: pressure_link, y: 0.34012, z: -0.19384}
+  # Off base_link, not base_link_ned: the NaviGuider reports in ENU.
+  - {parent: base_link, child: imu_link, x: -0.199, y: -0.09, z: 0.185622}
+
+  - {parent: base_link_ned, child: dropper_link, x: -0.19074, y: 0.40252, z: 0.15565}
+  - {parent: base_link_ned, child: left_grabber_link, x: 0.056319, y: 0.3506, z: 0.13631}
+  - {parent: base_link_ned, child: right_grabber_link, x: 0.091319, y: 0.35087, z: 0.13636}
+
+# Thruster mounting, in base_link_ned, published as thruster_<i>_link in list
+# order. The same eight poses appear in two other places that cannot read this
+# file, and all three must be changed together:
+#   * sub_sim/data/robots/marlin_v3/layout.scn.j2 - the simulated actuators
+#   * sub_control/src/utils.cpp - the allocation matrix (compile-time constant)
+# 0-3 are the vertical units (heave/roll/pitch), 4-7 the vectored horizontals
+# (surge/sway/yaw), same layout as a BlueROV2 Heavy.
+thrusters:
+  - {x: -0.230, y: -0.220, z:  0.00, pitch: 90}
+  - {x:  0.230, y: -0.220, z:  0.00, pitch: 90}
+  - {x: -0.230, y:  0.220, z:  0.00, pitch: 90}
+  - {x:  0.230, y:  0.220, z:  0.00, pitch: 90}
+  - {x: -0.285, y: -0.315, z: -0.08, yaw: 135}
+  - {x:  0.285, y: -0.315, z: -0.08, yaw: 45}
+  - {x: -0.285, y:  0.315, z: -0.08, yaw: 45}
+  - {x:  0.285, y:  0.315, z: -0.08, yaw: 135}
+
+# Serial devices, by the stable names deploy/udev gives them. The kernel's own
+# /dev/ttyACM* numbering depends on enumeration order and is not usable here.
+devices:
+  maritime_mcu: /dev/pico
+  imu: /dev/naviguider_imu
+
+cameras:
+  # FLIR Blackfly S GigE on the vehicle switch. Driver tuning is in
+  # config/blackfly_down.yaml; only the identity of the unit is here.
+  down:
+    serial_number: "16359776"
+  # Logitech C922 on USB. Driver tuning is in config/logitech_c922.yaml.
+  front:
+    video_device: /dev/front_camera
+
+# Static address of the Water Linked DVL on the vehicle network. Kept next to
+# the devices it belongs with; the rest of the DVL setup is in config/dvl.yaml.
+dvl:
+  ip_address: "192.168.5.250"

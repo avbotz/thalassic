@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 from collections import deque
+from dataclasses import dataclass
 from time import monotonic
 
 import numpy as np
@@ -37,14 +37,18 @@ class DeepSeeColorSmokeTest(Node):
         self.create_subscription(Image, corrected_topic, self._corrected_callback, qos)
 
     def complete(self):
-        return self.matched_rgb is not None and self.depth is not None and self.corrected is not None
+        return (
+            self.matched_rgb is not None and self.depth is not None and self.corrected is not None
+        )
 
     def _rgb_callback(self, msg):
         self.rgb = ReceivedImage(msg, self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8"))
         self.rgb_history.append(self.rgb)
 
     def _depth_callback(self, msg):
-        self.depth = ReceivedImage(msg, self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough"))
+        self.depth = ReceivedImage(
+            msg, self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+        )
 
     def _corrected_callback(self, msg):
         self.corrected = ReceivedImage(msg, self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8"))
@@ -86,7 +90,9 @@ def _validate(node: DeepSeeColorSmokeTest):
         failures.append(f"corrected encoding is {node.corrected.msg.encoding}, expected rgb8")
 
     if rgb.shape != corrected.shape:
-        failures.append(f"corrected shape {corrected.shape} does not match raw RGB shape {rgb.shape}")
+        failures.append(
+            f"corrected shape {corrected.shape} does not match raw RGB shape {rgb.shape}"
+        )
     if rgb.shape[:2] != depth.shape[:2]:
         failures.append(f"depth shape {depth.shape[:2]} does not match RGB shape {rgb.shape[:2]}")
 
@@ -130,15 +136,17 @@ def _validate(node: DeepSeeColorSmokeTest):
             print(f"FAIL: {failure}")
         return 1
 
-    print("PASS: DeepSeeColor integration is publishing synchronized corrected RGB from RGB-D input.")
+    print(
+        "PASS: DeepSeeColor integration is publishing synchronized corrected RGB from RGB-D input."
+    )
     return 0
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Smoke test the DeepSeeColor ROS integration.")
-    parser.add_argument("--rgb-topic", default="/marlin_v2/oak/rgb/image_raw")
-    parser.add_argument("--depth-topic", default="/marlin_v2/oak/stereo/image_raw")
-    parser.add_argument("--corrected-topic", default="/marlin_v2/oak/rgb/image_color_corrected")
+    parser.add_argument("--rgb-topic", default="/marlin_v3/oak/rgb/image_raw")
+    parser.add_argument("--depth-topic", default="/marlin_v3/oak/stereo/image_raw")
+    parser.add_argument("--corrected-topic", default="/marlin_v3/oak/rgb/image_color_corrected")
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args(argv)
 

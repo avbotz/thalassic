@@ -7,11 +7,9 @@
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
-namespace
-{
+namespace {
 
-std::string resourcesDirectory()
-{
+std::string resourcesDirectory() {
     try {
         return ament_index_cpp::get_package_share_directory("sub_mission") + "/resources";
     } catch (const std::exception &) {
@@ -19,8 +17,7 @@ std::string resourcesDirectory()
     }
 }
 
-std::vector<std::string> listXmlFiles(const std::string &directory, const bool stem_only)
-{
+std::vector<std::string> listXmlFiles(const std::string &directory, const bool stem_only) {
     std::vector<std::string> files;
     std::error_code error;
     for (const auto &entry : std::filesystem::directory_iterator(directory, error)) {
@@ -53,18 +50,11 @@ const char *statusName(const BT::NodeStatus status) {
     return "UNKNOWN";
 }
 
-std::string missionsDirectory()
-{
-    return resourcesDirectory() + "/missions";
-}
+std::string missionsDirectory() { return resourcesDirectory() + "/missions"; }
 
-std::string treesDirectory()
-{
-    return resourcesDirectory() + "/trees";
-}
+std::string treesDirectory() { return resourcesDirectory() + "/trees"; }
 
-std::string resolveMissionPath(const std::string &name_or_path)
-{
+std::string resolveMissionPath(const std::string &name_or_path) {
     if (name_or_path.find('/') != std::string::npos || std::filesystem::exists(name_or_path)) {
         return name_or_path;
     }
@@ -77,12 +67,6 @@ std::string resolveMissionPath(const std::string &name_or_path)
     return missionsDirectory() + "/" + file_name;
 }
 
-std::vector<std::string> availableMissions()
-{
-    return listXmlFiles(missionsDirectory(), true);
-}
+std::vector<std::string> availableMissions() { return listXmlFiles(missionsDirectory(), true); }
 
-std::vector<std::string> treeFiles()
-{
-    return listXmlFiles(treesDirectory(), false);
-}
+std::vector<std::string> treeFiles() { return listXmlFiles(treesDirectory(), false); }

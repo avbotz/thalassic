@@ -4,10 +4,10 @@
 #include "sub_control_interfaces/msg/error.hpp"
 #include "sub_control_interfaces/msg/setpoint.hpp"
 
-#include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <robot_localization/srv/set_pose.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -55,20 +55,20 @@ class SubControlMcu : public rclcpp::Node {
     std::string robot_name_{""};
 
     // MCU controller state (all NED/FRD, see mec headers)
-    struct att_controller attitude_controller_ {};
-    struct angvel_controller angular_velocity_controller_ {};
-    struct position_controller pos_controller_ {};
-    struct velocity_controller vel_controller_ {};
+    struct att_controller attitude_controller_{};
+    struct angvel_controller angular_velocity_controller_{};
+    struct position_controller pos_controller_{};
+    struct velocity_controller vel_controller_{};
 
-    struct mec_vehicle_position position_ {};
-    struct mec_vehicle_velocity_body velocity_body_ {};
-    struct mec_vehicle_attitude attitude_ {};
-    struct mec_vehicle_angvel angvel_ {};
+    struct mec_vehicle_position position_{};
+    struct mec_vehicle_velocity_body velocity_body_{};
+    struct mec_vehicle_attitude attitude_{};
+    struct mec_vehicle_angvel angvel_{};
 
-    struct mec_vehicle_position position_sp_ {};
-    struct mec_vehicle_velocity_body velocity_body_sp_ {};
-    struct mec_vehicle_attitude att_sp_ {};
-    struct mec_vehicle_angvel angvel_sp_ {};
+    struct mec_vehicle_position position_sp_{};
+    struct mec_vehicle_velocity_body velocity_body_sp_{};
+    struct mec_vehicle_attitude att_sp_{};
+    struct mec_vehicle_angvel angvel_sp_{};
 
     // MCU 'v' / 't' command equivalents: skip the outer position/attitude loop
     bool velocity_override_{false};

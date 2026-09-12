@@ -21,9 +21,8 @@ SimPressureToDepth::SimPressureToDepth(const rclcpp::NodeOptions& options) : Nod
     z_variance_ = this->get_parameter("z_variance").as_double();
 
     subscriber_ = this->create_subscription<sensor_msgs::msg::FluidPressure>(
-        "sim/pressure", 5, [this](const sensor_msgs::msg::FluidPressure::SharedPtr msg) {
-            this->pressure_callback(msg);
-        });
+        "sim/pressure", 5,
+        [this](const sensor_msgs::msg::FluidPressure::SharedPtr msg) { this->pressure_callback(msg); });
     publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("odometry/depth", rclcpp::SensorDataQoS());
 }
 

@@ -22,9 +22,9 @@ class DeepSeeColorNode(Node):
     def __init__(self):
         super().__init__("deepseecolor")
 
-        self.declare_parameter("rgb_topic", "/marlin_v2/oak/rgb/image_raw")
-        self.declare_parameter("depth_topic", "/marlin_v2/oak/stereo/image_raw")
-        self.declare_parameter("corrected_topic", "/marlin_v2/oak/rgb/image_color_corrected")
+        self.declare_parameter("rgb_topic", "/marlin_v3/oak/rgb/image_raw")
+        self.declare_parameter("depth_topic", "/marlin_v3/oak/stereo/image_raw")
+        self.declare_parameter("corrected_topic", "/marlin_v3/oak/rgb/image_color_corrected")
         self.declare_parameter("device", "cuda:0")
         self.declare_parameter("init_iters", 10)
         self.declare_parameter("iters", 2)
@@ -37,7 +37,9 @@ class DeepSeeColorNode(Node):
         self.declare_parameter("publish_every_n", 1)
 
         if torch is None:
-            raise RuntimeError("DeepSeeColor requires torch. Install PyTorch before running this node.")
+            raise RuntimeError(
+                "DeepSeeColor requires torch. Install PyTorch before running this node."
+            )
 
         device = self.get_parameter("device").value
         if str(device).startswith("cuda") and not torch.cuda.is_available():

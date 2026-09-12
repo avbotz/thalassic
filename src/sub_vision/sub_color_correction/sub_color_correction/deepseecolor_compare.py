@@ -15,7 +15,9 @@ from sensor_msgs.msg import Image
 
 
 class DeepSeeColorCompare(Node):
-    def __init__(self, rgb_topic: str, corrected_topic: str, max_width: int, crop_top: int, crop_bottom: int):
+    def __init__(
+        self, rgb_topic: str, corrected_topic: str, max_width: int, crop_top: int, crop_bottom: int
+    ):
         super().__init__("deepseecolor_compare")
         self.bridge = CvBridge()
         self.max_width = max_width
@@ -54,7 +56,15 @@ class DeepSeeColorCompare(Node):
         font_scale = max(0.6, comparison.shape[0] / 900.0)
         thickness = max(1, int(round(comparison.shape[0] / 500.0)))
         cv2.rectangle(comparison, (0, 0), (comparison.shape[1], label_h), (0, 0, 0), -1)
-        cv2.putText(comparison, "raw RGB", (16, int(label_h * 0.7)), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+        cv2.putText(
+            comparison,
+            "raw RGB",
+            (16, int(label_h * 0.7)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            (255, 255, 255),
+            thickness,
+        )
         cv2.putText(
             comparison,
             "DeepSeeColor",
@@ -86,9 +96,11 @@ def _stamp_nanoseconds(msg: Image):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="View or save raw RGB vs DeepSeeColor corrected images.")
-    parser.add_argument("--rgb-topic", default="/marlin_v2/oak/rgb/image_raw")
-    parser.add_argument("--corrected-topic", default="/marlin_v2/oak/rgb/image_color_corrected")
+    parser = argparse.ArgumentParser(
+        description="View or save raw RGB vs DeepSeeColor corrected images."
+    )
+    parser.add_argument("--rgb-topic", default="/marlin_v3/oak/rgb/image_raw")
+    parser.add_argument("--corrected-topic", default="/marlin_v3/oak/rgb/image_color_corrected")
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--max-width", type=int, default=1600)
     parser.add_argument("--crop-top", type=int, default=0)

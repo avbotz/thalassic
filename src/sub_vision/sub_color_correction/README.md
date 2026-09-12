@@ -22,26 +22,25 @@ Python dependencies:
 
 DeepSeeColor's upstream environment uses PyTorch, torchvision, and Kornia. This streaming node only imports PyTorch directly and uses Kornia for the depth morphology step when available.
 
-## Launch With Sim
+## Launch
+
+The depth camera is not on Marlin V3 right now, so no launch file starts this
+node; the block that did was removed from `sim_launch.py` (see
+[Decision 6](../../../docs/decisions.md)). Run it directly:
 
 ```bash
-ros2 launch sub_bringup sim_launch.py enable_deepseecolor:=true
-```
-
-Use CPU if CUDA is unavailable:
-
-```bash
-ros2 launch sub_bringup sim_launch.py enable_deepseecolor:=true deepseecolor_device:=cpu
+ros2 run sub_color_correction deepseecolor_node --ros-args \
+  -r __ns:=/marlin_v3 -p device:=cpu
 ```
 
 The node subscribes to:
 
-- `/marlin_v2/oak/rgb/image_raw`
-- `/marlin_v2/oak/stereo/image_raw`
+- `/marlin_v3/oak/rgb/image_raw`
+- `/marlin_v3/oak/stereo/image_raw`
 
 It publishes:
 
-- `/marlin_v2/oak/rgb/image_color_corrected`
+- `/marlin_v3/oak/rgb/image_color_corrected`
 
 ## Smoke Test
 
