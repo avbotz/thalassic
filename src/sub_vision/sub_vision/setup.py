@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="AVBotz",
-    maintainer_email="avbotzco@gmail.com",
+    maintainer_email="software@avbotz.com",
     description="YOLOv10 perception pipeline (ONNX Runtime / TensorRT) for the Marlin V3 AUV.",
     license="Proprietary",
     entry_points={

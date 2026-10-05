@@ -4,7 +4,7 @@
   <name>sub_control_mcu</name>
   <version>0.0.0</version>
   <description>Drop-in alternative to sub_control that reimplements the Nautical-Private MCU cascade control algorithm (maritime-ec) as a ROS 2 node.</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <depend>geometry_msgs</depend>

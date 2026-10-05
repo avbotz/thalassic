@@ -4,7 +4,7 @@
   <name>sub_control</name>
   <version>0.0.0</version>
   <description>Publishes thruster commands (-1 to 1) in response to current state and desired state.</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <depend>angles</depend>

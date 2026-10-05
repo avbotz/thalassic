@@ -13,7 +13,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="AVBotz",
-    maintainer_email="avbotzco@gmail.com",
+    maintainer_email="software@avbotz.com",
     description="RGB-D underwater color correction for Marlin camera streams.",
     license="Proprietary",
     entry_points={

@@ -4,7 +4,7 @@
   <name>sub_sim</name>
   <version>0.0.0</version>
   <description>Files and scripts relating to simulator</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <depend>python3-jinja2</depend>

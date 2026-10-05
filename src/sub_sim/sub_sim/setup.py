@@ -29,7 +29,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="AVBotz",
-    maintainer_email="avbotzco@gmail.com",
+    maintainer_email="software@avbotz.com",
     description="Files and scripts relating to simulator",
     license="Proprietary",
     entry_points={

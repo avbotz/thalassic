@@ -4,7 +4,7 @@
   <name>sub_color_correction</name>
   <version>0.0.0</version>
   <description>RGB-D underwater color correction for Marlin camera streams.</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <exec_depend>rclpy</exec_depend>

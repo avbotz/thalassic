@@ -4,7 +4,7 @@
   <name>sub_bringup</name>
   <version>0.0.0</version>
   <description>Launch and configuration files</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <exec_depend>foxglove_bridge</exec_depend>

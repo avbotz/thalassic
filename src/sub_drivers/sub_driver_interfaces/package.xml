@@ -4,7 +4,7 @@
   <name>sub_driver_interfaces</name>
   <version>0.0.0</version>
   <description>Service and message definitions for sub drivers</description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

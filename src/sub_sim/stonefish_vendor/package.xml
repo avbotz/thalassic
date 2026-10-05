@@ -7,7 +7,7 @@
     Builds the AVBotz fork of the Stonefish. No global (/usr/local) Stonefish install
     is needed and the simulator version is pinned by the submodule commit.
   </description>
-  <maintainer email="avbotzco@gmail.com">AVBotz</maintainer>
+  <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>GPL-3.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
