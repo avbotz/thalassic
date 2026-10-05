@@ -39,8 +39,10 @@ class LabelNode(Node):
         self.declare_parameter("scenario_file", "")
         self.declare_parameter("output_dir", "train_imgs")
         self.declare_parameter("min_bbox_area", 400)
-        self.declare_parameter("seg_topic", "/marlin_v3/sim/segment/image_raw")
-        self.declare_parameter("front_cam_topic", "/marlin_v3/oak/rgb/image_raw")
+        # Relative to the vehicle namespace. The segmentation camera is aligned
+        # with the scenario's front camera.
+        self.declare_parameter("seg_topic", "sim/segment/image_raw")
+        self.declare_parameter("front_cam_topic", "front_camera/image_color")
 
         scenario_file = self.get_parameter("scenario_file").get_parameter_value().string_value
         self.output_dir = self.get_parameter("output_dir").get_parameter_value().string_value
