@@ -1,8 +1,6 @@
 # Thalassic
 
-ROS 2 Jazzy software stack for AVBotz's **Marlin V3** AUV. Runs on the vehicle's Jetson AGX Orin and, with the Stonefish simulator, on developer machines.
-
-Everything the workspace needs is declared in `pixi.toml` and pinned in `pixi.lock`. See [docs/setup.md](docs/setup.md) for the workflow.
+ROS 2 Jazzy software stack for AVBotz's Marlin V3 AUV.
 
 ## Quick start
 
@@ -20,7 +18,7 @@ Common tasks (`pixi task list` shows all):
 | Command | Does |
 |---|---|
 | `pixi run build` | `colcon build` with the repo defaults (symlink + merge install) |
-| `pixi run prune-symlink` | removes deleted dangling symlinks left behind by `colcon build` |
+| `pixi run prune-symlinks` | removes the dangling symlinks that deleted files leave in `build/` and `install/` |
 | `pixi run sim` | launch simulation |
 | `pixi run pool` | launch with real hardware in pool |
 | `pixi run test` | `colcon test` |
@@ -39,4 +37,5 @@ Common tasks (`pixi task list` shows all):
 - [Mission](docs/mission.md)
 - [Vision](docs/vision.md)
 - [Simulation](docs/simulation.md)
+- [Recording](docs/recording.md)
 - [Networking](docs/networking.md)

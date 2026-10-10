@@ -6,14 +6,15 @@ Thalassic is the ROS2 software stack for AVBotz's **Marlin V3** AUV (Autonomous 
 
 ## Docs
 
-- [Setup & Build](setup.md) — pixi workflow, DDS profiles, container, GPUs
+- [Setup & Build](setup.md) — pixi workflow, DDS profiles, GPUs
 - [Deployment](deployment.md) — Jetson provisioning and updates
 - [Decisions](decisions.md) — rationale for the tooling choices
 - [Architecture](architecture.md) — packages, nodes, topics, TF tree
-- [Control System](control.md) — cascade PID, command interface, safety, coordinate frames, thruster allocation
+- [Control System](control.md) — trajectory generator, model-based control law, thrust allocation and thruster failure, command interface, safety, tuning
 - [Mission System](mission.md) — BehaviorTree.CPP mission XML, movement actions, and implementation boundaries
 - [Vision Terms](vision.md) — detection, align, orient, and sweep definitions for mission XML
 - [Simulation](simulation.md) — scenario generation, sim nodes, sensor bridges
+- [Recording](recording.md) — a run's MCAP bag (`record:=true`): what it holds, its size, replay
 - [Networking](networking.md) — vehicle addresses
 
 ## Quick Start
