@@ -1,8 +1,11 @@
+import math
 import threading
+import time
 
 import rclpy
 import serial
 from nav_msgs.msg import Odometry
+from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import (
@@ -17,8 +20,15 @@ from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 
 NUM_THRUSTERS = 8
 NUM_TORPEDO_THRUSTERS = 2
+NUM_DROPPERS = 2
 
 READER_JOIN_TIMEOUT = 2.0
+# Longest line the board sends is a few tens of bytes; anything longer is noise.
+MAX_LINE_LENGTH = 256
+# Hard ceiling on |normalized thruster command|: the board sends 1500 +/- 400 * command us
+# to the Basic ESCs, so this keeps them within 1260-1740 us whatever is published. Matches
+# MAX_POWER_LIMIT in sub_control.
+MAX_COMMAND = 0.6
 
 
 class SubLow(LifecycleNode):
@@ -26,11 +36,12 @@ class SubLow(LifecycleNode):
         super().__init__("sub_low", **kwargs)
 
         self.declare_parameter("device", "/dev/ttyACM0")
-        # default values for usb VID/PID are those of maritime
-        self.declare_parameter("device_vid", 0x2FE3)
-        self.declare_parameter("device_pid", 0x0004)
         self.declare_parameter("baud", 115200)
         self.declare_parameter("serial_timeout", 1.0)
+
+        # Thrusters stop if sub_control goes quiet for this long [s] (it
+        # publishes every control cycle, killed or not).
+        self.declare_parameter("command_timeout", 0.5)
 
         self.declare_parameter("depth_frame_id", "odom")
         self.declare_parameter("depth_child_frame_id", "base_link")
@@ -43,6 +54,11 @@ class SubLow(LifecycleNode):
         self._reader_stop = threading.Event()
 
         self._is_active = False
+        # time.monotonic() of the last thruster command, so that a step of the system clock
+        # cannot hold off the watchdog.
+        self._last_command: float | None = None
+        self._stopped = True
+        self._watchdog = None
 
         self._kill_pub = None
         self._depth_pub = None
@@ -53,6 +69,9 @@ class SubLow(LifecycleNode):
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         if not self._open_serial():
             return TransitionCallbackReturn.FAILURE
+        # Start from stopped thrusters, whatever the board was last told: a sub_low that
+        # died without stopping them would otherwise leave them running.
+        self._write("a 0\n")
 
         kill_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self._kill_pub = self.create_lifecycle_publisher(Bool, "kill_switch", kill_qos)
@@ -87,6 +106,10 @@ class SubLow(LifecycleNode):
             SetDropper, "set_dropper", self._set_dropper_callback
         )
 
+        self._watchdog = self.create_timer(
+            0.1, self._check_commands, clock=Clock(clock_type=ClockType.STEADY_TIME)
+        )
+
         self._reader_stop.clear()
         self._reader_thread = threading.Thread(
             target=self._reader_loop, name="sub_low_serial_reader", daemon=True
@@ -103,6 +126,7 @@ class SubLow(LifecycleNode):
         self._is_active = False
         # Stop all thrusters before going idle.
         self._write("a 0\n")
+        self._stopped = True
         return super().on_deactivate(state)
 
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
@@ -115,6 +139,15 @@ class SubLow(LifecycleNode):
         self._teardown()
         return TransitionCallbackReturn.SUCCESS
 
+    def destroy_node(self) -> None:
+        # rclpy runs no lifecycle transition when the process is stopped (Ctrl-C, or launch
+        # shutting down), so stop the thrusters here rather than leave them at their last
+        # command.
+        self._is_active = False
+        self._write("a 0\n")
+        self._teardown()
+        super().destroy_node()
+
     def _open_serial(self) -> bool:
         device = self.get_parameter("device").get_parameter_value().string_value
         baud = self.get_parameter("baud").get_parameter_value().integer_value
@@ -125,6 +158,9 @@ class SubLow(LifecycleNode):
             ser.port = device
             ser.baudrate = baud
             ser.timeout = timeout
+            # Without it, a board that stops reading blocks write() - and with it the
+            # executor, the command watchdog and shutdown - forever.
+            ser.write_timeout = timeout
             ser.dtr = False
             ser.rts = False
             try:
@@ -156,23 +192,32 @@ class SubLow(LifecycleNode):
             return False
 
     def _reader_loop(self) -> None:
-        while not self._reader_stop.is_set():
-            if self._serial is None:
-                break
-
+        ser = self._serial
+        partial = b""
+        while ser is not None and not self._reader_stop.is_set():
             try:
-                line = self._serial.readline()
+                chunk = ser.readline()
             except serial.SerialException as exc:
                 self.get_logger().error(f"serial read failed: {exc}")
                 break
 
-            if not line:
-                continue  # readline() timed out; re-check the stop flag.
+            if not chunk.endswith(b"\n"):
+                # readline() timed out, possibly mid-line. Keep what arrived for the next
+                # read, and re-check the stop flag: a truncated "d 0.53" must not be
+                # parsed as 0.
+                partial += chunk
+                if len(partial) > MAX_LINE_LENGTH:
+                    partial = b""
+                continue
+            line, partial = partial + chunk, b""
 
             try:
                 self._handle_line(line)
-            except Exception:  # never let the reader thread die silently
-                self.get_logger().warn("error while handling serial line")
+            except Exception as exc:  # never let the reader thread die silently
+                self.get_logger().warning(
+                    f"error while handling serial line {line!r}: {exc}",
+                    throttle_duration_sec=1.0,
+                )
 
     def _handle_line(self, line: bytes) -> None:
         fields = line.split()
@@ -191,6 +236,9 @@ class SubLow(LifecycleNode):
             try:
                 depth = float(fields[1])
             except (IndexError, ValueError):
+                return
+            # float() accepts "nan" and "inf", either of which would corrupt the EKF.
+            if not math.isfinite(depth):
                 return
 
             self._publish_depth(depth)
@@ -231,7 +279,6 @@ class SubLow(LifecycleNode):
                 self.get_logger().warning(f"error closing serial port: {exc}")
             self._serial = None
             self._is_active = False
-            self._last_read = None
 
     def _destroy_entities(self) -> None:
         if self._kill_pub is not None:
@@ -249,14 +296,39 @@ class SubLow(LifecycleNode):
         for sub in self._thruster_subs:
             self.destroy_subscription(sub)
         self._thruster_subs = []
+        if self._watchdog is not None:
+            self.destroy_timer(self._watchdog)
+            self._watchdog = None
 
     def _make_thruster_callback(self, index: int):
         def callback(msg: Float64) -> None:
             if not self._is_active:
                 return
-            self._write(f"p {index} {round(msg.data, 3)}\n")
+            self._last_command = time.monotonic()
+            self._stopped = False
+            thrust = msg.data
+            if not math.isfinite(thrust):
+                self.get_logger().error(
+                    f"thruster {index} commanded {thrust}: stopping it",
+                    throttle_duration_sec=1.0,
+                )
+                thrust = 0.0
+            thrust = min(max(thrust, -MAX_COMMAND), MAX_COMMAND)
+            self._write(f"p {index} {round(thrust, 3)}\n")
 
         return callback
+
+    def _check_commands(self) -> None:
+        """Stop every thruster if sub_control stops commanding them."""
+        if not self._is_active or self._stopped or self._last_command is None:
+            return
+        timeout = self.get_parameter("command_timeout").value
+        if time.monotonic() - self._last_command > timeout:
+            self.get_logger().error(
+                f"no thruster commands for {timeout:.1f} s: stopping all thrusters"
+            )
+            self._write("a 0\n")
+            self._stopped = True
 
     def _launch_torpedo_callback(self, request, response):
         if not self._is_active or self._serial is None:
@@ -285,13 +357,19 @@ class SubLow(LifecycleNode):
             response.message = "sub_low is not active."
             return response
 
-        if not self._write(f"d {int(request.open)}\n"):
+        if not 0 <= request.dropper_id < NUM_DROPPERS:
+            response.success = False
+            response.message = f"Invalid dropper id {request.dropper_id}."
+            return response
+
+        if not self._write(f"d {request.dropper_id} {int(request.open)}\n"):
             response.success = False
             response.message = "serial write failed"
             return response
 
+        state = "opened" if request.open else "closed"
         response.success = True
-        response.message = f"Dropper {'opened' if request.open else 'closed'}."
+        response.message = f"Dropper {request.dropper_id} {state}."
         return response
 
 
