@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Fast DDS profile for the Stonefish process only (sim_launch.py), which publishes
+the camera images.
+
+Fast DDS hands a large message to subscribers on this machine as ~64 KB
+fragments in the publisher's shared-memory segment, 512 KB by default. A raw
+1920x1080 front-camera frame is 6.2 MB, so the segment is overwritten before subscribers
+have read it: best-effort subscribers lose most frames and reliable ones wait
+for repairs, which is what made the cameras stutter and lag in Foxglove.
+The segment has to hold a few frames of every camera.
+
+Fast DDS zeroes the whole segment at startup, so it costs that much RAM; no
+other process needs it, since only the publisher's segment holds the data.
+
+ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST makes rmw_fastrtps set up its own
+default transports, so sim_launch.py clears it for this process and the rest
+below is what rmw sets up for LOCALHOST (rmw_fastrtps_shared_cpp participant.cpp):
+discovery by unicast to this machine only, data over shared memory.
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>shm</transport_id>
+            <type>SHM</type>
+            <!-- 64 MiB: about ten raw front-camera frames -->
+            <segment_size>67108864</segment_size>
+        </transport_descriptor>
+        <transport_descriptor>
+            <transport_id>udp</transport_id>
+            <type>UDPv4</type>
+            <maxInitialPeersRange>32</maxInitialPeersRange>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <participant profile_name="stonefish" is_default_profile="true">
+        <rtps>
+            <useBuiltinTransports>false</useBuiltinTransports>
+            <userTransports>
+                <transport_id>shm</transport_id>
+                <transport_id>udp</transport_id>
+            </userTransports>
+            <builtin>
+                <!-- A unicast locator, so no multicast one is added -->
+                <metatrafficUnicastLocatorList>
+                    <locator>
+                        <udpv4/>
+                    </locator>
+                </metatrafficUnicastLocatorList>
+                <initialPeersList>
+                    <locator>
+                        <udpv4>
+                            <address>127.0.0.1</address>
+                        </udpv4>
+                    </locator>
+                </initialPeersList>
+            </builtin>
+        </rtps>
+    </participant>
+</profiles>
