@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The gate and then the slalom, facing straight down the course after the
+     gate. -->
+<root BTCPP_format="4" main_tree_to_execute="GateSlalomTest">
+  <BehaviorTree ID="GateSlalomTest">
+    <Sequence name="gate_slalom_test">
+      <Script code="@gate_exit_yaw := 0.0"/>
+      <SubTree ID="GateMission"/>
+      <Sleep msec="5000"/>
+      <SubTree ID="SlalomMission"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

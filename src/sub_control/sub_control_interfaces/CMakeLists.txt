@@ -14,8 +14,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ControllerStatus.msg"
   "msg/Error.msg"
   "msg/MotionSetpoint.msg"
-  "msg/Setpoint.msg"
-  "msg/SetpointAxes.msg"
   DEPENDENCIES std_msgs
 )
 

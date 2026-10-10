@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dead-reckoned slalom; see hard_coded_gate.xml. -->
+<root BTCPP_format="4" main_tree_to_execute="HardCodedSlalomMission">
+  <BehaviorTree ID="HardCodedSlalomMission">
+    <Sequence name="hard_coded_slalom_mission">
+      <PosSetpoint z="-1.1"/>
+      <!-- Up to just before the first set. -->
+      <MoveRelativePos x="2.5"/>
+      <!-- Onto the first set's left opening, and through. -->
+      <MoveRelativePos y="0.5"/>
+      <MoveRelativePos x="1.7"/>
+      <!-- Onto the second set's left opening, and through. -->
+      <MoveRelativePos y="-1.0"/>
+      <MoveRelativePos x="2.413"/>
+      <!-- Onto the third set's left opening, and through. -->
+      <MoveRelativePos y="1.7"/>
+      <MoveRelativePos x="1.06"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

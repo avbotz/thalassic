@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4" project_name="Project">
+    <include path="missions/bins_test.xml"/>
+    <include path="missions/gate_slalom_test.xml"/>
+    <include path="missions/hard_coded_competition.xml"/>
+    <include path="missions/hard_coded_gate.xml"/>
+    <include path="missions/hard_coded_octagon.xml"/>
+    <include path="missions/hard_coded_slalom.xml"/>
+    <include path="missions/hard_coded_torp.xml"/>
     <include path="missions/pid_tuning.xml"/>
     <include path="missions/pool_a.xml"/>
     <include path="missions/pool_b.xml"/>
@@ -7,14 +14,22 @@
     <include path="missions/pool_d.xml"/>
     <include path="missions/pool_test.xml"/>
     <include path="missions/prelim.xml"/>
+    <include path="missions/slalom_perception_hold_test.xml"/>
+    <include path="missions/slalom_three_test.xml"/>
     <include path="missions/vision_test.xml"/>
     <include path="trees/bins.xml"/>
     <include path="trees/coin_flip.xml"/>
     <include path="trees/competition.xml"/>
     <include path="trees/gate.xml"/>
+    <include path="trees/hard_coded_competition.xml"/>
+    <include path="trees/hard_coded_gate.xml"/>
+    <include path="trees/hard_coded_octagon.xml"/>
+    <include path="trees/hard_coded_slalom.xml"/>
+    <include path="trees/hard_coded_torp.xml"/>
     <include path="trees/octagon.xml"/>
     <include path="trees/pool_test.xml"/>
     <include path="trees/prelim.xml"/>
+    <include path="trees/return_home.xml"/>
     <include path="trees/slalom.xml"/>
     <include path="trees/torp.xml"/>
     <include path="trees/vision_test.xml"/>
@@ -23,12 +38,8 @@
         <Action ID="AddAttSetpoint">
             <input_port name="roll" default="nan">Roll offset in radians</input_port>
             <input_port name="pitch" default="nan">Pitch offset in radians</input_port>
-            <input_port name="yaw" default="nan">Yaw offset in radians</input_port>
-        </Action>
-        <Action ID="AverageAngles">
-            <input_port name="a">First angle in radians</input_port>
-            <input_port name="b">Second angle in radians</input_port>
-            <output_port name="out">Circular mean of a and b in radians</output_port>
+            <input_port name="yaw" default="nan">Yaw offset in radians; positive turns left</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
         </Action>
         <Action ID="AlignToDetection">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
@@ -44,17 +55,23 @@
         </Action>
         <Action ID="AltitudeSetpoint">
             <input_port name="z">Altitude above bottom in meters</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
         </Action>
         <Action ID="AngularVelocitySetpoint">
-            <input_port name="roll" default="0.0">Roll rate in radians per second</input_port>
-            <input_port name="pitch" default="0.0">Pitch rate in radians per second</input_port>
-            <input_port name="yaw" default="0.0">Yaw rate in radians per second</input_port>
+            <input_port name="roll" default="nan">Roll rate in radians per second</input_port>
+            <input_port name="pitch" default="nan">Pitch rate in radians per second</input_port>
+            <input_port name="yaw" default="nan">Yaw rate in radians per second; positive turns left</input_port>
         </Action>
-        <Action ID="ApproachAbydosSymbol"/>
         <Action ID="AttSetpoint">
             <input_port name="roll" default="nan">Roll setpoint in radians</input_port>
             <input_port name="pitch" default="nan">Pitch setpoint in radians</input_port>
-            <input_port name="yaw" default="nan">Yaw setpoint in radians</input_port>
+            <input_port name="yaw" default="nan">Yaw setpoint in radians (odom, counter-clockwise)</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+        </Action>
+        <Action ID="AverageAngles">
+            <input_port name="a">First angle in radians</input_port>
+            <input_port name="b">Second angle in radians</input_port>
+            <output_port name="out">Circular mean of a and b in radians</output_port>
         </Action>
         <Condition ID="DetectionVisible">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
@@ -63,6 +80,24 @@
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
             <input_port name="max_age_msec" default="1000">How recent the detection must be</input_port>
         </Condition>
+        <Action ID="DownAlignToDetection">
+            <input_port name="task">Only accept down-camera detections from this task</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="tolerance" default="0.35">Centered when both bearings are within tolerance (rad)</input_port>
+            <input_port name="desired_distance" default="nan">Optional camera-to-object distance to hold in meters</input_port>
+            <input_port name="distance_tolerance" default="0.5">Distance error allowed at completion (m)</input_port>
+            <input_port name="default_distance" default="1.0">Distance used when detection distance is unavailable</input_port>
+            <input_port name="center_gain" default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+            <input_port name="orient" default="true">Yaw to detection orientation metadata when present</input_port>
+            <input_port name="require_orientation" default="false">Only align with the orientation, not on the center alone</input_port>
+            <input_port name="orientation_settle_frames" default="3">Consistent orientations in a row before yawing</input_port>
+            <input_port name="orientation_consistency_deg" default="10.0">Largest frame-to-frame orientation change taken as consistent</input_port>
+            <input_port name="orient_tolerance_deg" default="5.0">Orientation error allowed at completion</input_port>
+            <input_port name="min_msec" default="3000">Minimum closed-loop alignment time</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
+            <input_port name="update_msec" default="200">Minimum time between movement corrections</input_port>
+        </Action>
         <Action ID="DownContinuousAlign">
             <input_port name="task">Only accept down-camera detections from this task</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
@@ -73,22 +108,37 @@
             <input_port name="default_distance" default="1.0">Distance used when detection distance is unavailable</input_port>
             <input_port name="center_gain" default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
             <input_port name="orient" default="true">Yaw to detection orientation metadata when present</input_port>
+            <input_port name="require_orientation" default="false">Only align with the orientation, not on the center alone</input_port>
+            <input_port name="orientation_settle_frames" default="3">Consistent orientations in a row before yawing</input_port>
+            <input_port name="orientation_consistency_deg" default="10.0">Largest frame-to-frame orientation change taken as consistent</input_port>
             <input_port name="orient_tolerance_deg" default="5.0">Orientation error allowed at completion</input_port>
             <input_port name="min_msec" default="3000">Minimum closed-loop alignment time</input_port>
             <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
             <input_port name="update_msec" default="200">Minimum time between movement corrections</input_port>
         </Action>
-        <Action ID="DownForwardSweepAlign">
+        <Action ID="DownForwardAlign">
             <input_port name="task">Only accept detections from this task</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
-            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS</input_port>
+            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS (the sweep: FAILURE)</input_port>
             <input_port name="forward_step" default="1.0">Forward target extension per update in meters</input_port>
             <input_port name="default_distance" default="1.0">Distance used when detection distance is unavailable</input_port>
             <input_port name="center_gain" default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
             <input_port name="lateral_sweep_step" default="1.0">Right/left search step when no down-camera detection is visible</input_port>
             <input_port name="update_msec" default="300">Minimum time between movement corrections</input_port>
-            <input_port name="timeout_msec" default="30000">Maximum scan time before FAILURE</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum align time before SUCCESS (the sweep: FAILURE)</input_port>
+        </Action>
+        <Action ID="DownForwardSweepAlign">
+            <input_port name="task">Only accept detections from this task</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS (the sweep: FAILURE)</input_port>
+            <input_port name="forward_step" default="1.0">Forward target extension per update in meters</input_port>
+            <input_port name="default_distance" default="1.0">Distance used when detection distance is unavailable</input_port>
+            <input_port name="center_gain" default="1.0">Scale factor for down-camera x/y centering offsets</input_port>
+            <input_port name="lateral_sweep_step" default="1.0">Right/left search step when no down-camera detection is visible</input_port>
+            <input_port name="update_msec" default="300">Minimum time between movement corrections</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum align time before SUCCESS (the sweep: FAILURE)</input_port>
         </Action>
         <Action ID="DownPatternScan">
             <input_port name="task">Task model to search for with the down camera</input_port>
@@ -98,26 +148,51 @@
             <input_port name="sample_timeout_msec" default="2500">Maximum detection sample time at each point</input_port>
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each pattern move</input_port>
         </Action>
+        <Action ID="DownSweepAlign">
+            <input_port name="task">Only accept down-camera detections from this task</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="lateral_step" default="1.0">Distance to each side of the start (m)</input_port>
+            <input_port name="num_sweeps" default="3">Right-then-left passes before FAILURE</input_port>
+            <input_port name="sample_timeout_msec" default="1000">Detection sample time at each point</input_port>
+            <input_port name="move_timeout_msec" default="20000">Maximum wait for each sideways move</input_port>
+        </Action>
         <Action ID="DropBalls">
+            <input_port name="dropper_id" default="0">Dropper to command: 0 or 1</input_port>
             <input_port name="open" default="true">Dropper state to command</input_port>
             <input_port name="timeout_msec" default="5000">Maximum wait for set_dropper response</input_port>
         </Action>
-        <Action ID="ForwardAlign">
+        <Action ID="ForwardContinuousAlign">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
-            <input_port name="task">Only accept detections from this task</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
-            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS</input_port>
-            <input_port name="forward_step" default="2.0">Forward target extension per update in meters</input_port>
-            <input_port name="close_distance" default="3.0">Distance that completes the approach</input_port>
-            <input_port name="depth_offset" default="0.25">Extra depth added when tracking a gate-like target</input_port>
-            <input_port name="align_depth" default="true">Adjust depth from vertical bearing and distance</input_port>
-            <input_port name="update_msec" default="300">Minimum time between forward target updates</input_port>
-            <input_port name="timeout_msec" default="30000">Maximum align time before SUCCESS</input_port>
+            <input_port name="max_dist" default="10.0">Maximum forward travel before SUCCESS (m)</input_port>
+            <input_port name="forward_velocity" default="1.0">Forward velocity (m/s)</input_port>
+            <input_port name="close_distance" default="3.0">Range at which the target counts as close (m)</input_port>
+            <input_port name="detection_loss_msec" default="3000">Time without a frame that counts as lost</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum time before SUCCESS</input_port>
+            <input_port name="confirmation_frames" default="1">Frames in a row before moving</input_port>
+            <input_port name="continue_on_loss" default="true">Carry on along the last heading when lost, instead of FAILURE</input_port>
+            <input_port name="stop_on_close" default="true">SUCCESS as soon as the target is close</input_port>
+            <input_port name="loss_is_success" default="false">SUCCESS when lost after being close</input_port>
+            <input_port name="max_yaw_step_deg" default="45.0">Largest heading correction per frame</input_port>
+        </Action>
+        <Action ID="ForwardFixedTransit">
+            <input_port name="vision_distance_m">Range to what is being passed through (m)</input_port>
+            <input_port name="pass_distance" default="0.0">Distance to carry on past it (m)</input_port>
+            <input_port name="min_transit_distance" default="0.0">Shortest pass (m)</input_port>
+            <input_port name="max_planned_distance" default="0.0">Longest pass (m); 0 for no limit</input_port>
+            <input_port name="completion_tolerance_m" default="0.15">Shortfall accepted at the end (m)</input_port>
+            <input_port name="max_dist" default="10.0">FAILURE if the pass would be longer (m)</input_port>
+            <input_port name="forward_velocity" default="0.3">Forward velocity (m/s)</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum time before FAILURE</input_port>
+            <input_port name="min_progress_m" default="0.1">Progress that shows the vehicle is moving (m)</input_port>
+            <input_port name="progress_timeout_msec" default="4000">FAILURE after this long without min_progress_m forward</input_port>
         </Action>
         <Action ID="ForwardSweepAlign">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
-            <input_port name="task">Only accept detections from this task</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
             <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
@@ -126,6 +201,36 @@
             <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each commanded movement</input_port>
         </Action>
+        <Action ID="LateralAlignToDetection">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="target_distance" default="1.15">Range that turns bearings into offsets (m)</input_port>
+            <input_port name="use_detection_distance" default="false">Use each detection's range instead of target_distance</input_port>
+            <input_port name="max_projection_distance" default="0.0">Cap on the range used for corrections (m); 0 for none</input_port>
+            <input_port name="target_offset_left" default="0.0">Aim this far left of the detection, at target_distance (m)</input_port>
+            <input_port name="target_offset_up" default="0.0">Aim this far above the detection, at target_distance (m)</input_port>
+            <input_port name="align_depth" default="true">Also center the vertical bearing, in z</input_port>
+            <input_port name="lock_target" default="false">Lock consistent rays into one odom target</input_port>
+            <input_port name="lock_frames" default="3">Rays before the target is locked</input_port>
+            <input_port name="reset_timeout_on_lock" default="false">Restart timeout_msec once locked</input_port>
+            <input_port name="tolerance" default="0.012">Centered when the bearings are within this (rad)</input_port>
+            <input_port name="max_bearing_jump_rad" default="0.15">Largest frame-to-frame bearing change taken as the same target</input_port>
+            <input_port name="bearing_filter_alpha" default="0.25">Weight of each new bearing in the filter</input_port>
+            <input_port name="use_lateral_velocity_alignment" default="false">Move sideways at lateral_alignment_velocity instead of in steps</input_port>
+            <input_port name="lateral_alignment_velocity" default="0.1">Sideways speed (m/s)</input_port>
+            <input_port name="blind_alignment_frames" default="1">Frames before a velocity alignment may finish without detections</input_port>
+            <input_port name="max_lateral_step" default="0.1">Largest sideways step per update (m)</input_port>
+            <input_port name="max_depth_step" default="0.08">Largest z step per update (m)</input_port>
+            <input_port name="settle_frames" default="8">Centered frames in a row before SUCCESS</input_port>
+            <input_port name="min_msec" default="1500">Minimum alignment time</input_port>
+            <input_port name="timeout_msec" default="15000">Maximum alignment time before FAILURE</input_port>
+            <input_port name="update_msec" default="300">Minimum time between corrections</input_port>
+            <input_port name="initial_detection_max_age_msec" default="0">Use a frame this old at the start, e.g. the one the tree waited for</input_port>
+            <input_port name="detection_loss_msec" default="0">FAILURE after this long without a matching frame; 0 never</input_port>
+            <output_port name="detection_distance_m">The target's remaining range once aligned (m)</output_port>
+        </Action>
         <Action ID="LoadModel">
             <input_port name="camera" default="front">Camera whose vision node loads the model</input_port>
             <input_port name="task">Task model to load, e.g. gate</input_port>
@@ -133,10 +238,33 @@
         </Action>
         <Action ID="MoveRelative">
             <input_port name="x" default="0.0">Forward offset in meters</input_port>
-            <input_port name="y" default="0.0">Right offset in meters</input_port>
-            <input_port name="z" default="0.0">Down/depth offset in meters</input_port>
+            <input_port name="y" default="0.0">Left offset in meters</input_port>
+            <input_port name="z" default="0.0">Up offset in meters</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+        </Action>
+        <Action ID="MoveRelativePos">
+            <input_port name="x" default="0.0">Offset along odom x in meters</input_port>
+            <input_port name="y" default="0.0">Offset along odom y in meters</input_port>
+            <input_port name="z" default="0.0">Up offset in meters</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+        </Action>
+        <Action ID="NavigateToTransform">
+            <input_port name="source_frame">Vehicle frame whose position the target frame takes</input_port>
+            <input_port name="target_frame">Vehicle frame to move there</input_port>
+            <input_port name="horizontal_only" default="false">Move in x and y only, keeping z</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
         </Action>
         <Condition ID="NotKilled"/>
+        <Action ID="OctagonSurfaceSweep">
+            <input_port name="task">Front-camera task whose detections are inspected</input_port>
+            <input_port name="surface_class_id" default="0">Class that sends the vehicle up</input_port>
+            <input_port name="diversion_class_id" default="1">Class that turns the vehicle diversion_deg, once</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="yaw_step_deg" default="30.0">Search turn per step in degrees; positive turns left</input_port>
+            <input_port name="diversion_deg" default="90.0">Turn on seeing the diversion class; positive turns left</input_port>
+            <input_port name="surface_z" default="-0.3">z to rise to on seeing the surface class (m)</input_port>
+            <input_port name="move_timeout_msec" default="20000">Maximum wait for each turn or the rise</input_port>
+        </Action>
         <Action ID="OrientToDetectionAtDist">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
             <input_port name="task">Only accept detections from this task's model</input_port>
@@ -146,18 +274,45 @@
             <input_port name="tolerance" default="0.35">Centered when |horizontal bearing| &lt;= tolerance (rad)</input_port>
             <input_port name="distance_tolerance" default="0.5">Distance error allowed at completion (m)</input_port>
             <input_port name="orient_tolerance_deg" default="5.0">Orientation error allowed at completion</input_port>
+            <input_port name="max_position_step" default="0.5">Largest translation per update (m)</input_port>
+            <input_port name="require_heading" default="false">Wait for heading_yaw_deg instead of only closing the distance</input_port>
+            <input_port name="settle_frames" default="1">Aligned frames in a row before SUCCESS</input_port>
             <input_port name="min_msec" default="6500">Minimum closed-loop alignment time</input_port>
             <input_port name="timeout_msec" default="30000">Maximum align time before FAILURE</input_port>
             <input_port name="update_msec" default="300">Minimum time between movement corrections</input_port>
         </Action>
         <Action ID="PosSetpoint">
-            <input_port name="x" default="nan">North/forward position setpoint</input_port>
-            <input_port name="y" default="nan">East/right position setpoint</input_port>
-            <input_port name="z" default="nan">Down/depth position setpoint</input_port>
+            <input_port name="x" default="nan">Odom x setpoint in meters (forward at the start)</input_port>
+            <input_port name="y" default="nan">Odom y setpoint in meters (left at the start)</input_port>
+            <input_port name="z" default="nan">Odom z setpoint in meters (up; 1 m deep is -1)</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
         </Action>
-        <Action ID="SaveGateHome">
-            <output_port name="x">Saved gate-home x coordinate</output_port>
-            <output_port name="y">Saved gate-home y coordinate</output_port>
+        <Action ID="SavePose">
+            <output_port name="x">Odom x in meters</output_port>
+            <output_port name="y">Odom y in meters</output_port>
+            <output_port name="yaw">Yaw in radians (odom, counter-clockwise)</output_port>
+        </Action>
+        <Action ID="SearchForDetection">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="x" default="nan">Forward velocity in meters per second</input_port>
+            <input_port name="y" default="nan">Left velocity in meters per second</input_port>
+            <input_port name="z" default="nan">Up velocity in meters per second</input_port>
+            <input_port name="sweep_left_m" default="0.0">Lateral search: distance left before turning back</input_port>
+            <input_port name="sweep_right_m" default="0.0">Lateral search: distance right after turning back</input_port>
+            <input_port name="timeout_msec" default="30000">Maximum search time before FAILURE; 0 waits forever</input_port>
+            <input_port name="start_timeout_after_first_frame" default="false">Start the timeout with the camera's first frame instead of now</input_port>
+        </Action>
+        <Condition ID="SearchRole"/>
+        <Action ID="SelectGateRole">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="confirmation_frames" default="3">Frames in a row that must show the same role</input_port>
+            <input_port name="timeout_msec" default="20000">Maximum wait before FAILURE</input_port>
         </Action>
         <Action ID="ShootTorpedo">
             <input_port name="torpedo_id">Torpedo id to command</input_port>
@@ -165,32 +320,43 @@
             <input_port name="timeout_msec" default="5000">Maximum wait for launch_torpedo response</input_port>
         </Action>
         <Action ID="Spin">
-            <input_port name="yaw" default="12.56637061">Yaw distance to spin in radians</input_port>
+            <input_port name="yaw" default="-12.56637061">Yaw distance to spin in radians; positive turns left</input_port>
             <input_port name="rate" default="3.14159265">Yaw rate in radians per second</input_port>
+            <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+        </Action>
+        <Action ID="Stop"/>
+        <Condition ID="SurveyRole"/>
+        <Action ID="SweepAngle">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
+            <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
+            <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw move</input_port>
+            <input_port name="side">Only accept detections left or right of reference_yaw (empty = any side)</input_port>
+            <input_port name="reference_yaw" default="nan">Odom yaw `side` is measured from</input_port>
+            <output_port name="yaw">Odom yaw toward the detected object</output_port>
         </Action>
         <Action ID="SweepCheck">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
-            <input_port name="task">Only accept detections from this task</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
             <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
             <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
             <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw move</input_port>
         </Action>
-        <Action ID="SweepAngle">
-            <input_port name="camera" default="front">Detection source: front or down</input_port>
-            <input_port name="task">Only accept detections from this task</input_port>
-            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
-            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
-            <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
-            <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
-            <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw move</input_port>
-            <output_port name="yaw">Absolute mission yaw toward the detected object</output_port>
+        <Action ID="TimedVelocity">
+            <input_port name="x" default="nan">Forward velocity in meters per second</input_port>
+            <input_port name="y" default="nan">Left velocity in meters per second</input_port>
+            <input_port name="z" default="nan">Up velocity in meters per second</input_port>
+            <input_port name="duration_msec" default="1000">How long to move before holding</input_port>
         </Action>
         <Action ID="VelocitySetpoint">
-            <input_port name="x" default="0.0">Forward velocity in meters per second</input_port>
-            <input_port name="y" default="0.0">Right velocity in meters per second</input_port>
-            <input_port name="z" default="0.0">Down velocity in meters per second</input_port>
+            <input_port name="x" default="nan">Forward velocity in meters per second</input_port>
+            <input_port name="y" default="nan">Left velocity in meters per second</input_port>
+            <input_port name="z" default="nan">Up velocity in meters per second</input_port>
         </Action>
         <Action ID="WaitForDetection">
             <input_port name="camera" default="front">Detection source: front or down</input_port>
@@ -198,6 +364,7 @@
             <input_port name="class_id">Only accept this class id (empty = any)</input_port>
             <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
             <input_port name="timeout_msec" default="15000">Maximum wait before returning FAILURE</input_port>
+            <input_port name="start_timeout_after_first_frame" default="false">Start the timeout with the camera's first frame instead of now</input_port>
         </Action>
         <Action ID="WaitUntilHit">
             <input_port name="axis" default="x">Velocity axis to monitor: x, y, or z</input_port>

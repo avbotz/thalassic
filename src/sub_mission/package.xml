@@ -13,9 +13,15 @@
   <depend>ament_index_cpp</depend>
   <depend>behaviortree_cpp</depend>
   <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>sub_control_interfaces</depend>
   <depend>sub_driver_interfaces</depend>
   <depend>sub_vision_interfaces</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
