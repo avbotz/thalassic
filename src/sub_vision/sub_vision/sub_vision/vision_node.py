@@ -1,11 +1,15 @@
-import math
 import os
+import time
+import traceback
 
+import cv2
+import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from sub_vision_interfaces.msg import Detection, DetectionArray
 from sub_vision_interfaces.srv import LoadModel
@@ -15,8 +19,18 @@ from vision_msgs.msg import (
     ObjectHypothesisWithPose,
 )
 
-from sub_vision import post_processors
-from sub_vision.model_manager import ModelManager
+from sub_vision import geometry, post_processors
+from sub_vision.depth_backend import DepthModel
+from sub_vision.model_manager import LoadResult, ModelManager
+
+# Only the newest frame is kept: with sensor-data QoS's depth of 5, a node slower than the camera
+# works through a backlog and every detection comes from a frame up to 5 frames old.
+FRAME_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+
+
+def workspace_path(path: str) -> str:
+    """``path``, or if relative, resolved against the workspace root (as pixi sets it)."""
+    return os.path.join(os.environ.get("PIXI_PROJECT_ROOT", "."), os.path.expanduser(path))
 
 
 class VisionNode(Node):
@@ -25,8 +39,7 @@ class VisionNode(Node):
     def __init__(self):
         super().__init__("sub_vision")
 
-        default_model_dir = os.path.join(os.path.expanduser("~"), ".sub_vision", "models")
-        self.declare_parameter("model_dir", default_model_dir)
+        self.declare_parameter("model_dir", "weights")
         self.declare_parameter("default_task", "")
         self.declare_parameter("backend", "auto")  # auto|tensorrt|onnxruntime
         self.declare_parameter("device", "auto")  # auto|cpu|cuda (onnxruntime only)
@@ -40,12 +53,18 @@ class VisionNode(Node):
         # "raw" subscribes <rgb_topic>; "compressed" subscribes
         # <rgb_topic>/compressed — use it when frames cross the network.
         self.declare_parameter("image_transport", "raw")
+        self.declare_parameter("depth_enabled", False)
+        self.declare_parameter("depth_model", "depth_anything_v2_vits")
+        self.declare_parameter("depth_input_size", 518)
+        self.declare_parameter("depth_rate_hz", 5.0)
+        self.declare_parameter("depth_debug", False)
 
-        self._model_dir = self.get_parameter("model_dir").value
-        self._detections_task = ""
+        self._model_dir = workspace_path(self.get_parameter("model_dir").value)
         self._bridge = CvBridge()
         self._camera_info: CameraInfo | None = None
         self._last_infer_ms = float("nan")
+        # One instance per task, kept for the node's lifetime: torp carries state between frames.
+        self._processors: dict[str, post_processors.TaskPostProcessor | None] = {}
 
         self._manager = ModelManager(
             model_dir=self._model_dir,
@@ -57,6 +76,21 @@ class VisionNode(Node):
             log=self.get_logger().info,
         )
 
+        self._depth: DepthModel | None = None
+        if self.get_parameter("depth_enabled").value:
+            try:
+                self._depth = DepthModel(
+                    model_dir=self._model_dir,
+                    name=self.get_parameter("depth_model").value,
+                    backend_pref=self.get_parameter("backend").value,
+                    device_pref=self.get_parameter("device").value,
+                    input_size=int(self.get_parameter("depth_input_size").value),
+                    rate_hz=float(self.get_parameter("depth_rate_hz").value),
+                    log=self.get_logger().info,
+                )
+            except Exception as exc:  # detection does not need depth; run without it
+                self.get_logger().error(f"depth model failed to load, running without: {exc}")
+
         # Register the shipped per-task post-processors (gate, ...).
         post_processors.load_builtin_post_processors()
 
@@ -65,6 +99,12 @@ class VisionNode(Node):
             DetectionArray, self.get_parameter("detections_topic").value, qos_profile_sensor_data
         )
         self._diag_pub = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
+        self._depth_pub = self._depth_color_pub = None
+        if self._depth is not None and self.get_parameter("depth_debug").value:
+            self._depth_pub = self.create_publisher(Image, "~/depth", qos_profile_sensor_data)
+            self._depth_color_pub = self.create_publisher(
+                Image, "~/depth/color", qos_profile_sensor_data
+            )
 
         self.create_subscription(
             CameraInfo,
@@ -77,18 +117,10 @@ class VisionNode(Node):
         transport = self.get_parameter("image_transport").value
         if transport == "compressed":
             self.create_subscription(
-                CompressedImage,
-                f"{rgb_topic}/compressed",
-                self._on_compressed_frame,
-                qos_profile_sensor_data,
+                CompressedImage, f"{rgb_topic}/compressed", self._on_compressed_frame, FRAME_QOS
             )
         elif transport == "raw":
-            self.create_subscription(
-                Image,
-                rgb_topic,
-                self._on_frame,
-                qos_profile_sensor_data,
-            )
+            self.create_subscription(Image, rgb_topic, self._on_frame, FRAME_QOS)
         else:
             raise ValueError(f"unsupported image_transport '{transport}' (raw|compressed)")
 
@@ -98,7 +130,7 @@ class VisionNode(Node):
         # Optionally pre-load a task so the node is ready without a service call.
         default_task = self.get_parameter("default_task").value
         if default_task:
-            self._manager.load(default_task)
+            self._load(default_task)
 
         self.get_logger().info("sub_vision node ready")
 
@@ -108,13 +140,21 @@ class VisionNode(Node):
     def _on_camera_info(self, msg: CameraInfo) -> None:
         self._camera_info = msg
 
-    def _on_load_model(self, request, response):
-        result = self._manager.load(request.task)
+    def _on_load_model(
+        self, request: LoadModel.Request, response: LoadModel.Response
+    ) -> LoadModel.Response:
+        result = self._load(request.task)
         response.success = result.success
         response.message = result.message
         response.active_model = result.active_model
         response.load_time_s = float(result.load_time_s)
         return response
+
+    def _load(self, task: str) -> LoadResult:
+        result = self._manager.load(task)
+        if not result.success:
+            self.get_logger().error(result.message)
+        return result
 
     def _on_frame(self, rgb_msg: Image) -> None:
         self._process_frame(
@@ -128,30 +168,81 @@ class VisionNode(Node):
         )
 
     def _process_frame(self, header, decode) -> None:
-        task = self._manager.active_task
-        if task is None:
+        if self._manager.active_task is None and self._depth is None:
             return  # no model loaded yet
-        if self._camera_info is None:
+        # An exception escaping a callback would end spin(), and the node with it: drop the frame.
+        try:
+            self._process_image(header, decode())
+        except Exception:
+            self.get_logger().error(
+                f"dropped a frame:\n{traceback.format_exc()}", throttle_duration_sec=5.0
+            )
+
+    def _process_image(self, header, rgb: np.ndarray) -> None:
+        # At depth_rate_hz; None on the frames between, so a map never meets another frame.
+        depth = self._infer_depth(rgb)
+        if depth is not None and self._depth_pub is not None:
+            self._publish_depth(header, depth)
+
+        if self._manager.active_task is None:
+            return
+        camera_info = self._camera_info
+        if camera_info is None:
             self.get_logger().warn("no CameraInfo yet; skipping frame", throttle_duration_sec=5.0)
             return
+        if camera_info.k[0] <= 0.0 or camera_info.k[4] <= 0.0:
+            self.get_logger().warn(
+                "CameraInfo has no intrinsics (uncalibrated camera): every bearing is 0",
+                throttle_duration_sec=30.0,
+            )
 
-        rgb = decode()
-
-        t0 = self.get_clock().now()
-        raw = self._manager.infer(rgb)
-        self._last_infer_ms = (self.get_clock().now() - t0).nanoseconds / 1e6
-        if raw is None:
+        # Wall time: the node's clock is the simulator's under use_sim_time
+        t0 = time.perf_counter()
+        result = self._manager.infer(rgb)
+        self._last_infer_ms = (time.perf_counter() - t0) * 1000.0
+        if result is None:
             return
+        task, raw = result
 
-        msg = self._build_detection_array(header, task, raw, self._camera_info)
+        msg = self._build_detection_array(header, task, raw.boxes, camera_info)
 
         # Per-task OpenCV enrichment (pose, extra). No-op fallback keeps the 2D
         # metadata when a task has no registered processor.
-        processor = post_processors.get_post_processor(task)
+        if task not in self._processors:
+            self._processors[task] = post_processors.get_post_processor(task)
+            if self._processors[task] is None:
+                self.get_logger().info(
+                    f"no post-processor for task '{task}'; publishing 2D detections only"
+                )
+        processor = self._processors[task]
         if processor is not None:
-            msg = processor.process(msg, rgb, None, self._camera_info)
+            msg = processor.process(msg, rgb, depth, camera_info, raw.masks)
 
         self._pub.publish(msg)
+
+    def _infer_depth(self, rgb: np.ndarray) -> np.ndarray | None:
+        if self._depth is None:
+            return None
+        try:
+            return self._depth.infer_if_due(rgb)
+        except Exception as exc:  # detection does not need depth; run this frame without it
+            self.get_logger().error(f"depth inference failed: {exc}", throttle_duration_sec=5.0)
+            return None
+
+    def _publish_depth(self, header, depth: np.ndarray) -> None:
+        """The relative depth map as 32FC1, and a Turbo rendering stretched over its 1-99th
+        percentiles for viewing."""
+        depth_msg = self._bridge.cv2_to_imgmsg(depth, encoding="32FC1")
+        depth_msg.header = header
+        self._depth_pub.publish(depth_msg)
+
+        low, high = np.percentile(depth, (1.0, 99.0))
+        gray = np.clip((depth - low) * 255.0 / max(high - low, 1e-6), 0, 255).astype(np.uint8)
+        color_msg = self._bridge.cv2_to_imgmsg(
+            cv2.applyColorMap(gray, cv2.COLORMAP_TURBO), encoding="bgr8"
+        )
+        color_msg.header = header
+        self._depth_color_pub.publish(color_msg)
 
     # ----------------------------------------------------------------------- #
     # Message assembly
@@ -167,27 +258,20 @@ class VisionNode(Node):
             det.bearing_horizontal, det.bearing_vertical = self._bearings(
                 det.detection.bbox.center.position, camera_info
             )
-
-            # TODO: Calculate depth based on bbox size
-
+            det.distance_m = float("nan")  # unknown until a post-processor ranges the object
             out.detections.append(det)
         return out
 
     @staticmethod
     def _bearings(center, camera_info) -> tuple[float, float]:
-        """Angles from the optical axis to a pixel, via the pinhole intrinsics.
+        """Angles from the optical axis to a pixel, with lens distortion removed.
 
-        K = [fx 0 cx; 0 fy cy; 0 0 1]. Positive horizontal = right of center,
-        positive vertical = below center (optical-frame convention).
+        Positive horizontal = right of center, positive vertical = below center
+        (optical-frame convention).
         """
-        fx, cx = camera_info.k[0], camera_info.k[2]
-        fy, cy = camera_info.k[4], camera_info.k[5]
-        if fx <= 0.0 or fy <= 0.0:  # uncalibrated source: no usable bearing
+        if camera_info.k[0] <= 0.0 or camera_info.k[4] <= 0.0:  # uncalibrated: no usable bearing
             return 0.0, 0.0
-        return (
-            float(math.atan2(center.x - cx, fx)),
-            float(math.atan2(center.y - cy, fy)),
-        )
+        return geometry.bearings_from_pixel(center.x, center.y, camera_info)
 
     @staticmethod
     def _make_detection2d(header, x1, y1, x2, y2, score, cls) -> Detection2D:
@@ -211,7 +295,10 @@ class VisionNode(Node):
     # Diagnostics
     # ----------------------------------------------------------------------- #
     def _publish_diagnostics(self) -> None:
-        status = DiagnosticStatus(name="sub_vision", hardware_id="oak_d_pro")
+        # One instance per camera (sub_vision, sub_vision_down), told apart by name.
+        status = DiagnosticStatus(
+            name=self.get_name(), hardware_id=self.get_parameter("rgb_topic").value
+        )
         status.level = DiagnosticStatus.OK if self._manager.active_task else DiagnosticStatus.WARN
         status.message = (
             f"active: {self._manager.active_model}"
@@ -220,14 +307,25 @@ class VisionNode(Node):
         )
         status.values.append(KeyValue(key="active_task", value=str(self._manager.active_task)))
         status.values.append(KeyValue(key="last_infer_ms", value=f"{self._last_infer_ms:.1f}"))
+        if self._depth is not None:
+            status.values.append(
+                KeyValue(key="depth_infer_ms", value=f"{self._depth.last_infer_ms:.1f}")
+            )
         warmup = self._manager.last_warmup
         if warmup is not None:
             status.values.append(KeyValue(key="warmup_mean_ms", value=f"{warmup.mean_ms:.1f}"))
+            status.values.append(KeyValue(key="warmup_last_ms", value=f"{warmup.last_ms:.1f}"))
 
         diag = DiagnosticArray()
         diag.header.stamp = self.get_clock().now().to_msg()
         diag.status.append(status)
         self._diag_pub.publish(diag)
+
+    def destroy_node(self) -> None:
+        self._manager.close()
+        if self._depth is not None:
+            self._depth.close()
+        super().destroy_node()
 
 
 def main(args=None):
@@ -235,7 +333,7 @@ def main(args=None):
     node = VisionNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

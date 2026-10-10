@@ -3,7 +3,7 @@
 <package format="3">
   <name>sub_vision</name>
   <version>0.0.0</version>
-  <description>YOLOv10 perception pipeline for the Marlin V3 AUV: ONNX Runtime /
+  <description>YOLO detection pipeline for the Marlin V3 AUV: ONNX Runtime /
     TensorRT inference and per-task OpenCV post-processing.</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>

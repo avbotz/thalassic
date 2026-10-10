@@ -1,13 +1,18 @@
-"""Run the bundled gate ONNX model on a still image."""
+"""Run the gate task's ONNX model on a still image."""
 
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+from sub_vision.model_manager import TASK_MODELS
 
 
 def _default_model_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "models" / "gate.onnx"
+    """The model sub_vision runs for the gate task: in weights/ at the workspace root."""
+    root = Path(os.environ.get("PIXI_PROJECT_ROOT", "."))
+    return root / "weights" / f"{TASK_MODELS.get('gate', 'gate')}.onnx"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -17,7 +22,7 @@ def _parse_args() -> argparse.Namespace:
         "--model",
         type=Path,
         default=_default_model_path(),
-        help="Path to gate.onnx. Defaults to the model bundled with this package.",
+        help="Path to an ONNX model. Defaults to the gate task's, in weights/.",
     )
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold.")
     parser.add_argument("--imgsz", type=int, default=640, help="Inference image size.")
@@ -48,7 +53,7 @@ def main() -> None:
         from ultralytics import YOLO
     except ImportError as exc:
         raise SystemExit(
-            "Missing dependency: install with `python3 -m pip install ultralytics onnxruntime`"
+            "Missing dependency: ultralytics (in pixi.toml; run this inside the pixi environment)"
         ) from exc
 
     model = YOLO(str(model_path))
