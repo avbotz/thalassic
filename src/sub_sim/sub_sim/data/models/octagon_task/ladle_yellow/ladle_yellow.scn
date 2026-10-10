@@ -6,12 +6,25 @@
 
   <dynamic name="ladle_yellow" type="model" physics="submerged" buoyant="false">
     <physical>
-      <mesh filename="models/octagon_task/ladle_yellow/ladle_yellow.obj" scale="1.0" convex="false"/>
+      <mesh filename="models/octagon_task/ladle_yellow/ladle_yellow_collision.obj" scale="1.0" convex="true"/>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </physical>
+    <visual>
+      <mesh filename="models/octagon_task/ladle_yellow/ladle_yellow.obj" scale="1.0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </visual>
 
     <material name="plastic"/>
+    <!-- The full ladle mesh's volume at plastic's density; the low-poly
+         collision mesh is thinner and would make it lighter. -->
+    <mass value="0.0104"/>
     <look name="ladle_yellow"/>
+
+    <!-- Where the object is, for sim_grabber: the middle of its collision hull -->
+    <sensor name="odometry" rate="10.0" type="odometry">
+      <origin xyz="0.006 0.065 -0.055" rpy="0 0 0"/>
+      <ros_publisher topic="/sim/objects/ladle_yellow/odometry"/>
+    </sensor>
 
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </dynamic>

@@ -17,6 +17,12 @@
     <material name="plastic"/>
     <look name="bottle_yellow"/>
 
+    <!-- Where the object is, for sim_grabber: the middle of its collision hull -->
+    <sensor name="odometry" rate="10.0" type="odometry">
+      <origin xyz="0.0 -0.002 -0.033" rpy="0 0 0"/>
+      <ros_publisher topic="/sim/objects/bottle_yellow/odometry"/>
+    </sensor>
+
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </dynamic>
 </scenario>

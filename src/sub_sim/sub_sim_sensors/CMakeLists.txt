@@ -22,12 +22,13 @@ find_package(tf2 REQUIRED)
 
 add_library(${PROJECT_NAME}_components SHARED
   src/sim_dvl_remapper.cpp
-  src/sim_thruster_republisher.cpp
   src/sim_imu_remapper.cpp
   src/sim_pressure_to_depth.cpp
   src/sim_kill_switch.cpp
   src/sim_torpedo_launcher.cpp
   src/sim_dropper.cpp
+  src/sim_grabber.cpp
+  src/sim_thrusters.cpp
 )
 target_include_directories(${PROJECT_NAME}_components PRIVATE include)
 ament_target_dependencies(${PROJECT_NAME}_components
@@ -48,8 +49,6 @@ ament_target_dependencies(${PROJECT_NAME}_components
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimDVLRemapper" EXECUTABLE sim_dvl_remapper)
 rclcpp_components_register_node(${PROJECT_NAME}_components
-  PLUGIN "SimThrusterRepublisher" EXECUTABLE sim_thruster_republisher)
-rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimIMURemapper" EXECUTABLE sim_imu_remapper)
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimPressureToDepth" EXECUTABLE sim_pressure_to_depth)
@@ -59,6 +58,10 @@ rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimTorpedoLauncher" EXECUTABLE sim_torpedo_launcher)
 rclcpp_components_register_node(${PROJECT_NAME}_components
   PLUGIN "SimDropper" EXECUTABLE sim_dropper)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimGrabber" EXECUTABLE sim_grabber)
+rclcpp_components_register_node(${PROJECT_NAME}_components
+  PLUGIN "SimThrusters" EXECUTABLE sim_thrusters)
 
 install(TARGETS ${PROJECT_NAME}_components
   ARCHIVE DESTINATION lib

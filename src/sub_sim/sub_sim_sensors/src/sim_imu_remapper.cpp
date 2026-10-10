@@ -59,7 +59,7 @@ void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned
     msg_enu.header = msg_ned->header;
     msg_enu.header.frame_id = imu_link_;
 
-    // T_world: Transforms World Frame from NED to ENU (E=N_old, N=E_old, U=-D)
+    // T_world: Transforms World Frame from NED to ENU: (N,E,D) -> (E,N,U=-D), i.e. (x,y,z) -> (y,x,-z)
     static const tf2::Matrix3x3 T_world(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0);
 
     // T_body: Transforms the sim IMU body frame to FLU. The IMU is rigidly
@@ -68,22 +68,22 @@ void SimIMURemapper::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg_ned
     // F=-Back, L=-Right, U=-Down, i.e. (x,y,z) -> (-y,-x,-z).
     static const tf2::Matrix3x3 T_body(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0);
 
-    // 1. Convert Linear Acceleration and Angular Velocity (Body Frame: FRD -> FLU)
+    // 1. Convert Linear Acceleration and Angular Velocity (Body Frame: base_link_ned -> FLU)
     // Note: Accel and Gyro are fixed to the body, so they only use T_body!
-    tf2::Vector3 accel_frd(msg_ned->linear_acceleration.x, msg_ned->linear_acceleration.y,
+    tf2::Vector3 accel_ned(msg_ned->linear_acceleration.x, msg_ned->linear_acceleration.y,
                            msg_ned->linear_acceleration.z);
-    tf2::Vector3 accel_flu = T_body * accel_frd;
+    tf2::Vector3 accel_flu = T_body * accel_ned;
     msg_enu.linear_acceleration.x = accel_flu.x();
     msg_enu.linear_acceleration.y = accel_flu.y();
     msg_enu.linear_acceleration.z = accel_flu.z();
 
-    tf2::Vector3 gyro_frd(msg_ned->angular_velocity.x, msg_ned->angular_velocity.y, msg_ned->angular_velocity.z);
-    tf2::Vector3 gyro_flu = T_body * gyro_frd;
+    tf2::Vector3 gyro_ned(msg_ned->angular_velocity.x, msg_ned->angular_velocity.y, msg_ned->angular_velocity.z);
+    tf2::Vector3 gyro_flu = T_body * gyro_ned;
     msg_enu.angular_velocity.x = gyro_flu.x();
     msg_enu.angular_velocity.y = gyro_flu.y();
     msg_enu.angular_velocity.z = gyro_flu.z();
 
-    // 2. Convert Orientation Quaternion (World: NED -> ENU & Body: FRD -> FLU)
+    // 2. Convert Orientation Quaternion (World: NED -> ENU & Body: base_link_ned -> FLU)
     tf2::Quaternion q_ned(msg_ned->orientation.x, msg_ned->orientation.y, msg_ned->orientation.z,
                           msg_ned->orientation.w);
 

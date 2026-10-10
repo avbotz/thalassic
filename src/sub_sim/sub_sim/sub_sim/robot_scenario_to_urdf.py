@@ -154,7 +154,7 @@ def _parse_looks(
             rgb = _parse_floats(look.get("rgb"), n=3)
             rgba = (rgb[0], rgb[1], rgb[2], 1.0)
         elif look.get("gray"):
-            # look gray cannot be none here due to get("name") check above
+            # Not None: the elif above checked it
             g = float(typing.cast(str, look.get("gray")))
             rgba = (g, g, g, 1.0)
         else:

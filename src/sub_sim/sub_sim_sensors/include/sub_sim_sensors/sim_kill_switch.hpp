@@ -4,8 +4,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/bool.hpp"
 
-// Sub is kept killed for the first `off_delay` seconds, then released (true -> false on /kill_switch).
-// After, what is published on /sim/kill_switch is transparently forwarded to /kill_switch.
+// Sub is kept killed for the first `off_delay` seconds (0 starts it released), then released
+// (true -> false on kill_switch).
+// After, what is published on sim/kill_switch is forwarded to kill_switch; a release
+// `esc_startup` seconds later, as the ESCs take that long to start.
 class SimKillSwitch : public rclcpp::Node {
    public:
     explicit SimKillSwitch(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
@@ -18,6 +20,8 @@ class SimKillSwitch : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sim_sub_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pub_;
     rclcpp::TimerBase::SharedPtr startup_timer_;
+    rclcpp::TimerBase::SharedPtr release_timer_;  // a release waiting for the ESCs
+    double esc_startup_{3.0};
 
     bool startup_done_{false};
 };

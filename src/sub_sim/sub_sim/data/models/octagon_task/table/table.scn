@@ -1,56 +1,21 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="table_white" gray="1.0" roughness="0.7"/>  <!-- 255, 255, 255 -->
-    <look name="table_yellow" rgb="1.0 1.0 0.0" roughness="0.7"/>  <!-- 255, 255, 0 -->
-    <look name="table_red" rgb="1.0 0.008 0.008" roughness="0.7"/>  <!-- 255, 2, 2 -->
+    <look name="table" gray="1.0" roughness="0.7" texture="models/octagon_task/table/table.png" />
   </looks>
 
-  <static name="table_main_part" type="model">
+  <static name="table" type="model">
     <physical>
-      <mesh filename="models/octagon_task/table/parts/main_part_collision.obj" scale="1.0" convex="false" />
+      <mesh filename="models/octagon_task/table/table_collision.obj" scale="1.0" convex="false" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
     <visual>
-      <mesh filename="models/octagon_task/table/parts/main_part.obj" scale="1.0" />
+      <mesh filename="models/octagon_task/table/table.obj" scale="1.0" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </visual>
 
     <material name="plastic" />
-    <look name="table_white" />
-
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="table_red_bucket" type="model">
-    <physical>
-      <mesh filename="models/octagon_task/table/parts/red_bucket_collision.obj" scale="1.0" convex="true" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-    <visual>
-      <mesh filename="models/octagon_task/table/parts/red_bucket.obj" scale="1.0" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </visual>
-
-    <material name="plastic" />
-    <look name="table_red" />
-
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="table_yellow_bucket" type="model">
-    <physical>
-      <mesh filename="models/octagon_task/table/parts/yellow_bucket_collision.obj" scale="1.0" convex="true" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-    <visual>
-      <mesh filename="models/octagon_task/table/parts/yellow_bucket.obj" scale="1.0" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </visual>
-
-    <material name="plastic" />
-    <look name="table_yellow" />
-
+    <look name="table" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

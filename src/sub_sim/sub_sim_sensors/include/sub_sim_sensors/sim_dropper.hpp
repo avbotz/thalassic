@@ -1,6 +1,9 @@
 #ifndef SIM_DROPPER_HPP_
 #define SIM_DROPPER_HPP_
 
+#include <array>
+#include <optional>
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_srvs/srv/set_bool.hpp>
@@ -11,6 +14,13 @@ class SimDropper : public rclcpp::Node {
     explicit SimDropper(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
    private:
+    static constexpr size_t NUM_DROPPERS = 2;
+
+    struct Ball {
+        rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr glue_client;
+        bool released = false;
+    };
+
     void set_dropper_callback(const std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Request> request,
                               std::shared_ptr<sub_driver_interfaces::srv::SetDropper::Response> response);
     void joint_state_callback(const sensor_msgs::msg::JointState& msg);
@@ -18,9 +28,9 @@ class SimDropper : public rclcpp::Node {
     rclcpp::Service<sub_driver_interfaces::srv::SetDropper>::SharedPtr set_dropper_srv_;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_setpoint_pub_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
-    rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr glue_client_;
+    std::array<Ball, NUM_DROPPERS> balls_;
 
-    bool released_ = false;
+    std::optional<size_t> dropping_;  // the dropper whose ball goes once the servo has turned
     bool request_in_flight_ = false;
 };
 

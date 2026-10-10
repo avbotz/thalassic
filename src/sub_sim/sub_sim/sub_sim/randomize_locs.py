@@ -5,7 +5,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from jinja2 import Template
+from jinja2 import StrictUndefined, Template
 
 
 def randomize_scenario_locations(
@@ -16,11 +16,16 @@ def randomize_scenario_locations(
     DYAW: float,
     render_robot: Callable[..., str],
     seed: int | None = None,
+    **variables,
 ) -> Path:
+    """Render the scenario template; `variables` are passed to it as they are.
+
+    A variable the template uses but is not given raises jinja2.UndefinedError.
+    """
     scenario_template_file = Path(scenario_template_file)
 
     rng = random.Random()
-    if seed:
+    if seed is not None:
         rng.seed(seed)
 
     def fuzz(base, mag):
@@ -36,7 +41,7 @@ def randomize_scenario_locations(
         return rng.choice(options)
 
     with open(scenario_template_file) as f:
-        scenario_template = Template(f.read())
+        scenario_template = Template(f.read(), undefined=StrictUndefined)
 
     rendered = scenario_template.render(
         fuzz=fuzz,
@@ -49,6 +54,7 @@ def randomize_scenario_locations(
         DYAW=DYAW,
         render_robot=render_robot,
         PI=math.pi,
+        **variables,
     )
 
     fd, temp_path = tempfile.mkstemp(prefix=scenario_template_file.stem, suffix=".scn")
