@@ -45,7 +45,7 @@ ros-jazzy-rclcpp-components = ">=28.1.21,<29"            # sub_sim_sensors
 ros-jazzy-image-transport = ">=5.1.8,<6"
 ros-jazzy-image-transport-plugins = ">=4.0.7,<5"      # compressed image transport for off-board vision
 ros-jazzy-camera-info-manager = ">=5.1.8,<6"          # spinnaker_camera_driver
-ros-jazzy-message-filters = ">=4.11.17,<5"              # sub_color_correction
+ros-jazzy-message-filters = ">=4.11.17,<5"              # sim_labeling
 ros-jazzy-pcl-conversions = ">=2.6.5,<3"              # stonefish_ros2
 ros-jazzy-usb-cam = ">=0.8.1,<0.9"                      # Logitech C922 front camera
 
@@ -68,9 +68,8 @@ opencv = ">=4.13.0,<5"                                 # must be the conda build
 pyyaml = ">=6.0.3,<7"                                 # sub_bringup vehicle description
 jinja2 = ">=3.1.6,<4"                                 # sub_sim scenario templates
 pyserial = ">=3.5,<4"                               # sub_serial_drivers
-pytorch = ">=2.13.0,<3"                                # sub_color_correction (CPU build; see docs/setup.md for GPUs)
+pytorch = ">=2.13.0,<3"                                # ultralytics (CPU build; see docs/setup.md for GPUs)
 torchvision = ">=0.28.0,<0.29"                            # ultralytics imports it
-kornia = ">=0.7.1,<0.8"                                 # sub_color_correction
 onnxruntime = ">=1.30.0,<2"                            # sub_vision inference off the Jetson
 ultralytics = ">=8.4.146,<9"                            # model export / run_gate_model
 aiohttp = ">=3.14.3,<4"                                # sub_pid_tuner dashboard server

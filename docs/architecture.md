@@ -23,7 +23,6 @@ src/
 └── sub_vision/
     ├── sub_vision/              # Detection node and post-processors
     ├── sub_vision_interfaces/   # Detection messages, load_model service
-    ├── sub_color_correction/    # DeepSeeColor underwater color correction
     └── sim_labeling/            # Training data from the sim's segmentation camera
 ```
 

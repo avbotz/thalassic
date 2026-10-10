@@ -26,7 +26,6 @@
   <exec_depend>sim_labeling</exec_depend>
   <exec_depend>spinnaker_camera_driver</exec_depend>
   <exec_depend>stonefish_ros2</exec_depend>
-  <exec_depend>sub_color_correction</exec_depend>
   <exec_depend>sub_control</exec_depend>
   <exec_depend>sub_mission</exec_depend>
   <exec_depend>sub_pid_tuner</exec_depend>

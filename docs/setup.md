@@ -122,10 +122,10 @@ Commit the submodule pointer when the version should become the team default.
 
 ## GPU inference
 
-The default environment installs CPU builds of PyTorch and ONNX Runtime; they are enough for the simulator and for the color-correction node's CPU fallback.
+The default environment installs CPU builds of PyTorch and ONNX Runtime; they are enough for the simulator.
 
 - **Jetson:** TensorRT and the CUDA runtime bindings come from JetPack, not from pixi. `deploy/jetson/link_jetpack_python.sh` exposes them to the environment (see [deployment.md](deployment.md)). `sub_vision` then uses `<task>.engine` files as before.
-- **x86 with NVIDIA:** not wired up yet. conda-forge ships CUDA builds of `pytorch` and `onnxruntime`; enabling them means declaring a CUDA-capable platform in `pixi.toml` and rebuilding. Open item.
+- **x86 with NVIDIA:** not wired up yet. conda-forge ships CUDA builds of `onnxruntime`; enabling them means declaring a CUDA-capable platform in `pixi.toml` and rebuilding. Open item.
 
 ## Updating dependencies
 

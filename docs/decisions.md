@@ -45,9 +45,11 @@ conda-forge's `linux-aarch64` PyTorch is not compiled for the Orin's `sm_87` GPU
 
 ## 6. Dependencies kept although currently unused in launch files
 
-The depth camera is not on the vehicle right now, so nothing launches the OAK-D driver, the RTAB-Map visual odometry pair, or `sub_color_correction`. That is a hardware gap, not abandoned work, so the declarations stay in `sub_bringup/package.xml` and the packages keep building. RoboStack does not package `rtabmap` or `depthai-ros` v3, so when the camera returns they will be added as submodules.
+The depth camera is not on the vehicle right now, so nothing launches the OAK-D driver or the RTAB-Map visual odometry pair. That is a hardware gap, not abandoned work, so the declarations stay in `sub_bringup/package.xml` and the packages keep building. RoboStack does not package `rtabmap` or `depthai-ros` v3, so when the camera returns they will be added as submodules.
 
 **What changed:** those blocks used to sit commented out in the launch files. Commented-out node definitions rot — the OAK-D block still referenced a package nobody had installed, and the RTAB-Map block was written against topics the current sim no longer publishes — and they made the two launch files hard to read for the nodes that do run. They were deleted; `git log -S` finds them, and this decision records why they will come back.
+
+`sub_color_correction` (DeepSeeColor) was deleted rather than kept: it optimized its model with PyTorch on every frame, so it could not run through the ONNX/TensorRT path the rest of `sub_vision` uses and would have run on the Jetson's CPU. `git log -S DeepSeeColor` finds it.
 
 `sim_labeling` stayed, because it works: it is behind `labeling:=true` in `sim_launch.py` rather than commented out of the entity list.
 

@@ -9,7 +9,7 @@ any x86 box (GPU or CPU-only ONNX Runtime) for dev — the **same code** runs on
 both; only the selected backend/device differs.
 
 The pipeline is two ROS 2 (Jazzy) packages in this directory (beside
-`sim_labeling` and `sub_color_correction`, which have their own READMEs):
+`sim_labeling`, which has its own README):
 
 | Package | Build type | Contents |
 | --- | --- | --- |
