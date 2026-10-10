@@ -4,7 +4,7 @@
 # JetPack installs these bindings into the system interpreter only, and they are not available from conda-forge or PyPI for the Orin.
 # A .pth file appends the system dist-packages directory to sys.path *after* the environment's own site-packages.
 #
-# This only works when both interpreters share the same minor version, which is why pixi.toml pins python = 3.12.* (Ubuntu 24.04's interpreter).
+# This only works when both interpreters share the same minor version, which is why pixi.toml pins Python to 3.12 (Ubuntu 24.04's interpreter).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -26,10 +26,11 @@ pth.write_text("/usr/lib/python3/dist-packages\n")
 print(f"wrote {pth}")
 PY
 
-# A fresh interpreter is needed for the .pth file to take effect.
+# A fresh interpreter is needed for the .pth file to take effect. These are the
+# modules sub_vision's TensorRT backend imports; cuda.bindings is cuda-python 12.6+.
 pixi run python - <<'PY'
 import importlib
-for mod in ("tensorrt", "cuda"):
+for mod in ("tensorrt", "cuda.bindings.runtime"):
     try:
         m = importlib.import_module(mod)
         print(f"{mod}: ok ({getattr(m, '__version__', 'no version attr')})")

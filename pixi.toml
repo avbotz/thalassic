@@ -73,22 +73,25 @@ torchvision = ">=0.28.0,<0.29"                            # ultralytics imports 
 kornia = ">=0.7.1,<0.8"                                 # sub_color_correction
 onnxruntime = ">=1.30.0,<2"                            # sub_vision inference off the Jetson
 ultralytics = ">=8.4.146,<9"                            # model export / run_gate_model
+aiohttp = ">=3.14.3,<4"                                # sub_pid_tuner dashboard server
 
 # lint and format
 ruff = ">=0.16.7,<0.17"          # Python: formatter and linter
 clang-format = ">=23.1.1,<24"    # C/C++: formatter, reads .clang-format
+mdformat = ">=1.0.0,<2"
+go-shfmt = ">=3.14.1,<4"
 
 # Environment activation: workspace overlay, DDS profile, FLIR GenTL path
 [activation]
 scripts = ["scripts/setup.sh"]
 
 [tasks]
-build = { cmd = "colcon build", description = "Build the workspace (colcon_defaults.yaml applies)" }
+build = { cmd = "colcon build", description = "Build the workspace" }
 clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
 prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
 test = { cmd = "colcon test && colcon test-result --verbose", description = "Run colcon tests" }
-format = { cmd = "scripts/format.sh", description = "Format all Python and C/C++ in src/ (excludes submodules)" }
+format = { cmd = "scripts/format.sh", description = "Format all tracked Python and C/C++ (excludes submodules)" }
 lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }
-sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation (append launch args, e.g. seed:=42)" }
+sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation" }
 pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
 reset-dds = { cmd = "pkill -f ros2 || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Kill stray ROS processes and stale Fast DDS shared memory (Linux)" }

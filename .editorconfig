@@ -1,0 +1,12 @@
+[*.sh]
+indent_style = space
+indent_size = 2
+
+[src/sub_sim/stonefish_ros2/**]
+ignore = true
+[src/sub_sim/stonefish_vendor/stonefish/**]
+ignore = true
+[src/sub_drivers/waterlinked_dvl/**]
+ignore = true
+[src/sub_drivers/flir_camera_driver/**]
+ignore = true

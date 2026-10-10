@@ -15,7 +15,6 @@ Every setting below survives a reboot.
 | Jetson power mode MAXN | `/etc/systemd/system/thalassic-power-mode.service` | JetPack boots into a power-capped mode; MAXN is what the inference budget assumes. `nvpmodel -m 0` by hand does not survive a reflash |
 | Fan pinned at full speed | `/etc/systemd/system/thalassic-fan.service` + `/usr/local/sbin/thalassic-fan-max` | The hull is sealed, so the fan is what moves heat from the SoC to the wall the water cools. `nvfancontrol` only spins up once something is already hot, and is disabled |
 | Socket buffers, 10 MB | `/etc/sysctl.d/60-thalassic-gige.conf` | The GigE camera bursts a frame faster than the default receive buffer holds |
-| `usbfs_memory_mb = 1000` | `/etc/tmpfiles.d/thalassic-usbfs.conf` | USB3 Vision cameras need large USB buffers. The Jetson boots with extlinux, not GRUB, so the value is written at boot rather than passed on the kernel command line |
 | udev rules from `../udev` | `/etc/udev/rules.d/` | Stable device names (`/dev/pico`, `/dev/naviguider_imu`, `/dev/front_camera`) and FLIR USB access |
 | `flirimaging` group, user added to it plus `dialout` and `video` | `/etc/group` | Otherwise the cameras and the serial MCUs are root-only |
 | `THALASSIC_DDS_PROFILE=vehicle` | `/etc/profile.d/thalassic.sh` | Subnet DDS discovery on the vehicle domain for every login shell |
@@ -39,4 +38,4 @@ systemctl status thalassic-power-mode.service thalassic-fan.service
 
 ## Also here
 
-`link_jetpack_python.sh` exposes JetPack's `tensorrt` and `cuda` Python modules to the pixi environment. It runs as the vehicle user after `pixi install`, not as root. See [Decision 5](../../docs/decisions.md).
+`link_jetpack_python.sh` exposes JetPack's `tensorrt` and `cuda` (cuda-python, 12.6 or later for `cuda.bindings`) Python modules to the pixi environment. It runs as the vehicle user after `pixi install`, not as root. See [Decision 5](../../docs/decisions.md).
