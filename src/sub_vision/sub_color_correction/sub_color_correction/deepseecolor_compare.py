@@ -130,7 +130,9 @@ def main(argv=None):
         if args.save:
             output = Path(args.save)
             output.parent.mkdir(parents=True, exist_ok=True)
-            cv2.imwrite(str(output), node.latest_pair)
+            if not cv2.imwrite(str(output), node.latest_pair):
+                print(f"FAIL: could not write {output}")
+                return 1
             print(f"saved {output}")
 
         if not args.no_window:
@@ -142,7 +144,8 @@ def main(argv=None):
         return 0
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

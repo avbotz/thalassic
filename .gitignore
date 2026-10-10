@@ -7,7 +7,6 @@
 
 **/build/
 **/install/
-**/devel/
 **/log/
 
 **/__pycache__/
@@ -15,7 +14,8 @@
 .ruff_cache/
 
 weights/*
-!**/.gitkeep
+bags/*
+!bags/.gitkeep
 
 *.log
 

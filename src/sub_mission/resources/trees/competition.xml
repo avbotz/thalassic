@@ -6,14 +6,23 @@
   missions/pool_a.xml) and then ticks THIS tree, so the task ordering lives in
   exactly one place instead of being copy-pasted into four pool files.
 
-  Course order and transit distances follow the sim layout in
-  sub_sim/scenarios/woollett.scn.j2 (sub start y=-10.35, gate y=-7,
-  slalom y~-2.8, bin y=1.1, torpedoes y=5.0, octagon y=8). "Forward" (+x) is
-  the course direction, so transit legs are pure forward MoveRelative hops that
-  bring the next element into view; each task subtree then re-localizes with
-  its own vision search (which also absorbs the lateral offset of bins and the
-  octagon). ForceSuccess lets a failed task not end the run; drop it around a
-  task that must succeed.
+  Coin flip, gate, slalom, torpedoes, octagon, return home. The transit legs
+  are the ones tuned in the sim (sub_sim/scenarios/woollett.scn.j2): after the
+  slalom and the torpedoes, a hop forward and to the right brings the next
+  element into view, and each task then finds it with its own vision search.
+  Bins (trees/bins.xml, missions/bins_test.xml) is not in the run.
+
+  Only the coin flip may end the run. Every later task runs as
+  SavePose -> Fallback(Timeout(task), RecoverTaskEntry):
+    - Timeout is the task's time budget. The handbook gives 15 minutes of
+      performance time (20-minute slot, 5 of them preparation), so one task
+      that keeps searching cannot starve the ones after it. Wall-clock ms.
+    - A task that fails or runs out of time is halted wherever it was, often
+      mid-sweep and facing anywhere. RecoverTaskEntry stops the vehicle and
+      turns it back to the heading it had when the task began, so the next
+      transit's hop still runs along the course.
+  Transit legs never fail the run either: a move that times out (a current, a
+  dead thruster) is logged and the next task still gets its attempt.
 -->
 <root BTCPP_format="4" main_tree_to_execute="CompetitionRun">
   <BehaviorTree ID="CompetitionRun">
@@ -21,29 +30,63 @@
       <!-- Coin flip is the only required acquisition step: if the gate cannot
            be found here, CoinFlipMission returns FAILURE and stops the run. -->
       <SubTree ID="CoinFlipMission"/>
-      <ForceSuccess><SubTree ID="GateMission"/></ForceSuccess>
 
-      <!-- Gate (y=-7) -> slalom (y~-2.8): ~4 m ahead. -->
-      <PosSetpoint z="1.2"/>
-      <MoveRelative x="4.0"/>
-      <ForceSuccess><SubTree ID="SlalomMission"/></ForceSuccess>
+      <SavePose name="gate_entry" yaw="{@task_entry_yaw}"/>
+      <Fallback name="gate">
+        <Timeout msec="120000"><SubTree ID="GateMission"/></Timeout>
+        <SubTree ID="RecoverTaskEntry"/>
+      </Fallback>
 
-      <!-- Slalom -> bin (y=1.1): ~3 m ahead; the bin sits ~3.6 m to port and
-           is reacquired by BinsMission's path-marker search. -->
-      <PosSetpoint z="1.0"/>
-      <MoveRelative x="3.0"/>
-      <ForceSuccess><SubTree ID="BinsMission"/></ForceSuccess>
+      <!-- The slalom searches sideways from where the gate left the vehicle. -->
+      <SubTree ID="Transit" z="-1.2" x="0.0" y="0.0"/>
+      <SavePose name="slalom_entry" yaw="{@task_entry_yaw}"/>
+      <Fallback name="slalom">
+        <Timeout msec="180000"><SubTree ID="SlalomMission"/></Timeout>
+        <SubTree ID="RecoverTaskEntry"/>
+      </Fallback>
 
-      <!-- Bin (y=1.1) -> torpedoes (y=5.0): ~3.9 m ahead. -->
-      <PosSetpoint z="1.0"/>
-      <MoveRelative x="3.9"/>
-      <ForceSuccess><SubTree ID="TorpMission"/></ForceSuccess>
+      <SubTree ID="Transit" z="-1.0" x="1.5" y="-0.8"/>
+      <SavePose name="torp_entry" yaw="{@task_entry_yaw}"/>
+      <Fallback name="torp">
+        <Timeout msec="150000"><SubTree ID="TorpMission"/></Timeout>
+        <SubTree ID="RecoverTaskEntry"/>
+      </Fallback>
 
-      <!-- Torpedoes (y=5.0) -> octagon (y=8): ~3 m ahead; the octagon sits
-           ~5 m to starboard and is homed by OctagonMission's search. -->
-      <PosSetpoint z="1.0"/>
-      <MoveRelative x="3.0"/>
-      <ForceSuccess><SubTree ID="OctagonMission"/></ForceSuccess>
+      <SubTree ID="Transit" z="-1.0" x="3.0" y="-1.0"/>
+      <SavePose name="octagon_entry" yaw="{@task_entry_yaw}"/>
+      <Fallback name="octagon">
+        <Timeout msec="180000"><SubTree ID="OctagonMission"/></Timeout>
+        <SubTree ID="RecoverTaskEntry"/>
+      </Fallback>
+
+      <!-- Scored on its own, so it is attempted even when the octagon fails. -->
+      <SavePose name="return_home_entry" yaw="{@task_entry_yaw}"/>
+      <Fallback name="return_home">
+        <Timeout msec="120000"><SubTree ID="ReturnHomeMission"/></Timeout>
+        <SubTree ID="RecoverTaskEntry"/>
+      </Fallback>
     </Sequence>
+  </BehaviorTree>
+
+  <!-- A hop between tasks: stop whatever the last task left running, take
+       the transit depth, then move x forward and y left along the heading.
+       Each step may time out without ending the run. -->
+  <BehaviorTree ID="Transit">
+    <Sequence name="transit">
+      <Stop/>
+      <ForceSuccess><PosSetpoint z="{z}"/></ForceSuccess>
+      <ForceSuccess><MoveRelative x="{x}" y="{y}"/></ForceSuccess>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- After a task fails or runs out of time: stop, and face the way the
+       vehicle faced when the task began. Always succeeds. -->
+  <BehaviorTree ID="RecoverTaskEntry">
+    <ForceSuccess>
+      <Sequence name="recover_task_entry">
+        <Stop/>
+        <AttSetpoint name="task_entry_heading" yaw="{@task_entry_yaw}"/>
+      </Sequence>
+    </ForceSuccess>
   </BehaviorTree>
 </root>

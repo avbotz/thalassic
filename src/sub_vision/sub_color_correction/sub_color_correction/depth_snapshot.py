@@ -74,6 +74,9 @@ def main(argv=None):
         if node.depth is None:
             print(f"FAIL: timed out waiting for {args.topic}")
             return 1
+        if node.encoding not in ("16UC1", "32FC1"):
+            print(f"FAIL: {args.topic} is {node.encoding}, not 16UC1 (mm) or 32FC1 (m) depth")
+            return 1
 
         color, min_depth, max_depth, valid = _normalize_depth(
             node.depth,
@@ -82,7 +85,9 @@ def main(argv=None):
         )
         output = Path(args.save)
         output.parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(output), color)
+        if not cv2.imwrite(str(output), color):
+            print(f"FAIL: could not write {output}")
+            return 1
 
         valid_depth = node.depth[valid]
         print(
@@ -97,7 +102,8 @@ def main(argv=None):
         return 0
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

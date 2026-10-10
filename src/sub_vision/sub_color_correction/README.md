@@ -2,7 +2,7 @@
 
 ROS 2 wrapper for DeepSeeColor RGB-D underwater color correction.
 
-This package adapts the DeepSeeColor model from `warplab/DeepSeeColor` for streaming use with the Marlin front RGB camera and co-located Stonefish depth camera.
+This package adapts the DeepSeeColor model from `warplab/DeepSeeColor` for streaming use with an RGB-D camera: by default the OAK-D's RGB and stereo depth topics, or in the simulator the front camera and the depth camera beside it.
 
 ## Dependencies
 
@@ -33,14 +33,28 @@ ros2 run sub_color_correction deepseecolor_node --ros-args \
   -r __ns:=/marlin_v3 -p device:=cpu
 ```
 
-The node subscribes to:
+The node subscribes to (parameters `rgb_topic` and `depth_topic`):
 
 - `/marlin_v3/oak/rgb/image_raw`
-- `/marlin_v3/oak/stereo/image_raw`
+- `/marlin_v3/oak/stereo/image_raw`, `16UC1` in millimeters or `32FC1` in meters
 
-It publishes:
+It publishes (parameter `corrected_topic`):
 
-- `/marlin_v3/oak/rgb/image_color_corrected`
+- `/marlin_v3/oak/rgb/image_color_corrected`, `rgb8`, with the RGB image's header
+
+The simulator publishes neither OAK-D topic. Start it with the depth camera and
+point the node at the simulated cameras:
+
+```bash
+pixi run sim depth_camera:=true
+ros2 run sub_color_correction deepseecolor_node --ros-args \
+  -r __ns:=/marlin_v3 -p device:=cpu \
+  -p rgb_topic:=/marlin_v3/front_camera/image_color \
+  -p depth_topic:=/marlin_v3/sim/depth_camera/image_depth
+```
+
+The tools below default to the OAK-D topics too; pass the simulated ones with
+`--rgb-topic`, `--depth-topic` (smoke test only), and `--topic` (`depth_snapshot`).
 
 ## Smoke Test
 

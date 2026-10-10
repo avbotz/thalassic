@@ -1,12 +1,9 @@
 #include "actions.hpp"
 
 #include "sub_mission/nodes/mission.hpp"
-#include "sub_mission/utils.hpp"
 
-#include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -24,16 +21,21 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
     }
 
     BT::NodeStatus onStart() override {
-        std::string axis = "x";
-        int timeout_msec = 40000;
-        getInput("axis", axis);
-        getInput("threshold", threshold_);
-        getInput("timeout_msec", timeout_msec);
+        std::string axis;
+        double threshold = 0.0;
+        int timeout_msec = 0;
+        if (!readPort(*this, "axis", axis, logger_) || !readPort(*this, "threshold", threshold, logger_) ||
+            !readPort(*this, "timeout_msec", timeout_msec, logger_)) {
+            return BT::NodeStatus::FAILURE;
+        }
+        if ((axis != "x" && axis != "y" && axis != "z") || !std::isfinite(threshold)) {
+            RCLCPP_ERROR(logger_, "WaitUntilHit needs an axis of x, y or z and a finite threshold, not %s and %.3f.",
+                         axis.c_str(), threshold);
+            return BT::NodeStatus::FAILURE;
+        }
 
         axis_index_ = (axis == "z") ? 2 : (axis == "y") ? 1 : 0;
-        if (threshold_ < 0.0) {
-            threshold_ = (axis_index_ == 2) ? 0.25 : 0.8;
-        }
+        threshold_ = threshold >= 0.0 ? threshold : (axis_index_ == 2) ? 0.25 : 0.8;
         deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_msec);
         initial_speed_ = measuredSpeed();
         if (std::fabs(initial_speed_) <= 0.03) {
@@ -48,7 +50,8 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
             return BT::NodeStatus::FAILURE;
         }
         const double current_speed = measuredSpeed();
-        if (std::fabs(current_speed / initial_speed_) < threshold_ || std::fabs(current_speed) < 0.01) {
+        // Signed: bouncing back off what it hit counts too.
+        if (current_speed / initial_speed_ < threshold_ || std::fabs(current_speed) < 0.01) {
             return BT::NodeStatus::SUCCESS;
         }
         if (std::chrono::steady_clock::now() >= deadline_) {

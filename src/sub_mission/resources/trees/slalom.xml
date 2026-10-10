@@ -1,60 +1,120 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  RoboSub 2026 slalom task: weave through three red/white pipe gates staying
-  within the plane of the pipes (sim: models/slalom_task, z ~1.05-1.35). More
-  points for staying between the pipes, so transit at pipe depth.
+  RoboSub 2026 slalom task: three sets of a red pipe between two white ones.
+  More points for keeping each red pipe on the same side as the gate's red
+  divider; GateMission goes through the left opening, so the divider is to its
+  right and the vehicle passes left of each red pipe.
+
+  The heading the task starts on holds throughout: each set is one centering
+  on the red pipe (the post-processor's class 2, the nearest red pipe), a
+  strafe left onto the opening and one forward pass, and nothing in this tree
+  turns the vehicle.
 -->
 <root BTCPP_format="4" main_tree_to_execute="SlalomMission">
-  <BehaviorTree ID="SlalomMission">
-    <Sequence name="slalom_mission">
-      <LoadModel camera="down" task="path" timeout_msec="30000"/>
-      <DownContinuousAlign task="path" tolerance="0.4" min_msec="6000" timeout_msec="30000"/>
-      <MoveRelative x="1.0"/>
-      <PosSetpoint z="1.2"/>
+  <!-- Onto the red pipe's ray, sideways at a fixed speed, following the live
+       bearing: a pipe at the edge of the frame has an inflated range, which a
+       locked target would overshoot on. -->
+  <BehaviorTree ID="AlignToSlalomPole">
+    <LateralAlignToDetection camera="front"
+                             task="slalom_redpoles_osu"
+                             class_id="2"
+                             min_score="0.20"
+                             target_distance="2.0"
+                             use_detection_distance="true"
+                             max_projection_distance="1.0"
+                             align_depth="false"
+                             tolerance="0.15"
+                             max_bearing_jump_rad="0.35"
+                             bearing_filter_alpha="0.60"
+                             use_lateral_velocity_alignment="true"
+                             lateral_alignment_velocity="0.10"
+                             blind_alignment_frames="3"
+                             settle_frames="1"
+                             min_msec="800"
+                             timeout_msec="60000"
+                             update_msec="250"
+                             initial_detection_max_age_msec="1500"
+                             detection_loss_msec="8000"
+                             detection_distance_m="{detection_distance_m}"/>
+  </BehaviorTree>
 
-      <LoadModel camera="front" task="slalom" timeout_msec="30000"/>
-      <ForwardSweepAlign camera="front"
-                         task="slalom"
-                         class_id="red"
-                         attempts="4"
-                         num_sweeps="3"
-                         forward_step="1.0"
-                         sample_timeout_msec="2500.0"
-                         move_timeout_msec="20000"/>
-      <ForwardAlign camera="front"
-                    task="slalom"
-                    class_id="red"
-                    max_dist="2.0"
-                    forward_step="0.5"
-                    close_distance="1.5"
-                    align_depth="false"
-                    timeout_msec="30000"/>
-      <MoveRelative y="-1.0"/>
-
-      <SubTree ID="SlalomPipePass"/>
-      <SubTree ID="SlalomPipePass"/>
-      <SubTree ID="SlalomPipePass"/>
-      <PosSetpoint z="1.0"/>
+  <BehaviorTree ID="SlalomLayer">
+    <Sequence name="center_red_then_pass_left">
+      <!-- A 1.15 m strafe at 0.25 m/s; 0.95 m after a moving search, which
+           leaves the vehicle drifting the way it searched. -->
+      <Script code="post_align_strafe_msec := 4600"/>
+      <!-- A pipe that is lost again for 8 s during the alignment fails over
+           to a moving search. -->
+      <Fallback name="stationary_then_moving_acquisition">
+        <Sequence name="stationary_acquisition">
+          <WaitForDetection camera="front"
+                            task="slalom_redpoles_osu"
+                            class_id="2"
+                            min_score="0.20"
+                            start_timeout_after_first_frame="true"
+                            timeout_msec="20000"/>
+          <SubTree ID="AlignToSlalomPole"
+                       detection_distance_m="{red_pole_distance}"/>
+        </Sequence>
+        <Sequence name="moving_acquisition">
+          <SearchForDetection camera="front"
+                              task="slalom_redpoles_osu"
+                              class_id="2"
+                              min_score="0.20"
+                              y="{search_lateral_velocity}"
+                              sweep_left_m="{search_left_distance_m}"
+                              sweep_right_m="{search_right_distance_m}"
+                              timeout_msec="{search_timeout_msec}"/>
+          <Script code="post_align_strafe_msec := 3800"/>
+          <SubTree ID="AlignToSlalomPole"
+                       detection_distance_m="{red_pole_distance}"/>
+        </Sequence>
+      </Fallback>
+      <!-- The white pipes are 1.524 m from the red one: this centers the
+           left opening, with the red pipe to the right. -->
+      <TimedVelocity y="0.25"
+                     duration_msec="{post_align_strafe_msec}"/>
+      <ForwardFixedTransit vision_distance_m="{red_pole_distance}"
+                           pass_distance="0.60"
+                           min_transit_distance="0.0"
+                           max_planned_distance="1.2"
+                           max_dist="{max_transit_distance}"
+                           forward_velocity="0.25"
+                           timeout_msec="30000"/>
     </Sequence>
   </BehaviorTree>
 
-  <BehaviorTree ID="SlalomPipePass">
-    <Sequence name="slalom_pipe_pass">
-      <SweepAngle camera="front"
-                  task="slalom"
-                  class_id="red"
-                  attempts="4"
-                  yaw="{@slalom_red_yaw}"/>
-      <SweepAngle camera="front"
-                  task="slalom"
-                  class_id="white"
-                  attempts="4"
-                  yaw="{@slalom_white_yaw}"/>
-      <AverageAngles a="{@slalom_red_yaw}"
-                     b="{@slalom_white_yaw}"
-                     out="{@slalom_mid_yaw}"/>
-      <AttSetpoint yaw="{@slalom_mid_yaw}"/>
-      <MoveRelative x="2.0"/>
+  <BehaviorTree ID="SlalomMission">
+    <Sequence name="slalom_mission">
+      <LoadModel camera="front"
+                 task="slalom_redpoles_osu"
+                 timeout_msec="120000"/>
+      <!-- The first set may be anywhere across the course: search 5 m left,
+           then 10 m right. The later ones are searched for to the right. -->
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_1"
+               search_lateral_velocity="0.10"
+               search_left_distance_m="5.0"
+               search_right_distance_m="10.0"
+               search_timeout_msec="140000"
+               max_transit_distance="6.0"/>
+      <!-- Each set is moored at its own height: 0.2 m lower for the second. -->
+      <TimedVelocity z="-0.10"
+                     duration_msec="2000"/>
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_2"
+               search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0"
+               search_right_distance_m="0.0"
+               search_timeout_msec="10000"
+               max_transit_distance="6.0"/>
+      <SubTree ID="SlalomLayer"
+               name="slalom_layer_3"
+               search_lateral_velocity="-0.10"
+               search_left_distance_m="0.0"
+               search_right_distance_m="0.0"
+               search_timeout_msec="0"
+               max_transit_distance="6.0"/>
     </Sequence>
   </BehaviorTree>
 </root>

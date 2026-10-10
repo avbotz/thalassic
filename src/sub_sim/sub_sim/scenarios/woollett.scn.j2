@@ -5,11 +5,12 @@
     <ned latitude="33.701722" longitude="-117.780354" />
 
     <ocean>
-      <water density="1025.0" jerlov="0.20" />
+      <water density="1000.0" jerlov="0.20" />
       <waves height="0" />
       <particles enabled="false" />
+      <!-- From the `current` launch argument, converted from ENU: NED "x y z" in m/s -->
       <current type="uniform">
-        <velocity xyz="0 0 0" />
+        <velocity xyz="{{ current }}" />
       </current>
     </ocean>
 
@@ -28,11 +29,79 @@
     <material name="pvc" density="1450" restitution="0.2" />
   </materials>
 
+  <!-- The RoboSub 2026 course map of Woollett, which is drawn not to scale: positions
+       are measured off it with the pool's walls as its scale. x runs along the
+       pool's 50 m, y across it from the docks' wall (y=-11.35). The lane dividers
+       (x=0 and x=12.351, in woollett.scn) split it into three course areas. Map
+       tasks are our props: Avoid Debris is the slalom, Recon the bin, Deploy the
+       torpedo board and Restore the octagon.
+
+       Each area has a pinger at its Deploy board and one in its octagon, which
+       are not simulated. The docks' pingers: A 30 kHz (0 s), B1 40 kHz (1 s),
+       C1 25 kHz (0.5 s), D 35 kHz (1.4 s). -->
+
+  {#- The dock each course starts from (the `course` launch argument) and the
+      area it runs in. A and B1 share the area west of the first divider. #}
+  {%- set docks = {
+    "A":  {"x": -20.49, "area": "A/B1"},
+    "B1": {"x": -6.95,  "area": "A/B1"},
+    "C1": {"x": 5.09,   "area": "C1"},
+    "D":  {"x": 17.18,  "area": "D"},
+  } %}
+
+  {#- Each area's props: (x, y) or (x, y, yaw). A path's yaw is along its length,
+      the bin's across it, and the gate's and torpedo board's the way through
+      them. The slalom is its middle set's red pole: the map draws one set, but
+      the handbook's three are 4 m deep, so the second path is 1 m past the last
+      set, pointing at the bin, and C1's slalom is 0.9 m further on than drawn to
+      clear its first path. #}
+  {%- set areas = {
+    "A/B1": {
+      "gate":    (-20.28, -7.14, 1.07),
+      "paths":   [(-19.13, -5.31, 0.75), (-13.23, 0.70, -0.09)],
+      "slalom":  (-14.21, -2.30),
+      "bin":     (-4.98, -0.08, 0.57),
+      "torpedo": (-15.14, 5.57, 1.57),
+      "octagon": (-4.91, 8.23),
+    },
+    "C1": {
+      "gate":    (6.13, -7.55, 1.57),
+      "paths":   [(6.36, -5.88, 1.32), (8.24, 0.12, -2.85)],
+      "slalom":  (9.46, -2.88),
+      "bin":     (2.75, -1.54, -0.43),
+      "torpedo": (2.83, 3.57, 1.87),
+      "octagon": (10.16, 8.26),
+    },
+    "D": {
+      "gate":    (17.18, -7.40, 1.57),
+      "paths":   [(18.16, -5.86, 0.93), (18.48, -0.03, 3.09)],
+      "slalom":  (19.59, -3.03),
+      "bin":     (15.52, 0.12, -1.08),
+      "torpedo": (17.44, 5.30, 1.33),
+      "octagon": (21.56, 8.28),
+    },
+  } %}
+
+  {#- The slalom's three sets of white, red, white, from the 2026 handbook: 2 m apart
+      along the course, the second 1 m to the left (+x) of the first and the third
+      0.4 m. Each set's red pole from the middle set's, (x, y). #}
+  {%- set slalom_sets = [(-1.0, -2.0), (0.0, 0.0), (-0.6, 2.0)] %}
+
+  {#- What the grabber can pick up, and where each starts on the table. #}
+  {%- set graspable = {
+    "bottle_red":    (-0.3, 0.0),
+    "bottle_yellow": (0.1, 0.0),
+    "ladle_red":     (0.0, 0.1),
+    "ladle_yellow":  (0.1, -0.1),
+  } %}
+
+  {%- set dock = docks[course] %}
+
   <!-- render_robot() renders the robot scenario template with this pose via
        Jinja and returns the rendered file's path. Use fuzz()/fuzz_z() to
-       randomize, e.g. y=fuzz(-10.35, DY), yaw=fuzz(PI, DYAW). -->
+       randomize, e.g. y=fuzz(-10.25, DY), yaw=fuzz(PI, DYAW). -->
   <include file="{{ render_robot(
-      x=17.25,
+      x=dock.x,
       y=-10.25,
       z=0.25,
       roll=0.0,
@@ -49,93 +118,73 @@
     <arg name="yaw" value="0" />
   </include>
 
+  {% for name, area in areas.items() %}
+  {% set gx, gy, gyaw = area.gate %}
+  {% set sx, sy = area.slalom %}
+  {% set bx, by, byaw = area.bin %}
+  {% set tx, ty, tyaw = area.torpedo %}
+  {% set ox, oy = fuzz(area.octagon[0], 0.05), fuzz(area.octagon[1], 0.05) %}
 
-  <!-- Gate Task -->
+  <!-- Course area {{ name }} -->
 
   <include file="models/gate_task/gate/gate.scn">
-    <arg name="x" value="{{ fuzz(17.25, DX) }}" />
-    <arg name="y" value="{{ fuzz(-7, DY) }}" />
+    <arg name="x" value="{{ fuzz(gx, DX) }}" />
+    <arg name="y" value="{{ fuzz(gy, DY) }}" />
     <arg name="z" value="{{ fuzz_z(0.2, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(PI/2, DYAW) }}" />
+    <arg name="yaw" value="{{ fuzz(gyaw, DYAW) }}" />
+    <!-- Survey & Repair on either side, at random: the mission has to read which -->
+    <arg name="visual" value="{{ choose(['gate.obj', 'gate_swapped.obj']) }}" />
   </include>
 
+  {% for px, py, pyaw in area.paths %}
   <include file="models/path/path.scn">
-    <arg name="x" value="{{ fuzz(17.5, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(-5.8, 0.05) }}" />
+    <arg name="x" value="{{ fuzz(px, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(py, 0.05) }}" />
     <arg name="z" value="{{ fuzz_z(2.1, 0.10) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ 0.84 }}" />
+    <arg name="yaw" value="{{ fuzz(pyaw, DYAW / 2) }}" />
   </include>
+  {% endfor %}
 
-
-  <!-- Slalom Task -->
-
+  <!-- Avoid Debris -->
+  {% for dx, dy in slalom_sets %}
   <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="{{ fuzz(18 + 0.65, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(-3.85 + 1*2, 0.05) }}" />
+    <arg name="x" value="{{ fuzz(sx + dx, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(sy + dy, 0.05) }}" />
     <arg name="z" value="{{ rand(1.05, 1.35) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
   </include>
+  {% endfor %}
 
-  <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="{{ fuzz(18 + 1.95, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(-3.85 + 1*1, 0.05) }}" />
-    <arg name="z" value="{{ rand(1.05, 1.35) }}" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
-  </include>
-
-  <include file="models/slalom_task/slalom/slalom.scn">
-    <arg name="x" value="{{ fuzz(18 + 0.95, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(-3.85 + 1*0, 0.05) }}" />
-    <arg name="z" value="{{ rand(1.05, 1.35) }}" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(PI/2, DYAW/3) }}" />
-  </include>
-
-  <include file="models/path/path.scn">
-    <arg name="x" value="{{ fuzz(17.5, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(-0.6, 0.05) }}" />
-    <arg name="z" value="{{ fuzz_z(2.1, 0.10) }}" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(-PI / 6, DYAW / 2) }}" />
-  </include>
-
-
-  <!-- Bin Task -->
-
+  <!-- Recon -->
   <include file="models/bin_task/bin/bin.scn">
-    <arg name="x" value="{{ fuzz(15.4, DX) }}" />
-    <arg name="y" value="{{ fuzz(1.1, DY) }}" />
+    <arg name="x" value="{{ fuzz(bx, DX) }}" />
+    <arg name="y" value="{{ fuzz(by, DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.1, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(-0.25, DYAW) }}" />
+    <arg name="yaw" value="{{ fuzz(byaw, DYAW) }}" />
   </include>
 
-  <include file="models/torpedoes_task/{{ ['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn'] | random }}">
-    <arg name="x" value="{{ fuzz(16.3, DX) }}" />
-    <arg name="y" value="{{ fuzz(5.0,  DY) }}" />
+  <!-- Deploy -->
+  <include file="models/torpedoes_task/{{ choose(['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn']) }}">
+    <arg name="x" value="{{ fuzz(tx, DX) }}" />
+    <arg name="y" value="{{ fuzz(ty, DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(1.2, DYAW) }}" />
+    <arg name="yaw" value="{{ fuzz(tyaw, DYAW) }}" />
   </include>
 
-
-  <!-- Octagon Task -->
-
+  <!-- Restore -->
   <include file="models/octagon_task/octagon/octagon.scn">
-    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
+    <arg name="x" value="{{ ox }}" />
+    <arg name="y" value="{{ oy }}" />
     <arg name="z" value="0" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
@@ -143,47 +192,39 @@
   </include>
 
   <include file="models/octagon_task/table/table.scn">
-    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
+    <arg name="x" value="{{ ox }}" />
+    <arg name="y" value="{{ oy }}" />
     <arg name="z" value="2.1" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(0, DYAW / 5) }}" />
   </include>
 
-  <include file="models/octagon_task/bottle_red/bottle_red.scn">
-    <arg name="x" value="{{ fuzz(21.3, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
+  {#- Only the robot's own course has objects on its table: each object's name,
+      glue and odometry topic must be unique, and they are the costliest bodies
+      in the physics until they settle. #}
+  {% if name == dock.area %}
+  {% for object, (dx, dy) in graspable.items() %}
+  <include file="models/octagon_task/{{ object }}/{{ object }}.scn">
+    <arg name="x" value="{{ fuzz(ox + dx, 0.05) }}" />
+    <arg name="y" value="{{ fuzz(oy + dy, 0.05) }}" />
     <arg name="z" value="0.7" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
   </include>
+  {% endfor %}
+  {% endif %}
+  {% endfor %}
 
-  <include file="models/octagon_task/bottle_yellow/bottle_yellow.scn">
-    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
-
-  <include file="models/octagon_task/ladle_red/ladle_red.scn">
-    <arg name="x" value="{{ fuzz(21.6, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(8.1, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
-
-  <include file="models/octagon_task/ladle_yellow/ladle_yellow.scn">
-    <arg name="x" value="{{ fuzz(21.7, 0.05) }}" />
-    <arg name="y" value="{{ fuzz(7.9, 0.05) }}" />
-    <arg name="z" value="0.7" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="{{ fuzz(0, DYAW) }}" />
-  </include>
+  <!-- sim_grabber finds these glues by their services and activates one to hold
+       its object, where it is, while the jaws are closed on it; each object
+       reports where it is on /sim/objects/<name>/odometry. -->
+  {% for name in graspable %}
+  <glue name="grasp_{{ name }}" activated="false">
+    <first_body name="{{ name }}" />
+    <second_body name="marlin_v3/base_link_ned" />
+    <ros_service topic="/marlin_v3/sim/grasp/{{ name }}/glue" />
+  </glue>
+  {% endfor %}
 </scenario>

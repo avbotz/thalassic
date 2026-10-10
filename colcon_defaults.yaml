@@ -3,6 +3,9 @@
         "symlink-install": true,
         "merge-install": true,
         "cmake-args": [
+            # Build with optimizations enabled.
+            "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+            # Enables generation of compile_commands.json. Useful for LSP in editors.
             "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
             "-DPython_FIND_VIRTUALENV=ONLY",
             "-DPython3_FIND_VIRTUALENV=ONLY"

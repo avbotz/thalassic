@@ -1,0 +1,88 @@
+# Marlin V3 hardware description.
+#
+# Frames not namespaced with the robot name. "map" is shared by every vehicle
+# in a graph; everything else below is published as <robot_name>/<frame>.
+global_frames: [map]
+
+# Static transforms, published by sub_bringup's static_transforms node, for the
+# frames that are not a device's (devices carry their own mount, below).
+# Translations are metres; roll/pitch/yaw are degrees, applied Z-Y-X.
+#
+# base_link is REP-103 FLU. base_link_ned (X right, Y back, Z down) is the
+# frame the mechanical drawings dimension the vehicle in, so most offsets are
+# measured from it.
+transforms:
+  - {parent: map, child: odom}
+  - {parent: base_link, child: base_link_ned, roll: 180, yaw: -90}
+
+  - {parent: base_link_ned, child: pressure_link, y: 0.34012, z: -0.19384}
+
+  # Actuators. sub_sim builds the simulated dropper, grabber and torpedoes from
+  # these frames. The grabber jaws turn about their frame's Y axis.
+  - {parent: base_link_ned, child: dropper_link, x: -0.19074, y: 0.40252, z: 0.15565}
+  - {parent: base_link_ned, child: left_grabber_link, x: 0.056319, y: 0.3506, z: 0.13631}
+  - {parent: base_link_ned, child: right_grabber_link, x: 0.091319, y: 0.35087, z: 0.13636}
+  # A loaded torpedo: origin at its tail, +X the way it is launched.
+  - {parent: base_link_ned, child: torpedo_0_link, x: 0.009676, y: -0.35, z: 0.05146, yaw: -90}
+  - {parent: base_link_ned, child: torpedo_1_link, x: -0.010095, y: -0.35, z: 0.05146, yaw: -90}
+
+# Thruster mounting, in base_link_ned, published as thruster_<i>_link in list
+# order. This is the only copy of the layout: sub_control builds its allocation
+# matrix from it and sub_sim places the simulated thrusters with it (both via
+# sub_bringup/vehicle.py). Index i is the control/thruster_<i> topic and ESC
+# channel. A thruster's +X is the way a right-hand propeller pushes on a
+# positive command; `propeller: left` marks the mirrored ones, which push the
+# other way (and with the T200 curve's weaker half). 0-3 are the vertical units
+# (heave/roll/pitch), 4-7 the vectored horizontals (surge/sway/yaw), the same
+# layout as a BlueROV2 Heavy.
+thrusters:
+  - {x: -0.230, y: -0.220, z:  0.00, pitch: -90, propeller: right}
+  - {x:  0.230, y: -0.220, z:  0.00, pitch: -90, propeller: left}
+  - {x: -0.230, y:  0.220, z:  0.00, pitch: -90, propeller: left}
+  - {x:  0.230, y:  0.220, z:  0.00, pitch: -90, propeller: right}
+  - {x: -0.285, y: -0.315, z: -0.08, yaw: -45, propeller: right}
+  - {x:  0.285, y: -0.315, z: -0.08, yaw: 225, propeller: left}
+  - {x: -0.285, y:  0.315, z: -0.08, yaw: 225, propeller: left}
+  - {x:  0.285, y:  0.315, z: -0.08, yaw: -45, propeller: right}
+
+# The depth reading on odometry/depth, published by sub_low on the vehicle and by
+# sim_pressure_to_depth in simulation.
+#   frame      - where the pressure sensor sits, one of the frames above
+#   z_variance - variance of the depth reading [m^2]
+depth:
+  frame: pressure_link
+  z_variance: 0.01
+
+# The devices bolted to this hull, by the role the launch files know them by.
+#
+# Each names how to reach this particular unit, by exactly one of:
+#   serial_number - a GigE camera, found by its serial on the vehicle switch
+#   video_device  - a V4L2 device
+#   serial_port   - a serial device
+#   ip_address    - a device on the vehicle network (see docs/networking.md)
+# Device paths are the stable names deploy/udev gives them.
+#
+# `mount` is the device's frame and where it sits, written like a transforms entry.
+devices:
+  # FLIR Blackfly S GigE; tuning in config/devices/flir_blackfly_s.yaml.
+  down_camera:
+    serial_number: "16359776"
+    mount: {parent: base_link_ned, child: down_camera, x: -0.078914, y: 0.22841, z: 0.12}
+
+  # Logitech C922 on USB; tuning in config/devices/logitech_c922.yaml.
+  front_camera:
+    video_device: /dev/front_camera
+    mount: {parent: base_link_ned, child: front_camera, y: -0.33, z: -0.16631, roll: 90}
+
+  # Water Linked DVL A50; setup in config/devices/waterlinked_dvl_a50.yaml.
+  dvl:
+    ip_address: "192.168.5.250"
+    mount: {parent: base_link_ned, child: dvl_link, z: 0.015797, yaw: -90}
+
+  # NaviGuider. Off base_link, not base_link_ned: it reports in ENU.
+  imu:
+    serial_port: /dev/naviguider_imu
+    mount: {parent: base_link, child: imu_link, x: -0.199, y: -0.09, z: 0.185622}
+
+  maritime_mcu:
+    serial_port: /dev/pico

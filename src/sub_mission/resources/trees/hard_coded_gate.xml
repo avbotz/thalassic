@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dead-reckoned tasks (hard_coded_*.xml): fixed moves, no vision, for when the
+  models are not up to it. MoveRelativePos is along odom's axes: x along the
+  heading the sub starts on, y to its left. Tune against the pool layout.
+-->
+<root BTCPP_format="4" main_tree_to_execute="HardCodedGateMission">
+  <BehaviorTree ID="HardCodedCoinFlipMission">
+    <Sequence name="hard_coded_coin_flip_mission">
+      <PosSetpoint z="-1.0"/>
+      <AttSetpoint yaw="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="HardCodedGateMission">
+    <Sequence name="hard_coded_gate_mission">
+      <SubTree ID="HardCodedCoinFlipMission"/>
+      <SavePose name="gate_home" x="{@gate_home_x}" y="{@gate_home_y}"/>
+      <MoveRelativePos y="0.4"/>
+      <MoveRelativePos x="4.0"/>
+      <Spin name="style" yaw="12.56637061" rate="3.14159265"/>
+      <PosSetpoint z="-0.8"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

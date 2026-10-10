@@ -15,7 +15,7 @@ sudo deploy/jetson/setup.sh                   # OS configuration, see below
 deploy/jetson/link_jetpack_python.sh          # TensorRT/CUDA bindings from JetPack
 ```
 
-Then reboot, so the new groups, the DDS profile, and the network configuration all apply.
+Then reboot, so the new groups and the DDS profile apply.
 
 ### What `deploy/jetson/setup.sh` does
 
@@ -27,14 +27,14 @@ It installs the files in `deploy/jetson/files/` and the udev rules in `deploy/ud
 | `chrony` serving `192.168.5.0/24` | The DVL and the down camera take their time from the Jetson, and `systemd-timesyncd` cannot serve |
 | MAXN power mode (systemd unit) | JetPack boots power-capped; `nvpmodel -m 0` by hand does not survive a reflash |
 | Fan at full speed (systemd unit) | The hull is sealed; the fan is what carries heat to the wall the water cools. `nvfancontrol` waits for heat before it spins up, so it is disabled |
-| 10 MB socket buffers, `usbfs_memory_mb=1000` | Camera buffering; the Jetson boots with extlinux, so the usbfs limit cannot go on the kernel command line |
+| 10 MB socket buffers | The GigE camera bursts a frame faster than the default receive buffer holds |
 | udev rules, `flirimaging`/`dialout`/`video` groups | Stable device names and non-root access |
 | `THALASSIC_DDS_PROFILE=vehicle` | Subnet DDS discovery on the vehicle domain for every login shell |
 
-Two things it deliberately does not do on its own:
+Two things to know:
 
-- **`netplan apply`** drops any SSH session running over `end0`, so the script installs and validates the file and leaves the decision to whoever is at the console. Pass `--apply-network`, or reboot.
-- **`apt install chrony`** — on a vehicle with no route to the internet that is a failure at the worst possible moment. The script installs the chrony config, says clearly if chrony is missing, and carries on.
+- **`netplan apply`** runs every time, after `netplan generate` has validated the file (a rejected file is removed again, so the vehicle keeps its network). It drops any SSH session over `end0` if the address changes, so run the script from the console after changing the network file.
+- **`apt install chrony`** is deliberately not done: on a vehicle with no route to the internet that is a failure at the worst possible moment. If chrony is missing the script skips the NTP server, says so, and carries on; install it and re-run the script.
 
 The FLIR-related steps come from the `spinnaker_camera_driver` README for machines *without* the Spinnaker SDK installed. The driver builds against an SDK it downloads itself, so no SDK package is installed on the Jetson.
 
@@ -44,7 +44,7 @@ The GigE camera is opened through a GenTL producer shipped with the source-built
 
 ### JetPack Python bridge
 
-`deploy/jetson/link_jetpack_python.sh` writes a `.pth` file into the environment's `site-packages` that appends `/usr/lib/python3/dist-packages` to `sys.path`. Environment packages take precedence; only modules the environment lacks (`tensorrt`, `cuda`) resolve to JetPack's copies. The script refuses to run if the two interpreters differ in minor version, and prints whether both modules import.
+`deploy/jetson/link_jetpack_python.sh` writes a `.pth` file into the environment's `site-packages` that appends `/usr/lib/python3/dist-packages` to `sys.path`. Environment packages take precedence; only modules the environment lacks (`tensorrt`, `cuda`) resolve to JetPack's copies. The script refuses to run if the two interpreters differ in minor version, and prints whether `tensorrt` and `cuda.bindings.runtime` import: what `sub_vision`'s TensorRT backend uses, which needs cuda-python 12.6 or later.
 
 ## Running
 
@@ -55,16 +55,24 @@ pixi run pool mission:=pool_a                   # with a mission
 pixi shell                                      # ros2 topic echo ... etc.
 ```
 
+On the vehicle a mission runs under `sub_mission`'s restart supervisor ([mission.md](mission.md#restart-supervisor)): pulling the kill switch stops it, and releasing it starts it again from the beginning, so a botched run is rerun by carrying the vehicle back to the start. `restart:=false` runs it once, as the simulator does.
+
+`pixi run pool record:=true` records the run into `~/thalassic/bags/` ([recording.md](recording.md)), which grows until it is cleared. To copy the bags to a laptop on the vehicle network:
+
+```bash
+rsync -av avbotz@192.168.5.245:thalassic/bags/ bags/
+```
+
 ## Updating the vehicle
 
 ```bash
 cd ~/thalassic
 git pull --recurse-submodules
 pixi install --frozen        # only changes anything if pixi.lock changed
-pixi run build
+pixi run --frozen build
 ```
 
-`pixi install --frozen` never re-solves; if `pixi.lock` and `pixi.toml` disagree it stops, which is what you want on a competition day.
+`--frozen` installs `pixi.lock` as it is: it never re-solves or rewrites the lockfile, even if `pixi.toml` has changed without it, which is what you want on a competition day.
 
 If the pull touched `deploy/`, re-run `sudo deploy/jetson/setup.sh`.
 
@@ -83,5 +91,5 @@ THALASSIC_DDS_PROFILE=vehicle pixi shell
 ## Open items
 
 - x86 CUDA builds for developer machines with NVIDIA GPUs.
-- Model weights are unversioned (`weights/` is gitignored and `sub_vision` reads `/home/avbotz/sub_vision/models`); a manifest with checksums is the next step.
+- Model weights are unversioned: `sub_vision` reads them from `weights/` in the workspace root (`~/thalassic/weights` on the vehicle), which is gitignored and copied over by hand; a manifest with checksums is the next step.
 - The down camera still takes its address from DHCP; it should be static like the DVL.

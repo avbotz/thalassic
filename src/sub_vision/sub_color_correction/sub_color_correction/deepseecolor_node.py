@@ -4,18 +4,15 @@ from time import perf_counter
 
 import numpy as np
 import rclpy
+import torch
 from cv_bridge import CvBridge, CvBridgeError
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 
-try:
-    import torch
-except ImportError:  # pragma: no cover - handled during node startup.
-    torch = None
-
-from sub_color_correction.deepseecolor_model import DeepSeeColorProcessor
+from sub_color_correction.deepseecolor_model import DeepSeeColorProcessor, morph
 
 
 class DeepSeeColorNode(Node):
@@ -36,10 +33,8 @@ class DeepSeeColorNode(Node):
         self.declare_parameter("sync_slop", 0.15)
         self.declare_parameter("publish_every_n", 1)
 
-        if torch is None:
-            raise RuntimeError(
-                "DeepSeeColor requires torch. Install PyTorch before running this node."
-            )
+        if morph is None:
+            self.get_logger().warn("kornia is not installed: holes in the depth are not closed.")
 
         device = self.get_parameter("device").value
         if str(device).startswith("cuda") and not torch.cuda.is_available():
@@ -91,13 +86,22 @@ class DeepSeeColorNode(Node):
             rgb = self.bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
             depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
         except CvBridgeError as exc:
-            self.get_logger().warn(f"Failed to convert image messages: {exc}")
+            self.get_logger().warn(
+                f"Failed to convert image messages: {exc}", throttle_duration_sec=2.0
+            )
             return
 
+        # Millimeters from the OAK-D, meters from Stonefish.
         if depth_msg.encoding == "16UC1":
             depth = depth.astype(np.float32) / 1000.0
-        else:
+        elif depth_msg.encoding == "32FC1":
             depth = depth.astype(np.float32)
+        else:
+            self.get_logger().error(
+                f"Depth encoding {depth_msg.encoding} is not 16UC1 (mm) or 32FC1 (m). Skipping.",
+                throttle_duration_sec=2.0,
+            )
+            return
 
         if rgb.shape[:2] != depth.shape[:2]:
             self.get_logger().warn(
@@ -117,7 +121,9 @@ class DeepSeeColorNode(Node):
                 max_dimension=self.max_inference_dimension,
             )
         except RuntimeError as exc:
-            self.get_logger().error(f"DeepSeeColor processing failed: {exc}")
+            self.get_logger().error(
+                f"DeepSeeColor processing failed: {exc}", throttle_duration_sec=2.0
+            )
             return
 
         corrected = self._tensor_to_rgb(corrected_tensor)
@@ -155,9 +161,12 @@ def main(args=None):
     node = DeepSeeColorNode()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

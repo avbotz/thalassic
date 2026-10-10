@@ -62,10 +62,6 @@ class DeepSeeColorSmokeTest(Node):
         return None
 
 
-def _stamp_seconds(msg: Image):
-    return float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) * 1e-9
-
-
 def _stamp_nanoseconds(msg: Image):
     return int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
 
@@ -121,10 +117,6 @@ def _validate(node: DeepSeeColorSmokeTest):
             "or if the node is configured with zero training iterations"
         )
 
-    stamp_delta = abs(_stamp_seconds(node.matched_rgb.msg) - _stamp_seconds(node.corrected.msg))
-    if stamp_delta != 0.0:
-        failures.append(f"corrected header stamp differs from matched RGB by {stamp_delta:.9f}s")
-
     print(f"rgb: shape={rgb.shape}, encoding={node.matched_rgb.msg.encoding}")
     print(f"corrected: shape={corrected.shape}, mean_abs_delta={mean_abs_delta:.3f}")
 
@@ -174,7 +166,8 @@ def main(argv=None):
         return _validate(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

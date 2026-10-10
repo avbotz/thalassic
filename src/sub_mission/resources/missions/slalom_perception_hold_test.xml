@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Holds still for three minutes with the slalom model loaded, to watch its
+     detections without any motion in the way. -->
+<root BTCPP_format="4" main_tree_to_execute="SlalomPerceptionHoldTest">
+  <BehaviorTree ID="SlalomPerceptionHoldTest">
+    <Sequence name="slalom_perception_hold_test">
+      <LoadModel camera="front" task="slalom_redpoles_osu" timeout_msec="30000"/>
+      <Sleep msec="180000"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

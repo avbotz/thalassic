@@ -1,0 +1,2 @@
+*.obj -diff linguist-generated=true
+*.mtl -diff

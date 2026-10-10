@@ -1,0 +1,62 @@
+/**:
+  ros__parameters:
+    control_rate_hz: 50.0
+    power_limit: 0.6
+
+    # Vehicle model (docs/control.md#vehicle-model), identified from the
+    # Stonefish scene with identify_model (still water, sensor noise on; every
+    # fit R^2 >= 0.96 except heave, 0.85). Rerun it if the scene's hull changes.
+    model:
+      mass: [112.2, 94.1, 137.7]     # kg; Stonefish's added mass is large
+      inertia: [12.24, 15.46, 13.99] # kg m^2
+      net_buoyancy: 20.8             # N
+      buoyancy: 401.0                # N, from the scene's volume
+      center_of_gravity: [0.0, 0.0, 0.08]
+      center_of_buoyancy: [0.0013, 0.0, 0.207]  # 12.7 cm above the CG: 51 N m/rad of righting
+      linear_drag: [93.2, 69.0, 196.8, 3.90, 5.56, 6.69]
+      quadratic_drag: [149.7, 156.6, 0.0, 0.0, 0.0, 5.12]
+
+    feedforward:
+      acceleration: 1.0
+      drag: 1.0
+      restoring: 1.0
+
+    # Surge thrust at power_limit 0.6 (54 N) only beats the drag up to about
+    # 0.36 m/s, so the reference stays under that.
+    trajectory:
+      horizontal: [0.3, 0.15, 0.3]
+      vertical: [0.25, 0.15, 0.3]
+      roll: [0.5, 0.5, 1.0]
+      pitch: [0.5, 0.5, 1.0]
+      yaw: [0.6, 0.5, 1.0]
+      translation_leash: 0.5
+      rotation_leash: 0.5
+
+    # Critically damped triple poles, [3w^2, w^3, 3w] at w = 0.8 rad/s on x/y
+    # (DVL-limited), 1.0 on z, 1.5 on roll/pitch and 1.2 on yaw.
+    gains:
+      x: [1.92, 0.512, 2.4]
+      y: [1.92, 0.512, 2.4]
+      z: [3.0, 1.0, 3.0]
+      roll: [6.75, 3.375, 4.5]
+      pitch: [6.75, 3.375, 4.5]
+      yaw: [4.32, 1.728, 3.6]
+      integral_limit: [1.0, 1.0, 1.0, 6.0, 6.0, 6.0]
+      anti_windup: 5.0
+
+    observer:
+      bandwidth: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    allocation:
+      axis_weights: [1.0, 1.0, 100.0, 100.0, 100.0, 10.0]
+      max_command_rate: 4.0
+
+    thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    safety:
+      state_timeout: 0.5
+      imu_timeout: 0.2
+      dvl_timeout: 1.5
+      depth_timeout: 1.0
+      altitude_timeout: 1.0
+      cmd_vel_timeout: 0.5

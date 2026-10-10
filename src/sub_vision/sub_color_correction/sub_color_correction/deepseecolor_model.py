@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -12,7 +13,7 @@ import torch.nn.functional as F
 
 try:
     import kornia.morphology as morph
-except ImportError:  # pragma: no cover - node validates this at runtime.
+except ImportError:  # pragma: no cover - optional: the node warns that depth holes stay open.
     morph = None
 
 
@@ -60,8 +61,7 @@ class DeattenuateNet(nn.Module):
             ),
             dim=1,
         )
-        clamp_max = float(torch.log(torch.tensor([3.0], device=depth.device)))
-        f = torch.exp(torch.clamp(beta_d * depth, 0, clamp_max))
+        f = torch.exp(torch.clamp(beta_d * depth, 0, math.log(3.0)))
         f_masked = f * ((depth == 0.0) / f + (depth > 0.0))
         J = f_masked * direct * self.wb
         J[torch.isnan(J)] = 0
@@ -116,6 +116,9 @@ class DeepSeeColorProcessor:
         depth_quantile: float,
         mask_max_depth: bool,
     ):
+        # Depths outside the [depth_quantile, 1 - depth_quantile] quantiles are discarded.
+        if not 0.0 <= depth_quantile < 0.5:
+            raise ValueError(f"depth_quantile must be in [0, 0.5), not {depth_quantile}")
         self.device = torch.device(device)
         self.init_iters = init_iters
         self.iters = iters
@@ -131,7 +134,14 @@ class DeepSeeColorProcessor:
         self.da_optimizer = torch.optim.Adam(self.da_model.parameters(), lr=learning_rate)
         self.kernel = torch.ones(3, 3, device=self.device)
 
-    def correct(self, rgb, depth, max_dimension: int = 0) -> tuple[torch.Tensor, DeepSeeColorStats]:
+    def correct(
+        self, rgb: torch.Tensor, depth: torch.Tensor, max_dimension: int = 0
+    ) -> tuple[torch.Tensor, DeepSeeColorStats]:
+        """Fit the model to one frame and return the frame corrected, at its input size.
+
+        rgb is (1, 3, H, W) in [0, 1]; depth is (1, 1, H, W) in meters, 0 or non-finite where
+        unknown.
+        """
         original_size = rgb.shape[-2:]
         rgb, depth = self._resize_for_inference(rgb, depth, max_dimension)
         depth = self._prepare_depth(depth)

@@ -1,115 +1,47 @@
-"""Gate task post-processing.
+"""Gate role-icon grouping and left-lane targeting.
 
-The gate model is trained as a segmentation model, but the ROS detection
-message currently carries only boxes/classes. This processor therefore uses
-the gate-class box as the stable runtime contract and adds gate-specific
-metadata: range from known gate width, role-side aim pixels, and red/black
-post layout estimated from the RGB crop.
+The gate task runs the front-facing-camera model (``ffc_rs_26``, see
+``model_manager.TASK_MODELS``), which detects the two role icons printed on
+each gate panel, not the PVC gate itself. This processor groups the icons into
+the two panels, reads the role shown on the left one, and adds one synthetic
+class-8 detection at the centre of that left opening, so the mission aligns to
+one target whichever role the course puts on the left.
 """
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
+import copy
 
 import numpy as np
 from diagnostic_msgs.msg import KeyValue
 
+from sub_vision import geometry
 from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
 
-GATE_CLASS_ID = 1
-GATE_WIDTH_M = 1.5
-_AIM_Y_FRACTION = 0.68
-_POST_STRIP_FRACTION = 0.22
+BUOY_CLASS_ID = 1
+COMPASS_CLASS_ID = 2
+HAMMER_AND_WRENCH_CLASS_ID = 5
+SOS_CLASS_ID = 7
+LEFT_GATE_TARGET_CLASS_ID = 8
+# Each icon fills about 49% of the 0.311 m square simulator panel. Ranging from
+# each icon's width still works when only one of the two survives detection.
+ICON_WIDTH_M = 0.152
 
-
-@dataclass(frozen=True)
-class GateColorLayout:
-    left_upper: str
-    left_lower: str
-    right_upper: str
-    right_lower: str
-
-    @property
-    def red_right_above(self) -> bool:
-        return self.left_lower == "red" and self.right_upper == "red"
-
-
-def estimate_gate_distance_m(bbox_width_px: float, camera_k: np.ndarray) -> float:
-    """Estimate camera-to-gate range from the known physical gate width."""
-    fx = float(camera_k[0, 0])
-    if bbox_width_px <= 0.0 or fx <= 0.0:
-        return float("nan")
-    return float((GATE_WIDTH_M * fx) / bbox_width_px)
-
-
-def gate_aim_pixels(
-    bbox: tuple[float, float, float, float],
-) -> dict[str, tuple[float, float]]:
-    """Return left/center/right aim pixels inside a gate bbox.
-
-    The side aims split the opening into quarters. The vertical aim point is
-    slightly below center to bias toward the open swim-through rather than the
-    top crossbar in box-only detections.
-    """
-    x0, y0, x1, y1 = bbox
-    width = x1 - x0
-    height = y1 - y0
-    y = y0 + height * _AIM_Y_FRACTION
-    return {
-        "left": (x0 + width * 0.25, y),
-        "center": (x0 + width * 0.50, y),
-        "right": (x0 + width * 0.75, y),
-    }
-
-
-def estimate_gate_color_layout(
-    image_bgr: np.ndarray, bbox: tuple[float, float, float, float]
-) -> GateColorLayout:
-    """Estimate the red/black pattern on the left and right gate posts."""
-    image_h, image_w = image_bgr.shape[:2]
-    x0, y0, x1, y1 = _clip_bbox(bbox, image_w, image_h)
-    width = x1 - x0
-    height = y1 - y0
-    if width <= 1 or height <= 1:
-        return GateColorLayout("unknown", "unknown", "unknown", "unknown")
-
-    strip_w = max(1, int(round(width * _POST_STRIP_FRACTION)))
-    mid_y = y0 + height // 2
-    left_x1 = min(x1, x0 + strip_w)
-    right_x0 = max(x0, x1 - strip_w)
-
-    return GateColorLayout(
-        left_upper=_classify_patch(image_bgr[y0:mid_y, x0:left_x1]),
-        left_lower=_classify_patch(image_bgr[mid_y:y1, x0:left_x1]),
-        right_upper=_classify_patch(image_bgr[y0:mid_y, right_x0:x1]),
-        right_lower=_classify_patch(image_bgr[mid_y:y1, right_x0:x1]),
-    )
-
-
-def _classify_patch(patch_bgr: np.ndarray) -> str:
-    if patch_bgr.size == 0:
-        return "unknown"
-    mean_b, mean_g, mean_r = patch_bgr.reshape(-1, 3).mean(axis=0)
-    brightness = (float(mean_b) + float(mean_g) + float(mean_r)) / 3.0
-    if brightness < 70.0:
-        return "black"
-    if mean_r > 90.0 and mean_r > mean_g * 1.35 and mean_r > mean_b * 1.35:
-        return "red"
-    return "unknown"
-
-
-def _clip_bbox(
-    bbox: tuple[float, float, float, float], image_w: int, image_h: int
-) -> tuple[int, int, int, int]:
-    x0, y0, x1, y1 = bbox
-    return (
-        max(0, min(image_w, int(round(x0)))),
-        max(0, min(image_h, int(round(y0)))),
-        max(0, min(image_w, int(round(x1)))),
-        max(0, min(image_h, int(round(y1)))),
-    )
+ROLE_CLASS_IDS = {
+    "SURVEY": {COMPASS_CLASS_ID, HAMMER_AND_WRENCH_CLASS_ID},
+    "SEARCH": {BUOY_CLASS_ID, SOS_CLASS_ID},
+}
+CLASS_NAMES = {
+    BUOY_CLASS_ID: "buoy",
+    COMPASS_CLASS_ID: "compass",
+    HAMMER_AND_WRENCH_CLASS_ID: "hammer_and_wrench",
+    SOS_CLASS_ID: "sos",
+}
+ROLE_LABELS = {
+    "SURVEY": "Survey & Repair",
+    "SEARCH": "Search & Rescue",
+}
 
 
 def _class_id(det) -> int:
@@ -127,91 +59,125 @@ def _score(det) -> float:
     return float(det.detection.results[0].hypothesis.score)
 
 
-def _bbox_xyxy(det) -> tuple[float, float, float, float]:
-    bbox = det.detection.bbox
-    half_w = bbox.size_x / 2.0
-    half_h = bbox.size_y / 2.0
-    cx = bbox.center.position.x
-    cy = bbox.center.position.y
-    return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+def _center_x(det) -> float:
+    return float(det.detection.bbox.center.position.x)
 
 
-def _deproject_pixel(u: float, v: float, depth_m: float, camera_k: np.ndarray) -> np.ndarray:
-    fx, fy = camera_k[0, 0], camera_k[1, 1]
-    cx, cy = camera_k[0, 2], camera_k[1, 2]
-    return np.array(
-        [
-            (u - cx) * depth_m / fx,
-            (v - cy) * depth_m / fy,
-            depth_m,
-        ],
-        dtype=np.float64,
+def _split_panels(icons) -> tuple[list, list]:
+    """Split icons, ordered left to right, at the widest gap between them.
+
+    The two icons on one panel can themselves be apart, so a gap only counts as
+    the space between panels when it is well over a typical icon's width.
+    """
+    ordered = sorted(icons, key=_center_x)
+    if len(ordered) < 2:
+        return ordered, []
+
+    centers = np.array([_center_x(det) for det in ordered])
+    widths = np.array([max(1.0, float(det.detection.bbox.size_x)) for det in ordered])
+    gaps = np.diff(centers)
+    split = int(np.argmax(gaps))
+    if float(gaps[split]) < max(24.0, 1.25 * float(np.median(widths))):
+        return ordered, []
+    return ordered[: split + 1], ordered[split + 1 :]
+
+
+def _role_for_panel(panel) -> tuple[str, float] | None:
+    """The role whose icons on the panel score highest in total, and that total."""
+    scores = {
+        role: sum(_score(det) for det in panel if _class_id(det) in class_ids)
+        for role, class_ids in ROLE_CLASS_IDS.items()
+    }
+    role = max(scores, key=scores.get)
+    if scores[role] <= 0.0:
+        return None
+    return role, scores[role]
+
+
+def _panel_center_x(panel) -> float:
+    weights = [max(_score(det), 1e-3) for det in panel]
+    return float(np.average([_center_x(det) for det in panel], weights=weights))
+
+
+def _panel_bounds(panel) -> tuple[float, float, float, float]:
+    boxes = [det.detection.bbox for det in panel]
+    return (
+        min(b.center.position.x - b.size_x / 2.0 for b in boxes),
+        min(b.center.position.y - b.size_y / 2.0 for b in boxes),
+        max(b.center.position.x + b.size_x / 2.0 for b in boxes),
+        max(b.center.position.y + b.size_y / 2.0 for b in boxes),
     )
 
 
 @register_post_processor("gate")
 class GatePostProcessor(TaskPostProcessor):
-    """Keep gate detections and add aim/range/layout metadata."""
+    """Keep the role icons and add the left-lane target ahead of them."""
 
-    def process(self, detections, rgb_image, depth_image, camera_info):
-        k = np.array(camera_info.k, dtype=np.float64).reshape(3, 3)
-        gates = [det for det in detections.detections if _class_id(det) == GATE_CLASS_ID]
-        gates.sort(key=_score, reverse=True)
-        detections.detections = gates
+    def process(self, detections, rgb_image, depth_image, camera_info, model_masks=None):
+        icons = sorted(
+            (det for det in detections.detections if _class_id(det) in CLASS_NAMES),
+            key=_center_x,
+        )
+        detections.detections = icons
+        if not icons:
+            return detections
 
-        for det in detections.detections:
-            bbox = det.detection.bbox
-            xyxy = _bbox_xyxy(det)
-            distance_m = estimate_gate_distance_m(float(bbox.size_x), k)
-            det.distance_m = distance_m
+        left_panel, right_panel = _split_panels(icons)
+        k = np.asarray(camera_info.k, dtype=np.float64).reshape(3, 3)
+        fx, cx, cy = float(k[0, 0]), float(k[0, 2]), float(k[1, 2])
+        if fx <= 0.0 or k[1, 1] <= 0.0:  # uncalibrated: no bearing or range
+            return detections
 
-            aims = gate_aim_pixels(xyxy)
-            layout = estimate_gate_color_layout(rgb_image, xyxy)
-            selected_side = "right" if layout.red_right_above else "left"
-            selected_u, selected_v = aims[selected_side]
+        # With both panels in view the left one is unambiguous. With one, keep
+        # it only while it is on or near the left half, so a lone right panel
+        # is never taken for the left lane when the gate first comes into view.
+        two_panel_view = bool(right_panel)
+        image_width = rgb_image.shape[1] if rgb_image is not None else 2.0 * cx
+        target_x = _panel_center_x(left_panel)
+        if not two_panel_view and target_x > cx + 0.05 * image_width:
+            return detections
 
-            det.extra.append(KeyValue(key="aim_left_px", value=_format_pixel(aims["left"])))
-            det.extra.append(KeyValue(key="aim_center_px", value=_format_pixel(aims["center"])))
-            det.extra.append(KeyValue(key="aim_right_px", value=_format_pixel(aims["right"])))
-            det.extra.append(KeyValue(key="selected_aim", value=selected_side))
-            det.extra.append(
-                KeyValue(key="red_right_above", value=str(layout.red_right_above).lower())
-            )
-            det.extra.append(
-                KeyValue(
-                    key="color_layout",
-                    value=(
-                        f"LU={layout.left_upper},LL={layout.left_lower},"
-                        f"RU={layout.right_upper},RL={layout.right_lower}"
-                    ),
-                )
-            )
-            det.extra.append(KeyValue(key="pose_semantics", value="aim_point"))
+        role_result = _role_for_panel(left_panel)
+        if role_result is None:
+            return detections
+        role, role_score = role_result
 
-            if not np.isfinite(distance_m) or k[0, 0] <= 0.0 or k[1, 1] <= 0.0:
-                det.pose_valid = False
-                continue
+        # Each panel hangs over its lane: aim below its centre, level with the camera.
+        target = copy.deepcopy(max(left_panel, key=_score))
+        hypothesis = target.detection.results[0].hypothesis
+        hypothesis.class_id = str(LEFT_GATE_TARGET_CLASS_ID)
+        hypothesis.score = float(min(1.0, role_score / len(left_panel)))
+        x0, y0, x1, y1 = _panel_bounds(left_panel)
+        bbox = target.detection.bbox
+        bbox.center.position.x = target_x
+        bbox.center.position.y = cy
+        bbox.size_x = max(1.0, x1 - x0)
+        bbox.size_y = max(1.0, y1 - y0)
+        target.bearing_horizontal = geometry.bearings_from_pixel(target_x, cy, camera_info)[0]
+        target.bearing_vertical = 0.0
+        ranges = [
+            ICON_WIDTH_M * fx / float(det.detection.bbox.size_x)
+            for det in left_panel
+            if det.detection.bbox.size_x > 1.0
+        ]
+        target.distance_m = float(np.median(ranges)) if ranges else float("nan")
+        target.pose_valid = False
 
-            point = _deproject_pixel(selected_u, selected_v, distance_m, k)
-            det.pose.position.x = float(point[0])
-            det.pose.position.y = float(point[1])
-            det.pose.position.z = float(point[2])
-            det.pose.orientation.w = 1.0
-            det.pose_valid = True
-
-            bearing_h = math.atan2(selected_u - k[0, 2], k[0, 0])
-            bearing_v = math.atan2(selected_v - k[1, 2], k[1, 1])
-            det.extra.append(KeyValue(key="aim_bearing_horizontal", value=f"{bearing_h:.6f}"))
-            det.extra.append(KeyValue(key="aim_bearing_vertical", value=f"{bearing_v:.6f}"))
-            det.extra.append(
-                KeyValue(
-                    key="aim_point_m",
-                    value=f"{point[0]:.4f},{point[1]:.4f},{point[2]:.4f}",
-                )
-            )
-
+        left_ids = [_class_id(det) for det in left_panel]
+        right_ids = [_class_id(det) for det in right_panel]
+        target.extra = [
+            KeyValue(key="gate_target", value="left_opening"),
+            KeyValue(key="gate_role", value=role),
+            KeyValue(key="gate_role_label", value=ROLE_LABELS[role]),
+            KeyValue(key="left_icon_classes", value=",".join(map(str, left_ids))),
+            KeyValue(key="left_icon_names", value=",".join(CLASS_NAMES[i] for i in left_ids)),
+            KeyValue(key="right_icon_classes", value=",".join(map(str, right_ids))),
+            KeyValue(key="right_icon_names", value=",".join(CLASS_NAMES[i] for i in right_ids)),
+            KeyValue(key="two_panel_view", value=str(two_panel_view).lower()),
+            KeyValue(key="estimated_distance_m", value=f"{target.distance_m:.3f}"),
+            KeyValue(key="aim_bearing_horizontal", value=f"{target.bearing_horizontal:.6f}"),
+            KeyValue(key="aim_bearing_vertical", value="0.000000"),
+            KeyValue(key="pose_semantics", value="left_gate_lane"),
+        ]
+        detections.detections.insert(0, target)
         return detections
-
-
-def _format_pixel(pixel: tuple[float, float]) -> str:
-    return f"{pixel[0]:.1f},{pixel[1]:.1f}"

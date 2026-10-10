@@ -7,6 +7,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/LaunchTorpedo.srv"
   "srv/SetDropper.srv"
+  "srv/SetGrabber.srv"
 )
 
 ament_package()

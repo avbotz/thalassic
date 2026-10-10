@@ -4,9 +4,9 @@
 <root BTCPP_format="4" main_tree_to_execute="CompetitionPoolB">
   <BehaviorTree ID="CompetitionPoolB">
     <Sequence name="pool_b">
-      <Script code="@gate_exit_yaw := 0.34906585;
-                    @torp_search_yaw := -2.35619449;
-                    @octagon_search_yaw := -0.61086524"/>
+      <Script code="@gate_exit_yaw := -0.34906585;
+                    @torp_search_yaw := 2.35619449;
+                    @octagon_search_yaw := 0.61086524"/>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
   </BehaviorTree>

@@ -1,65 +1,23 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="gate_red" rgb="0.671 0.047 0.047" roughness="0.1" />  <!-- 171, 12, 12 -->
-    <look name="gate_black" rgb="0.051 0.047 0.047" roughness="0.1" />  <!-- 13, 12, 12 -->
-    <look name="gate_white" gray="1.0" roughness="0.1" />
-    <look name="gate_sawfish" gray="1.0" roughness="0.1" texture="models/gate_task/gate/survey_repair.png" />
-    <look name="gate_shark" gray="1.0" roughness="0.1" texture="models/gate_task/gate/search_rescue.png" />
+    <look name="gate" gray="1.0" roughness="0.1" texture="models/gate_task/gate/gate.png" />
   </looks>
 
-  <static name="gate_red_part" type="model">
+  <static name="gate" type="model">
     <physical>
-      <mesh filename="models/gate_task/gate/parts/red_part.obj" scale="1.0" convex="false" />
+      <mesh filename="models/gate_task/gate/gate_collision.obj" scale="1.0" convex="false" />
       <origin xyz="0 0 0" rpy="0 0 0" />
     </physical>
-
-    <material name="plastic" />
-    <look name="gate_red" />
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="gate_black_part" type="model">
-    <physical>
-      <mesh filename="models/gate_task/gate/parts/black_part.obj" scale="1.0" convex="false" />
+    <!-- $(arg visual) is gate.obj, with the Survey & Repair image left of the way
+         through (+x) and Search & Rescue right, or gate_swapped.obj -->
+    <visual>
+      <mesh filename="models/gate_task/gate/$(arg visual)" scale="1.0" />
       <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-
-    <material name="plastic" />
-    <look name="gate_black" />
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="gate_pvc" type="model">
-    <physical>
-      <mesh filename="models/gate_task/gate/parts/pvc.obj" scale="1.0" convex="false" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
+    </visual>
 
     <material name="pvc" />
-    <look name="gate_white" />
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="gate_left_image" type="model">
-    <physical>
-      <mesh filename="models/gate_task/gate/parts/left_image.obj" scale="1.0" convex="false" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-
-    <material name="plastic" />
-    <look name="gate_sawfish" />
-    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
-  </static>
-
-  <static name="gate_right_image" type="model">
-    <physical>
-      <mesh filename="models/gate_task/gate/parts/right_image.obj" scale="1.0" convex="false" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </physical>
-
-    <material name="plastic" />
-    <look name="gate_shark" />
+    <look name="gate" />
     <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
   </static>
 </scenario>

@@ -3,7 +3,7 @@
 <package format="3">
   <name>sub_serial_drivers</name>
   <version>0.0.0</version>
-  <description>Serial bridge drivers (Nautical / Maritime, NaviGuider IMU) for the Marlin V3 AUV.</description>
+  <description>Serial bridge drivers (Maritime, NaviGuider IMU) for the Marlin V3 AUV.</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 

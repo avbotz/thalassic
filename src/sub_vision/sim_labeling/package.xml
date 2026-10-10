@@ -8,9 +8,10 @@
   <license>Proprietary</license>
 
   <depend>cv_bridge</depend>
+  <depend>message_filters</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
-  <depend>ament_index_python</depend>
+  <depend>vision_msgs</depend>
 
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>

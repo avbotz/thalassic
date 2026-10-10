@@ -5,22 +5,22 @@
     <Sequence name="prelim_mission">
       <MoveRelative x="0.0"
                     y="0.0"
-                    z="1.0"/>
+                    z="-1.0"/>
       <MoveRelative x="4.0"
                     y="0.0"
                     z="0.0"/>
       <MoveRelative x="0.0"
-                    y="1.5"
+                    y="-1.5"
                     z="0.0"/>
       <AttSetpoint roll="nan"
                    pitch="nan"
-                   yaw="3.14159265"/>
+                   yaw="-3.14159265"/>
       <MoveRelative x="3.3"
                     y="0.0"
                     z="0.0"/>
       <PosSetpoint x="0.0"
                    y="0.0"
-                   z="1.0"/>
+                   z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 
@@ -32,23 +32,29 @@
       <input_port name="pitch"
                   default="nan">Pitch setpoint in radians</input_port>
       <input_port name="yaw"
-                  default="nan">Yaw setpoint in radians</input_port>
+                  default="nan">Yaw setpoint in radians (odom, counter-clockwise)</input_port>
+      <input_port name="timeout_msec"
+                  default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
     </Action>
     <Action ID="MoveRelative">
       <input_port name="x"
                   default="0.0">Forward offset in meters</input_port>
       <input_port name="y"
-                  default="0.0">Right offset in meters</input_port>
+                  default="0.0">Left offset in meters</input_port>
       <input_port name="z"
-                  default="0.0">Down/depth offset in meters</input_port>
+                  default="0.0">Up offset in meters</input_port>
+      <input_port name="timeout_msec"
+                  default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
     </Action>
     <Action ID="PosSetpoint">
       <input_port name="x"
-                  default="nan">North/forward position setpoint</input_port>
+                  default="nan">Odom x setpoint in meters (forward at the start)</input_port>
       <input_port name="y"
-                  default="nan">East/right position setpoint</input_port>
+                  default="nan">Odom y setpoint in meters (left at the start)</input_port>
       <input_port name="z"
-                  default="nan">Down/depth position setpoint</input_port>
+                  default="nan">Odom z setpoint in meters (up; 1 m deep is -1)</input_port>
+      <input_port name="timeout_msec"
+                  default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
     </Action>
   </TreeNodesModel>
 

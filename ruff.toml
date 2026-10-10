@@ -3,7 +3,7 @@ target-version = "py312"   # pin to Python version (3.12) on Ubuntu 24.04 matchi
 
 # Exclude submodules
 extend-exclude = [
-    "src/stonefish_ros2",
+    "src/sub_sim/stonefish_ros2",
     "src/sub_drivers/flir_camera_driver",
     "src/sub_drivers/waterlinked_dvl",
     "src/sub_sim/stonefish_vendor/stonefish",

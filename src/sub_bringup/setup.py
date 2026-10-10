@@ -1,4 +1,3 @@
-import os
 from glob import glob
 
 from setuptools import find_packages, setup
@@ -12,16 +11,12 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
-        (f"share/{package_name}/launch", glob(os.path.join("launch", "*launch.[pxy][yma]*"))),
-        (
-            f"share/{package_name}/config",
-            [
-                str(file)
-                for file in glob(os.path.join("config", "**/*"), recursive=True)
-                if os.path.isfile(file)
-            ],
-        ),
-        (f"share/{package_name}/rviz", glob(os.path.join("rviz", "*.rviz*"))),
+        (f"share/{package_name}/launch", glob("launch/*_launch.py")),
+        (f"share/{package_name}/config", glob("config/*.yaml") + glob("config/*.xml")),
+        (f"share/{package_name}/config/control", glob("config/control/*.yaml")),
+        (f"share/{package_name}/config/devices", glob("config/devices/*.yaml")),
+        (f"share/{package_name}/config/vehicles", glob("config/vehicles/*.yaml")),
+        (f"share/{package_name}/rviz", glob("rviz/*.rviz")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -31,7 +26,7 @@ setup(
     license="Proprietary",
     entry_points={
         "console_scripts": [
-            "pid_tuner = sub_bringup.pid_tuner:main",
+            "static_transforms = sub_bringup.static_transforms:main",
         ],
     },
 )

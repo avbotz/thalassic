@@ -1,12 +1,12 @@
-# sub_vision perception node configuration.
-# Topics are relative to the node namespace (e.g. /marlin_v3/...). Each launch
-# file overrides rgb_topic/camera_info_topic with its camera source: Stonefish
-# publishes front_camera/image_color in sim, the usb_cam driver publishes
-# front_camera/image_raw at pool tests.
+# sub_vision perception node configuration, shared by every camera's instance.
+# The topics are per camera, so the launch files set them (see vision_node in
+# sub_bringup/entities.py); they are relative to the node namespace.
 /**:
   ros__parameters:
-    # Where <task>.onnx / <task>.engine models (and optional <task>.names) live.
-    model_dir: "/home/avbotz/sub_vision/models"
+    # Where <task>.onnx / <task>.engine models live; relative to the workspace
+    # root (PIXI_PROJECT_ROOT). Tasks with another model file are mapped in
+    # model_manager.TASK_MODELS (gate -> ffc_rs_26).
+    model_dir: "weights"
 
     # Pre-load this task on startup ("" = wait for a load_model service call).
     default_task: ""
@@ -16,16 +16,22 @@
     # onnxruntime: auto picks cuda when the CUDA provider is available, else cpu.
     backend: "auto"
     device: "auto"
-    input_size: 640
+    input_size: 640  # used only by exports without a fixed input size
     conf_threshold: 0.25
     warmup_iterations: 3
-
-    # Front-camera contract; launch files override the two input topics.
-    rgb_topic: "front_camera/image_raw"
-    camera_info_topic: "front_camera/camera_info"
-    detections_topic: "vision/detections"
 
     # image_transport convention: "raw" subscribes <rgb_topic>, "compressed"
     # subscribes <rgb_topic>/compressed (use when frames cross the network,
     # e.g. running vision on a laptop against the sub's cameras).
     image_transport: "raw"
+
+    # Depth Anything V2 relative depth beside the detector, which torp uses to
+    # find the board's outline and to hold a pose when PnP drops out. Looked up
+    # in model_dir like a task, with the same backend and device. It runs in
+    # the frame callback, so it costs detection frames at depth_rate_hz.
+    depth_enabled: false
+    depth_model: "depth_anything_v2_vits"
+    depth_input_size: 518  # used only by exports without a fixed input size
+    depth_rate_hz: 5.0
+    # Publish ~/depth (32FC1) and ~/depth/color (bgr8 Turbo) for viewing.
+    depth_debug: false

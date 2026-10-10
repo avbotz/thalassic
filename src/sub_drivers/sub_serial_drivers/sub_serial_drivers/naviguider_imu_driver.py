@@ -1,11 +1,13 @@
+import math
+
 import rclpy
 import serial
+from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import Imu
 
 MAX_RX_BUFFER = 4096
-GYRO_SCALE_TO_RAD_PER_SEC = 1.0
 
 # Virtual sensor IDs (see NaviGuider manual).
 SENSOR_ACCELEROMETER = 1  # payload: X, Y, Z, accuracy  (m/s^2)
@@ -35,6 +37,9 @@ class NaviGuiderIMUDriver(LifecycleNode):
         self._accel_rate = 0
         self._gyro_rate = 0
         self._orientation_rate = 0
+        # Whether the gyro and the orientation have been heard from since activation.
+        self._have_gyro = False
+        self._have_orientation = False
 
         self._imu_msg = Imu()
         self._imu_pub = None
@@ -110,6 +115,9 @@ class NaviGuiderIMUDriver(LifecycleNode):
 
     def on_activate(self, state) -> TransitionCallbackReturn:
         self._rx_buffer.clear()
+        # A disabled sensor is not waited for.
+        self._have_gyro = self._gyro_rate <= 0
+        self._have_orientation = self._orientation_rate <= 0
         self._start_sensors()
         self._is_active = True
         self.get_logger().info("naviguider_imu active")
@@ -136,7 +144,7 @@ class NaviGuiderIMUDriver(LifecycleNode):
             self.destroy_timer(self._poll_timer)
             self._poll_timer = None
         if self._imu_pub is not None:
-            self.destroy_publisher(self._imu_pub)
+            self.destroy_lifecycle_publisher(self._imu_pub)
             self._imu_pub = None
         if self._serial is not None:
             self._serial.close()
@@ -147,7 +155,10 @@ class NaviGuiderIMUDriver(LifecycleNode):
         """Send an ASCII command string to the module."""
         if self._serial is None:
             return
-        self._serial.write(command.encode("ascii"))
+        try:
+            self._serial.write(command.encode("ascii"))
+        except (serial.SerialException, OSError) as exc:
+            self.get_logger().error(f"serial write failed: {exc}", throttle_duration_sec=1.0)
 
     def _start_sensors(self) -> None:
         if self._serial is None:
@@ -223,9 +234,11 @@ class NaviGuiderIMUDriver(LifecycleNode):
             if idx >= len(fields):
                 return None
             try:
-                return float(fields[idx])
+                v = float(fields[idx])
             except ValueError:
                 return None
+            # float() accepts "nan" and "inf"; neither is a measurement.
+            return v if math.isfinite(v) else None
 
         if sensor_id == SENSOR_ACCELEROMETER:
             x, y, z = value(2), value(3), value(4)
@@ -233,6 +246,10 @@ class NaviGuiderIMUDriver(LifecycleNode):
                 self._imu_msg.linear_acceleration.x = x
                 self._imu_msg.linear_acceleration.y = y
                 self._imu_msg.linear_acceleration.z = z
+                # Until the gyro and the orientation have reported since activation, the
+                # message's rates and orientation are unmeasured defaults or stale.
+                if not (self._have_gyro and self._have_orientation):
+                    return
 
                 self._imu_msg.header.stamp = self.get_clock().now().to_msg()
                 self._imu_msg.header.frame_id = self._frame_id
@@ -242,16 +259,19 @@ class NaviGuiderIMUDriver(LifecycleNode):
             if x is not None and y is not None and z is not None:
                 # The NaviGuider gyro stream is already expressed in rad/s, which
                 # matches sensor_msgs/Imu, so publish the values directly.
-                self._imu_msg.angular_velocity.x = x * GYRO_SCALE_TO_RAD_PER_SEC
-                self._imu_msg.angular_velocity.y = y * GYRO_SCALE_TO_RAD_PER_SEC
-                self._imu_msg.angular_velocity.z = z * GYRO_SCALE_TO_RAD_PER_SEC
+                self._imu_msg.angular_velocity.x = x
+                self._imu_msg.angular_velocity.y = y
+                self._imu_msg.angular_velocity.z = z
+                self._have_gyro = True
         elif sensor_id == SENSOR_GAME_ROTATION_VECTOR:
             qx, qy, qz, qw = value(2), value(3), value(4), value(5)
-            if None not in (qx, qy, qz, qw):
+            # An all-zero quaternion is not a rotation; normalizing it downstream gives NaN.
+            if None not in (qx, qy, qz, qw) and (qx, qy, qz, qw) != (0.0, 0.0, 0.0, 0.0):
                 self._imu_msg.orientation.x = qx
                 self._imu_msg.orientation.y = qy
                 self._imu_msg.orientation.z = qz
                 self._imu_msg.orientation.w = qw
+                self._have_orientation = True
 
 
 def main(args=None):
@@ -259,7 +279,7 @@ def main(args=None):
     node = NaviGuiderIMUDriver()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
