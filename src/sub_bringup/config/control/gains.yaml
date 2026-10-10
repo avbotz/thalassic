@@ -1,0 +1,77 @@
+/**:
+  ros__parameters:
+    control_rate_hz: 50.0
+    power_limit: 0.6
+
+    # Vehicle model (docs/control.md#vehicle-model), body axes [x, y, z(, roll,
+    # pitch, yaw)]. PLACEHOLDERS until the pool identification session
+    # (docs/control.md#identifying-the-model): the masses only set how the
+    # feedback below is expressed and how much acceleration feedforward the
+    # trajectory gets, and with zero drag and buoyancy the integrators do all
+    # of that work, as they did before.
+    model:
+      mass: [50.0, 60.0, 70.0]       # kg, rigid body plus added mass
+      inertia: [1.5, 2.0, 2.0]       # kg m^2, rigid body plus added inertia
+      net_buoyancy: 0.0              # N, buoyancy minus weight; positive floats
+      buoyancy: 0.0                  # N, for the righting moment
+      center_of_gravity: [0.0, 0.0, 0.08]   # base_link [m]; level with the horizontal thrusters
+      center_of_buoyancy: [0.0, 0.0, 0.08]  # base_link [m]
+      linear_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      quadratic_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Fraction of each feedforward term applied; bring them in one at a time.
+    feedforward:
+      acceleration: 1.0
+      drag: 1.0
+      restoring: 1.0
+
+    # Smooth reference: [max velocity, max acceleration, max jerk] per group,
+    # m and rad. Keep them inside what the thrusters can do at power_limit.
+    trajectory:
+      horizontal: [0.5, 0.25, 0.5]
+      vertical: [0.3, 0.2, 0.4]
+      roll: [0.5, 1.0, 2.0]
+      pitch: [0.5, 1.0, 2.0]
+      yaw: [0.6, 0.8, 2.0]
+      translation_leash: 0.5  # m the reference may get ahead of the vehicle
+      rotation_leash: 0.5     # rad
+
+    # Feedback, [kp, ki, kd] per axis, as accelerations: a = kp*e + ki*int(e) + kd*de/dt
+    # (1/s^2, 1/s^3, 1/s). Multiplied by model.mass/inertia these are exactly
+    # the pool-tuned cascade gains this replaced (position P into velocity PI,
+    # attitude P into rate P):
+    #   kp = (Kv*Kp_pos + Ki_vel)/m, kd = Kv/m, ki = Ki_vel*Kp_pos/m
+    gains:
+      x: [7.14, 0.612, 10.2]
+      y: [5.95, 0.51, 8.5]
+      z: [8.6, 1.62, 10.29]
+      roll: [9.6, 0.0, 8.0]
+      pitch: [7.2, 0.0, 6.0]
+      yaw: [28.35, 0.9, 23.0]
+      integral_limit: [1.0, 1.0, 1.0, 6.0, 6.0, 6.0]  # m/s^2, rad/s^2
+      anti_windup: 5.0  # 1/s, how fast integrators shed what the thrusters could not produce
+
+    # Disturbance observer bandwidth per axis [rad/s]; 0 is off. Turn it on
+    # once the model is identified (docs/control.md#disturbance-observer).
+    observer:
+      bandwidth: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # What to keep when the wrench is out of reach (saturation, a failed
+    # thruster): heave and attitude, then heading, then surge and sway.
+    allocation:
+      axis_weights: [1.0, 1.0, 100.0, 100.0, 100.0, 10.0]
+      max_command_rate: 4.0  # 1/s on the normalized command: no current spikes from instant reversals
+
+    # Fraction of nominal thrust each thruster delivers; 0 marks it failed.
+    # failed_thrusters (e.g. "[3]") does the same at runtime:
+    #   ros2 param set /<robot_name>/sub_control failed_thrusters "[3]"
+    thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # Watchdogs [s] (docs/control.md#safety).
+    safety:
+      state_timeout: 0.5    # no odometry: thrusters off
+      imu_timeout: 0.2      # rate feedback falls back to the EKF's
+      dvl_timeout: 1.5      # x/y feedback off
+      depth_timeout: 1.0    # z feedback off, float up
+      altitude_timeout: 1.0 # altitude hold becomes depth hold
+      cmd_vel_timeout: 0.5  # cmd_vel stream stopped: stop
