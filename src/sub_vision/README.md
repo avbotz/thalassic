@@ -97,6 +97,10 @@ vehicle) as exported graphs:
   the Jetson it runs on).
 * `<model>.onnx` — exported **ONNX** graph for ONNX Runtime.
 
+`pixi run fetch-weights` downloads the ONNX files listed in
+`weights/manifest.toml` from the GitHub releases
+([docs/vision.md](../../docs/vision.md#model-weights)).
+
 The model is the task's name unless `model_manager.TASK_MODELS` maps it to
 another file: `gate` runs `ffc_rs_26`.
 

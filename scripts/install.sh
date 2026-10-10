@@ -4,6 +4,7 @@
 #  - fetches the submodules
 #  - creates the environment from pixi.lock
 #  - builds the workspace
+#  - downloads the model weights in weights/manifest.toml
 #
 # Jetson configuration is described in `deploy/jetson`.
 
@@ -27,3 +28,6 @@ pixi install --frozen
 
 echo "Building the workspace"
 pixi run --frozen build
+
+echo "Downloading the model weights"
+pixi run --frozen fetch-weights

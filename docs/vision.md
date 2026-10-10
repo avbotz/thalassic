@@ -33,6 +33,20 @@ The trees also load `torp_fire_blood` (front camera in `torp.xml`, down in `bins
 
 Models are `<task>.engine` or `<task>.onnx` in `weights/` at the workspace root, except where `sub_vision/model_manager.py` maps a task to another model (`gate` → `ffc_rs_26`).
 
+## Model weights
+
+The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device, so they are built on the Jetson from the ONNX files.
+
+To add or update a model, upload it to a new release and point the manifest at it:
+
+```bash
+gh release create v2026.0.2 --notes "Retrained torp"   # once per release
+gh release upload v2026.0.2 weights/torp.onnx
+sha256sum weights/torp.onnx
+```
+
+then set the file's `url` and `sha256` in `weights/manifest.toml` and commit it with the code that needs it. Do not replace an asset in a release that a commit's manifest already points to: that commit would then fail its checksum.
+
 ## Align
 
 Align means use detection bearings to center the target in the camera view.

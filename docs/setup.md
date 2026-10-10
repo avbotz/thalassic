@@ -22,7 +22,7 @@ cd thalassic
 scripts/install.sh
 ```
 
-`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default`, and runs the first `colcon build`. Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
+`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default`, runs the first `colcon build`, and downloads the model weights ([vision.md](vision.md#model-weights)). Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
 
 ## Everyday workflow
 
@@ -38,6 +38,7 @@ Do not source that file by hand: it needs the pixi environment around it (the RO
 ```bash
 pixi run build                        # colcon build (colcon_defaults.yaml applies)
 pixi run build --packages-select sub_control
+pixi run fetch-weights                # after a pull that changed weights/manifest.toml
 pixi run sim                          # ros2 launch sub_bringup sim_launch.py
 pixi run sim seed:=42 DX:=0.0 mission:=pid_tuning
 pixi shell                            # then use ros2 / colcon / rviz2 directly

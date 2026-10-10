@@ -89,6 +89,7 @@ scripts = ["scripts/setup.sh"]
 build = { cmd = "colcon build", description = "Build the workspace" }
 clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
 prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
+fetch-weights = { cmd = "python scripts/fetch_weights.py", description = "Download the models in weights/manifest.toml into weights/, checking each sha256 (--check only reports)" }
 test = { cmd = "colcon test && colcon test-result --verbose", description = "Run colcon tests" }
 format = { cmd = "scripts/format.sh", description = "Format all tracked Python and C/C++ (excludes submodules)" }
 lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }

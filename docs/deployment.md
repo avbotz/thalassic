@@ -70,6 +70,7 @@ cd ~/thalassic
 git pull --recurse-submodules
 pixi install --frozen        # only changes anything if pixi.lock changed
 pixi run --frozen build
+pixi run --frozen fetch-weights   # downloads only models whose manifest entry changed
 ```
 
 `--frozen` installs `pixi.lock` as it is: it never re-solves or rewrites the lockfile, even if `pixi.toml` has changed without it, which is what you want on a competition day.
@@ -91,5 +92,4 @@ THALASSIC_DDS_PROFILE=vehicle pixi shell
 ## Open items
 
 - x86 CUDA builds for developer machines with NVIDIA GPUs.
-- Model weights are unversioned: `sub_vision` reads them from `weights/` in the workspace root (`~/thalassic/weights` on the vehicle), which is gitignored and copied over by hand; a manifest with checksums is the next step.
 - The down camera still takes its address from DHCP; it should be static like the DVL.
