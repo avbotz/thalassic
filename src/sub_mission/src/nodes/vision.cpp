@@ -26,6 +26,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <deque>
 #include <functional>
 #include <future>
 #include <limits>
@@ -36,6 +37,7 @@
 
 #include "sub_mission/nodes/mission.hpp"
 #include "sub_mission/vision_client.hpp"
+#include "tf2/exceptions.h"
 
 namespace {
 
@@ -2412,6 +2414,406 @@ class OrientToDetectionAtDistAction : public BT::StatefulActionNode {
     bool have_candidate_ = false;
 };
 
+// Squares the vehicle up to the gate, however the gate is turned: standoff in
+// front of the left opening, on its normal, facing through it. The gate
+// post-processor's class-8 target is the left panel's ray and range; with both
+// panels in view it also carries the right panel's bearing and the turn that
+// would square the camera to the gate (heading_yaw_deg). Each frame, at the
+// pose the vehicle had when it was taken, gives the gate's facing and the left
+// panel's position in odom; the medians of the last few are the gate's.
+//
+// Until min_facing_frames frames have given a facing, it turns to keep both
+// panels in view, backing off to look_distance if the gate is closer. Then it
+// moves to the standoff point looking at the middle of the gate, so that both
+// panels stay in view and keep refining it, and there turns square. SUCCESS
+// once it has been within both tolerances for settle_msec. Moving on from the
+// standoff point along the facing crosses the gate's line at the aim point,
+// whatever error the facing has. If facing_timeout_msec passes with fewer
+// frames, it goes on with those; with none (the right panel never ranged), it
+// takes the gate to face back along the line of sight to the left panel, and
+// lines up on that, as keeping the heading would.
+class SquareUpToGateAction : public BT::StatefulActionNode {
+   public:
+    SquareUpToGateAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
+                         SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
+                         rclcpp::Logger logger)
+        : BT::StatefulActionNode(name, config),
+          node_(node),
+          setpoint_publisher_(setpoint_publisher),
+          clock_(clock),
+          logger_(logger) {}
+
+    static BT::PortsList providedPorts() {
+        BT::PortsList ports = DetectionFilter::ports();
+        ports.insert(BT::InputPort<double>("standoff", 2.0, "Distance in front of the gate to finish at (m)"));
+        ports.insert(BT::InputPort<double>("target_offset_left", 0.0,
+                                           "Aim this far left of the left panel's center, along the gate (m)"));
+        ports.insert(BT::InputPort<double>("look_distance", 2.8,
+                                           "Back off to this far while finding the facing, to see both panels (m)"));
+        ports.insert(BT::InputPort<int>("min_facing_frames", 6, "Frames showing both panels before moving"));
+        ports.insert(BT::InputPort<double>("max_slant_deg", 60.0,
+                                           "Facings turned further than this from the camera are rejected"));
+        ports.insert(
+            BT::InputPort<double>("position_tolerance", 0.15, "Finished within this of the standoff point (m)"));
+        ports.insert(BT::InputPort<double>("yaw_tolerance_deg", 3.0, "Finished within this of square to the gate"));
+        ports.insert(BT::InputPort<int>("settle_msec", 1500, "Time within both tolerances before SUCCESS"));
+        ports.insert(BT::InputPort<int>("facing_timeout_msec", 15000,
+                                        "Go on with fewer facing frames, or none, after this long"));
+        ports.insert(BT::InputPort<int>("detection_loss_msec", 8000,
+                                        "FAILURE after this long without a frame of the gate; 0 never"));
+        ports.insert(BT::InputPort<int>("timeout_msec", 60000, "Maximum time before FAILURE"));
+        ports.insert(BT::InputPort<int>("update_msec", 250, "Minimum time between commands"));
+        return ports;
+    }
+
+    BT::NodeStatus onStart() override {
+        if (!DetectionFilter::read(*this, filter_, logger_)) {
+            return BT::NodeStatus::FAILURE;
+        }
+        getInput("standoff", standoff_);
+        getInput("target_offset_left", target_offset_left_);
+        getInput("look_distance", look_distance_);
+        getInput("min_facing_frames", min_facing_frames_);
+        getInput("max_slant_deg", max_slant_deg_);
+        getInput("position_tolerance", position_tolerance_);
+        getInput("yaw_tolerance_deg", yaw_tolerance_deg_);
+        getInput("settle_msec", settle_msec_);
+        getInput("facing_timeout_msec", facing_timeout_msec_);
+        getInput("detection_loss_msec", detection_loss_msec_);
+        getInput("timeout_msec", timeout_msec_);
+        getInput("update_msec", update_msec_);
+        if (filter_.task.empty() || filter_.class_id.empty() || standoff_ <= 0.0 ||
+            !std::isfinite(target_offset_left_) || look_distance_ <= 0.0 || min_facing_frames_ <= 0 ||
+            max_slant_deg_ <= 0.0 || max_slant_deg_ >= 90.0 || position_tolerance_ <= 0.0 ||
+            yaw_tolerance_deg_ <= 0.0 || settle_msec_ < 0 || facing_timeout_msec_ <= 0 || detection_loss_msec_ < 0 ||
+            timeout_msec_ <= 0 || update_msec_ <= 0) {
+            RCLCPP_ERROR(logger_,
+                         "SquareUpToGate needs a task, a class_id, positive distances, tolerances and timings, and "
+                         "max_slant_deg under 90.");
+            return BT::NodeStatus::FAILURE;
+        }
+        if (!filter_.usableCamera(node_, *this, logger_, true)) {
+            return BT::NodeStatus::FAILURE;
+        }
+        if (!node_.subAlive()) {
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Frames give rays from the camera, ahead of base_link.
+        camera_offset_ = {0.0, 0.0};
+        try {
+            const auto mount =
+                node_.tfBuffer()
+                    .lookupTransform(node_.frame("base_link"), node_.frame("front_camera"), tf2::TimePointZero)
+                    .transform.translation;
+            camera_offset_ = {mount.x, mount.y};
+        } catch (const tf2::TransformException &error) {
+            RCLCPP_WARN(logger_, "SquareUpToGate: no front_camera mount (%s); taking it to be at base_link.",
+                        error.what());
+        }
+
+        started_at_ = SteadyClock::now();
+        deadline_ = started_at_ + std::chrono::milliseconds(timeout_msec_);
+        last_processed_ = started_at_;
+        last_detection_at_ = started_at_;
+        last_commanded_ = started_at_ - std::chrono::milliseconds(update_msec_);
+        facings_.clear();
+        left_points_.clear();
+        lone_left_points_.clear();
+        right_points_.clear();
+        phase_ = Phase::LOOK;
+        settling_ = false;
+        return BT::NodeStatus::RUNNING;
+    }
+
+    BT::NodeStatus onRunning() override {
+        if (node_.killed) {
+            RCLCPP_WARN(logger_, "SquareUpToGate failed because kill switch is engaged.");
+            return BT::NodeStatus::FAILURE;
+        }
+        const auto now = SteadyClock::now();
+        if (now >= deadline_) {
+            RCLCPP_WARN(logger_, "SquareUpToGate timed out with %zu facings and %zu left-panel fixes of %s.",
+                        facings_.size(), left_points_.size(), filter_.describe().c_str());
+            return fail();
+        }
+
+        const Match match = latestMatch(node_, filter_, last_processed_ + std::chrono::nanoseconds(1));
+        if (match.detection != nullptr) {
+            last_processed_ = match.received_at;
+            last_detection_at_ = match.received_at;
+            observe(*match.detection, rclcpp::Time(match.array->header.stamp));
+            if (phase_ == Phase::LOOK) {
+                look(*match.detection);
+            }
+        } else if (detection_loss_msec_ > 0 &&
+                   now - last_detection_at_ >= std::chrono::milliseconds(detection_loss_msec_)) {
+            RCLCPP_WARN(logger_, "SquareUpToGate lost %s for %dms.", filter_.describe().c_str(), detection_loss_msec_);
+            return fail();
+        }
+
+        if (phase_ == Phase::LOOK) {
+            if (facings_.size() < static_cast<std::size_t>(min_facing_frames_) || left_points_.empty()) {
+                if (now - started_at_ < std::chrono::milliseconds(facing_timeout_msec_)) {
+                    return BT::NodeStatus::RUNNING;
+                }
+                if (left_points_.empty()) {
+                    if (lone_left_points_.empty()) {
+                        RCLCPP_WARN(logger_, "SquareUpToGate: no frame ranged the left panel of %s.",
+                                    filter_.describe().c_str());
+                        return fail();
+                    }
+                    left_points_ = lone_left_points_;
+                }
+                if (facings_.empty()) {
+                    // Never both panels: the gate is taken to face along the
+                    // line of sight to the left one.
+                    const auto left = medianPoint(left_points_);
+                    facings_.push_back(std::atan2(left[1] - node_.measured_pos[1], left[0] - node_.measured_pos[0]));
+                    RCLCPP_WARN(logger_,
+                                "SquareUpToGate: no frame showed both panels; taking the gate to face along the line "
+                                "of sight to the left one.");
+                } else {
+                    RCLCPP_WARN(logger_, "SquareUpToGate: going on with %zu of %d frames showing both panels.",
+                                facings_.size(), min_facing_frames_);
+                }
+            }
+            phase_ = Phase::APPROACH;
+            const Gate gate = estimate();
+            RCLCPP_INFO(logger_,
+                        "SquareUpToGate: the gate faces yaw %.3f (%.1f deg from the heading), left opening at (%.2f, "
+                        "%.2f); moving %.2fm out in front of it.",
+                        gate.facing, normalizeAngle(gate.facing - actualYaw(node_)) * 180.0 / M_PI, gate.aim[0],
+                        gate.aim[1], standoff_);
+        }
+        return approach(now);
+    }
+
+    void onHalted() override {
+        hold();
+        RCLCPP_INFO(logger_, "SquareUpToGate halted.");
+    }
+
+   private:
+    enum class Phase { LOOK, APPROACH, SQUARE };
+
+    // What the frames so far make of the gate, in odom.
+    struct Gate {
+        double facing = 0.0;               // yaw through the gate
+        std::array<double, 2> aim{};       // where to cross its line
+        std::array<double, 2> middle{};    // between the panels, to look at
+        std::array<double, 2> standoff{};  // standoff_ out in front of aim
+    };
+
+    // Frames kept for the medians: about two seconds' worth, so the closest,
+    // most accurate views soon outweigh the first ones.
+    static constexpr std::size_t MAX_FRAMES = 25;
+    // A left-panel fix from a frame showing only one panel counts only this
+    // close to the estimate: a lone right panel can pass for the left one.
+    static constexpr double MAX_SINGLE_PANEL_JUMP_M = 0.5;
+    // A facing this far from the estimate is another object's.
+    static constexpr double MAX_FACING_JUMP_RAD = 20.0 * M_PI / 180.0;
+
+    // Turns a frame into a facing and the panels' positions in odom, from the
+    // camera's position and heading when the frame was taken.
+    void observe(const Detection &detection, const rclcpp::Time &stamp) {
+        const auto pose = node_.horizontalPoseAt(stamp);
+        const std::array<double, 3> at =
+            pose ? *pose : std::array<double, 3>{node_.measured_pos[0], node_.measured_pos[1], actualYaw(node_)};
+        const double yaw = at[2];
+        std::array<double, 3> camera{at[0], at[1], UNSPECIFIED_PORT};
+        addBodyOffset(camera, camera_offset_[0], camera_offset_[1], yaw);
+
+        const auto turn = headingYaw(detection);
+        const bool both_panels = turn.has_value();
+        if (turn && std::fabs(*turn) <= radians(max_slant_deg_)) {
+            const double facing = normalizeAngle(yaw + *turn);
+            if (facings_.size() < static_cast<std::size_t>(min_facing_frames_) ||
+                std::fabs(normalizeAngle(facing - medianAngle(facings_))) <= MAX_FACING_JUMP_RAD) {
+                push(facings_, facing);
+            }
+        }
+
+        // A range is along the optical axis: the panel is that far ahead, and
+        // right of center by its bearing.
+        const auto point = [&camera, yaw](const double bearing, const double range) {
+            std::array<double, 3> target = camera;
+            addBodyOffset(target, range, -range * std::tan(bearing), yaw);
+            return std::array<double, 2>{target[0], target[1]};
+        };
+        if (validDistanceValue(detection.distance_m)) {
+            const auto left = point(detection.bearing_horizontal, detection.distance_m);
+            if (both_panels ||
+                (!left_points_.empty() && distance(left, medianPoint(left_points_)) <= MAX_SINGLE_PANEL_JUMP_M)) {
+                push(left_points_, left);
+            } else if (left_points_.empty()) {
+                push(lone_left_points_, left);
+            }
+        }
+        const auto right_bearing = extraDouble(detection, "right_bearing_horizontal");
+        const auto right_range = extraDouble(detection, "right_distance_m");
+        if (both_panels && right_bearing && right_range && validDistanceValue(*right_range)) {
+            push(right_points_, point(*right_bearing, *right_range));
+        }
+    }
+
+    // Keeps both panels in view: turns to center them, or the one in view, and
+    // backs off along its ray when closer than look_distance.
+    void look(const Detection &detection) {
+        if (SteadyClock::now() - last_commanded_ < std::chrono::milliseconds(update_msec_)) {
+            return;
+        }
+        const auto right_bearing = extraDouble(detection, "right_bearing_horizontal");
+        const double bearing =
+            right_bearing ? 0.5 * (detection.bearing_horizontal + *right_bearing) : detection.bearing_horizontal;
+        sendYaw(node_, *setpoint_publisher_, *clock_, yawToward(node_, bearing));
+        if (validDistanceValue(detection.distance_m) && detection.distance_m < look_distance_) {
+            std::array<double, 3> target = horizontalTarget(node_);
+            const double back = look_distance_ - detection.distance_m;
+            addBodyOffset(target, -back * std::cos(detection.bearing_horizontal),
+                          back * std::sin(detection.bearing_horizontal), actualYaw(node_));
+            sendPosition(node_, *setpoint_publisher_, *clock_, target);
+        }
+        last_commanded_ = SteadyClock::now();
+    }
+
+    BT::NodeStatus approach(const SteadyClock::time_point now) {
+        const Gate gate = estimate();
+        const std::array<double, 2> position{node_.measured_pos[0], node_.measured_pos[1]};
+        const double off = distance(position, gate.standoff);
+        if (phase_ == Phase::APPROACH && off <= position_tolerance_) {
+            phase_ = Phase::SQUARE;
+            RCLCPP_INFO(logger_, "SquareUpToGate: in front of the left opening; turning square to yaw %.3f.",
+                        gate.facing);
+        }
+        // On the way, look at the gate's middle: both panels stay in view.
+        // Once there, square up; the left panel is then straight ahead.
+        const double yaw = phase_ == Phase::SQUARE
+                               ? gate.facing
+                               : std::atan2(gate.middle[1] - position[1], gate.middle[0] - position[0]);
+        if (now - last_commanded_ >= std::chrono::milliseconds(update_msec_)) {
+            sendPosition(node_, *setpoint_publisher_, *clock_, {gate.standoff[0], gate.standoff[1], UNSPECIFIED_PORT});
+            sendYaw(node_, *setpoint_publisher_, *clock_, yaw);
+            last_commanded_ = now;
+        }
+
+        const bool square = phase_ == Phase::SQUARE && off <= position_tolerance_ &&
+                            std::fabs(normalizeAngle(actualYaw(node_) - gate.facing)) <= radians(yaw_tolerance_deg_);
+        if (!square) {
+            settling_ = false;
+            return BT::NodeStatus::RUNNING;
+        }
+        if (!settling_) {
+            settling_ = true;
+            settled_since_ = now;
+        }
+        if (now - settled_since_ < std::chrono::milliseconds(settle_msec_)) {
+            return BT::NodeStatus::RUNNING;
+        }
+        // The targets a following move starts from: the standoff point, square.
+        sendPosition(node_, *setpoint_publisher_, *clock_, {gate.standoff[0], gate.standoff[1], UNSPECIFIED_PORT});
+        sendYaw(node_, *setpoint_publisher_, *clock_, gate.facing);
+        const double remaining =
+            std::cos(gate.facing) * (gate.aim[0] - position[0]) + std::sin(gate.facing) * (gate.aim[1] - position[1]);
+        RCLCPP_INFO(logger_,
+                    "SquareUpToGate: square to the gate at yaw %.3f, %.2fm in front of the left opening (%zu facings, "
+                    "%zu left-panel fixes).",
+                    gate.facing, remaining, facings_.size(), left_points_.size());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    Gate estimate() const {
+        Gate gate;
+        gate.facing = medianAngle(facings_);
+        const std::array<double, 2> left = medianPoint(left_points_);
+        const double cos_f = std::cos(gate.facing);
+        const double sin_f = std::sin(gate.facing);
+        // Left along the gate is the facing turned a quarter left.
+        gate.aim = {left[0] - sin_f * target_offset_left_, left[1] + cos_f * target_offset_left_};
+        gate.standoff = {gate.aim[0] - cos_f * standoff_, gate.aim[1] - sin_f * standoff_};
+        if (right_points_.empty()) {
+            gate.middle = gate.aim;
+        } else {
+            const std::array<double, 2> right = medianPoint(right_points_);
+            gate.middle = {0.5 * (left[0] + right[0]), 0.5 * (left[1] + right[1])};
+        }
+        return gate;
+    }
+
+    template <typename T>
+    static void push(std::deque<T> &frames, const T &value) {
+        frames.push_back(value);
+        if (frames.size() > MAX_FRAMES) {
+            frames.pop_front();
+        }
+    }
+
+    // Of a non-empty `angles`, all within a half turn of one another.
+    static double medianAngle(const std::deque<double> &angles) {
+        const double reference = angles.back();
+        std::vector<double> offsets;
+        for (const double angle : angles) {
+            offsets.push_back(normalizeAngle(angle - reference));
+        }
+        return normalizeAngle(reference + median(offsets));
+    }
+
+    // Of a non-empty `points`, axis by axis.
+    static std::array<double, 2> medianPoint(const std::deque<std::array<double, 2>> &points) {
+        std::vector<double> xs;
+        std::vector<double> ys;
+        for (const auto &point : points) {
+            xs.push_back(point[0]);
+            ys.push_back(point[1]);
+        }
+        return {median(xs), median(ys)};
+    }
+
+    static double distance(const std::array<double, 2> &a, const std::array<double, 2> &b) {
+        return std::hypot(a[0] - b[0], a[1] - b[1]);
+    }
+
+    BT::NodeStatus fail() {
+        hold();
+        return BT::NodeStatus::FAILURE;
+    }
+
+    void hold() { node_.hold({true, true, false, false, false, true}); }
+
+    MissionNode &node_;
+    SetpointPublisher::SharedPtr setpoint_publisher_;
+    rclcpp::Clock::SharedPtr clock_;
+    rclcpp::Logger logger_;
+    DetectionFilter filter_;
+    SteadyClock::time_point started_at_;
+    SteadyClock::time_point deadline_;
+    SteadyClock::time_point last_processed_;
+    SteadyClock::time_point last_detection_at_;
+    SteadyClock::time_point last_commanded_;
+    SteadyClock::time_point settled_since_;
+    std::deque<double> facings_;
+    std::deque<std::array<double, 2>> left_points_;
+    // Left-panel fixes from frames with one panel in view, before any with
+    // both: used only if no frame shows both.
+    std::deque<std::array<double, 2>> lone_left_points_;
+    std::deque<std::array<double, 2>> right_points_;
+    std::array<double, 2> camera_offset_{};
+    Phase phase_ = Phase::LOOK;
+    double standoff_ = 2.0;
+    double target_offset_left_ = 0.0;
+    double look_distance_ = 2.8;
+    double max_slant_deg_ = 60.0;
+    double position_tolerance_ = 0.15;
+    double yaw_tolerance_deg_ = 3.0;
+    int min_facing_frames_ = 6;
+    int settle_msec_ = 1500;
+    int facing_timeout_msec_ = 15000;
+    int detection_loss_msec_ = 8000;
+    int timeout_msec_ = 60000;
+    int update_msec_ = 250;
+    bool settling_ = false;
+};
+
 // The filter of the down-camera nodes below, which have no camera port. False,
 // with the reason logged, when a port's blackboard entry is missing or does not
 // parse, rather than carry on with the default: an empty class_id takes any class.
@@ -3112,6 +3514,12 @@ void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, co
         [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
             return std::make_unique<OrientToDetectionAtDistAction>(name, config, node, setpoint_publisher, clock,
                                                                    logger);
+        });
+
+    factory.registerBuilder<SquareUpToGateAction>(
+        "SquareUpToGate",
+        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<SquareUpToGateAction>(name, config, node, setpoint_publisher, clock, logger);
         });
 
     auto down_forward_align_builder = [&node, setpoint_publisher, clock, logger](const std::string &name,

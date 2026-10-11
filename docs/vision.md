@@ -15,7 +15,7 @@ Mission nodes filter detections by:
 | `class_id` | Optional object class within the model |
 | `min_score` | Minimum confidence |
 
-`AlignToDetection`, `LateralAlignToDetection`, `ForwardContinuousAlign`, `OrientToDetectionAtDist` and the yaw sweeps (`SweepCheck`, `ForwardSweepAlign`, `SweepAngle`) steer on front-camera bearings and fail on `camera="down"`. The `Down*` nodes have no `camera` port and read the down camera.
+`AlignToDetection`, `LateralAlignToDetection`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate` and the yaw sweeps (`SweepCheck`, `ForwardSweepAlign`, `SweepAngle`) steer on front-camera bearings and fail on `camera="down"`. The `Down*` nodes have no `camera` port and read the down camera.
 
 ## Tasks
 
@@ -23,7 +23,7 @@ Each task's post-processor in `sub_vision` shapes what missions see. Every `extr
 
 | Task | Model | Mission-facing output |
 |---|---|---|
-| `gate` | `ffc_rs_26` | Class `8`: the left lane, below the left panel's role icons, with `gate_role` (`SURVEY`/`SEARCH`) and range from icon size |
+| `gate` | `ffc_rs_26` | Class `8`: the left lane, below the left panel's role icons, with `gate_role` (`SURVEY`/`SEARCH`) and range from icon height; with both panels in view, the right panel's bearing and range and the gate's `heading_yaw_deg` |
 | `slalom`, `slalom_redpoles_osu` | same name | Class `2`: the nearest red pole, ranged from its height |
 | `path`, `path_marker` | same name | `yaw_deg` |
 | `torp`, `torp_find` | same name | Board pose by PnP, `heading_yaw_deg`, aim-point bearings; class `torp_aim_hole` is the hole to fire at |
@@ -31,11 +31,11 @@ Each task's post-processor in `sub_vision` shapes what missions see. Every `extr
 
 The trees also load `torp_fire_blood` (front camera in `torp.xml`, down in `bins.xml`), which has no post-processor: 2D boxes and bearings only, `distance_m` NaN.
 
-Models are `<task>.engine` or `<task>.onnx` in `weights/` at the workspace root, except where `sub_vision/model_manager.py` maps a task to another model (`gate` → `ffc_rs_26`).
+Models are `<task>.onnx` in `weights/` at the workspace root, except where `sub_vision/model_manager.py` maps a task to another model (`gate` → `ffc_rs_26`). On the Jetson they run as TensorRT engines built from those files.
 
 ## Model weights
 
-The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device, so they are built on the Jetson from the ONNX files.
+The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device and the TensorRT version, so `pixi run build-engines` builds them on the Jetson from the ONNX files, named by each file's checksum ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
 
 To add or update a model, upload it to a new release and point the manifest at it:
 
@@ -60,6 +60,7 @@ Examples:
 | `AlignToDetection` | Front-camera yaw alignment, optionally depth |
 | `ForwardContinuousAlign` | Move forward at a fixed velocity while yaw-aligning to front detections |
 | `LateralAlignToDetection` | Move sideways (and in z) onto a front detection, keeping the heading |
+| `SquareUpToGate` | Line up in front of the gate's left opening, on its normal, from the gate's `heading_yaw_deg` and the left panel's range |
 | `DownAlignToDetection` | Center over a down-camera target |
 | `DownForwardAlign` | Move forward while applying down-camera centering offsets |
 
@@ -67,7 +68,7 @@ Examples:
 
 Orient means use the object's reported orientation, not just its image center. The orientation signal is metadata: `yaw_deg` or `heading_yaw_deg` (below). `sub_mission` does not read the pose as a yaw.
 
-Orientation metadata is the yaw change that would square the vehicle up with the object, in degrees, counter-clockwise positive (REP-103): `yaw_deg` (path marker, a line, so in \[-90, 90)) and `heading_yaw_deg` (torpedo board face). A `pose_semantics` other than `orientation` says the pose's rotation is not a vehicle yaw.
+Orientation metadata is the yaw change that would square the vehicle up with the object, in degrees, counter-clockwise positive (REP-103): `yaw_deg` (path marker, a line, so in \[-90, 90)) and `heading_yaw_deg` (torpedo board face, gate). A `pose_semantics` other than `orientation` says the pose's rotation is not a vehicle yaw.
 
 `OrientToDetectionAtDist` squares the sub to the object's physical orientation while holding a desired standoff distance. This is different from alignment: alignment says "look at the object"; orientation says "face the object's plane at the intended angle."
 

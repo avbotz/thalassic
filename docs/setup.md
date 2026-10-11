@@ -124,7 +124,7 @@ Commit the submodule pointer when the version should become the team default.
 
 The default environment installs CPU builds of PyTorch and ONNX Runtime; they are enough for the simulator.
 
-- **Jetson:** TensorRT and the CUDA runtime bindings come from JetPack, not from pixi. `deploy/jetson/link_jetpack_python.sh` exposes them to the environment (see [deployment.md](deployment.md)). `sub_vision` then uses `<task>.engine` files as before.
+- **Jetson:** TensorRT and the CUDA runtime bindings come from JetPack, not from pixi. `deploy/jetson/link_jetpack_python.sh` exposes them to the environment (see [deployment.md](deployment.md)). `sub_vision` then runs TensorRT engines that `pixi run build-engines` builds from the ONNX models.
 - **x86 with NVIDIA:** not wired up yet. conda-forge ships CUDA builds of `onnxruntime`; enabling them means declaring a CUDA-capable platform in `pixi.toml` and rebuilding. Open item.
 
 ## Updating dependencies

@@ -3,18 +3,19 @@
 # sub_bringup/entities.py); they are relative to the node namespace.
 /**:
   ros__parameters:
-    # Where <task>.onnx / <task>.engine models live; relative to the workspace
-    # root (PIXI_PROJECT_ROOT). Tasks with another model file are mapped in
-    # model_manager.TASK_MODELS (gate -> ffc_rs_26).
+    # Where the <task>.onnx models, and the TensorRT engines built from them,
+    # live; relative to the workspace root (PIXI_PROJECT_ROOT). Tasks with
+    # another model file are mapped in model_manager.TASK_MODELS
+    # (gate -> ffc_rs_26).
     model_dir: "weights"
 
     # Pre-load this task on startup ("" = wait for a load_model service call).
     default_task: ""
 
-    # backend: auto prefers a serialized <task>.engine (TensorRT, Jetson) and
-    # falls back to <task>.onnx (ONNX Runtime). device only applies to
-    # onnxruntime: auto picks cuda when the CUDA provider is available, else cpu.
-    backend: "auto"
+    # device: tensorrt runs the engine `pixi run build-engines` built from the
+    # ONNX file, and fails to load without one; cpu and cuda run the ONNX file
+    # in ONNX Runtime. auto is tensorrt where it is installed (the Jetson), else
+    # cuda when ONNX Runtime has the CUDA provider, else cpu.
     device: "auto"
     input_size: 640  # used only by exports without a fixed input size
     conf_threshold: 0.25
@@ -27,7 +28,7 @@
 
     # Depth Anything V2 relative depth beside the detector, which torp uses to
     # find the board's outline and to hold a pose when PnP drops out. Looked up
-    # in model_dir like a task, with the same backend and device. It runs in
+    # in model_dir like a task, on the same device. It runs in
     # the frame callback, so it costs detection frames at depth_rate_hz.
     depth_enabled: false
     depth_model: "depth_anything_v2_vits"

@@ -40,21 +40,32 @@ Groot2's Monitor mode can watch the tree run: connect it to port 5555 (the
 resources/
   trees/       # task library, one file per element:
                #   gate, slalom, bins, torp, octagon, return_home, coin_flip,
-               #   competition (the shared 2026 run), hard_coded_* (the same
-               #   tasks dead-reckoned, without vision), plus test trees
+               #   competition (the shared 2026 run)
   missions/    # runnable entrypoints (pool_a..pool_d, prelim, pool_test,
-               #   vision_test, pid_tuning, hard_coded_*, and single tasks:
-               #   bins_test, gate_slalom_test, slalom_three_test,
+               #   vision_test, pid_tuning; hard_coded_* (the tasks
+               #   dead-reckoned, without vision) and hard_coded_competition
+               #   (those tasks in turn); and single tasks: bins_test,
+               #   gate_test, gate_slalom_test, slalom_three_test,
                #   slalom_perception_hold_test)
   Project.btproj  # Groot2 project covering both, open it to edit any tree
 ```
 
 **trees vs missions.** A *tree* is a reusable, self-contained task (`GateMission`,
 `SlalomMission`, ...) that is never selected directly. A *mission* is a runnable
-entrypoint you pass to `mission:=`. Everything is plain BT.CPP XML. All files in
-`resources/trees/` are registered with the factory first, then the mission
-file's `main_tree_to_execute` is created and ticked — so a mission can reference
-any `BehaviorTree ID` defined under `trees/`.
+entrypoint you pass to `mission:=`. A mission that is a single task holds its
+nodes itself rather than wrapping a tree, so Groot2 shows them directly.
+Everything is plain BT.CPP XML. All files in `resources/trees/`, then all in
+`resources/missions/`, are registered with the factory, then the selected
+mission file's `main_tree_to_execute` is created and ticked — so a mission can
+run any `BehaviorTree ID` from either directory as a `SubTree`.
+`hard_coded_competition` is just `HardCodedGateMission`, `HardCodedSlalomMission`
+and `HardCodedTorpMission` in a `Sequence`, the missions `hard_coded_gate`,
+`hard_coded_slalom` and `hard_coded_torp`.
+
+IDs share one namespace: BT.CPP silently replaces a tree when a later file
+registers the same ID, so a test checks every ID is defined once. The selected
+mission file is registered last, so an edited copy passed by path may keep the
+packaged mission's ID and still win.
 
 ## The competition run is shared
 
@@ -154,7 +165,7 @@ They share the filter ports `camera` (default `front`; `down` reads the
 `AlignToDetection` takes the front camera only, as do the other nodes
 that steer on a bearing as a turn or a sideways move (`LateralAlignToDetection`,
 `SweepCheck`, `ForwardSweepAlign`, `SweepAngle`, `ForwardContinuousAlign`,
-`OrientToDetectionAtDist`): they fail on `camera="down"`. The `Down*` nodes
+`OrientToDetectionAtDist`, `SquareUpToGate`): they fail on `camera="down"`. The `Down*` nodes
 read the down camera and have no `camera` port. Detections arrive as
 `sub_vision_interfaces/DetectionArray` on `vision/detections`
 (`vision/detections_down` for the down camera), cached per
@@ -181,7 +192,8 @@ The task trees also use task mechanics built on these, listed in
 `docs/mission.md`: sweeps, approaches that steer while moving
 (`ForwardContinuousAlign`, `ForwardFixedTransit`), sideways and down-camera
 centering (`LateralAlignToDetection`, the `Down*` nodes), the gate's role
-(`SelectGateRole`) and the torpedo board's face (`OrientToDetectionAtDist`).
+(`SelectGateRole`), lining up square to the gate (`SquareUpToGate`) and the
+torpedo board's face (`OrientToDetectionAtDist`).
 
 The worked example is `trees/gate.xml`:
 

@@ -1,5 +1,6 @@
 """Thread-safe loading, swapping, and inference of a single resident model."""
 
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -9,7 +10,7 @@ import numpy as np
 
 from sub_vision import backends
 
-# Tasks whose model file is not <task>.onnx/.engine. Mission XML loads tasks by what they are for,
+# Tasks whose model file is not <task>.onnx. Mission XML loads tasks by what they are for,
 # so the model behind one can change here without touching the missions.
 TASK_MODELS = {
     # The front-camera model of RoboSub 2026's printed images; the gate reads its role icons.
@@ -48,15 +49,12 @@ class ModelManager:
     def __init__(
         self,
         model_dir: str,
-        backend_pref: str,
         device_pref: str,
         input_size: int,
         conf_threshold: float,
         warmup_iterations: int,
         log: Callable[[str], None],
     ):
-        if backend_pref not in backends.BACKENDS:
-            raise ValueError(f"backend '{backend_pref}' is not one of {backends.BACKENDS}")
         if device_pref not in backends.DEVICES:
             raise ValueError(f"device '{device_pref}' is not one of {backends.DEVICES}")
         if input_size <= 0:
@@ -64,7 +62,6 @@ class ModelManager:
         if not 0.0 <= conf_threshold <= 1.0:
             raise ValueError(f"conf_threshold {conf_threshold} is not in [0, 1]")
         self._model_dir = model_dir
-        self._backend_pref = backend_pref
         self._device_pref = device_pref
         self._input_size = input_size
         self._conf_threshold = conf_threshold
@@ -73,7 +70,7 @@ class ModelManager:
 
         # Guards the active backend reference and serializes inference vs. swap.
         self._lock = threading.Lock()
-        self._backend: backends.DetectionBackend | None = None
+        self._backend: backends.Detector | None = None
         self._active_task: str | None = None
         self._last_warmup: WarmupStats | None = None
 
@@ -106,15 +103,12 @@ class ModelManager:
         model = TASK_MODELS.get(task, task)
         try:
             # Slow path (model load) runs outside the lock.
-            backend = backends.build_backend(
-                task=model,
-                model_dir=self._model_dir,
-                backend_pref=self._backend_pref,
-                device_pref=self._device_pref,
-                input_size=self._input_size,
-                conf_threshold=self._conf_threshold,
-                log=self._log,
+            runner = backends.open_runner(
+                os.path.join(self._model_dir, f"{model}.onnx"),
+                self._device_pref,
+                (1, 3, self._input_size, self._input_size),
             )
+            backend = backends.Detector(runner, self._conf_threshold)
         except Exception as exc:  # report load failures to the caller
             return LoadResult(
                 False, f"failed to load '{task}' ({model}): {exc}", self.active_model, 0.0
@@ -164,7 +158,7 @@ class ModelManager:
         if backend is not None:
             backend.close()
 
-    def _warmup(self, backend: backends.DetectionBackend) -> WarmupStats | None:
+    def _warmup(self, backend: backends.Detector) -> WarmupStats | None:
         """Run a few inferences so the first real frame isn't penalized. Raises what inference
         raises."""
         if self._warmup_iterations <= 0:

@@ -133,9 +133,23 @@ def generate_launch_description():
             *common_launch_include("control/gains.yaml", restart="true", dashboard_host="0.0.0.0"),
             OpaqueFunction(function=_vehicle_entities),
             # The Logitech C922 publishes image_raw through usb_cam, and the
-            # Blackfly through the Spinnaker driver.
-            vision_node("sub_vision", "front_camera", "image_raw", "vision/detections"),
-            vision_node("sub_vision_down", "down_camera", "image_raw", "vision/detections_down"),
+            # Blackfly through the Spinnaker driver. TensorRT is pinned, not
+            # auto, so a vehicle without it or without an engine fails to load
+            # models instead of running them on the CPU.
+            vision_node(
+                "sub_vision",
+                "front_camera",
+                "image_raw",
+                "vision/detections",
+                parameters={"device": "tensorrt"},
+            ),
+            vision_node(
+                "sub_vision_down",
+                "down_camera",
+                "image_raw",
+                "vision/detections_down",
+                parameters={"device": "tensorrt"},
+            ),
             annotation_visualizer(
                 "annotation_visualizer",
                 "front_camera",

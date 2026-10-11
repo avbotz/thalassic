@@ -1,6 +1,6 @@
 # Mission System
 
-`sub_mission` runs selected missions as BehaviorTree.CPP XML. Packaged mission entrypoints live in `src/sub_mission/resources/missions/`; reusable task trees live in `src/sub_mission/resources/trees/`. C++ nodes implement reusable movement primitives and typed interfaces for mission-specific features.
+`sub_mission` runs selected missions as BehaviorTree.CPP XML. Packaged mission entrypoints live in `src/sub_mission/resources/missions/`; reusable task trees live in `src/sub_mission/resources/trees/`. Every file in both directories is registered before the selected mission is built, so a mission can run a task tree or another mission as a `SubTree`, as `hard_coded_competition` runs `hard_coded_gate`, `hard_coded_slalom` and `hard_coded_torp`. C++ nodes implement reusable movement primitives and typed interfaces for mission-specific features.
 
 ## Mission Selection
 
@@ -13,7 +13,7 @@ ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v3 -p mission:=pid_tuni
 
 The launch files put `sub_mission` in the `robot_name` namespace automatically (`/marlin_v3` by default). If you start `mission` manually with `ros2 run`, pass the same namespace yourself. Otherwise it publishes root-level topics such as `/motion_setpoint`, while `sub_control` listens on `/marlin_v3/motion_setpoint`.
 
-The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`, `pool_d`, `prelim`, `pool_test`, `vision_test` and `pid_tuning`; single tasks for testing, `bins_test`, `gate_slalom_test`, `slalom_three_test` and `slalom_perception_hold_test` (the slalom model loaded, holding still); and `hard_coded_competition`, `hard_coded_gate`, `hard_coded_slalom`, `hard_coded_torp` and `hard_coded_octagon`, the same tasks dead-reckoned without vision.
+The current packaged mission entrypoints are `pool_a`, `pool_b`, `pool_c`, `pool_d`, `prelim`, `pool_test`, `vision_test` and `pid_tuning`; single tasks for testing, `bins_test`, `gate_test` (the coin flip and the gate), `gate_slalom_test`, `slalom_three_test` and `slalom_perception_hold_test` (the slalom model loaded, holding still); and `hard_coded_competition`, `hard_coded_gate`, `hard_coded_slalom`, `hard_coded_torp` and `hard_coded_octagon`, the same tasks dead-reckoned without vision.
 
 The role starts as the `role` parameter. `GateMission` replaces it with the role shown on the gate's left opening, the one the vehicle passes through (`SelectGateRole`), and the bins tree drops in the fire bins (class `0`) for `SURVEY` or the blood bins (class `1`) for `SEARCH`. `bins_test` has no gate, so it runs on the parameter.
 
@@ -65,7 +65,7 @@ ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v3 -p mission:=pool_a -
 | When it is up | From when the tree loads, before the kill switch is released, so Groot2 can connect and wait for the start. Under `restart`, each run's process loads the tree at the release, so the view is down between runs: connect Groot2 again after each release |
 | End of a run | The view stays up 2 s after the tree finishes or a kill ends the run, so Groot2 shows where it ended and with what; the process then exits and the view goes with it. `SIGINT` and `SIGTERM` skip the wait, so under `restart` a kill takes the view down within its 0.5 s poll |
 | Port taken | `mission` logs a warning and runs without the view, e.g. when a mission process left over from an earlier launch holds the port. A `groot_port` above 65534 (the view needs the next port too) or below 0 is FATAL at startup |
-| Groot2 edition | The free edition monitors trees of up to 20 nodes. `prelim` (8), `pid_tuning` (10), `pool_test` (14), `vision_test` (4), `slalom_perception_hold_test` (3) and the single `hard_coded_*` tasks (5 to 11) fit; the `pool_*` missions have 217 nodes, `gate_slalom_test` 63, `bins_test` and `slalom_three_test` 49, and `hard_coded_competition` 32. Larger trees, the blackboard view and breakpoints need Groot2 PRO |
+| Groot2 edition | The free edition monitors trees of up to 20 nodes. `prelim` (7), `pid_tuning` (10), `pool_test` (13), `vision_test` (3), `slalom_perception_hold_test` (3) and the single `hard_coded_*` tasks (4 to 9) fit; the `pool_*` missions have 218 nodes, `gate_slalom_test` 64, `bins_test` and `slalom_three_test` 49, `gate_test` 37, and `hard_coded_competition` 30. Larger trees, the blackboard view and breakpoints need Groot2 PRO |
 | Breakpoints (PRO) | A breakpoint pauses the tick while it holds the mission's state, so the mission only sees a kill or an interrupt once the breakpoint is released. `sub_control` drops commands while killed either way. Groot2Publisher releases every breakpoint when Groot2 has been silent for 5 s |
 
 Groot2 is not part of the pixi environment: download it from [behaviortree.dev](https://www.behaviortree.dev/groot/). The tree it shows comes from `mission`, so it is the one actually running, not `Project.btproj`.
@@ -101,6 +101,7 @@ Movement-related XML nodes currently implemented in C++:
 | `ForwardFixedTransit` | Move forward at a fixed velocity through something ranged before (the gate, a slalom opening), by odometry |
 | `LateralAlignToDetection` | Center a front-camera detection by moving sideways (and in z), keeping the heading; locks one odom target, moves at a fixed speed, or steps |
 | `SelectGateRole` | Set the role from the gate's left opening |
+| `SquareUpToGate` | Line up `standoff` in front of the gate's left opening, on its normal and facing through it, however the gate is turned (see below) |
 | `OrientToDetectionAtDist` | Square up to an object's face (`heading_yaw_deg`) at a set distance, looking at its center |
 | `OctagonSurfaceSweep` | Turn in steps until an image to surface at is in view, then rise |
 | `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection; the sweep zigzags along a track until it sees one |
@@ -108,7 +109,7 @@ Movement-related XML nodes currently implemented in C++:
 | `DownPatternScan` | Sample the down camera at the start and five points around it (`movement_dist` apart), returning to the start if none sees the target |
 | `DownAlignToDetection`, `DownContinuousAlign` | Center a down-camera detection, optionally hold distance/depth, and yaw to orientation metadata (the second name is an alias) |
 
-The nodes that steer on a front-camera bearing (`AlignToDetection`, `LateralAlignToDetection`, `SweepCheck`, `ForwardSweepAlign`, `SweepAngle`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`) fail on `camera="down"`. The `Down*` nodes read the down camera and have no `camera` port. A camera other than `front` or `down` fails the node.
+The nodes that steer on a front-camera bearing (`AlignToDetection`, `LateralAlignToDetection`, `SweepCheck`, `ForwardSweepAlign`, `SweepAngle`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate`) fail on `camera="down"`. The `Down*` nodes read the down camera and have no `camera` port. A camera other than `front` or `down` fails the node.
 
 Built-in BehaviorTree.CPP nodes such as `Sleep`, `Repeat`, `Fallback`, `Sequence`, `Inverter`, and decorators must not be registered in the `TreeNodesModel`. Groot 2 can use them from its built-in palette.
 
@@ -151,6 +152,16 @@ For altitude commands, `AltitudeSetpoint` publishes a z position with `altitude=
 ### Transform Navigation
 
 `NavigateToTransform` moves the vehicle so that `target_frame` takes the position `source_frame` has now: both are frames of the vehicle's description (`src/sub_bringup/config/vehicles/<robot_name>.yaml`), looked up in `base_link` on `/tf_static` under the node's namespace (`marlin_v3/front_camera`). It is a relative move by source minus target, with `horizontal_only` keeping z, and does not turn the vehicle. The torpedo tree moves `torpedo_0_link` onto where `front_camera` was when it was centered on the target, then `torpedo_1_link` onto a point 0.15 m left of it; the bins tree moves `dropper_link` onto where `down_camera` was when it was centered on a bin. A frame that is not published fails the node.
+
+### Squaring Up to the Gate
+
+The gate need not be square to the course: in the sim's area A/B1 it is turned 30° from the start heading. `GateMission` therefore crosses along the gate's normal, not along whatever heading the coin flip left:
+
+1. `PosSetpoint z="-0.7"`: down to where the role panels hang a little above the camera (a no-op after the coin flip, which is already there).
+1. `SearchForDetection` and `SelectGateRole` find the left opening and read its role.
+1. `SquareUpToGate` lines up 2 m (`standoff`) in front of the left opening, on its normal and facing through it. With both panels in view, the gate post-processor ranges each from its icons' heights, which a turned gate does not shrink, and gives the turn that would square the camera to the gate (`heading_yaw_deg`). Each frame is placed in odom from where the camera was when the frame was taken (`MissionNode::horizontalPoseAt`, from the last 3 s of odometry, and the `front_camera` mount), and the gate is the median of the last 25 frames' facings and left-panel positions. While fewer than `min_facing_frames` frames have shown both panels, it turns to keep both in view and backs off to `look_distance` if the gate is closer. It then moves to the standoff point looking at the middle of the gate, so both panels stay in view and keep refining the estimate, turns square there, and finishes once within `position_tolerance` and `yaw_tolerance_deg` for `settle_msec`. If no frame ever shows both panels, after `facing_timeout_msec` it takes the gate to face back along the line of sight to the left panel, which is what keeping the heading did.
+1. `PosSetpoint z="-1.2"`: below the panels and the divider, so only the posts are left to clear.
+1. `MoveRelative x="3.0"`: straight on along the gate's normal, the 2 m standoff and 1 m past. The move starts from the standoff point and goes along the estimated facing, so it crosses the gate's line at the left opening even if the facing is off by a few degrees; only the crossing angle suffers.
 
 ## Completion Semantics
 

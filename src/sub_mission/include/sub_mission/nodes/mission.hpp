@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -87,6 +88,11 @@ class MissionNode : public rclcpp::Node {
     double positionTarget(std::size_t axis) const;
     double attitudeTarget(std::size_t axis) const;
 
+    // Where the vehicle was at `stamp` (x, y and yaw in odom), e.g. when a
+    // camera frame was taken, interpolated from the last few seconds of
+    // odometry; nullopt outside them.
+    std::optional<std::array<double, 3>> horizontalPoseAt(const rclcpp::Time &stamp) const;
+
     // The callbacks run on the executor's thread and execute() ticks the tree
     // on another, so the state below is only touched under state_mutex (the
     // tree holds it for each tick). `killed` is atomic for activate(), which
@@ -114,6 +120,14 @@ class MissionNode : public rclcpp::Node {
     static constexpr std::array<double, 3> UNSET = {std::numeric_limits<double>::quiet_NaN(),
                                                     std::numeric_limits<double>::quiet_NaN(),
                                                     std::numeric_limits<double>::quiet_NaN()};
+
+    struct PoseSample {
+        rclcpp::Time stamp;
+        std::array<double, 3> pose;  // x, y, yaw
+    };
+    // odometry/filtered's x, y and yaw over the last few seconds, oldest
+    // first, for horizontalPoseAt.
+    std::deque<PoseSample> pose_history;
 
     std::mutex state_mutex;
     // Times the kill switch has gone from released to killed, so that

@@ -5,12 +5,15 @@ The gate task runs the front-facing-camera model (``ffc_rs_26``, see
 each gate panel, not the PVC gate itself. This processor groups the icons into
 the two panels, reads the role shown on the left one, and adds one synthetic
 class-8 detection at the centre of that left opening, so the mission aligns to
-one target whichever role the course puts on the left.
+one target whichever role the course puts on the left. With both panels in view
+it also ranges the right one, and from the two the way the gate faces, so the
+mission can square up to a gate set at an angle to the course.
 """
 
 from __future__ import annotations
 
 import copy
+import math
 
 import numpy as np
 from diagnostic_msgs.msg import KeyValue
@@ -24,9 +27,24 @@ COMPASS_CLASS_ID = 2
 HAMMER_AND_WRENCH_CLASS_ID = 5
 SOS_CLASS_ID = 7
 LEFT_GATE_TARGET_CLASS_ID = 8
-# Each icon fills about 49% of the 0.311 m square simulator panel. Ranging from
-# each icon's width still works when only one of the two survives detection.
-ICON_WIDTH_M = 0.152
+# Each icon's height on the simulator's 0.311 m square panels (gate.png): about
+# half the panel, more for the buoy's rope. Ranging from each icon still works
+# when only one of the two survives detection, and from its height, which a
+# gate turned away from the camera leaves alone while it narrows the icons.
+ICON_HEIGHT_M = {
+    BUOY_CLASS_ID: 0.164,
+    COMPASS_CLASS_ID: 0.154,
+    HAMMER_AND_WRENCH_CLASS_ID: 0.149,
+    SOS_CLASS_ID: 0.154,
+}
+# Between the centres of the simulator gate's two panels, one over each
+# opening. The gate's facing is only measured from panels about this far apart
+# (within PANEL_SPACING_TOLERANCE of it), so two icons of one panel split
+# apart, or a stray box, cannot pass for the gate.
+PANEL_SPACING_M = 1.59
+PANEL_SPACING_TOLERANCE = 0.5
+# A box this close to the image's edge may be cut off by it, too short to range from.
+EDGE_MARGIN_PX = 2.0
 
 ROLE_CLASS_IDS = {
     "SURVEY": {COMPASS_CLASS_ID, HAMMER_AND_WRENCH_CLASS_ID},
@@ -99,6 +117,45 @@ def _panel_center_x(panel) -> float:
     return float(np.average([_center_x(det) for det in panel], weights=weights))
 
 
+def _panel_range(panel, fy: float, image_size: tuple[float, float]) -> float:
+    """Depth to a panel along the optical axis: the median of ``ICON_HEIGHT_M * fy / box
+    height`` over its icons that the image's edge does not cut off; NaN without one."""
+    width, height = image_size
+    ranges = []
+    for det in panel:
+        x0, y0, x1, y1 = _panel_bounds([det])
+        if (
+            x0 < EDGE_MARGIN_PX
+            or y0 < EDGE_MARGIN_PX
+            or x1 > width - EDGE_MARGIN_PX
+            or y1 > height - EDGE_MARGIN_PX
+            or det.detection.bbox.size_y <= 1.0
+        ):
+            continue
+        ranges.append(ICON_HEIGHT_M[_class_id(det)] * fy / float(det.detection.bbox.size_y))
+    return float(np.median(ranges)) if ranges else float("nan")
+
+
+def _facing_yaw_deg(
+    left_bearing: float, left_range: float, right_bearing: float, right_range: float
+) -> tuple[float | None, float]:
+    """The turn (degrees, counter-clockwise) that squares the camera to the gate, and the
+    panels' spacing (m).
+
+    The panels' centres, right of and ahead of the camera, lie on the gate's line, and the way
+    through is that line turned a quarter left. The turn is None when a range is unknown (the
+    spacing then NaN) or the panels are not about PANEL_SPACING_M apart.
+    """
+    left_x, right_x = left_range * math.tan(left_bearing), right_range * math.tan(right_bearing)
+    across, along = right_x - left_x, right_range - left_range
+    spacing = math.hypot(across, along)
+    if not math.isfinite(spacing):
+        return None, float("nan")
+    if abs(spacing - PANEL_SPACING_M) > PANEL_SPACING_TOLERANCE * PANEL_SPACING_M:
+        return None, spacing
+    return math.degrees(math.atan2(along, across)), spacing
+
+
 def _panel_bounds(panel) -> tuple[float, float, float, float]:
     boxes = [det.detection.bbox for det in panel]
     return (
@@ -124,15 +181,22 @@ class GatePostProcessor(TaskPostProcessor):
 
         left_panel, right_panel = _split_panels(icons)
         k = np.asarray(camera_info.k, dtype=np.float64).reshape(3, 3)
-        fx, cx, cy = float(k[0, 0]), float(k[0, 2]), float(k[1, 2])
-        if fx <= 0.0 or k[1, 1] <= 0.0:  # uncalibrated: no bearing or range
+        fx, fy, cx, cy = float(k[0, 0]), float(k[1, 1]), float(k[0, 2]), float(k[1, 2])
+        if fx <= 0.0 or fy <= 0.0:  # uncalibrated: no bearing or range
             return detections
 
         # With both panels in view the left one is unambiguous. With one, keep
         # it only while it is on or near the left half, so a lone right panel
         # is never taken for the left lane when the gate first comes into view.
         two_panel_view = bool(right_panel)
-        image_width = rgb_image.shape[1] if rgb_image is not None else 2.0 * cx
+        if rgb_image is not None:
+            image_size = (float(rgb_image.shape[1]), float(rgb_image.shape[0]))
+        else:
+            image_size = (
+                float(camera_info.width) or 2.0 * cx,
+                float(camera_info.height) or 2.0 * cy,
+            )
+        image_width = image_size[0]
         target_x = _panel_center_x(left_panel)
         if not two_panel_view and target_x > cx + 0.05 * image_width:
             return detections
@@ -155,12 +219,7 @@ class GatePostProcessor(TaskPostProcessor):
         bbox.size_y = max(1.0, y1 - y0)
         target.bearing_horizontal = geometry.bearings_from_pixel(target_x, cy, camera_info)[0]
         target.bearing_vertical = 0.0
-        ranges = [
-            ICON_WIDTH_M * fx / float(det.detection.bbox.size_x)
-            for det in left_panel
-            if det.detection.bbox.size_x > 1.0
-        ]
-        target.distance_m = float(np.median(ranges)) if ranges else float("nan")
+        target.distance_m = _panel_range(left_panel, fy, image_size)
         target.pose_valid = False
 
         left_ids = [_class_id(det) for det in left_panel]
@@ -179,5 +238,20 @@ class GatePostProcessor(TaskPostProcessor):
             KeyValue(key="aim_bearing_vertical", value="0.000000"),
             KeyValue(key="pose_semantics", value="left_gate_lane"),
         ]
+        if two_panel_view:
+            right_bearing = geometry.bearings_from_pixel(
+                _panel_center_x(right_panel), cy, camera_info
+            )[0]
+            right_range = _panel_range(right_panel, fy, image_size)
+            facing, spacing = _facing_yaw_deg(
+                target.bearing_horizontal, target.distance_m, right_bearing, right_range
+            )
+            target.extra += [
+                KeyValue(key="right_bearing_horizontal", value=f"{right_bearing:.6f}"),
+                KeyValue(key="right_distance_m", value=f"{right_range:.3f}"),
+                KeyValue(key="panel_spacing_m", value=f"{spacing:.3f}"),
+            ]
+            if facing is not None:
+                target.extra.append(KeyValue(key="heading_yaw_deg", value=f"{facing:.6f}"))
         detections.detections.insert(0, target)
         return detections

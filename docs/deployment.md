@@ -13,6 +13,7 @@ scripts/install.sh                            # pixi + environment + build
 sudo apt install chrony                       # only NTP server, needs a network once
 sudo deploy/jetson/setup.sh                   # OS configuration, see below
 deploy/jetson/link_jetpack_python.sh          # TensorRT/CUDA bindings from JetPack
+pixi run build-engines                        # TensorRT engines from weights/*.onnx, minutes each
 ```
 
 Then reboot, so the new groups and the DDS profile apply.
@@ -71,7 +72,10 @@ git pull --recurse-submodules
 pixi install --frozen        # only changes anything if pixi.lock changed
 pixi run --frozen build
 pixi run --frozen fetch-weights   # downloads only models whose manifest entry changed
+pixi run --frozen build-engines   # builds engines only for models that changed
 ```
+
+`sub_vision` refuses to load a model on the vehicle until its engine is built, rather than run it on the CPU. Run `build-engines` again after a JetPack upgrade too: engines are tied to the TensorRT version.
 
 `--frozen` installs `pixi.lock` as it is: it never re-solves or rewrites the lockfile, even if `pixi.toml` has changed without it, which is what you want on a competition day.
 

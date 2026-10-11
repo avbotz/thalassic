@@ -44,8 +44,10 @@ class MissionTest : public ::testing::Test {
         node = std::make_shared<MissionNode>();
         node->killed = false;
         node->registerNodes(factory);
-        for (const auto &entry : std::filesystem::directory_iterator(RESOURCES / "trees")) {
-            factory.registerBehaviorTreeFromFile(entry.path());
+        for (const char *directory : {"trees", "missions"}) {
+            for (const auto &entry : std::filesystem::directory_iterator(RESOURCES / directory)) {
+                factory.registerBehaviorTreeFromFile(entry.path());
+            }
         }
     }
 
@@ -167,6 +169,28 @@ TEST_F(MissionTest, EveryPackagedMissionLoads) {
         ++count;
     }
     EXPECT_GT(count, 0u);
+}
+
+TEST_F(MissionTest, TreeIdsAreUnique) {
+    // trees/ and missions/ are registered into one factory, where a second
+    // tree with an ID silently replaces the first.
+    const std::string marker = R"(<BehaviorTree ID=")";
+    std::map<std::string, std::string> files;
+    for (const char *directory : {"trees", "missions"}) {
+        for (const auto &entry : std::filesystem::directory_iterator(RESOURCES / directory)) {
+            std::stringstream text;
+            text << std::ifstream(entry.path()).rdbuf();
+            const std::string xml = text.str();
+            const std::string file = std::string(directory) + "/" + entry.path().filename().string();
+            for (std::size_t at = xml.find(marker); at != std::string::npos; at = xml.find(marker, at + 1)) {
+                const std::size_t begin = at + marker.size();
+                const std::string id = xml.substr(begin, xml.find('"', begin) - begin);
+                const auto [first, unique] = files.emplace(id, file);
+                EXPECT_TRUE(unique) << id << " is defined in " << first->second << " and " << file;
+            }
+        }
+    }
+    EXPECT_GT(files.size(), 0u);
 }
 
 TEST_F(MissionTest, CommandsCarryTargetsUnchanged) {
@@ -623,6 +647,90 @@ TEST_F(MissionTest, OrientToDetectionAtDistWithoutAHeadingTurnsOncePerUpdate) {
     EXPECT_NEAR(node->commanded_att[2], -0.3, 1e-6);  // the next waits for update_msec
 }
 
+TEST_F(MissionTest, SquareUpToGateLinesUpOnTheLeftOpeningsNormal) {
+    // The left panel dead ahead at 3 m, on a gate squared by a 0.3 rad turn
+    // left, and the right panel further and to the right: the standoff point
+    // is 2 m back from the left panel along the gate's normal, and on the way
+    // the vehicle looks between the panels.
+    auto t = tree(R"(<SquareUpToGate task="gate" class_id="8" standoff="2.0" min_facing_frames="3" update_msec="1"
+                                     settle_msec="0"/>)");
+    const double facing = 0.3;
+    const std::vector<std::pair<std::string, std::string>> extra = {
+        {"heading_yaw_deg", std::to_string(facing * 180.0 / M_PI)},
+        {"right_bearing_horizontal", "0.4"},
+        {"right_distance_m", "3.5"}};
+    EXPECT_EQ(watch(t, "front", "gate", {{"8", 0.9, 0.0, 0.0, 3.0, extra}}, 300ms, false), BT::NodeStatus::RUNNING);
+    const double x = 3.0 - 2.0 * std::cos(facing);
+    const double y = -2.0 * std::sin(facing);
+    EXPECT_NEAR(node->commanded_pos[0], x, 1e-3);
+    EXPECT_NEAR(node->commanded_pos[1], y, 1e-3);
+    EXPECT_NEAR(node->commanded_att[2], std::atan2(-0.5 * 3.5 * std::tan(0.4), 0.5 * (3.0 + 3.5)), 1e-3);
+
+    // There, it turns square, and is done once square.
+    node->measured_pos = {x, y, 0.0};
+    EXPECT_EQ(run(t, false, 100ms), BT::NodeStatus::RUNNING);
+    EXPECT_NEAR(node->commanded_att[2], facing, 1e-3);
+    node->measured_att[2] = facing;
+    EXPECT_EQ(run(t, false), BT::NodeStatus::SUCCESS);
+}
+
+TEST_F(MissionTest, SquareUpToGateRangesFromTheCamera) {
+    // The camera 0.3 m ahead of base_link: the gate is 0.3 m further off.
+    mount("front_camera", 0.3, 0.0, 0.2);
+    auto t = tree(R"(<SquareUpToGate task="gate" class_id="8" standoff="2.0" min_facing_frames="3" update_msec="1"/>)");
+    EXPECT_EQ(watch(t, "front", "gate", {{"8", 0.9, 0.0, 0.0, 3.0, {{"heading_yaw_deg", "0.0"}}}}, 300ms, false),
+              BT::NodeStatus::RUNNING);
+    EXPECT_NEAR(node->commanded_pos[0], 1.3, 1e-3);
+    EXPECT_NEAR(node->commanded_pos[1], 0.0, 1e-3);
+}
+
+TEST_F(MissionTest, SquareUpToGateBacksOffToSeeBothPanels) {
+    // One panel in view, on the right and closer than look_distance: turn to
+    // it and back away from it.
+    auto t = tree(R"(<SquareUpToGate task="gate" class_id="8" look_distance="2.8" update_msec="1"/>)");
+    EXPECT_EQ(watch(t, "front", "gate", {{"8", 0.9, 0.2, 0.0, 1.8}}, 300ms, false), BT::NodeStatus::RUNNING);
+    EXPECT_NEAR(node->commanded_att[2], -0.2, 1e-6);
+    EXPECT_NEAR(node->commanded_pos[0], -1.0 * std::cos(0.2), 1e-3);
+    EXPECT_NEAR(node->commanded_pos[1], 1.0 * std::sin(0.2), 1e-3);
+}
+
+TEST_F(MissionTest, SquareUpToGateWithoutBothPanelsLinesUpOnTheLineOfSight) {
+    // Only ever one panel, so no facing: once facing_timeout_msec is up, the
+    // gate is taken to face along the line of sight, and the standoff point
+    // is 2 m back along it.
+    auto t = tree(R"(<SquareUpToGate task="gate" class_id="8" standoff="2.0" facing_timeout_msec="100"
+                                     update_msec="1"/>)");
+    EXPECT_EQ(watch(t, "front", "gate", {{"8", 0.9, 0.2, 0.0, 3.0}}, 300ms, false), BT::NodeStatus::RUNNING);
+    const double left = -3.0 * std::tan(0.2);
+    const double range = std::hypot(3.0, left);
+    EXPECT_NEAR(node->commanded_pos[0], 3.0 * (range - 2.0) / range, 1e-3);
+    EXPECT_NEAR(node->commanded_pos[1], left * (range - 2.0) / range, 1e-3);
+    EXPECT_NEAR(node->commanded_att[2], std::atan2(left, 3.0), 1e-3);
+}
+
+TEST_F(MissionTest, OdometryHistoryGivesThePoseAtAFramesStamp) {
+    const auto odometry = [this](const double seconds, const double x, const double yaw) {
+        nav_msgs::msg::Odometry msg;
+        msg.header.stamp = rclcpp::Time(static_cast<std::int64_t>(seconds * 1e9), RCL_ROS_TIME);
+        msg.pose.pose.position.x = x;
+        msg.pose.pose.orientation.z = std::sin(yaw / 2.0);
+        msg.pose.pose.orientation.w = std::cos(yaw / 2.0);
+        node->odometry_callback(msg);
+    };
+    odometry(10.0, 0.0, 3.0);
+    odometry(10.1, 1.0, -3.0);
+    // Halfway, and through the half turn the short way.
+    const auto pose = node->horizontalPoseAt(rclcpp::Time(10'050'000'000, RCL_ROS_TIME));
+    ASSERT_TRUE(pose.has_value());
+    EXPECT_NEAR((*pose)[0], 0.5, 1e-6);
+    EXPECT_NEAR(std::fabs((*pose)[2]), M_PI, 1e-6);
+    // Before the history, and well after it, there is none.
+    EXPECT_FALSE(node->horizontalPoseAt(rclcpp::Time(9'000'000'000, RCL_ROS_TIME)).has_value());
+    EXPECT_FALSE(node->horizontalPoseAt(rclcpp::Time(10'500'000'000, RCL_ROS_TIME)).has_value());
+    // Nor on another clock.
+    EXPECT_FALSE(node->horizontalPoseAt(rclcpp::Time(10'050'000'000, RCL_SYSTEM_TIME)).has_value());
+}
+
 TEST_F(MissionTest, DownAlignTurnsByThePathMarkersYaw) {
     // A path marker 20 degrees counter-clockwise of the heading: once three
     // frames agree, turn left by that much.
@@ -805,6 +913,10 @@ TEST_F(MissionTest, InvalidSettingsFailAtStart) {
              R"(<SweepAngle camera="down" task="slalom" yaw="{@w}"/>)",
              R"(<SweepAngle camera="side" task="slalom" yaw="{@w}"/>)",
              R"(<DownPatternScan task="bin" class_id="{nope}"/>)",
+             R"(<SquareUpToGate task="gate" class_id="8" max_slant_deg="90"/>)",
+             R"(<SquareUpToGate task="gate" class_id="8" standoff="0"/>)",
+             R"(<SquareUpToGate task="gate"/>)",
+             R"(<SquareUpToGate camera="down" task="gate" class_id="8"/>)",
          }) {
         factory.clearRegisteredBehaviorTrees();
         auto t = tree(body);
@@ -837,6 +949,8 @@ TEST_F(MissionTest, PackagedTreeSettingsStart) {
                                      max_planned_distance="3.90" max_dist="4.25" forward_velocity="0.25"
                                      timeout_msec="35000"/>)",
              R"(<DownForwardAlign task="bin" center_gain="0"/>)",
+             R"(<SquareUpToGate camera="front" task="gate" class_id="8" min_score="0.20" standoff="2.0"
+                                target_offset_left="0.0" timeout_msec="60000"/>)",
          }) {
         factory.clearRegisteredBehaviorTrees();
         auto t = tree(body);

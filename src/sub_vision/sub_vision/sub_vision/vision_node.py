@@ -41,8 +41,7 @@ class VisionNode(Node):
 
         self.declare_parameter("model_dir", "weights")
         self.declare_parameter("default_task", "")
-        self.declare_parameter("backend", "auto")  # auto|tensorrt|onnxruntime
-        self.declare_parameter("device", "auto")  # auto|cpu|cuda (onnxruntime only)
+        self.declare_parameter("device", "auto")  # auto|cpu|cuda|tensorrt
         self.declare_parameter("input_size", 640)
         self.declare_parameter("conf_threshold", 0.25)
         self.declare_parameter("warmup_iterations", 3)
@@ -68,7 +67,6 @@ class VisionNode(Node):
 
         self._manager = ModelManager(
             model_dir=self._model_dir,
-            backend_pref=self.get_parameter("backend").value,
             device_pref=self.get_parameter("device").value,
             input_size=int(self.get_parameter("input_size").value),
             conf_threshold=float(self.get_parameter("conf_threshold").value),
@@ -82,7 +80,6 @@ class VisionNode(Node):
                 self._depth = DepthModel(
                     model_dir=self._model_dir,
                     name=self.get_parameter("depth_model").value,
-                    backend_pref=self.get_parameter("backend").value,
                     device_pref=self.get_parameter("device").value,
                     input_size=int(self.get_parameter("depth_input_size").value),
                     rate_hz=float(self.get_parameter("depth_rate_hz").value),

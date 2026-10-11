@@ -17,5 +17,7 @@ std::string resolveMissionPath(const std::string &name_or_path);
 // Mission names available in missionsDirectory(), sorted.
 std::vector<std::string> availableMissions();
 
-// Behavior tree files in treesDirectory(), sorted.
+// Every packaged behavior tree file: treesDirectory()'s, then
+// missionsDirectory()'s, each sorted. Registering them all lets a mission run
+// any task tree or other mission as a SubTree.
 std::vector<std::string> treeFiles();

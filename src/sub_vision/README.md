@@ -1,12 +1,12 @@
 # sub_vision
 
 Perception for the Marlin V3 AUV: YOLO detection and segmentation with
-per-task OpenCV post-processing. Inference runs through
-**TensorRT** (serialized engine) or **ONNX Runtime**; pre-processing
-(letterbox) and post-processing (decode, box rescaling, instance masks) live
-in `backends.py`. Targets the Jetson AGX Orin (TensorRT, CUDA) in production and
-any x86 box (GPU or CPU-only ONNX Runtime) for dev — the **same code** runs on
-both; only the selected backend/device differs.
+per-task OpenCV post-processing. Every model is an ONNX file; it runs through
+**TensorRT** on the Jetson AGX Orin, from an engine built from that file on
+the vehicle, and through **ONNX Runtime** (CUDA or CPU) on any dev machine.
+Pre-processing (letterbox) and post-processing (decode, box rescaling,
+instance masks) live in `backends.py` and are the **same code** on both; only
+the runner under them differs.
 
 The pipeline is two ROS 2 (Jazzy) packages in this directory (beside
 `sim_labeling`, which has its own README):
@@ -21,9 +21,9 @@ The pipeline is two ROS 2 (Jazzy) packages in this directory (beside
 > (`(1, 4+nc, M)`) are also decoded, with NMS applied in the backend.
 > Segmentation exports add mask coefficients to each box and a
 > `(1, 32, H, W)` prototype output; the backend turns them into one
-> image-sized mask per detection for the post-processors. ONNX Runtime reads
-> which head a model has from its export metadata (`end2end`, `names`);
-> TensorRT engines have none, so it is read from the output shapes.
+> image-sized mask per detection for the post-processors. Which head a model
+> has comes from its export metadata (`end2end`, `names`), which
+> `build_engines` copies into each TensorRT engine file.
 
 ---
 
@@ -87,19 +87,21 @@ ros2 service call /marlin_v3/sub_vision/load_model \
 
 ---
 
-## Model loading & backend/device selection
+## Model loading & device selection
 
-Models live in `model_dir` (default `weights`; a relative path is from the
-workspace root, `$PIXI_PROJECT_ROOT`, so `<repo>/weights` in sim and on the
-vehicle) as exported graphs:
-
-* `<model>.engine` — serialized **TensorRT** engine (device-specific; built on
-  the Jetson it runs on).
-* `<model>.onnx` — exported **ONNX** graph for ONNX Runtime.
-
-`pixi run fetch-weights` downloads the ONNX files listed in
+Models are `<model>.onnx` in `model_dir` (default `weights`; a relative path
+is from the workspace root, `$PIXI_PROJECT_ROOT`, so `<repo>/weights` in sim
+and on the vehicle). `pixi run fetch-weights` downloads the ones listed in
 `weights/manifest.toml` from the GitHub releases
 ([docs/vision.md](../../docs/vision.md#model-weights)).
+
+A TensorRT engine is a cache of an ONNX file, not a second model: `pixi run
+build-engines` (on the Jetson; minutes per model) writes
+`<model>.<sha256 prefix>.trt<version>.engine` beside each ONNX file that has
+none, with the export's metadata ahead of the serialized engine. The name ties
+it to the exact export and TensorRT version, so a retrained model or a JetPack
+upgrade cannot run a stale engine: it fails to load until `build-engines` runs
+again. Engines from older exports are never loaded and can be deleted.
 
 The model is the task's name unless `model_manager.TASK_MODELS` maps it to
 another file: `gate` runs `ffc_rs_26`.
@@ -110,19 +112,20 @@ mission XML `task="gate"` calls `LoadModel` with `task: 'gate'`. A task with a
 task's (`gate_survey` → `gate`). The suffix affects only that lookup: loading
 `gate_survey` still needs a `gate_survey` model file or a `TASK_MODELS` entry.
 
-Selection, per the `backend` param:
+Selection, per the `device` param (`backends.open_runner`):
 
-1. `auto` (default) prefers `<task>.engine` (TensorRT) and falls back to
-   `<task>.onnx` (ONNX Runtime). `tensorrt` / `onnxruntime` force one and fail
-   if the file is missing.
-2. The `device` param applies to ONNX Runtime only: `auto` picks `cuda` when
-   the CUDA execution provider is available, else `cpu`. TensorRT is always
-   CUDA.
-3. The backend owns all pre/post processing: letterbox to the square network
+1. `tensorrt` runs the model's engine, and fails the load if there is none
+   for the current ONNX file; it never falls back to the CPU.
+   `pool_test_launch.py` sets it for the vehicle.
+2. `cuda` and `cpu` run the ONNX file in ONNX Runtime; `cuda` uses the CPU
+   when ONNX Runtime has no CUDA provider (the default pixi environment).
+3. `auto` (default) is `tensorrt` where the `tensorrt` module imports (the
+   Jetson), else `cuda`.
+4. `Detector` owns all pre/post processing: letterbox to the square network
    input (gray padding), BGR→RGB CHW float normalization, decode of an
    end-to-end head (or a raw YOLOv8/11 head + NMS) and its segment masks, and
    rescaling boxes back to original-image pixels.
-4. After load, `warmup_iterations` (3) **warmup** inferences run on a blank
+5. After load, `warmup_iterations` (3) **warmup** inferences run on a blank
    frame; mean/last timings are reported on `/diagnostics`. A warmup failure
    fails the load, and the previous model stays active.
 
@@ -136,8 +139,8 @@ package builds and lints on a machine without them.
 ## Relative depth (Depth Anything V2)
 
 `depth_enabled: true` runs Depth Anything V2 Small (`depth_model`, default
-`depth_anything_v2_vits`, looked up in `model_dir` like a task, with the same
-`backend` and `device`) beside the detector, at most `depth_rate_hz` (5 Hz)
+`depth_anything_v2_vits`, looked up in `model_dir` like a task, on the same
+`device`) beside the detector, at most `depth_rate_hz` (5 Hz)
 counted from the end of the last run. It runs in the frame callback, so each
 run delays that frame's detection (~0.4 s on a laptop CPU). Its output is
 relative inverse depth (larger is nearer, no scale) at the image's
@@ -161,8 +164,8 @@ draws only while one of them has a subscriber.
 No core edits — add a model and a post-processor:
 
 1. **Model:** drop `<model_dir>/<task>.onnx` (an ultralytics detect or segment
-   export: end-to-end YOLOv10/YOLO26, or a raw YOLOv8/11 head) and/or a
-   Jetson-built `<model_dir>/<task>.engine`.
+   export at a fixed input size: end-to-end YOLOv10/YOLO26, or a raw
+   YOLOv8/11 head), and run `pixi run build-engines` on the Jetson.
 2. **Post-processor:** add `sub_vision/post_processors/<task>.py`:
 
    ```python
@@ -198,7 +201,7 @@ Values in `extra` are strings.
 
 | Task | Model (classes) | Output |
 | --- | --- | --- |
-| `gate` | `ffc_rs_26` (0 blood, 1 buoy, 2 compass, 3 circle, 4 fire, 5 hammer_and_wrench, 6 slalom, 7 sos) | the role icons (1, 2, 5, 7) left to right, after a synthetic class `8` left-lane target when the left panel's role is known |
+| `gate` | `ffc_rs_26` (0 blood, 1 buoy, 2 compass, 3 circle, 4 fire, 5 hammer_and_wrench, 6 slalom, 7 sos) | the role icons (1, 2, 5, 7) left to right, after a synthetic class `8` left-lane target when the left panel's role is known, carrying the gate's facing when both panels are in view |
 | `slalom`, `slalom_redpoles_osu` | `slalom` (0 red pole, 1 white pole), `slalom_redpoles_osu` (0 red pole) | only the nearest red pole, as class `2` |
 | `path`, `path_marker` | `path`, `path_marker` (0 marker); down camera | every detection, with the marker's yaw; one OpenCV-found detection when the model finds none |
 | `torp`, `torp_find` | `torp` (0 board, 1 hole; segments), `torp_find` (0 board) | boards by score with PnP pose, then the rest; the hole to fire at as class `torp_aim_hole` |
@@ -211,7 +214,14 @@ The panels are split at the widest gap between icons; with one panel in view
 it counts as the left one only while near the image's left half. The class-8
 target spans the left panel's icons, at their score-weighted centre and the
 principal point's row: `bearing_vertical` is 0, `distance_m` the median over
-its icons of `0.152 m * fx / icon width`, `pose_valid` false. Its `extra`:
+its icons of `icon height * fy / box height`, `pose_valid` false. Each icon's
+height on the 0.311 m simulator panel is in `ICON_HEIGHT_M` (0.149 to 0.164
+m); a gate turned away from the camera narrows the icons but leaves their
+height. Icons the image's edge may cut off (within 2 px of it) are not ranged
+from. With both panels in view, the right panel is ranged the same way, and the
+two panels' centres give the gate's line: the turn that faces the camera
+through the gate is `heading_yaw_deg`, published only when the panels are
+within 50% of the simulator gate's 1.59 m apart. Its `extra`:
 
 | Key | Meaning |
 | --- | --- |
@@ -224,6 +234,9 @@ its icons of `0.152 m * fx / icon width`, `pose_valid` false. Its `extra`:
 | `estimated_distance_m` | `distance_m`, m |
 | `aim_bearing_horizontal`, `aim_bearing_vertical` | `bearing_horizontal` (rad) and 0 |
 | `pose_semantics` | `left_gate_lane` |
+| `right_bearing_horizontal`, `right_distance_m` | the right panel's bearing (rad) and range (m), with both panels in view |
+| `panel_spacing_m` | the panels' centres apart, m, with both in view |
+| `heading_yaw_deg` | the turn that squares the camera to the gate, degrees, counter-clockwise positive; with both panels in view, about 1.59 m apart |
 
 ### slalom
 

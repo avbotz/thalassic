@@ -31,8 +31,10 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -45,6 +47,12 @@ namespace {
 // How long the Groot2 live view outlasts the run, for Groot2 to fetch the
 // tree's final state: it polls, and the view goes when the process exits.
 constexpr auto GROOT_LINGER = 2s;
+
+// How far back horizontalPoseAt reaches: well past a camera frame's latency.
+constexpr auto POSE_HISTORY = 3s;
+// A frame stamped after the latest odometry (50 Hz) is taken to be at it, up
+// to this much later.
+constexpr auto POSE_EXTRAPOLATION = 50ms;
 
 void registerMissionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, const rclcpp::Logger logger,
                           SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock) {
@@ -160,9 +168,45 @@ void MissionNode::odometry_callback(const nav_msgs::msg::Odometry &msg) {
     const double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 
     const auto &p = msg.pose.pose.position;
+    const rclcpp::Time stamp(msg.header.stamp);
     const std::lock_guard<std::mutex> lock(this->state_mutex);
     this->measured_pos = {p.x, p.y, p.z};
     this->measured_att = {roll, pitch, yaw};
+
+    // A clock that went back (a simulation started again) starts the history again.
+    if (!this->pose_history.empty() && stamp < this->pose_history.back().stamp) {
+        this->pose_history.clear();
+    }
+    this->pose_history.push_back({stamp, {p.x, p.y, yaw}});
+    while (stamp - this->pose_history.front().stamp > rclcpp::Duration(POSE_HISTORY)) {
+        this->pose_history.pop_front();
+    }
+}
+
+std::optional<std::array<double, 3>> MissionNode::horizontalPoseAt(const rclcpp::Time &stamp) const {
+    if (this->pose_history.empty() || stamp.get_clock_type() != this->pose_history.front().stamp.get_clock_type() ||
+        stamp < this->pose_history.front().stamp) {
+        return std::nullopt;
+    }
+    const auto after =
+        std::lower_bound(this->pose_history.begin(), this->pose_history.end(), stamp,
+                         [](const PoseSample &sample, const rclcpp::Time &time) { return sample.stamp < time; });
+    if (after == this->pose_history.end()) {
+        const PoseSample &latest = this->pose_history.back();
+        return stamp - latest.stamp <= rclcpp::Duration(POSE_EXTRAPOLATION)
+                   ? std::optional<std::array<double, 3>>(latest.pose)
+                   : std::nullopt;
+    }
+    if (after == this->pose_history.begin() || after->stamp == stamp) {
+        return after->pose;
+    }
+    const PoseSample &before = *std::prev(after);
+    const double t = (stamp - before.stamp).seconds() / (after->stamp - before.stamp).seconds();
+    return std::array<double, 3>{
+        before.pose[0] + t * (after->pose[0] - before.pose[0]),
+        before.pose[1] + t * (after->pose[1] - before.pose[1]),
+        normalizeAngle(before.pose[2] + t * normalizeAngle(after->pose[2] - before.pose[2])),
+    };
 }
 
 void MissionNode::commandPosition(const std::array<double, 3> &target, const bool altitude) {
@@ -311,7 +355,8 @@ bool MissionNode::load_mission() {
             factory.registerBehaviorTreeFromFile(tree_file);
         }
 
-        // The mission file's main_tree_to_execute composes the registered task trees.
+        // The mission file's main_tree_to_execute composes the registered trees and
+        // missions. Registered again here, last, so an explicit path's trees win.
         this->tree = factory.createTreeFromFile(mission_path);
         RCLCPP_INFO(this->get_logger(), "Loaded mission from %s", mission_path.c_str());
     } catch (const std::exception &error) {

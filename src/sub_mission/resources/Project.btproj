@@ -2,6 +2,7 @@
 <root BTCPP_format="4" project_name="Project">
     <include path="missions/bins_test.xml"/>
     <include path="missions/gate_slalom_test.xml"/>
+    <include path="missions/gate_test.xml"/>
     <include path="missions/hard_coded_competition.xml"/>
     <include path="missions/hard_coded_gate.xml"/>
     <include path="missions/hard_coded_octagon.xml"/>
@@ -21,18 +22,10 @@
     <include path="trees/coin_flip.xml"/>
     <include path="trees/competition.xml"/>
     <include path="trees/gate.xml"/>
-    <include path="trees/hard_coded_competition.xml"/>
-    <include path="trees/hard_coded_gate.xml"/>
-    <include path="trees/hard_coded_octagon.xml"/>
-    <include path="trees/hard_coded_slalom.xml"/>
-    <include path="trees/hard_coded_torp.xml"/>
     <include path="trees/octagon.xml"/>
-    <include path="trees/pool_test.xml"/>
-    <include path="trees/prelim.xml"/>
     <include path="trees/return_home.xml"/>
     <include path="trees/slalom.xml"/>
     <include path="trees/torp.xml"/>
-    <include path="trees/vision_test.xml"/>
     <!-- Description of Node Models (used by Groot) -->
     <TreeNodesModel>
         <Action ID="AddAttSetpoint">
@@ -323,6 +316,24 @@
             <input_port name="yaw" default="-12.56637061">Yaw distance to spin in radians; positive turns left</input_port>
             <input_port name="rate" default="3.14159265">Yaw rate in radians per second</input_port>
             <input_port name="timeout_msec" default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+        </Action>
+        <Action ID="SquareUpToGate">
+            <input_port name="camera" default="front">Detection source: front or down</input_port>
+            <input_port name="task">Only accept detections from this task's model</input_port>
+            <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+            <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+            <input_port name="standoff" default="2.0">Distance in front of the gate to finish at (m)</input_port>
+            <input_port name="target_offset_left" default="0.0">Aim this far left of the left panel's center, along the gate (m)</input_port>
+            <input_port name="look_distance" default="2.8">Back off to this far while finding the facing, to see both panels (m)</input_port>
+            <input_port name="min_facing_frames" default="6">Frames showing both panels before moving</input_port>
+            <input_port name="max_slant_deg" default="60.0">Facings turned further than this from the camera are rejected</input_port>
+            <input_port name="position_tolerance" default="0.15">Finished within this of the standoff point (m)</input_port>
+            <input_port name="yaw_tolerance_deg" default="3.0">Finished within this of square to the gate</input_port>
+            <input_port name="settle_msec" default="1500">Time within both tolerances before SUCCESS</input_port>
+            <input_port name="facing_timeout_msec" default="15000">Go on with fewer facing frames, or none, after this long</input_port>
+            <input_port name="detection_loss_msec" default="8000">FAILURE after this long without a frame of the gate; 0 never</input_port>
+            <input_port name="timeout_msec" default="60000">Maximum time before FAILURE</input_port>
+            <input_port name="update_msec" default="250">Minimum time between commands</input_port>
         </Action>
         <Action ID="Stop"/>
         <Condition ID="SurveyRole"/>

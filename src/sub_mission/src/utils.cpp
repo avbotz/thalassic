@@ -69,4 +69,9 @@ std::string resolveMissionPath(const std::string &name_or_path) {
 
 std::vector<std::string> availableMissions() { return listXmlFiles(missionsDirectory(), true); }
 
-std::vector<std::string> treeFiles() { return listXmlFiles(treesDirectory(), false); }
+std::vector<std::string> treeFiles() {
+    std::vector<std::string> files = listXmlFiles(treesDirectory(), false);
+    const std::vector<std::string> missions = listXmlFiles(missionsDirectory(), false);
+    files.insert(files.end(), missions.begin(), missions.end());
+    return files;
+}

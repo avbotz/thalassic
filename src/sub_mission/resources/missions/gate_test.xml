@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The coin flip and then the gate, as the competition run starts, facing
+     straight down the course after the gate. -->
+<root BTCPP_format="4" main_tree_to_execute="GateTest">
+  <BehaviorTree ID="GateTest">
+    <Sequence name="gate_test">
+      <Script code="@gate_exit_yaw := 0.0"/>
+      <SubTree ID="CoinFlipMission"/>
+      <SubTree ID="GateMission"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
