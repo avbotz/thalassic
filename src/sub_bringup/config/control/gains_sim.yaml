@@ -54,8 +54,10 @@
     thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
     safety:
+      require_kill_cycle: true
       state_timeout: 0.5
       imu_timeout: 0.2
+      attitude_timeout: 1.0
       dvl_timeout: 1.5
       depth_timeout: 1.0
       altitude_timeout: 1.0

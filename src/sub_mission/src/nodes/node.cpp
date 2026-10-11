@@ -98,7 +98,10 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         "control/error", 10, std::bind(&MissionNode::control_error_callback, this, std::placeholders::_1));
     this->odometry_sub = this->create_subscription<nav_msgs::msg::Odometry>(
         "odometry/filtered", 10, std::bind(&MissionNode::odometry_callback, this, std::placeholders::_1));
-    this->setpoint_publisher = this->create_publisher<SetpointMsg>("motion_setpoint", 10);
+    this->armed_sub = this->create_subscription<std_msgs::msg::Bool>(
+        "control/armed", rclcpp::QoS(1).transient_local(),
+        [this](const std_msgs::msg::Bool &msg) { this->armed = msg.data; });
+    this->setpoint_publisher = std::make_shared<SetpointPublisher>(*this, "motion_setpoint");
 
     this->vision_client = std::make_unique<VisionClient>(*this);
     // The vehicle's mounts, from /tf_static only: they are all NavigateToTransform
@@ -296,11 +299,22 @@ void MissionNode::control_error_callback(const sub_control_interfaces::msg::Erro
     const std::array<std::array<double, 3>, 4> errors = {msg.pos_error, msg.vel_error, msg.att_error, msg.angvel_error};
 
     const std::lock_guard<std::mutex> lock(this->state_mutex);
+    // An error computed before sub_control took up the latest command is about
+    // the one before (a move that has not started yet reads as arrived), and a
+    // rejected command never arrives: neither counts as an update.
+    const std::uint64_t sent = this->setpoint_publisher->lastId();
+    const bool current = sent == 0 || msg.command_id == sent;
+    if (current && msg.command_rejected && this->reported_rejection != sent) {
+        this->reported_rejection = sent;
+        RCLCPP_ERROR(this->get_logger(), "sub_control rejected the last command (its log says why).");
+    }
     for (std::size_t group = 0; group < errors.size(); ++group) {
         for (std::size_t axis = 0; axis < errors[group].size(); ++axis) {
             const std::size_t index = group * errors[group].size() + axis;
             this->control_errors[index] = errors[group][axis];
-            ++this->control_error_updates[index];
+            if (current && !msg.command_rejected) {
+                ++this->control_error_updates[index];
+            }
         }
     }
 }
@@ -317,8 +331,23 @@ void MissionNode::activate() {
     if (this->interrupted) {
         return;
     }
-
     RCLCPP_INFO(this->get_logger(), "Kill switch released");
+
+    // sub_control drives the thrusters only once armed: it holds off while a
+    // sensor it needs is missing (it logs which), so nothing the tree sends
+    // before then would move the vehicle.
+    auto next_log = std::chrono::steady_clock::now();
+    while (rclcpp::ok() && !this->interrupted && !this->controlArmed()) {
+        if (std::chrono::steady_clock::now() >= next_log) {
+            RCLCPP_INFO(this->get_logger(), "Waiting for sub_control to arm (control/armed)...");
+            next_log += 5s;
+        }
+        std::this_thread::sleep_for(100ms);
+    }
+    if (this->interrupted) {
+        return;
+    }
+
     RCLCPP_INFO(this->get_logger(), "Wait for motors to start up");
     // In steps, so that an interrupt need not wait it out.
     const auto motors_ready = std::chrono::steady_clock::now() + 7s;

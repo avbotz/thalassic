@@ -2,20 +2,19 @@
 #define SIM_THRUSTERS_HPP_
 
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
-#include "stonefish_ros2/msg/thruster_state.hpp"
+#include "sub_control_interfaces/msg/thruster_command.hpp"
 
 #include <array>
+#include <optional>
 #include <string>
 
-// Stands in for the ESCs between sub_control and the simulated thrusters:
-// control/thruster_<i> -> sim/thruster_setpoints, through a first-order lag
-// (the BlueRobotics Basic ESC takes ~0.1 s to respond) and a per-thruster
-// `effectiveness` that injects faults (0 dead, 0.5 half thrust; settable at
-// runtime). Also reports what each simulated thruster really pushes, on
-// thrusters/measured_thrust [N along each thruster's +X], the signal current
-// sensing or ESC telemetry would give on the vehicle.
+// Stands in for sub_low, the firmware and the ESCs between sub_control and the
+// simulated thrusters: control/thrusters -> sim/thruster_setpoints, through a
+// first-order lag (the BlueRobotics Basic ESC takes ~0.1 s to respond) and a
+// per-thruster `effectiveness` that injects faults (0 dead, 0.5 half thrust;
+// settable at runtime). Like sub_low on the vehicle, it stops every thruster
+// when the commands stop or go stale for `command_timeout`.
 class SimThrusters : public rclcpp::Node {
    public:
     static constexpr int NUM_THRUSTERS = 8;
@@ -29,19 +28,19 @@ class SimThrusters : public rclcpp::Node {
     static std::string invalid(const rclcpp::Parameter& param);
     // Takes up a parameter's value, which must be valid.
     void apply(const rclcpp::Parameter& param);
+    void command_callback(const sub_control_interfaces::msg::ThrusterCommand& msg);
     void publish_setpoints();
-    void state_callback(const stonefish_ros2::msg::ThrusterState::SharedPtr msg);
 
     std::array<double, NUM_THRUSTERS> command_{};
     std::array<double, NUM_THRUSTERS> output_{};
     std::array<double, NUM_THRUSTERS> effectiveness_{};
     double time_constant_{0.1};
+    double command_timeout_{0.5};
+    std::optional<rclcpp::Time> command_stamp_;  // of the command in command_; none once stopped
     rclcpp::Time last_publish_{0, 0, RCL_ROS_TIME};
 
-    std::array<rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr, NUM_THRUSTERS> command_subs_;
-    rclcpp::Subscription<stonefish_ros2::msg::ThrusterState>::SharedPtr state_sub_;
+    rclcpp::Subscription<sub_control_interfaces::msg::ThrusterCommand>::SharedPtr command_sub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr setpoint_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr thrust_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_handle_;
 };

@@ -9,11 +9,14 @@
 
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>compressed_image_transport</exec_depend>
+  <exec_depend>diagnostic_aggregator</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>foxglove_bridge</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>lifecycle_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rclcpp_components</exec_depend>
@@ -23,10 +26,13 @@
   <exec_depend>rosbag2_storage_mcap</exec_depend>
   <exec_depend>rtabmap_odom</exec_depend>
   <exec_depend>rtabmap_sync</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>sim_labeling</exec_depend>
   <exec_depend>spinnaker_camera_driver</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>stonefish_ros2</exec_depend>
   <exec_depend>sub_control</exec_depend>
+  <exec_depend>sub_control_interfaces</exec_depend>
   <exec_depend>sub_mission</exec_depend>
   <exec_depend>sub_pid_tuner</exec_depend>
   <exec_depend>sub_serial_drivers</exec_depend>
@@ -37,6 +43,11 @@
   <exec_depend>tf2_ros_py</exec_depend>
   <exec_depend>usb_cam</exec_depend>
   <exec_depend>waterlinked_dvl_driver</exec_depend>
+
+  <test_depend>composition_interfaces</test_depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

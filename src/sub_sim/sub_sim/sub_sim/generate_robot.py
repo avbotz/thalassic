@@ -38,6 +38,7 @@ def render_robot_scenario(
     sensor_noise: bool = True,
     segmentation_camera: bool = False,
     depth_camera: bool = False,
+    cameras: bool = True,
 ) -> Path:
     """Render the robot at a pose.
 
@@ -48,7 +49,8 @@ def render_robot_scenario(
     `sensor_noise` gives the DVL, IMU and pressure sensor the noise of the real
     ones. `segmentation_camera` adds that sensor, which is only used for
     sim_labeling, and `depth_camera` the depth camera, which nothing in the
-    stack reads yet.
+    stack reads yet. Without `cameras` the robot has no camera at all (Stonefish
+    without a GPU cannot render one), and neither of those either.
 
     The template's world_pose(*poses, offset, rpy) places a free body (a torpedo,
     the dropper's ball) that starts attached to the robot: it chains `poses`, given
@@ -88,8 +90,9 @@ def render_robot_scenario(
         frames=frames or {},
         world_pose=world_pose,
         sensor_noise=sensor_noise,
-        segmentation_camera=segmentation_camera,
-        depth_camera=depth_camera,
+        segmentation_camera=segmentation_camera and cameras,
+        depth_camera=depth_camera and cameras,
+        cameras=cameras,
     )
 
     fd, temp_path = tempfile.mkstemp(

@@ -67,10 +67,12 @@
     #   ros2 param set /<robot_name>/sub_control failed_thrusters "[3]"
     thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
-    # Watchdogs [s] (docs/control.md#safety).
+    # Arming and watchdogs [s] (docs/control.md#safety). Ages are by message stamp.
     safety:
+      require_kill_cycle: true  # arm only after the kill switch has been engaged since startup
       state_timeout: 0.5    # no odometry: thrusters off
       imu_timeout: 0.2      # rate feedback falls back to the EKF's
+      attitude_timeout: 1.0 # no IMU: thrusters off (the EKF's attitude would only drift)
       dvl_timeout: 1.5      # x/y feedback off
       depth_timeout: 1.0    # z feedback off, float up
       altitude_timeout: 1.0 # altitude hold becomes depth hold

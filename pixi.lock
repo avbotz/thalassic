@@ -489,7 +489,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/pyparsing-3.3.2-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pyserial-3.5-pyhcf101f3_2.conda
       - conda: https://prefix.dev/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
-      - conda: https://prefix.dev/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
+      - conda: https://prefix.dev/conda-forge/noarch/pytest-8.4.2-pyhcf101f3_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-cov-7.1.0-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-repeat-0.9.4-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-rerunfailures-16.6.1-pyhd8ed1ab_0.conda
@@ -566,6 +566,7 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-console-bridge-vendor-1.7.2-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-cv-bridge-4.1.0-np2py312h3b5449b_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-cyclonedds-0.10.5-np2py312h2ed9cc7_21.conda
+      - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-diagnostic-aggregator-4.2.7-hb0f4dca_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-diagnostic-msgs-5.3.8-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-diagnostic-updater-4.2.7-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-domain-coordinator-0.12.1-np2py312h2ed9cc7_21.conda
@@ -731,6 +732,7 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-composition-interfaces-2.0.4-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-console-bridge-vendor-1.7.2-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-cyclonedds-0.10.5-np2py312h2ed9cc7_21.conda
+      - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-diagnostic-aggregator-4.2.7-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-diagnostic-msgs-5.3.8-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-distro-mutex-0.16.0-jazzy_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-domain-coordinator-0.12.1-np2py312h2ed9cc7_21.conda
@@ -1372,7 +1374,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/pyparsing-3.3.2-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pyserial-3.5-pyhcf101f3_2.conda
       - conda: https://prefix.dev/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
-      - conda: https://prefix.dev/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
+      - conda: https://prefix.dev/conda-forge/noarch/pytest-8.4.2-pyhcf101f3_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-cov-7.1.0-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-repeat-0.9.4-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/pytest-rerunfailures-16.6.1-pyhd8ed1ab_0.conda
@@ -1448,6 +1450,7 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-console-bridge-vendor-1.7.2-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-cv-bridge-4.1.0-np2py312h3c25c5b_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-cyclonedds-0.10.5-np2py312h61f2ce4_21.conda
+      - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-diagnostic-aggregator-4.2.7-he8cfe8b_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-diagnostic-msgs-5.3.8-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-diagnostic-updater-4.2.7-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-domain-coordinator-0.12.1-np2py312h61f2ce4_21.conda
@@ -1613,6 +1616,7 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-composition-interfaces-2.0.4-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-console-bridge-vendor-1.7.2-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-cyclonedds-0.10.5-np2py312h61f2ce4_21.conda
+      - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-diagnostic-aggregator-4.2.7-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-diagnostic-msgs-5.3.8-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-distro-mutex-0.16.0-jazzy_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-domain-coordinator-0.12.1-np2py312h61f2ce4_21.conda
@@ -14644,17 +14648,17 @@ packages:
   run_exports: {}
   size: 21085
   timestamp: 1733217331982
-- conda: https://prefix.dev/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
-  sha256: 430051d80765207a7d782b2b188230ba1489d35c6e75fd9903f76cb9fda4af16
-  md5: 64c98a12c4e23eb238bf66bbecafdf3c
+- conda: https://prefix.dev/conda-forge/noarch/pytest-8.4.2-pyhcf101f3_1.conda
+  sha256: 39f41a52eb6f927caf5cd42a2ff98a09bb850ce9758b432869374b6253826962
+  md5: da0c42269086f5170e2b296878ec13a6
   depends:
-  - colorama
   - pygments >=2.7.2
   - python >=3.10
-  - iniconfig >=1.0.1
-  - packaging >=22
+  - iniconfig >=1
+  - packaging >=20
   - pluggy >=1.5,<2
   - tomli >=1
+  - colorama >=0.4
   - exceptiongroup >=1
   - python
   constrains:
@@ -14662,8 +14666,8 @@ packages:
   license: MIT
   license_family: MIT
   run_exports: {}
-  size: 306724
-  timestamp: 1782127176429
+  size: 294852
+  timestamp: 1762354779909
 - conda: https://prefix.dev/conda-forge/noarch/pytest-cov-7.1.0-pyhcf101f3_0.conda
   sha256: 44e42919397bd00bfaa47358a6ca93d4c21493a8c18600176212ec21a8d25ca5
   md5: 67d1790eefa81ed305b89d8e314c7923
@@ -15975,6 +15979,14 @@ packages:
   run_exports: {}
   size: 1199719
   timestamp: 1788189084546
+- conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-diagnostic-aggregator-4.2.7-hb0f4dca_25.conda
+  sha256: 6f6898c9c3df841a1c675b7b869b2ec6dd39bb47031129c9be3bb2faa7032e07
+  md5: 0f0c3dcdf1c7ae6d9fa89e214baeab70
+  depends:
+  - ros2-diagnostic-aggregator ==4.2.7
+  run_exports: {}
+  size: 2067
+  timestamp: 1791435299148
 - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-diagnostic-msgs-5.3.8-np2py312h2ed9cc7_21.conda
   sha256: 8175a5a8f3e8d0e81171fbd84ef4024264729e28d622e21349b75f33f4851de7
   md5: c10d04e264a14049aef842c202f8ffea
@@ -19464,6 +19476,24 @@ packages:
   run_exports: {}
   size: 1199870
   timestamp: 1788258404233
+- conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-diagnostic-aggregator-4.2.7-np2py312h2ed9cc7_21.conda
+  sha256: dadb843a1483f1813dee694b976c3d77da63bc7a62f8da0a9c62702471c8206f
+  md5: 5aeebb40f1e07328cf4bebf577f5b572
+  depends:
+  - python
+  - ros2-distro-mutex 0.16.* jazzy_*
+  - ros2-rclpy
+  - ros2-ros-workspace
+  - __glibc >=2.17,<3.0.a0
+  - libstdcxx >=14
+  - libgcc >=14
+  - python_abi 3.12.* *_cp312
+  - numpy >=1.25,<3
+  - ros2-distro-mutex >=0.16.0,<0.17.0a0
+  license: BSD-3-Clause
+  run_exports: {}
+  size: 443270
+  timestamp: 1788265754322
 - conda: https://prefix.dev/robostack-jazzy/linux-64/ros2-diagnostic-msgs-5.3.8-np2py312h2ed9cc7_21.conda
   sha256: 6361a52e1f4fa057e01d08f97d7fb73cc08811518343dfd6139c1fa38d8b2237
   md5: 36010511b9787849a00521cb5b627d60
@@ -24364,6 +24394,14 @@ packages:
   run_exports: {}
   size: 1265283
   timestamp: 1788189377393
+- conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-diagnostic-aggregator-4.2.7-he8cfe8b_25.conda
+  sha256: 399259aa0b1273cf4829fa3c5d4321a3085d1e4f1be80e2ad20713a6c85035df
+  md5: f37834baae06b84847732da325b97273
+  depends:
+  - ros2-diagnostic-aggregator ==4.2.7
+  run_exports: {}
+  size: 2077
+  timestamp: 1791451166267
 - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-diagnostic-msgs-5.3.8-np2py312h61f2ce4_21.conda
   sha256: 6da54a94ff4ad94f2d245461a4f43caa7dc3248d3e2e63a6d7c97fa400816b93
   md5: 1b08e23ef4db403f039282a287259fc6
@@ -27692,6 +27730,23 @@ packages:
   run_exports: {}
   size: 1266054
   timestamp: 1788259886790
+- conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-diagnostic-aggregator-4.2.7-np2py312h61f2ce4_21.conda
+  sha256: 4dcafd19cd5ccecccbb7b0f5496d534374f5ba793ac2dd82b5ab02fd868d2b44
+  md5: 46de78f6d4ae36533ea5daba3b759e48
+  depends:
+  - python
+  - ros2-distro-mutex 0.16.* jazzy_*
+  - ros2-rclpy
+  - ros2-ros-workspace
+  - libgcc >=14
+  - libstdcxx >=14
+  - numpy >=1.25,<3
+  - python_abi 3.12.* *_cp312
+  - ros2-distro-mutex >=0.16.0,<0.17.0a0
+  license: BSD-3-Clause
+  run_exports: {}
+  size: 439997
+  timestamp: 1788265325838
 - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros2-diagnostic-msgs-5.3.8-np2py312h61f2ce4_21.conda
   sha256: 4d8a05b5b792185f07eec341a4054383514113919313d1648d9ee53d567b0b8b
   md5: b09916965d654cee0b0e3e438180118f

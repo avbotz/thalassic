@@ -8,7 +8,7 @@ Thalassic uses [pixi](https://pixi.sh) with the [RoboStack](https://robostack.gi
 |---|---|
 | Ubuntu / any Linux (x86_64) | Native. Stonefish needs OpenGL 4.3 (Mesa or NVIDIA drivers on the host). |
 | Jetson AGX Orin (aarch64) | Native. See [deployment.md](deployment.md) for vehicle-only OS setup. |
-| Windows / MacOS | Use Docker. |
+| Windows / MacOS | Not supported (there is no container). Use a Linux machine or VM. |
 
 The only host tools the workspace uses outside pixi are `lsb_release` and `dpkg`, which the FLIR driver unpacks its SDK with at build time (Linux only).
 
@@ -80,13 +80,21 @@ Run `pixi run format` before committing. If the formatter and a hand-aligned blo
 
 Packages no longer carry `ament_lint_auto` blocks, so `colcon test` (`pixi run test`) runs tests rather than a second, contradictory style check. See [Decision 9](decisions.md).
 
+## Tests and CI
+
+`pixi run test` runs every package's tests and exits non-zero if any fails; `pixi run colcon test-result --verbose` then shows which. They include unit tests of the controller, the mission nodes, the serial drivers (against a pretend board on a pseudo-terminal), scenario generation and the dashboard, and one run of the whole stack against the headless simulator ([simulation.md](simulation.md#regression-test)), which takes a minute or two. `colcon test --packages-select <pkg>` runs one package's.
+
+pytest is pinned below 9 in `pixi.toml`: Jazzy's `launch_testing` plugins do not load under pytest 9.
+
+`.github/workflows/ci.yml` runs `pixi run lint`, `pixi run build` and `pixi run test` on every pull request and every push to `main`, from `pixi.lock` (`--frozen`), on linux-64. Make its `build-and-test` check required for `main` in the repository settings (Branches, branch protection), together with one approving review, so nothing merges red or unread.
+
 ## DDS profiles
 
 ROS 2 discovery is configured per machine role by `THALASSIC_DDS_PROFILE`, read by `scripts/setup.sh`:
 
 | Profile | When | Effect |
 |---|---|---|
-| `dev` (default) | laptops, CI, containers | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`; `ROS_DOMAIN_ID` derived from your Unix user id (override with `THALASSIC_ROS_DOMAIN_ID`) |
+| `dev` (default) | laptops and CI | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`; `ROS_DOMAIN_ID` derived from your Unix user id (override with `THALASSIC_ROS_DOMAIN_ID`) |
 | `vehicle` | the Jetson, and a laptop plugged into the sub | `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`; fixed `ROS_DOMAIN_ID=42` (override with `THALASSIC_ROS_DOMAIN_ID`) |
 
 Both profiles pin `RMW_IMPLEMENTATION=rmw_fastrtps_cpp` so every machine runs the same middleware.
@@ -186,7 +194,7 @@ Accepted by both `sim_launch.py` and `pool_test_launch.py`:
 | `foxglove_port` | `8765` | Websocket port for the Foxglove bridge |
 | `foxglove_compression` | per stack | Deflate the bridge's messages — `true` on the vehicle, for a laptop on its network; `false` in the simulator, where Foxglove connects over localhost and compression only adds latency |
 | `use_sim_time` | per stack | Run every node on the simulator's `/clock` — `false` on the vehicle, `true` in the simulator |
-| `dashboard` | `false` | Serve the `sub_pid_tuner` tuning dashboard ([README](../src/sub_pid_tuner/README.md)), which saves tuned values to the `gains` file |
+| `dashboard` | `false` | Serve the `sub_pid_tuner` tuning dashboard ([README](../src/sub_control/sub_pid_tuner/README.md)), which saves tuned values to the `gains` file |
 | `dashboard_host` | per stack | Address the dashboard serves on — `0.0.0.0` on the vehicle, so laptops on its network reach it; `127.0.0.1` in the simulator |
 | `dashboard_port` | `8080` | Port the dashboard serves on |
 

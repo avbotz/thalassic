@@ -29,7 +29,7 @@ transforms:
 # Thruster mounting, in base_link_ned, published as thruster_<i>_link in list
 # order. This is the only copy of the layout: sub_control builds its allocation
 # matrix from it and sub_sim places the simulated thrusters with it (both via
-# sub_bringup/vehicle.py). Index i is the control/thruster_<i> topic and ESC
+# sub_bringup/vehicle.py). Index i is command[i] of control/thrusters and ESC
 # channel. A thruster's +X is the way a right-hand propeller pushes on a
 # positive command; `propeller: left` marks the mirrored ones, which push the
 # other way (and with the T200 curve's weaker half). 0-3 are the vertical units
@@ -48,10 +48,15 @@ thrusters:
 # The depth reading on odometry/depth, published by sub_low on the vehicle and by
 # sim_pressure_to_depth in simulation.
 #   frame      - where the pressure sensor sits, one of the frames above
-#   z_variance - variance of the depth reading [m^2]
+#   z_variance - variance of the depth reading [m^2]. 4e-4 is a 2 cm standard
+#                deviation: the 12-bit ADC is 2.7 mm a count, and the board
+#                averages ten readings. An estimate, not a measurement: replace it
+#                with the variance of odometry/depth logged at rest in the pool.
+#                Too large and the EKF's depth lags the sensor; too small and it
+#                passes the noise to the depth loop.
 depth:
   frame: pressure_link
-  z_variance: 0.01
+  z_variance: 0.0004
 
 # The devices bolted to this hull, by the role the launch files know them by.
 #

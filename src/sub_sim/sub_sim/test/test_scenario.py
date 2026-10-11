@@ -134,6 +134,15 @@ def test_every_robot_option_renders(option, value):
     sensors = {sensor.get("name") for sensor in ET.parse(robot).iter("sensor")}
     assert ("seg_cam" in sensors) == (option == "segmentation_camera" and value)
     assert ("depth_camera" in sensors) == (option == "depth_camera" and value)
+    assert {"front_camera", "down_camera"} <= sensors
+
+
+def test_without_cameras_there_are_none_of_any_kind():
+    # Stonefish without a GPU (headless) cannot render them.
+    _, [(_, robot)] = render(cameras=False, segmentation_camera=True, depth_camera=True)
+    types = {sensor.get("type") for sensor in ET.parse(robot).iter("sensor")}
+    assert not types & {"camera", "depth_camera", "segmentation"}
+    assert {"dvl", "imu", "pressure"} <= types
 
 
 def test_a_variable_the_scenario_is_not_given_raises():

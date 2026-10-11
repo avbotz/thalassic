@@ -48,10 +48,12 @@ def _render_scn(context, *_, **__):
     seed = LaunchConfiguration("seed").perform(context) or str(random.randrange(2**31))
     # As IfCondition reads them (true, false, 1 or 0; anything else is an error), so
     # labeling agrees with sim_labeling's condition.
-    sensor_noise, labeling, depth_camera = (
+    sensor_noise, labeling, depth_camera, headless = (
         IfCondition(LaunchConfiguration(k)).evaluate(context)
-        for k in ("sensor_noise", "labeling", "depth_camera")
+        for k in ("sensor_noise", "labeling", "depth_camera", "headless")
     )
+    if headless and labeling:
+        raise ValueError("labeling needs the cameras, which headless:=true has none of")
     # Given in ENU like everything else; Stonefish's world is NED.
     current = LaunchConfiguration("current").perform(context)
     try:
@@ -82,6 +84,8 @@ def _render_scn(context, *_, **__):
             # sim_labeling labels the segmentation camera's images.
             segmentation_camera=labeling,
             depth_camera=depth_camera,
+            # Stonefish without a GPU cannot render cameras.
+            cameras=not headless,
         )
         return rendered_robot.as_posix()
 
@@ -120,10 +124,22 @@ def _render_scn(context, *_, **__):
 def _stonefish(context, *_, **__):
     """The simulator, whose camera parameters are named after the robot's camera topics."""
     robot_name = LaunchConfiguration("robot_name").perform(context)
+    headless = IfCondition(LaunchConfiguration("headless")).evaluate(context)
+    window = (
+        []
+        if headless
+        else [
+            LaunchConfiguration("window_width"),
+            LaunchConfiguration("window_height"),
+            LaunchConfiguration("rendering_quality"),
+        ]
+    )
     return [
         Node(
             package="stonefish_ros2",
-            executable="stonefish_simulator",
+            # The console build needs no GPU or display: physics and the
+            # non-vision sensors only.
+            executable="stonefish_simulator_nogpu" if headless else "stonefish_simulator",
             name="stonefish_simulator",
             namespace="stonefish_ros2",
             output="screen",
@@ -131,9 +147,7 @@ def _stonefish(context, *_, **__):
                 PathJoinSubstitution([FindPackageShare("sub_sim"), "data"]),
                 LaunchConfiguration("scenario_file"),
                 "500.0",  # simulation rate [Hz]
-                LaunchConfiguration("window_width"),
-                LaunchConfiguration("window_height"),
-                LaunchConfiguration("rendering_quality"),
+                *window,
             ],
             parameters=[
                 {
@@ -248,24 +262,7 @@ def _sim_sensors(context, *_, **__):
         ros_arguments=["--disable-stdout-logs"],
     )
 
-    # Declares thrusters failed when they stop pushing what they are commanded
-    # to (from the thrust sim_thrusters measures), so sub_control works around them.
-    thruster_monitor = Node(
-        package="sub_control",
-        executable="thruster_monitor",
-        name="thruster_monitor",
-        namespace=robot_name,
-        output="both",
-        parameters=[
-            {
-                "allocation.thruster_reversed": vehicle.thruster_layout()[
-                    "allocation.thruster_reversed"
-                ]
-            },
-            sim_time(),
-        ],
-    )
-    return [sim_sensors_container, thruster_monitor]
+    return [sim_sensors_container]
 
 
 def sim_entities() -> list:
@@ -313,6 +310,14 @@ def sim_entities() -> list:
             # Stonefish renders anything else as medium.
             choices=["low", "medium", "high"],
             description="Stonefish rendering quality, for the window and the cameras",
+        ),
+        DeclareLaunchArgument(
+            "headless",
+            default_value="false",
+            description=(
+                "Run Stonefish without a window or GPU (stonefish_simulator_nogpu): no cameras, "
+                "so no vision; for control, safety and mission-logic tests"
+            ),
         ),
         DeclareLaunchArgument(
             "sensor_noise",

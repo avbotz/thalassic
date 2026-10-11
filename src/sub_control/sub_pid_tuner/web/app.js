@@ -177,6 +177,7 @@ function updateStatus() {
 
   const c = s.controller_state;
   if (!c) setPill("controller-health", "Controller —", "warn");
+  else if (!c.killed && !c.armed) setPill("controller-health", "Not armed", "bad");
   else if (c.failsafe) setPill("controller-health", "Failsafe", "bad");
   else if (!c.depth_ok) setPill("controller-health", "No depth", "bad");
   else if (c.axis_controllable.some(ok => !ok)) setPill("controller-health", "Axis lost", "bad");
@@ -927,6 +928,7 @@ function telemetryRows() {
       (c.axis_controllable[index] ? "" : " (not controllable)"), true]));
     rows.push(["altitude_hold", yesNo(c.altitude), true], ["dvl_ok", yesNo(c.dvl_ok), true],
       ["depth_ok", yesNo(c.depth_ok), true], ["altitude_ok", yesNo(c.altitude_ok), true],
+      ["imu_ok", yesNo(c.imu_ok), true], ["armed", yesNo(c.armed), true],
       ["failsafe", yesNo(c.failsafe), true]);
     const saturated = c.thruster_saturated.flatMap((value, index) => value ? [index] : []);
     rows.push(["thrusters_saturated", saturated.length ? saturated.join(", ") : "none", true]);
@@ -1099,6 +1101,8 @@ function routineProblem() {
   if (conflicts().length) return "Other publishers on " + conflicts().join(", ") + ": stop the mission, teleop or second stack";
   if (!telemetryLive()) return "Waiting for odometry and control/status";
   if (state.server.killed !== false) return "Release the kill switch to run a routine";
+  if (state.server.controller_state && !state.server.controller_state.armed)
+    return "sub_control is not armed: its log says what it is waiting for";
   if (state.server.controller_state?.failsafe) return "sub_control is in failsafe";
   return null;
 }

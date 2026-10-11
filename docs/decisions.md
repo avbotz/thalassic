@@ -13,7 +13,7 @@ Short records of the decisions in this repository.
 - One lockfile covers conda and PyPI packages, native libraries, and the compiler, which `requirements.txt` + `rosdep` never could.
 - Nothing global. Different checkouts (branches, older releases) coexist with different dependency sets.
 - RoboStack itself recommends pixi, and packaged every ROS package we use except `rtabmap` and the submodules of decision 3.
-- The same manifest serves developers, the container, CI, and the vehicle, so "works on my machine" differences shrink to hardware.
+- The same manifest serves developers, CI, and the vehicle, so "works on my machine" differences shrink to hardware.
 
 **Why not nix:** the reproducibility is higher, but it is much more difficult to configure, especially in regards to the Jetson where we would probably need to use NixOS.
 
@@ -92,7 +92,7 @@ This is not a substitute for `jetson_clocks` staying off: DVFS is still the SoC'
 
 ```bash
 pixi run format    # rewrite
-pixi run lint      # check; this is what CI should run
+pixi run lint      # check; CI runs this (.github/workflows/ci.yml)
 ```
 
 `ruff` formats and lints Python (`ruff.toml`); `clang-format` formats C and C++ (`.clang-format`, unchanged — it already matched the code). `scripts/format.sh` takes its file list from `git ls-files`, which lists submodule *directories* but not their contents, so upstream code is never touched.
@@ -135,4 +135,29 @@ The `ament_lint_auto` blocks are gone from our packages, and `colcon.meta` build
 
 **Now:** one `sub_bringup` `static_transforms` node publishes them all in one latched `/tf_static` message.
 
-**Why:** each process is a DDS participant, and with `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` Fast DDS announces a participant only to the first 32 on the machine. The sim had reached 33 processes with the annotators, so two late participants could miss each other: runs where the mission never heard `sub_vision` and searched forever, intermittently. The stack is now 14 processes.
+**Why:** each process is a DDS participant, and with `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` Fast DDS announces a participant only to the first 32 on the machine. The sim had reached 33 processes with the annotators, so two late participants could miss each other: runs where the mission never heard `sub_vision` and searched forever, intermittently. The stack is now 15 processes, the diagnostics aggregator included.
+
+## 14. Safety is layered through the nodes that already own the vehicle, not a supervisor node
+
+**Was:** `sub_control` cut thrust without odometry and dropped axes without their sensors, judging freshness by arrival time, and `sub_low` stopped the thrusters if `sub_control` went quiet. Nothing else: an IMU that stopped went unnoticed (the EKF's predicted attitude kept being flown), a mission move could "arrive" on a `control/error` computed before its command applied, the Pico kept its last thruster command forever if the host stopped talking, a stack started with the kill switch released drove at once, and only `sub_vision` published `/diagnostics`, which nothing read.
+
+**Now:** each layer stops the thrusters on what it can see, and each layer below catches the one above dying ([control.md](control.md#safety)):
+
+- `sub_control` arms only after the kill switch has been engaged since it started and with the state estimate, IMU and depth fresh; cuts thrust without odometry or IMU; judges every sensor by its stamp; and acknowledges each `MotionSetpoint` by `id` in `control/error`.
+- `sub_low` (and `sim_thrusters`) stops the thrusters when `sub_control` goes quiet or its commands arrive stale, and reopens a dropped link.
+- The board stops them after 0.5 s without a command, resets on a stalled main loop, and stays killed after any reset until the switch is cycled.
+- `diagnostic_updater` in every driver and `sub_control`, `diagnostic_aggregator` over them (stale when a node dies), and `preflight` reading the result.
+
+**Not covered:** a velocity the mission latched runs on if the mission process dies without sending its stop (a crash, `SIGKILL`) or hangs, until the kill switch.
+
+**Why not a separate supervisor node** (COLA2's `safety_supervisor`, the 2026-10-10 report's `sub_safety`): every action it could take on this vehicle (hold, float up, thrust off) goes through `sub_control` anyway, and a node in between is one more process to keep alive and one more place for the two to disagree. The checks are pure functions with unit tests (`sub_control/safety.hpp`), and the headless simulator test exercises them end to end. Revisit when there is hardware to supervise that `sub_control` does not own: battery, leak and temperature sensing.
+
+**Why not a `Move` action for the mission:** the acknowledgment closes the race that made polling wrong, with a two-line change to how the mission counts errors, where an action would rewrite every movement node.
+
+## 15. The thruster commands are one stamped message, and one serial line
+
+**Was:** eight unstamped `std_msgs/Float64` topics (`control/thruster_0`..`7`) and eight `p` lines to the board per control cycle, each its own callback.
+
+**Now:** `control/thrusters` (`sub_control_interfaces/ThrusterCommand`, a header and eight commands) and one `m` line, once the board's heartbeat says it speaks protocol 2; `sub_low` still sends `p` lines to older firmware.
+
+**Why:** a cycle's eight commands now arrive together or not at all, so a dropped message cannot leave one thruster a cycle behind the rest; the stamp lets `sub_low` and the simulator refuse commands that arrive late; and the board's ten-line command queue no longer fills when its loop is busy (ten lines is 25 ms of `p` lines at 50 Hz).

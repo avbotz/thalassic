@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-# Thruster faults are runtime state (set by hand or by thruster_monitor), not tuning.
+# Thruster faults are runtime state (set by hand), not tuning.
 NOT_SAVED = frozenset({"thruster_health", "failed_thrusters"})
 
 # `key: value  # comment`, with the value and comment optional.

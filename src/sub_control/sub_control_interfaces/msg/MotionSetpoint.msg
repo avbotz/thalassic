@@ -34,6 +34,13 @@ uint8 velocity_frame
 bool altitude
 
 # VELOCITY and EFFORT axes come to a HOLD unless set again within this many
-# seconds of this message arriving, so a stream that stops cannot drive the
-# vehicle away. 0 latches them until they are replaced.
+# seconds of header.stamp (or of arrival, if that is earlier or the message is
+# unstamped), so a stream that stops cannot drive the vehicle away.
+# 0 latches them until they are replaced.
 float64 timeout
+
+# Identifies this command: sub_control reports the id of the last command it
+# took up, and whether it rejected it, in control/error and control/status
+# (command_id, command_rejected), so a sender can tell that a later
+# control/error already reflects this command. 0: no id.
+uint64 id

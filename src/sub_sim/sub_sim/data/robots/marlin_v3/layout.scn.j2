@@ -528,6 +528,7 @@
       <ros_publisher topic="/marlin_v3/sim/odometry" />
     </sensor>
 
+    {% if cameras %}
     <!-- Cameras look along their frame's z with y down, like a ROS optical
          frame, which is how the description's camera frames are set up -->
     {% set front = frames.front_camera %}
@@ -549,6 +550,7 @@
       <origin xyz="{{ down.xyz | join(' ') }}" rpy="{{ down.rpy | join(' ') }}" />
       <ros_publisher topic="/marlin_v3/down_camera" />
     </sensor>
+    {% endif %}
 
     {% if depth_camera %}
     <!-- At the front camera, as on a stereo or RGB-D camera -->

@@ -44,8 +44,7 @@ Use `seed` in the launch argument to get reproducible scenarios. Without one, th
 | `robot_state_publisher` | `robot_state_publisher` | Publishes the URDF on `robot_description`. Nothing publishes the `joint_states` it reads (Stonefish's are on `sim/joint_states`), so it publishes no TF; the grabber and dropper frames come from `static_transforms` |
 | `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `odometry/dvl` (velocity only) and `altitude` |
 | `sim_pressure_to_depth` | `sub_sim_sensors` | `sim/pressure` → `odometry/depth` (ENU z), as `sub_low` reports it on the vehicle |
-| `sim_thrusters` | `sub_sim_sensors` | `control/thruster_i` → Stonefish, with ESC lag and fault injection; measured thrust out |
-| `thruster_monitor` | `sub_control` | Declares failed thrusters from measured vs commanded thrust |
+| `sim_thrusters` | `sub_sim_sensors` | `control/thrusters` → Stonefish, with ESC lag, `sub_low`'s command watchdog and fault injection |
 | `sim_imu_remapper` | `sub_sim_sensors` | Stonefish NED IMU → ENU `imu/data` |
 | `sim_kill_switch` | `sub_sim_sensors` | `sim/kill_switch` → `kill_switch` after startup delay (`off_delay`; 0 starts released) |
 | `sim_torpedo_launcher` | `sub_sim_sensors` | Torpedo launch service |
@@ -58,6 +57,12 @@ Use `seed` in the launch argument to get reproducible scenarios. Without one, th
 
 Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` converts it to a velocity-only `nav_msgs/Odometry` on `odometry/dvl` and a `sensor_msgs/Range` on `altitude` — the same topics the hardware WaterLinked driver publishes. Like the driver it drops readings without bottom lock, and it reports a velocity variance of at least `velocity_variance` so the EKF does not treat the DVL as perfect.
 
+Like the real A50, a reading arrives `latency` (0.15 s) after the instant it is stamped with, which is what the EKF's `smooth_lagged_data` is for, and `dropout_probability` (0) of the readings can be dropped to rehearse losing lock near walls and the floor. Both can be changed while the simulation runs:
+
+```bash
+ros2 param set /marlin_v3/sim_dvl_remapper dropout_probability 0.5
+```
+
 ### Sensor noise and current
 
 By default the simulated sensors carry the noise of the real ones — DVL a few mm/s plus 1% of speed, IMU about 0.1° of attitude and 0.2°/s of rate noise with ~10°/hr of yaw drift (the NaviGuider has no magnetometer), pressure about 3 mm — and the water moves at a pool-pump `current` of a few cm/s. A controller that only works in still water with perfect sensors will not work in the pool. For a clean run:
@@ -68,7 +73,7 @@ pixi run sim sensor_noise:=false current:="0 0 0"
 
 ### Thrusters
 
-`sub_control` publishes 8 normalized `Float64` commands on `control/thruster_0` through `control/thruster_7`, the same commands `sub_low` sends to the real thrusters. `sim_thrusters` stands in for the ESCs: it passes them to Stonefish as one `sim/thruster_setpoints` array through a first-order lag (`esc_time_constant`, 0.1 s, the Basic ESC's measured response), and each Stonefish thruster converts its command to thrust with the T200 curve in its `linear_interpolation` thrust model. Stonefish reports each thruster's setpoint, rpm, thrust and torque on `sim/thruster_states`, which `sim_thrusters` republishes as `thrusters/measured_thrust` for `thruster_monitor`.
+`sub_control` publishes the eight normalized commands as one stamped `ThrusterCommand` on `control/thrusters`, the same message `sub_low` sends on to the real thrusters. `sim_thrusters` stands in for `sub_low`, the board and the ESCs. Like them, it stops every thruster when the commands stop or arrive older than `command_timeout` (0.5 s), so killing `sub_control` stops the simulated vehicle as it would the real one. It passes the commands to Stonefish as one `sim/thruster_setpoints` array through a first-order lag (`esc_time_constant`, 0.1 s, the Basic ESC's measured response), and each Stonefish thruster converts its command to thrust with the T200 curve in its `linear_interpolation` thrust model. Stonefish reports each thruster's setpoint, rpm, thrust and torque on `sim/thruster_states`.
 
 To fail a thruster mid-run, scale its command (0 is dead, 0.5 half thrust; values outside [0, 1] are rejected):
 
@@ -76,7 +81,7 @@ To fail a thruster mid-run, scale its command (0 is dead, 0.5 half thrust; value
 ros2 param set /marlin_v3/sim_thrusters effectiveness "[1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0]"
 ```
 
-`thruster_monitor` notices within a couple of seconds and `sub_control` allocates around it ([control.md](control.md#thruster-failure)); `ros2 service call /marlin_v3/thruster_monitor/clear std_srvs/srv/Trigger` after restoring it.
+Nothing declares it automatically, as on the vehicle: the integrators take up its share until it is declared with `failed_thrusters`, and then `sub_control` allocates around it ([control.md](control.md#thruster-failure)).
 
 ### Cameras
 
@@ -109,6 +114,11 @@ Launch arguments:
 | `sensor_noise` | true | Give the DVL, IMU and pressure sensor the noise of the real ones |
 | `labeling` | false | Add the segmentation camera and run `sim_labeling`. It is paired with the front camera, so it renders in the front camera's frames instead of taking a turn of its own |
 | `depth_camera` | false | Add the depth camera (`sim/depth_camera`) |
+| `headless` | false | Run `stonefish_simulator_nogpu`: no window, no GPU or display, and no cameras (so no vision); physics, the DVL, IMU, pressure sensor and actuators as usual. For control, safety and mission-logic tests, and CI |
+
+## Regression test
+
+`src/sub_bringup/test/test_sim.py` runs the whole stack against the headless simulator on every `pixi run test` (and so in CI), on a ROS domain and Foxglove port of its own: it checks that `sub_control` arms after the simulated kill switch releases, that the `pid_tuning` mission (a depth step, a 2 m move, a quarter turn) finishes with `SUCCESS`, and that unloading the IMU bridge cuts the thrusters. It takes a minute or two and needs no GPU. Perception is not part of it: the simulator's renders are not what the detectors were trained on, so vision has to be checked on recorded pool footage (not automated yet).
 
 ## Performance
 

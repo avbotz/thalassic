@@ -14,3 +14,9 @@ float64[3] pos_error
 float64[3] vel_error
 float64[3] att_error
 float64[3] angvel_error
+
+# The id of the last MotionSetpoint sub_control took up (0 if it had none), and
+# whether it rejected it (unknown mode, non-finite target, no DVL altitude,
+# killed: sub_control logs why). Errors above reflect that command.
+uint64 command_id
+bool command_rejected

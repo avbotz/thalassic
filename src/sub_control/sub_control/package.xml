@@ -7,6 +7,7 @@
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>Proprietary</license>
 
+  <depend>diagnostic_updater</depend>
   <depend>eigen</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>

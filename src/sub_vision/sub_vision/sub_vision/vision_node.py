@@ -302,6 +302,14 @@ class VisionNode(Node):
             if self._manager.active_task
             else "no model loaded"
         )
+        # Without intrinsics every bearing is 0, so alignments "succeed" at once.
+        camera_info = self._camera_info
+        if camera_info is None:
+            status.level = DiagnosticStatus.ERROR
+            status.message = "no camera_info"
+        elif camera_info.k[0] <= 0.0 or camera_info.k[4] <= 0.0:
+            status.level = DiagnosticStatus.ERROR
+            status.message = "camera not calibrated (camera_info has no intrinsics): bearings are 0"
         status.values.append(KeyValue(key="active_task", value=str(self._manager.active_task)))
         status.values.append(KeyValue(key="last_infer_ms", value=f"{self._last_infer_ms:.1f}"))
         if self._depth is not None:

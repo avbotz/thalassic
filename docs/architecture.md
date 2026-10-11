@@ -6,10 +6,10 @@
 src/
 ├── sub_bringup/                 # Launch files and config
 ├── sub_control/
-│   ├── sub_control/             # Control algorithm
-│   └── sub_control_interfaces/  # ROS2 messages for control
+│   ├── sub_control/             # Control algorithm, arming and watchdogs
+│   ├── sub_control_interfaces/  # ROS2 messages for control
+│   └── sub_pid_tuner/           # Browser dashboard for tuning sub_control live
 ├── sub_mission/                 # BehaviorTree.CPP mission execution
-├── sub_pid_tuner/               # Browser dashboard for tuning sub_control live
 ├── sub_drivers/
 │   ├── flir_camera_driver/      # FLIR / Spinnaker camera driver (submodule)
 │   ├── sub_driver_interfaces/   # Dropper, torpedo and (sim only) grabber service definitions
@@ -30,34 +30,31 @@ src/
 
 ### `sub_control` (`sub_control/sub_control`)
 
-The main control node, at 50 Hz: a jerk-limited trajectory generator, a model-based control law (feedforward from the vehicle model plus full-state feedback, the structure NUS Bumblebee uses) and a box-constrained QP thrust allocator that works around failed thrusters and saturation. See [control.md](control.md).
+The main control node, at 50 Hz: a jerk-limited trajectory generator, a model-based control law (feedforward from the vehicle model plus full-state feedback, the structure NUS Bumblebee uses) and a box-constrained QP thrust allocator that works around failed thrusters and saturation. It also owns arming and the watchdogs that decide which axes have feedback and whether the thrusters may run at all. See [control.md](control.md).
 
 | | Topic | Type |
 |---|---|---|
-| Sub | `motion_setpoint` | `sub_control_interfaces/MotionSetpoint` (mode per axis) |
+| Sub | `motion_setpoint` | `sub_control_interfaces/MotionSetpoint` (mode per axis, with an `id` it acknowledges) |
 | Sub | `cmd_vel` | `geometry_msgs/Twist` (stops if the stream does) |
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `imu/data` | `sensor_msgs/Imu` (rate feedback) |
 | Sub | `odometry/dvl`, `odometry/depth` | `nav_msgs/Odometry` (watchdogs only) |
 | Sub | `altitude` | `sensor_msgs/Range` (DVL altitude) |
-| Sub | `thruster_health` | `std_msgs/Float64MultiArray` |
 | Sub | `kill_switch` | `std_msgs/Bool` |
 | Sub | `/tf`, `/tf_static` | `tf2_msgs/TFMessage` (the IMU's mounting) |
-| Pub | `control/thruster_0` ... `thruster_7` | `std_msgs/Float64` (normalized, capped at ±0.6) |
-| Pub | `control/error` | `sub_control_interfaces/Error` |
+| Pub | `control/thrusters` | `sub_control_interfaces/ThrusterCommand` (all eight, stamped, normalized, capped at ±0.6) |
+| Pub | `control/error` | `sub_control_interfaces/Error` (with the id of the last command taken up) |
 | Pub | `control/status` | `sub_control_interfaces/ControllerStatus` |
+| Pub | `control/armed` | `std_msgs/Bool`, latched |
+| Pub | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` (arming, sensors, thrusters) |
 | Client | `set_pose` | `robot_localization/SetPose` |
 | Service | `~/reset_pose` | `std_srvs/Trigger` ([re-zeroes the pose](control.md#re-zeroing-the-pose)) |
 
 The thruster commands go out every cycle, `control/error` and `control/status` every cycle except while the node waits for the EKF to confirm the pose reset after a kill-switch release. Gains, the vehicle model and trajectory limits come from the hardware or simulation control profile; the thruster layout from the vehicle description. Parameters are listed in [control.md](control.md#configuration).
 
-### `thruster_monitor` (`sub_control`)
-
-Declares a thruster failed when it delivers much less thrust than it is commanded to, from `thrusters/measured_thrust`, and publishes `thruster_health` for `sub_control` (see [control.md](control.md#thruster-failure)). Runs in simulation, where `sim_thrusters` measures thrust; the vehicle has no thrust measurement yet.
-
 ### `dashboard` (`sub_pid_tuner`) — opt-in
 
-A browser dashboard for tuning `sub_control` live, started with `dashboard:=true` and served on `dashboard_host:dashboard_port` (8080). It sets any node's parameters, graphs `control/status` and `odometry/filtered` per axis, runs bounded tuning routines on `motion_setpoint`, calls `sub_control`'s `reset_pose`, and writes tuned values back to the gains file `sub_control` was started with. See its [README](../src/sub_pid_tuner/README.md) and [TUNING.md](../src/sub_pid_tuner/TUNING.md).
+A browser dashboard for tuning `sub_control` live, started with `dashboard:=true` and served on `dashboard_host:dashboard_port` (8080). It sets any node's parameters, graphs `control/status` and `odometry/filtered` per axis, runs bounded tuning routines on `motion_setpoint`, calls `sub_control`'s `reset_pose`, and writes tuned values back to the gains file `sub_control` was started with. See its [README](../src/sub_control/sub_pid_tuner/README.md) and [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md).
 
 ### `sub_mission` (`sub_mission/mission`)
 
@@ -66,6 +63,7 @@ Runs the selected mission as BehaviorTree.CPP XML. See [mission.md](mission.md) 
 | | Topic | Type |
 |---|---|---|
 | Sub | `kill_switch` | `std_msgs/Bool` |
+| Sub | `control/armed` | `std_msgs/Bool` (the run starts only once sub_control is armed) |
 | Sub | `control/error` | `sub_control_interfaces/Error` |
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `vision/detections`, `vision/detections_down` | `sub_vision_interfaces/DetectionArray` |
@@ -77,15 +75,15 @@ Runs the selected mission as BehaviorTree.CPP XML. See [mission.md](mission.md) 
 
 ### `waterlinked_dvl_driver` (`waterlinked_dvl`) — hardware only
 
-Driver for the WaterLinked A50 DVL. Its `~/odom` output is remapped to `odometry/dvl` (velocity-only `nav_msgs/Odometry`) for the EKF, published only for reports with bottom lock, and its `~/altitude` (`sensor_msgs/Range`) to `altitude` for altitude hold.
+Driver for the WaterLinked A50 DVL (the team's fork, at commit `7163fbb` or later). Its `~/odom` output is remapped to `odometry/dvl` (velocity-only `nav_msgs/Odometry`) for the EKF: one message per bottom-track velocity report the DVL marks valid, stamped with the report's `time_of_validity` (the DVL's clock, synced to the Jetson's by chrony); invalid and water-track reports are dropped. Its `~/altitude` (`sensor_msgs/Range`) is remapped to `altitude` for altitude hold. An older driver (before `7163fbb`) published invalid velocities, published each one twice and had no altitude.
 
 ### `sub_low` / `naviguider_imu_driver` (`sub_serial_drivers`) — hardware only
 
-`sub_low` talks to the RPi Pico over `/dev/pico`: thruster output, kill switch, depth, and the `launch_torpedo` and `set_dropper` services, which each pick one of two (`torpedo_id`, `dropper_id`: 0 or 1). It stops every thruster if `sub_control` goes quiet for `command_timeout` (0.5 s). `naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and publishes ENU `imu/data` with `frame_id` `marlin_v3/imu_link`.
+`sub_low` talks to the RPi Pico (the [maritime](https://github.com/avbotz/maritime) firmware) over `/dev/pico`: `control/thrusters` out, as one `m` line per cycle once the board's heartbeat says it speaks protocol 2 (eight `p` lines before then, so older firmware keeps working); `kill_switch` and `odometry/depth` in; and the `launch_torpedo` and `set_dropper` services, which each pick one of two (`torpedo_id`, `dropper_id`: 0 or 1). It stops every thruster if `sub_control` goes quiet for `command_timeout` (0.5 s), ignores a thruster command older than that, and reopens the port if the link drops (stopping the thrusters first). The board has its own 0.5 s command watchdog and a hardware watchdog, so the thrusters stop even if `sub_low` or the USB link dies ([control.md](control.md#safety)). `naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and publishes ENU `imu/data` with `frame_id` `marlin_v3/imu_link`, but only while its gyro and orientation are both fresh, so a sensor that stops makes `imu/data` stop instead of repeating; it too reopens the port if the link drops. Both publish `/diagnostics`.
 
 ### `sim_dvl_remapper` (`sub_sim_sensors`) — sim only
 
-Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Odometry` the EKF expects and the altitude, matching the hardware DVL topics. Readings without bottom lock are dropped.
+Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Odometry` the EKF expects and the altitude, matching the hardware DVL topics. Readings without bottom lock are dropped, as the driver drops invalid ones. Like the real A50, each reading arrives `latency` (0.15 s) after its stamp, and `dropout_probability` (0 by default) of them can be dropped; both are settable at runtime.
 
 | | Topic | Type |
 |---|---|---|
@@ -95,7 +93,7 @@ Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Od
 
 ### `sim_thrusters` (`sub_sim_sensors`) — sim only
 
-Stands in for the ESCs: passes `control/thruster_i` to Stonefish (`sim/thruster_setpoints`) through the ESC's response lag, injects faults (`effectiveness`), and publishes the thrust each thruster really produces on `thrusters/measured_thrust`. See [simulation.md](simulation.md#thrusters).
+Stands in for `sub_low`, the firmware and the ESCs: passes `control/thrusters` to Stonefish (`sim/thruster_setpoints`) through the ESC's response lag, stops every thruster when the commands stop or go stale for `command_timeout` (0.5 s), and injects faults (`effectiveness`). See [simulation.md](simulation.md#thrusters).
 
 ### `sim_imu_remapper` (`sub_sim_sensors`) — sim only
 
@@ -129,9 +127,15 @@ Fuses the IMU, the DVL and the pressure sensor into a filtered odometry estimate
 
 - `imu0`: `imu/data` — yaw, relative to where it started, and yaw rate
 - `imu1`: `imu/data` — roll and pitch, absolute, and their rates
-- `odom0`: `odometry/dvl` — linear velocity
-- `odom1`: `odometry/depth` — z, from the pressure sensor
-- Output: `odometry/filtered` (and the `odom` → `base_link` transform)
+- `odom0`: `odometry/dvl` — linear velocity, gated at 5 standard deviations
+- `odom1`: `odometry/depth` — z, from the pressure sensor, gated at 5 standard deviations
+- Output: `odometry/filtered` (and the `odom` → `base_link` transform), and `/diagnostics`
+
+`smooth_lagged_data` with a 1 s history fuses the DVL's late velocities at their stamps instead of as if they were current. The IMU is not gated: it is the only attitude source, and a filter that rejected it could not recover.
+
+### `diagnostic_aggregator` (`diagnostic_aggregator`)
+
+Groups every node's `/diagnostics` into `/diagnostics_agg` (Control, Estimation, Drivers, Vision; `config/diagnostics.yaml`), and marks an item that stops reporting as stale, so a dead driver shows up even though it can no longer say so. Foxglove's diagnostics panel and `ros2 run sub_bringup preflight` read it.
 
 ## TF Tree
 
@@ -164,13 +168,11 @@ Stonefish
   ├─ sim/dvl ──────► sim_dvl_remapper ──────► odometry/dvl ──────────────────────► EKF
   ├─ sim/imu ──────► sim_imu_remapper ──────► imu/data ──────────────────────────► EKF
   ├─ sim/pressure ─► sim_pressure_to_depth ─► odometry/depth ────────────────────► EKF
-  ├─ sim/thruster_setpoints ◄── sim_thrusters ◄── control/thruster_i ◄────────────── sub_control
-  └─ sim/thruster_states ──► sim_thrusters ──► thrusters/measured_thrust ──► thruster_monitor
-                                                       thruster_health ───────────────┤
+  └─ sim/thruster_setpoints ◄── sim_thrusters ◄── control/thrusters ◄────────────── sub_control
                                                       odometry/filtered (EKF) ────────┤
                                                       motion_setpoint (sub_mission) ──┘
 Operator (ros2 topic pub, Foxglove)
   └─ sim/kill_switch ─► sim_kill_switch ────► kill_switch ───────────────────────► sub_control
 ```
 
-On hardware the same graph applies, with `waterlinked_dvl_driver` publishing `odometry/dvl` and `naviguider_imu_driver` publishing `imu/data` in place of the sim remappers, `sub_low` publishing `odometry/depth` and `kill_switch` and driving the thrusters, and no `thruster_monitor`.
+On hardware the same graph applies, with `waterlinked_dvl_driver` publishing `odometry/dvl` and `altitude` and `naviguider_imu_driver` publishing `imu/data` in place of the sim remappers, and `sub_low` publishing `odometry/depth` and `kill_switch` and driving the thrusters. There is no `robot_state_publisher` (the simulator's URDF is its only user).

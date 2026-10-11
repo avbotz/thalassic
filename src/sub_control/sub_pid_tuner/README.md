@@ -61,7 +61,7 @@ All start from where `sub_control` is holding (each `POSITION` axis's target, el
 | Hold | `POSITION` at the start on every axis, for a disturbance test |
 | Square | `POSITION` through the corners of a square in odom x/y, forward then left |
 
-A routine starts only with live `odometry/filtered` and `control/status`, the vehicle unkilled and not in failsafe, and no other publisher on `motion_setpoint` or `cmd_vel` (a mission, teleop, `identify_model`) and no second controller or EKF. It aborts when any of that stops being true. **Stop**, **Hold here**, an abort, closing the browser tab that started it, or stopping the dashboard all leave every axis stopping smoothly and holding, level; a kill aborts without sending anything. Routines that move z keep the target at least 0.3 m deep. Manual `VELOCITY` and `EFFORT` commands need a timeout of at most 30 s.
+A routine starts only with live `odometry/filtered` and `control/status`, the vehicle unkilled, armed and not in failsafe, and no other publisher on `motion_setpoint` or `cmd_vel` (a mission, teleop, `identify_model`) and no second controller or EKF. It aborts when any of that stops being true. **Stop**, **Hold here**, an abort, closing the browser tab that started it, or stopping the dashboard all leave every axis stopping smoothly and holding, level; a kill aborts without sending anything. Routines that move z keep the target at least 0.3 m deep. Manual `VELOCITY` and `EFFORT` commands need a timeout of at most 30 s.
 
 ## Saving
 

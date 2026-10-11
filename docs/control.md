@@ -3,7 +3,7 @@
 `sub_control` runs at 50 Hz and turns per-axis motion commands into eight thruster commands. It follows the structure of NUS Bumblebee's controller (RoboSub 2025 champion; their design reports describe it as unchanged since 2022):
 
 ```
-MotionSetpoint ──► trajectory generator ──► control law ──────────────────► thrust allocation ──► control/thruster_0..7
+MotionSetpoint ──► trajectory generator ──► control law ──────────────────► thrust allocation ──► control/thrusters
 (per-axis mode)    jerk-limited reference    feedforward from the model       box-constrained QP,
                    (position, velocity,      + full-state feedback            failure- and
                    acceleration)             (control law partitioning)       saturation-aware
@@ -15,7 +15,7 @@ MotionSetpoint ──► trajectory generator ──► control law ────
 1. The **control law** is *control law partitioning*: a model of the vehicle (mass, drag, buoyancy) cancels its dynamics, so the feedback acts on what is left — the same unit-mass double integrator on every axis.
 1. The **thrust allocator** finds thruster forces within each thruster's limits, giving up the least important axes first when the request is out of reach, and reports what it actually achieved back to the control law.
 
-A supervisor runs alongside: it watches the state estimate and the sensors behind it, demotes axes that have lost feedback, and tracks thruster health.
+Arming and the watchdogs run in the same loop, before any of that: the thrusters run only once the vehicle is armed and while the state estimate and attitude are measured; axes that lose feedback are demoted, and thruster health is tracked. [Safety](#safety) has the whole chain, down to the firmware.
 
 The rest of this page goes stage by stage. [Configuration](#configuration) lists every parameter.
 
@@ -31,7 +31,11 @@ Commands arrive as `sub_control_interfaces/MotionSetpoint` on `motion_setpoint`,
 | `HOLD` | Come to a smooth stop and hold wherever that is |
 | `EFFORT` | Open loop: push with `effort[i]` along the body axis, no feedback (testing, identification) |
 
-So one message can say "surge at 0.3 m/s, hold 1 m depth and this heading", and a later one can change only the heading. x and y always share a mode. Their velocity is along the vehicle's heading (`velocity_frame: HEADING`, yaw only, so pitching does not turn "forward" into a dive) or along odom x/y (`WORLD`). `altitude: true` makes a z `POSITION` target an altitude above the bottom from the DVL; the message is rejected if that target is negative or there is no DVL altitude. `timeout` (seconds) turns `VELOCITY` and `EFFORT` axes into a `HOLD` unless they are set again in time, so a stream that stops cannot drive the vehicle away; 0 latches them.
+So one message can say "surge at 0.3 m/s, hold 1 m depth and this heading", and a later one can change only the heading. x and y always share a mode. Their velocity is along the vehicle's heading (`velocity_frame: HEADING`, yaw only, so pitching does not turn "forward" into a dive) or along odom x/y (`WORLD`). `altitude: true` makes a z `POSITION` target an altitude above the bottom from the DVL; the message is rejected if that target is negative or there is no DVL altitude.
+
+**Streams expire.** `timeout` (seconds, counted from `header.stamp`, or from arrival if that is earlier or the message is unstamped) turns `VELOCITY` and `EFFORT` axes into a `HOLD` unless they are set again in time, so a stream that stops cannot drive the vehicle away. 0 latches them until they are replaced, so whoever latches them must stop them: the mission sends a stop whenever its run ends, but if its process dies without one (a crash, `SIGKILL`) or hangs, a velocity it latched runs on until the kill switch. Tools and the command line should give a timeout.
+
+**Acknowledgment.** A command's `id` (any nonzero number; `sub_mission` gives each a fresh one) comes back in `control/error` and `control/status` as `command_id` once `sub_control` has taken the command up, with `command_rejected` if it rejected it (it logs why). An error carrying an older id was computed before the command applied, so a sender waiting for a move to finish only counts errors that carry its command's id. Commands while killed or not armed are rejected; those in the moment between arming and the EKF's pose reset are applied (and acknowledged) once it completes.
 
 **Frames.** Positions are in `odom` (REP-103 ENU, z up): x, y and yaw are zeroed where the kill switch was last released (or where [`reset_pose`](#re-zeroing-the-pose) was last called), and z is depth from the pressure sensor, so 1 m deep is z = −1. Rotations are ZYX Euler angles of the body in odom, and rotational velocities are those angles' rates.
 
@@ -122,17 +126,17 @@ The bounds come from `power_limit` through the T200 curve. A thruster's force is
 
 ### Thruster failure
 
-Each thruster has a health in [0, 1], the fraction of its thrust it delivers; a failed one has 0, is commanded off, and the allocator spreads its share over the rest. Health is the product of:
+Each thruster has a health in [0, 1], the fraction of its thrust it delivers; a failed one has 0, is commanded off, and the allocator spreads its share over the rest. Health is set by hand: `thruster_health` (parameter, 8 doubles) and `failed_thrusters` (parameter, indices, which count as 0):
 
-- `thruster_health` (parameter, 8 doubles) and `failed_thrusters` (parameter, indices), set by hand:
-  ```bash
-  ros2 param set /marlin_v3/sub_control failed_thrusters "[3]"
-  # All healthy again: an empty integer array (type 7), or [] in the dashboard.
-  # `ros2 param set ... "[]"` is rejected: ros2cli sends an empty list as a bool array.
-  ros2 service call /marlin_v3/sub_control/set_parameters rcl_interfaces/srv/SetParameters \
-    "{parameters: [{name: failed_thrusters, value: {type: 7}}]}"
-  ```
-- the `thruster_health` topic (`std_msgs/Float64MultiArray`), from `thruster_monitor`. It compares each thruster's command (through the T200 curve) with its measured thrust on `thrusters/measured_thrust` and declares a thruster failed when it delivers under `fail_below` (30%) of what it is commanded for `fail_after` (1 s), judged only underwater and while commanded hard enough to tell. A failure stays latched until `ros2 service call /marlin_v3/thruster_monitor/clear std_srvs/srv/Trigger`, since a failed thruster is commanded off and nothing would show it recovering. In simulation `sim_thrusters` measures the thrust; the vehicle has no source for it yet (the Basic ESCs report nothing), so on hardware failures are declared by hand until current sensing or telemetry ESCs exist.
+```bash
+ros2 param set /marlin_v3/sub_control failed_thrusters "[3]"
+# All healthy again: an empty integer array (type 7), or [] in the dashboard.
+# `ros2 param set ... "[]"` is rejected: ros2cli sends an empty list as a bool array.
+ros2 service call /marlin_v3/sub_control/set_parameters rcl_interfaces/srv/SetParameters \
+  "{parameters: [{name: failed_thrusters, value: {type: 7}}]}"
+```
+
+Nothing declares a failure automatically: that needs each thruster's actual thrust (per-thruster current sensing or ESC telemetry), and the Basic ESCs report nothing.
 
 The vehicle has four vertical thrusters (heave, roll, pitch) and four horizontal ones (surge, sway, yaw):
 
@@ -150,16 +154,20 @@ Even an *undeclared* failure is ridden through: the integrators take up the miss
 
 | Condition | Response |
 |---|---|
-| Killed | Thrusters off. After release, once odometry is fresh, the EKF pose is reset (x, y and yaw to zero; depth, roll and pitch kept, since the sensors would only pull them back); the thrusters stay off until the EKF confirms (or 1 s passes), then the controller starts holding where the vehicle is, level |
-| No odometry for `safety.state_timeout` | Thrusters off: the positively buoyant hull floats up |
+| Killed | Thrusters off, disarmed |
+| Released, not armed | Thrusters off until it arms: the kill switch must have been engaged since `sub_control` started (`safety.require_kill_cycle`), so a stack that starts or restarts with the switch released does not drive off; and the state estimate, the IMU and depth must be fresh. It logs what it is waiting for every 5 s and publishes `control/armed` once armed |
+| Armed | The EKF pose is reset (x, y and yaw to zero; depth, roll and pitch kept, since the sensors would only pull them back); the thrusters stay off until the EKF confirms (or 1 s passes), then the controller starts holding where the vehicle is, level |
+| No odometry for `safety.state_timeout`, or no IMU for `safety.attitude_timeout` | Thrusters off (`failsafe`): the positively buoyant hull floats up. Without the IMU the EKF's attitude is only a drifting prediction, which the controller would fight. Resumes when both return |
 | No DVL for `safety.dvl_timeout` | x/y feedback off (the EKF only predicts them): the reference follows the estimate; targets are kept and resumed when the DVL returns |
 | No depth for `safety.depth_timeout` | z feedback and the buoyancy hold off: the vehicle floats up. An `EFFORT` axis still gets exactly its effort |
 | No DVL altitude for `safety.altitude_timeout` while holding altitude | Holds depth instead |
 | `cmd_vel` stream stops for `safety.cmd_vel_timeout` | Those axes stop and hold |
-| `sub_control` stops publishing | `sub_low` stops all thrusters after its `command_timeout` (0.5 s) |
+| `sub_control` stops publishing, or its commands arrive late | `sub_low` (in the simulator `sim_thrusters`) stops all thrusters after its `command_timeout` (0.5 s), and ignores a command older than that |
+| `sub_low` or the USB link dies | The board's own watchdog stops every thruster after 0.5 s without a command; `sub_low` reopens the port when it can, stopping the thrusters first |
+| The board's main loop stalls | Its hardware watchdog resets it after 1 s, which stops the thruster PWM. After any board reset it stays killed until the kill switch is cycled |
 | Thruster fails | See [Thruster failure](#thruster-failure) |
 
-Commands that arrive while killed are ignored; those in the moment between release and the EKF reset are applied once it completes.
+Every age above is by the message's own stamp, not its arrival, so a stream that still arrives but late (a lagging EKF, a backed-up DDS queue) counts as stale, and so does a DVL whose clock chrony is not syncing: a stamp more than 0.25 s ahead of the clock is not believed. The board side is in [maritime's README](https://github.com/avbotz/maritime#commands).
 
 ## Configuration
 
@@ -171,7 +179,7 @@ Two profiles, loaded at startup (sim loads the sim one):
 | Parameter | Meaning |
 |---|---|
 | `control_rate_hz` | Control loop rate (50) |
-| `power_limit` | Normalized thrust cap in [0, 0.6] (`MAX_POWER_LIMIT`, 1260-1740 µs to the ESCs; `sub_low` enforces it too) |
+| `power_limit` | Normalized thrust cap in [0, 0.6] (`MAX_POWER_LIMIT`, 1260-1740 µs to the ESCs; `sub_low` and the firmware enforce it too) |
 | `model.*` | [Vehicle model](#vehicle-model) |
 | `feedforward.{acceleration,drag,restoring}` | Scale of each feedforward term, 0 to 1 |
 | `trajectory.{horizontal,vertical,roll,pitch,yaw}` | `[max velocity, max acceleration, max jerk]` |
@@ -184,7 +192,8 @@ Two profiles, loaded at startup (sim loads the sim one):
 | `allocation.max_command_rate` | Slew limit on each normalized command [1/s] |
 | `allocation.thruster_{positions,directions,reversed}` | Thruster layout, from the vehicle description (read-only) |
 | `thruster_health`, `failed_thrusters` | [Thruster failure](#thruster-failure) |
-| `safety.*` | Watchdog timeouts [s], see [Safety](#safety) |
+| `safety.require_kill_cycle` | Arm only after the kill switch has been engaged since startup (true) |
+| `safety.{state,imu,attitude,dvl,depth,altitude,cmd_vel,mission}_timeout` | Watchdog timeouts [s], see [Safety](#safety); `imu_timeout` is when rate feedback falls back to the EKF's, `attitude_timeout` when the IMU counts as lost |
 | `robot_name` | Namespace prefix for frame ids |
 
 Everything except the rate, the layout and `robot_name` can be changed at runtime with `ros2 param set`; changing gains or the model keeps the integrators and the disturbance estimate. Edit the YAML to make a change stick.
@@ -198,17 +207,20 @@ Everything except the rate, the layout and `robot_name` can be changed at runtim
 
 Gains tuned in simulation will not carry over unchanged; the structure and the procedure do.
 
-The `sub_pid_tuner` dashboard (`dashboard:=true` on either launch file) runs these steps from a browser: it edits the parameters live, graphs target, reference and measurement per axis, runs bounded step, cruise, hold and square routines, and saves the result into the gains file the controller was started with. [TUNING.md](../src/sub_pid_tuner/TUNING.md) walks through the procedure with it.
+The `sub_pid_tuner` dashboard (`dashboard:=true` on either launch file) runs these steps from a browser: it edits the parameters live, graphs target, reference and measurement per axis, runs bounded step, cruise, hold and square routines, and saves the result into the gains file the controller was started with. [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md) walks through the procedure with it.
 
 ## Diagnostics
 
 - `control/status` (`ControllerStatus`), every cycle: each axis's mode, target and trajectory reference; the commanded and achieved wrench; integrators and disturbance estimate; each thruster's force, command, saturation and health; which axes are controllable; and the watchdog states. Plot it in Foxglove when tuning.
-- `control/error` (`Error`), every cycle: target minus measured, per axis, the way the mission reads it (see the message for frames).
+- `control/error` (`Error`), every cycle: target minus measured, per axis, the way the mission reads it (see the message for frames), and the id of the last command taken up.
+- `control/thrusters` (`ThrusterCommand`), every cycle: the eight normalized commands, stamped.
+- `control/armed` (`Bool`, latched): whether the thrusters may run.
+- `/diagnostics`, once a second: arming (and what blocks it), sensor ages, and thruster health and saturation, under `sub_control: arming`, `: sensors` and `: thrusters`, aggregated with every other node's on `/diagnostics_agg`.
 
-Neither is published while the controller waits for the EKF to confirm the pose reset after a kill-switch release.
+`control/status` and `control/error` are not published while the controller waits for the EKF to confirm the pose reset after arming.
 
 ## Tests
 
-`colcon test --packages-select sub_control` runs unit tests of the allocator (including every single and double thruster failure), the thrust curve and attitude maths, the trajectory shaping, the trajectory generator's modes, and the closed loop against a simulated vehicle whose mass, drag, buoyancy and trim all differ from the controller's model: holding, a depth step, a long transit, a half turn, surging while holding depth, declared and undeclared thruster failures, losing both front verticals, saturation, a buoyancy step, retuning the observer and the mass live, and a pose reset against a current.
+`colcon test --packages-select sub_control` runs unit tests of the allocator (including every single and double thruster failure), the thrust curve and attitude maths, the trajectory shaping, the trajectory generator's modes (latched streams included), the arming checks and stamp ages, and the closed loop against a simulated vehicle whose mass, drag, buoyancy and trim all differ from the controller's model: holding, a depth step, a long transit, a half turn, surging while holding depth, declared and undeclared thruster failures, losing both front verticals, saturation, a buoyancy step, retuning the observer and the mass live, and a pose reset against a current.
 
-In Stonefish, with the identified `gains_sim.yaml`, sensor noise and a 3.6 cm/s current, the controller held position to 0.4 cm RMS and heading to 0.13°. A 0.6 m depth step overshot 0.6 cm and settled within 5 cm in 4.3 s; a 3 m surge step overshot 0.7 cm and settled in 12 s, 0.5 cm off the line, with depth within 0.9 cm. Turns through ±180° settled within 2° in 6.5 s with under 0.5° of roll or pitch. Commanded to surge at 0.25 m/s, it held 0.251 m/s with depth within 0.5 cm and heading within 0.4°. Killing a vertical thruster mid-hold cost 2.3 cm of depth before `thruster_monitor` declared it (a 2 m move and 1 rad turn afterwards ended within 0.6 cm and 0.2°); losing both front verticals gave up pitch to the hull (5° nose down) and held depth within 5 cm.
+In Stonefish, with the identified `gains_sim.yaml`, sensor noise and a 3.6 cm/s current, the controller held position to 0.4 cm RMS and heading to 0.13°. A 0.6 m depth step overshot 0.6 cm and settled within 5 cm in 4.3 s; a 3 m surge step overshot 0.7 cm and settled in 12 s, 0.5 cm off the line, with depth within 0.9 cm. Turns through ±180° settled within 2° in 6.5 s with under 0.5° of roll or pitch. Commanded to surge at 0.25 m/s, it held 0.251 m/s with depth within 0.5 cm and heading within 0.4°. Killing a vertical thruster mid-hold cost 2.3 cm of depth before it was declared failed (a 2 m move and 1 rad turn afterwards ended within 0.6 cm and 0.2°); losing both front verticals gave up pitch to the hull (5° nose down) and held depth within 5 cm.

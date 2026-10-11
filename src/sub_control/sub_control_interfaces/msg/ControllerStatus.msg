@@ -25,8 +25,14 @@ float64[8] thruster_health   # 1 healthy, 0 failed
 bool[6] axis_controllable    # false where the working thrusters cannot move this axis independently
 
 bool killed
-bool failsafe      # no state estimate: thrusters off, the vehicle floats up
+bool armed         # released after a kill and passed the pre-arm checks (control/armed)
+bool failsafe      # no state estimate or no IMU: thrusters off, the vehicle floats up
+bool imu_ok        # attitude is measured (IMU within safety.attitude_timeout)
 bool dvl_ok        # x/y feedback active
 bool depth_ok      # z feedback active
 bool altitude_ok   # DVL altitude available
-float64 state_age  # [s] since the last odometry
+float64 state_age  # [s] since the last odometry, by its stamp
+
+# As in control/error: the last MotionSetpoint taken up, and whether it was rejected.
+uint64 command_id
+bool command_rejected

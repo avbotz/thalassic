@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.81.0
+          # Exactly what pixi.lock says; fails if pixi.toml and the lock disagree.
+          frozen: true
+          cache: true
+
+      - name: Lint
+        run: pixi run lint
+
+      # The FLIR driver downloads the Spinnaker SDK while it builds.
+      - name: Build
+        run: pixi run build --event-handlers console_cohesion+
+
+      - name: Test
+        run: pixi run test
+
+      - name: Test results
+        if: always()
+        run: pixi run colcon test-result --verbose
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: colcon-logs
+          path: log/
+          retention-days: 14

@@ -14,7 +14,9 @@ using namespace std::chrono_literals;
 SimThrusters::SimThrusters(const rclcpp::NodeOptions& options) : Node("sim_thrusters", options) {
     this->declare_parameter("effectiveness", std::vector<double>(NUM_THRUSTERS, 1.0));
     this->declare_parameter("esc_time_constant", time_constant_);
-    for (const char* name : {"effectiveness", "esc_time_constant"}) {
+    // As sub_low's: a command older than this, or none for this long, stops every thruster [s].
+    this->declare_parameter("command_timeout", command_timeout_);
+    for (const char* name : {"effectiveness", "esc_time_constant", "command_timeout"}) {
         const rclcpp::Parameter param = this->get_parameter(name);
         if (const std::string reason = invalid(param); !reason.empty()) {
             throw std::invalid_argument(reason);
@@ -44,26 +46,11 @@ SimThrusters::SimThrusters(const rclcpp::NodeOptions& options) : Node("sim_thrus
         return result;
     });
 
-    for (int i = 0; i < NUM_THRUSTERS; ++i) {
-        command_subs_[i] = this->create_subscription<std_msgs::msg::Float64>(
-            std::format("control/thruster_{}", i), 10, [this, i](const std_msgs::msg::Float64::SharedPtr msg) {
-                // A NaN or inf stops the thruster, as sub_low does on the vehicle; a NaN would
-                // also stick in the lag's state for good.
-                double command = msg->data;
-                if (!std::isfinite(command)) {
-                    RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                                          "thruster %d commanded %f: stopping it", i, command);
-                    command = 0.0;
-                }
-                command_[i] = std::clamp(command, -MAX_COMMAND, MAX_COMMAND);
-            });
-    }
-    state_sub_ = this->create_subscription<stonefish_ros2::msg::ThrusterState>(
-        "sim/thruster_states", 10,
-        [this](const stonefish_ros2::msg::ThrusterState::SharedPtr msg) { state_callback(msg); });
+    command_sub_ = this->create_subscription<sub_control_interfaces::msg::ThrusterCommand>(
+        "control/thrusters", 10,
+        [this](const sub_control_interfaces::msg::ThrusterCommand::SharedPtr msg) { command_callback(*msg); });
 
     setpoint_pub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("sim/thruster_setpoints", 10);
-    thrust_pub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("thrusters/measured_thrust", 10);
     timer_ = this->create_timer(10ms, [this]() { publish_setpoints(); });
 }
 
@@ -79,6 +66,11 @@ std::string SimThrusters::invalid(const rclcpp::Parameter& param) {
             param.as_double() < 0.0) {
             return "esc_time_constant must be a finite, non-negative double";
         }
+    } else if (param.get_name() == "command_timeout") {
+        if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE || !std::isfinite(param.as_double()) ||
+            param.as_double() <= 0.0) {
+            return "command_timeout must be a finite, positive double";
+        }
     }
     return "";
 }
@@ -88,13 +80,46 @@ void SimThrusters::apply(const rclcpp::Parameter& param) {
         std::ranges::copy(param.as_double_array(), effectiveness_.begin());
     } else if (param.get_name() == "esc_time_constant") {
         time_constant_ = param.as_double();
+    } else if (param.get_name() == "command_timeout") {
+        command_timeout_ = param.as_double();
     }
+}
+
+void SimThrusters::command_callback(const sub_control_interfaces::msg::ThrusterCommand& msg) {
+    const rclcpp::Time now = this->now();
+    const rclcpp::Time stamp(msg.header.stamp, now.get_clock_type());
+    // Like sub_low: a command that took too long to get here is not acted on.
+    const double age = (now - stamp).seconds();
+    if (age > command_timeout_) {
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "ignoring a thruster command %.2f s old",
+                              age);
+        return;
+    }
+    for (int i = 0; i < NUM_THRUSTERS; ++i) {
+        // A NaN or inf stops the thruster, as sub_low does on the vehicle; a NaN would
+        // also stick in the lag's state for good.
+        double command = msg.command[i];
+        if (!std::isfinite(command)) {
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "thruster %d commanded %f: stopping it",
+                                  i, command);
+            command = 0.0;
+        }
+        command_[i] = std::clamp(command, -MAX_COMMAND, MAX_COMMAND);
+    }
+    command_stamp_ = stamp;
 }
 
 void SimThrusters::publish_setpoints() {
     const rclcpp::Time now = this->now();
     const double dt = last_publish_.nanoseconds() == 0 ? 0.0 : (now - last_publish_).seconds();
     last_publish_ = now;
+    // sub_control publishes every control cycle, killed or not; if it stops,
+    // so do the thrusters (sub_low's watchdog, and the firmware's, on the vehicle).
+    if (command_stamp_ && (now - *command_stamp_).seconds() > command_timeout_) {
+        RCLCPP_ERROR(this->get_logger(), "no thruster commands for %.1f s: stopping all thrusters", command_timeout_);
+        command_.fill(0.0);
+        command_stamp_.reset();
+    }
     const double blend = time_constant_ > 0.0 ? 1.0 - std::exp(-std::max(dt, 0.0) / time_constant_) : 1.0;
 
     std_msgs::msg::Float64MultiArray msg;
@@ -104,12 +129,6 @@ void SimThrusters::publish_setpoints() {
         msg.data[i] = effectiveness_[i] * output_[i];
     }
     setpoint_pub_->publish(msg);
-}
-
-void SimThrusters::state_callback(const stonefish_ros2::msg::ThrusterState::SharedPtr msg) {
-    std_msgs::msg::Float64MultiArray thrust;
-    thrust.data = msg->thrust;
-    thrust_pub_->publish(thrust);
 }
 
 RCLCPP_COMPONENTS_REGISTER_NODE(SimThrusters)

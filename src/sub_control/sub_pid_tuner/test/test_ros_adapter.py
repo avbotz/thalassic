@@ -84,13 +84,14 @@ def odometry(x=0.0, y=0.0, z=-1.5, yaw=0.0, body_vx=0.0, yaw_rate=0.0) -> Odomet
 
 
 def status(
-    killed=False, target=(0.0, 0.0, -1.5, 0.0, 0.0, 0.0), reference=None
+    killed=False, target=(0.0, 0.0, -1.5, 0.0, 0.0, 0.0), reference=None, armed=None
 ) -> ControllerStatus:
     msg = ControllerStatus()
     msg.mode = [POSITION] * 6
     msg.target = list(target)
     msg.reference_position = list(reference or target)
     msg.killed = killed
+    msg.armed = not killed if armed is None else armed
     msg.dvl_ok = msg.depth_ok = True
     msg.axis_controllable = [True] * 6
     return msg
@@ -186,6 +187,9 @@ def test_a_routine_needs_live_telemetry_and_an_unkilled_vehicle(adapter):
     adapter._odometry_callback(odometry())
     adapter._status_callback(status(killed=True))
     with pytest.raises(RuntimeError, match="Killed"):
+        adapter.start_routine("step", "z", 0.5, 4.0, 0.0, 1)
+    adapter._status_callback(status(armed=False))
+    with pytest.raises(RuntimeError, match="not armed"):
         adapter.start_routine("step", "z", 0.5, 4.0, 0.0, 1)
     assert adapter._publisher.messages == []
 

@@ -11,6 +11,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
     ],
     install_requires=["setuptools", "pyserial"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",

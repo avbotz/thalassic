@@ -19,6 +19,7 @@ setup(
         (f"share/{package_name}/rviz", glob("rviz/*.rviz")),
     ],
     install_requires=["setuptools"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
@@ -27,6 +28,7 @@ setup(
     entry_points={
         "console_scripts": [
             "static_transforms = sub_bringup.static_transforms:main",
+            "preflight = sub_bringup.preflight:main",
         ],
     },
 )

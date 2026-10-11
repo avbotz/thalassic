@@ -121,10 +121,13 @@ Mission does not write to the low-level board directly. Movement commands are pu
 
 | Topic | Type | Use |
 |---|---|---|
-| `motion_setpoint` | `sub_control_interfaces/MotionSetpoint` | Every movement command: a mode per axis (position, velocity, hold) and its target |
-| `control/error` | `sub_control_interfaces/Error` | Position, velocity, attitude, and angular-rate tracking error |
+| `motion_setpoint` | `sub_control_interfaces/MotionSetpoint` | Every movement command: a mode per axis (position, velocity, hold) and its target, with a fresh `id` each |
+| `control/error` | `sub_control_interfaces/Error` | Position, velocity, attitude, and angular-rate tracking error, and the id of the last command `sub_control` took up |
 | `odometry/filtered` | `nav_msgs/Odometry` | The measured pose, which vision alignment, and relative moves on an axis without a target, start from |
 | `kill_switch` | `std_msgs/Bool` | Low-level kill state, published by `sub_low` (`sim_kill_switch` in simulation) |
+| `control/armed` | `std_msgs/Bool` | Latched by `sub_control`: the run starts only once it is armed |
+
+The commands go out through `SetpointPublisher` (`commands.hpp`), which gives each its `id`. `MissionNode` counts a `control/error` as an update (`control_error_updates`) only when it carries the id of the last command sent and `sub_control` did not reject it: an error computed before `sub_control` took the command up is about the one before, and would read as arrival. A rejected command is logged and its move times out. A velocity the mission sends has no timeout: it lasts until replaced, and `MissionNode` sends a stop when the run ends ([control.md](control.md#command-interface)).
 
 ### Frames
 
@@ -147,7 +150,7 @@ Each command sets only the axes it names and leaves the others as they were (`co
 
 The mission remembers the position and attitude targets it sent (`MissionNode::commanded_pos`, `commanded_att`), so relative commands (`MoveRelative`, `AddAttSetpoint`, the sweeps) add to the target, not to wherever the vehicle has drifted. An axis set to a velocity holds no target until it is given one again, and a relative command on it starts from the measured pose. Vision alignment always starts from the measured pose. Targets are cleared when the kill switch is released, as `sub_control` then holds wherever the vehicle is. A `sub_control` `reset_pose` mid-mission (the dashboard's Zero pose) re-zeroes x, y and yaw, but the mission's remembered targets stay in the old frame.
 
-For altitude commands, `AltitudeSetpoint` publishes a z position with `altitude=true`; the z value is interpreted as height above the bottom from DVL altitude feedback, and `sub_control` falls back to holding depth if the DVL loses the bottom. Later commands that do not set z keep the altitude hold; a `MoveRelative` with a z offset moves the altitude target (positive z raises it). `sub_control` rejects a whole command whose altitude target is below 0, or that asks for an altitude hold without DVL bottom lock, and keeps the old target; `control/error` then goes on describing that one, which can read as arrival. So `AltitudeSetpoint` fails up front on a z at or below 0, and `MoveRelative`, `MoveRelativePos` and `NavigateToTransform` on an altitude target below 0. An altitude hold rejected for lack of bottom lock is not caught: the node can succeed on the old target's error, or time out.
+For altitude commands, `AltitudeSetpoint` publishes a z position with `altitude=true`; the z value is interpreted as height above the bottom from DVL altitude feedback, and `sub_control` falls back to holding depth if the DVL loses the bottom. Later commands that do not set z keep the altitude hold; a `MoveRelative` with a z offset moves the altitude target (positive z raises it). `sub_control` rejects a whole command whose altitude target is below 0, or that asks for an altitude hold without DVL bottom lock, and keeps the old target; `control/error` reports the rejection, so the move cannot succeed on the old target's error and times out instead. `AltitudeSetpoint` fails up front on a z at or below 0, and `MoveRelative`, `MoveRelativePos` and `NavigateToTransform` on an altitude target below 0, rather than wait out that timeout.
 
 ### Transform Navigation
 
@@ -165,7 +168,7 @@ The gate need not be square to the course: in the sim's area A/B1 it is turned 3
 
 ## Completion Semantics
 
-Position and attitude commands return `RUNNING` until fresh `control/error` feedback is within fixed C++ tolerances (`POSITION_TOLERANCE` 0.25 m, `ANGLE_TOLERANCE` 5°, in `commands.hpp`). The tolerance is intentionally not an XML port, because the old movement layer owned those constants and mission XML should stay focused on task logic.
+Position and attitude commands return `RUNNING` until fresh `control/error` feedback (carrying their command's id, see [Control Interface](#control-interface)) is within fixed C++ tolerances (`POSITION_TOLERANCE` 0.25 m, `ANGLE_TOLERANCE` 5°, in `commands.hpp`). The tolerance is intentionally not an XML port, because the old movement layer owned those constants and mission XML should stay focused on task logic.
 
 None of them waits forever. `PosSetpoint`, `MoveRelative`, `MoveRelativePos`, `NavigateToTransform`, `AltitudeSetpoint`, `AttSetpoint`, `AddAttSetpoint` and `Spin` return `FAILURE` once `timeout_msec` passes. Left at 0 (the default), the timeout scales with the move: 20 s to settle plus the move at about a third of `sub_control`'s speed limits (0.15 m/s horizontal, 0.1 m/s vertical, 0.2 rad/s), e.g. 47 s for a 4 m hop and 36 s for a half turn; `AltitudeSetpoint`, which does not know the altitude it starts from, allows 41 s, for a whole 2.1 m water column. A move that cannot finish, whether from a current or a dead thruster, then fails and the tree decides what to do instead of stalling the run. A timed-out `Spin` holds the heading it reached. Every timeout, and `TimedVelocity`'s duration, runs on the wall clock (steady), not ROS time.
 
@@ -184,6 +187,8 @@ The packaged trees contain no blackboxed actions. Mission sequencing and recover
 ## Abort Behavior
 
 Coin flip does not need a separate abort leaf. It looks for the gate ahead, then a quarter turn right, a half turn and a quarter turn left: heads only puts the AUV parallel to the gate (handbook 3.2.1), so the gate can be on either side. If all four attempts fail, `CoinFlipMission` returns `FAILURE` naturally. `CompetitionRun` intentionally does not wrap `CoinFlipMission` in `ForceSuccess`, so that failure stops the full run. Every later task is bounded by a time budget and recovered on failure (see `src/sub_mission/README.md`). Mission code does not send raw serial power commands.
+
+A run starts once the kill switch is released, `sub_control` is armed (`control/armed`: it holds off while the state estimate, the IMU or depth is missing, and logs which), and 7 s more have passed for the ESCs. Until then `mission` logs what it is waiting for.
 
 If the kill switch engages during a run, `mission` halts the tree and exits rather than failing through every remaining task. A kill and release, however brief, ends the run: `sub_control` drops all commands while killed and re-zeroes the pose at the release, so nothing the tree was doing still applies. Under `restart`, releasing the switch starts the mission again from the beginning.
 

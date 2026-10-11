@@ -1,10 +1,13 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <string>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sub_control_interfaces/msg/motion_setpoint.hpp"
@@ -23,7 +26,37 @@
 // leave them alone. MissionNode records what was sent (commandPosition etc.).
 
 using SetpointMsg = sub_control_interfaces::msg::MotionSetpoint;
-using SetpointPublisher = rclcpp::Publisher<SetpointMsg>;
+
+// The motion_setpoint publisher. It gives each command a fresh id, which
+// sub_control echoes in control/error once it has taken the command up, so
+// MissionNode counts an error update only once it is about the latest command
+// (control_error_updates), never about the one before.
+class SetpointPublisher {
+   public:
+    using SharedPtr = std::shared_ptr<SetpointPublisher>;
+
+    SetpointPublisher(rclcpp::Node &node, const std::string &topic)
+        : publisher_(node.create_publisher<SetpointMsg>(topic, 10)),
+          // Unique to this process, so that sub_control's echo of a previous
+          // mission run's command cannot pass for one of this run's.
+          next_id_(static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count()) | 1U) {}
+
+    void publish(SetpointMsg msg) {
+        msg.id = next_id_.fetch_add(1);
+        last_id_.store(msg.id);
+        publisher_->publish(msg);
+    }
+
+    // The id of the last command published; 0 if none.
+    std::uint64_t lastId() const { return last_id_.load(); }
+
+    bool wait_for_all_acked(std::chrono::nanoseconds timeout) const { return publisher_->wait_for_all_acked(timeout); }
+
+   private:
+    rclcpp::Publisher<SetpointMsg>::SharedPtr publisher_;
+    std::atomic<std::uint64_t> next_id_;
+    std::atomic<std::uint64_t> last_id_{0};
+};
 
 // How close control/error must come for a move to count as arrived.
 constexpr double POSITION_TOLERANCE = 0.25;    // m

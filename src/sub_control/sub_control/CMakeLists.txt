@@ -9,6 +9,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(diagnostic_updater REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -26,6 +27,7 @@ add_library(${PROJECT_NAME}_core STATIC
   src/allocator.cpp
   src/controller.cpp
   src/reference_generator.cpp
+  src/safety.cpp
   src/trajectory.cpp
   src/utils.cpp)
 target_include_directories(${PROJECT_NAME}_core PUBLIC include)
@@ -35,15 +37,10 @@ set_target_properties(${PROJECT_NAME}_core PROPERTIES POSITION_INDEPENDENT_CODE 
 add_executable(${PROJECT_NAME} src/sub_control.cpp)
 target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_core)
 ament_target_dependencies(${PROJECT_NAME} rclcpp sub_control_interfaces geometry_msgs nav_msgs sensor_msgs std_msgs
-  std_srvs robot_localization tf2 tf2_ros)
-
-add_executable(thruster_monitor src/thruster_monitor.cpp)
-target_link_libraries(thruster_monitor ${PROJECT_NAME}_core)
-ament_target_dependencies(thruster_monitor rclcpp nav_msgs std_msgs std_srvs)
+  std_srvs robot_localization tf2 tf2_ros diagnostic_updater)
 
 install(TARGETS
   ${PROJECT_NAME}
-  thruster_monitor
   DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/identify_model DESTINATION lib/${PROJECT_NAME})
 
@@ -53,6 +50,7 @@ if(BUILD_TESTING)
     test/test_allocator.cpp
     test/test_controller.cpp
     test/test_reference_generator.cpp
+    test/test_safety.cpp
     test/test_trajectory.cpp
     test/test_utils.cpp)
   target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_core)

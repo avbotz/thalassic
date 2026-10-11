@@ -1,5 +1,7 @@
 """
-Common launch arguments and nodes between the simulation and physical vehicle.
+Common launch arguments and nodes between the simulation and physical vehicle:
+transforms, EKF, sub_control, the mission, the tuning dashboard, the
+diagnostics aggregator and the Foxglove bridge.
 
 An include shares the parent's launch configurations, so the parent's
 robot_name, mission, role, restart, groot_port, gains, dashboard,
@@ -9,7 +11,7 @@ use_sim_time reach the nodes below.
 
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, OpaqueFunction
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import (
     AndSubstitution,
     LaunchConfiguration,
@@ -124,6 +126,32 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("dashboard")),
     )
 
+    # Groups every node's /diagnostics into /diagnostics_agg, and marks one that
+    # stops reporting as stale (config/diagnostics.yaml). Not namespaced: the
+    # diagnostics topics are global.
+    # On the vehicle (not on simulation time) it groups the hardware drivers too.
+    diagnostic_aggregators = [
+        Node(
+            package="diagnostic_aggregator",
+            executable="aggregator_node",
+            name="diagnostic_aggregator",
+            output="log",
+            parameters=[
+                package_config("sub_bringup", "diagnostics.yaml"),
+                *extra,
+                sim_time(),
+            ],
+            condition=condition,
+        )
+        for extra, condition in (
+            ([], IfCondition(LaunchConfiguration("use_sim_time"))),
+            (
+                [package_config("sub_bringup", "diagnostics_vehicle.yaml")],
+                UnlessCondition(LaunchConfiguration("use_sim_time")),
+            ),
+        )
+    ]
+
     foxglove_bridge = Node(
         package="foxglove_bridge",
         executable="foxglove_bridge",
@@ -149,6 +177,7 @@ def generate_launch_description():
             mission_node,
             mission_restart_node,
             dashboard,
+            *diagnostic_aggregators,
             foxglove_bridge,
         ]
     )

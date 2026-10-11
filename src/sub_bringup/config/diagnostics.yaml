@@ -1,0 +1,26 @@
+# diagnostic_aggregator's grouping of /diagnostics into /diagnostics_agg (and the
+# overall level on /diagnostics_toplevel_state), for Foxglove's diagnostics panel
+# and scripts/preflight.py. An item that stops reporting for `timeout` seconds
+# turns stale, so a dead driver shows up even though it can no longer say so.
+# Names are "<node name>: <task>" (diagnostic_updater) or the node name (sub_vision).
+# diagnostics_vehicle.yaml adds the hardware drivers on the vehicle (an empty
+# group would read as stale in the simulator).
+/**:
+  ros__parameters:
+    path: Vehicle
+    pub_rate: 1.0
+    control:
+      type: diagnostic_aggregator/GenericAnalyzer
+      path: Control
+      startswith: ["sub_control"]
+      timeout: 3.0
+    estimation:
+      type: diagnostic_aggregator/GenericAnalyzer
+      path: Estimation
+      startswith: ["ekf_filter_node"]
+      timeout: 3.0
+    vision:
+      type: diagnostic_aggregator/GenericAnalyzer
+      path: Vision
+      startswith: ["sub_vision"]
+      timeout: 5.0

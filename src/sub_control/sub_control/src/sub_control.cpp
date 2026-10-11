@@ -9,6 +9,7 @@
 #include <functional>
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 
 using sub_control_interfaces::msg::MotionSetpoint;
 
@@ -62,6 +63,17 @@ bool finite(const nav_msgs::msg::Odometry& msg) {
     return true;
 }
 
+std::string join(const std::vector<std::string>& items, std::string_view separator) {
+    std::string joined;
+    for (const std::string& item : items) {
+        if (!joined.empty()) {
+            joined += separator;
+        }
+        joined += item;
+    }
+    return joined;
+}
+
 }  // namespace
 
 SubControl::SubControl() : Node("sub_control") {
@@ -96,31 +108,33 @@ SubControl::SubControl() : Node("sub_control") {
     altitude_sub_ = this->create_subscription<sensor_msgs::msg::Range>(
         "altitude", rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::Range::SharedPtr msg) { altitude_callback(msg); });
-    // Only their arrival matters here: they say whether the EKF's x/y and z
-    // are being corrected or only predicted.
+    // Only their stamps matter here: they say whether the EKF's x/y and z are
+    // being corrected or only predicted. By stamp, not arrival, so that a
+    // delayed stream (the EKF drops what is older than its history) counts as
+    // missing, and a DVL whose clock is not synced to this one is noticed.
     dvl_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "odometry/dvl", rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::Odometry::SharedPtr) { dvl_time_ = this->now(); });
+        [this](const nav_msgs::msg::Odometry::SharedPtr msg) { dvl_time_ = stamp_of(msg->header); });
     depth_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "odometry/depth", rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::Odometry::SharedPtr) { depth_time_ = this->now(); });
+        [this](const nav_msgs::msg::Odometry::SharedPtr msg) { depth_time_ = stamp_of(msg->header); });
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         "kill_switch", rclcpp::QoS(1).transient_local(),
         [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
-    thruster_health_sub_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-        "thruster_health", 1,
-        [this](const std_msgs::msg::Float64MultiArray::SharedPtr msg) { thruster_health_callback(msg); });
 
     motion_setpoint_sub_ = this->create_subscription<MotionSetpoint>(
         "motion_setpoint", 10, [this](const MotionSetpoint::SharedPtr msg) { motion_setpoint_callback(msg); });
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
         "cmd_vel", 10, [this](const geometry_msgs::msg::Twist::SharedPtr msg) { cmd_vel_callback(msg); });
 
-    for (size_t i = 0; i < NUM_THRUSTERS; ++i) {
-        thruster_pubs_[i] = this->create_publisher<std_msgs::msg::Float64>(std::format("control/thruster_{}", i), 10);
-    }
+    thruster_pub_ = this->create_publisher<sub_control_interfaces::msg::ThrusterCommand>("control/thrusters", 10);
     error_pub_ = this->create_publisher<sub_control_interfaces::msg::Error>("control/error", 10);
     status_pub_ = this->create_publisher<sub_control_interfaces::msg::ControllerStatus>("control/status", 10);
+    // Latched, so the mission sees the current state whenever it starts.
+    armed_pub_ = this->create_publisher<std_msgs::msg::Bool>("control/armed", rclcpp::QoS(1).transient_local());
+    std_msgs::msg::Bool armed;
+    armed.data = false;
+    armed_pub_->publish(armed);
 
     set_pose_client_ = this->create_client<robot_localization::srv::SetPose>("set_pose");
     reset_pose_srv_ = this->create_service<std_srvs::srv::Trigger>(
@@ -132,6 +146,12 @@ SubControl::SubControl() : Node("sub_control") {
 
     param_cb_handle_ = this->add_on_set_parameters_callback(
         [this](const std::vector<rclcpp::Parameter>& params) { return on_parameters_set(params); });
+
+    diagnostics_ = std::make_unique<diagnostic_updater::Updater>(this);
+    diagnostics_->setHardwareID(robot_name_.empty() ? "sub_control" : robot_name_);
+    diagnostics_->add("arming", this, &SubControl::diagnose_arming);
+    diagnostics_->add("sensors", this, &SubControl::diagnose_sensors);
+    diagnostics_->add("thrusters", this, &SubControl::diagnose_thrusters);
 }
 
 void SubControl::declare_parameters() {
@@ -189,10 +209,12 @@ void SubControl::declare_parameters() {
 
     this->declare_parameter("safety.state_timeout", state_timeout_);
     this->declare_parameter("safety.imu_timeout", imu_timeout_);
+    this->declare_parameter("safety.attitude_timeout", attitude_timeout_);
     this->declare_parameter("safety.dvl_timeout", dvl_timeout_);
     this->declare_parameter("safety.depth_timeout", depth_timeout_);
     this->declare_parameter("safety.altitude_timeout", altitude_timeout_);
     this->declare_parameter("safety.cmd_vel_timeout", cmd_vel_timeout_);
+    this->declare_parameter("safety.require_kill_cycle", require_kill_cycle_);
 }
 
 rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std::vector<rclcpp::Parameter>& params) {
@@ -213,12 +235,20 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
     ThrusterArray health = health_parameter_;
     std::array<bool, NUM_THRUSTERS> failed = failed_parameter_;
     Vector6d weights = axis_weights_;
-    std::array<double*, 6> timeouts{&state_timeout_, &imu_timeout_,      &dvl_timeout_,
-                                    &depth_timeout_, &altitude_timeout_, &cmd_vel_timeout_};
-    std::array<double, 6> timeout_values{};
+    const std::array<std::pair<std::string_view, double*>, 7> timeouts{{
+        {"safety.state_timeout", &state_timeout_},
+        {"safety.imu_timeout", &imu_timeout_},
+        {"safety.attitude_timeout", &attitude_timeout_},
+        {"safety.dvl_timeout", &dvl_timeout_},
+        {"safety.depth_timeout", &depth_timeout_},
+        {"safety.altitude_timeout", &altitude_timeout_},
+        {"safety.cmd_vel_timeout", &cmd_vel_timeout_},
+    }};
+    std::array<double, 7> timeout_values{};
     for (size_t i = 0; i < timeouts.size(); ++i) {
-        timeout_values[i] = *timeouts[i];
+        timeout_values[i] = *timeouts[i].second;
     }
+    bool require_kill_cycle = require_kill_cycle_;
     bool geometry_changed = false;
 
     const auto positive = [](double v) { return v > 0.0; };
@@ -381,18 +411,21 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
                 return reject(name + " must be [max velocity, max acceleration, max jerk], positive");
             }
             *target = {(*v)[0], (*v)[1], (*v)[2]};
+        } else if (name == "safety.require_kill_cycle") {
+            if (type != rclcpp::ParameterType::PARAMETER_BOOL) {
+                return reject(name + " must be a bool");
+            }
+            require_kill_cycle = param.as_bool();
         } else if (name.starts_with("safety.")) {
-            static const std::array<const char*, 6> names{"safety.state_timeout",    "safety.imu_timeout",
-                                                          "safety.dvl_timeout",      "safety.depth_timeout",
-                                                          "safety.altitude_timeout", "safety.cmd_vel_timeout"};
-            const auto it = std::ranges::find(names, name);
-            if (it == names.end()) {
+            const auto timeout =
+                std::ranges::find_if(timeouts, [&name](const auto& entry) { return entry.first == name; });
+            if (timeout == timeouts.end()) {
                 continue;
             }
             if (!number || *number <= 0.0) {
                 return reject(name + " must be a positive double [s]");
             }
-            timeout_values[std::distance(names.begin(), it)] = *number;
+            timeout_values[std::distance(timeouts.begin(), timeout)] = *number;
         }
     }
     // The observer is integrated once per cycle, so its estimate error goes as
@@ -411,8 +444,9 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
     failed_parameter_ = failed;
     axis_weights_ = weights;
     for (size_t i = 0; i < timeouts.size(); ++i) {
-        *timeouts[i] = timeout_values[i];
+        *timeouts[i].second = timeout_values[i];
     }
+    require_kill_cycle_ = require_kill_cycle;
     controller_.set_model(model_);
     controller_.set_gains(gains_);
     if (geometry_changed) {
@@ -425,9 +459,7 @@ rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std
 void SubControl::update_health() {
     std::array<bool, NUM_THRUSTERS> usable{};
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        const double health = failed_parameter_[t] ? 0.0
-                                                   : std::clamp(health_parameter_[t], 0.0, 1.0) *
-                                                         std::clamp(health_reported_[t], 0.0, 1.0);
+        const double health = failed_parameter_[t] ? 0.0 : std::clamp(health_parameter_[t], 0.0, 1.0);
         if (health != thruster_settings_.health[t]) {
             if (health < 1.0) {
                 RCLCPP_WARN(this->get_logger(), "thruster %d at %.0f%% health; allocating around it", t,
@@ -470,25 +502,32 @@ void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     state_.position = {p.position.x, p.position.y, p.position.z};
     state_.orientation = orientation.normalized();
     state_.linear_velocity = {t.linear.x, t.linear.y, t.linear.z};
-    if (!imu_time_ || seconds_since(imu_time_, this->now()) > imu_timeout_) {
+    if (age(imu_rate_time_, this->now()) > imu_timeout_) {
         state_.angular_velocity = {t.angular.x, t.angular.y, t.angular.z};
     }
-    odom_time_ = this->now();
+    odom_time_ = stamp_of(msg->header);
 }
 
 void SubControl::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
     // The gyro is the freshest, least filtered rate on the vehicle, so the rate
     // feedback uses it directly rather than the EKF's copy of it.
     const auto& w = msg->angular_velocity;
-    if (!std::isfinite(w.x) || !std::isfinite(w.y) || !std::isfinite(w.z)) {
+    const auto& q = msg->orientation;
+    if (!std::isfinite(w.x) || !std::isfinite(w.y) || !std::isfinite(w.z) || !std::isfinite(q.x) ||
+        !std::isfinite(q.y) || !std::isfinite(q.z) || !std::isfinite(q.w) ||
+        q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w < 1e-6) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                             "ignoring IMU data with NaN/inf or no orientation in it");
         return;
     }
+    // Attitude is measured, whatever happens to the rates below.
+    imu_time_ = stamp_of(msg->header);
     if (!imu_to_base_) {
         const std::string base = robot_name_.empty() ? "base_link" : robot_name_ + "/base_link";
         try {
             const auto tf = tf_buffer_->lookupTransform(base, msg->header.frame_id, tf2::TimePointZero);
-            const auto& q = tf.transform.rotation;
-            imu_to_base_ = Eigen::Quaterniond(q.w, q.x, q.y, q.z).normalized();
+            const auto& r = tf.transform.rotation;
+            imu_to_base_ = Eigen::Quaterniond(r.w, r.x, r.y, r.z).normalized();
         } catch (const tf2::TransformException& e) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
                                  "no transform from %s to %s yet (%s); using the EKF's rates",
@@ -497,7 +536,7 @@ void SubControl::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
         }
     }
     state_.angular_velocity = *imu_to_base_ * Eigen::Vector3d(w.x, w.y, w.z);
-    imu_time_ = this->now();
+    imu_rate_time_ = imu_time_;
 }
 
 void SubControl::altitude_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
@@ -505,24 +544,14 @@ void SubControl::altitude_callback(const sensor_msgs::msg::Range::SharedPtr msg)
         return;
     }
     altitude_ = msg->range;
-    altitude_time_ = this->now();
-}
-
-void SubControl::thruster_health_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-    if (msg->data.size() != NUM_THRUSTERS) {
-        RCLCPP_WARN(this->get_logger(), "thruster_health needs %d values, got %zu", NUM_THRUSTERS, msg->data.size());
-        return;
-    }
-    // NaN is not a health reading, and std::clamp in update_health() passes it through.
-    if (!all_of(msg->data, [](double h) { return std::isfinite(h); })) {
-        RCLCPP_WARN(this->get_logger(), "ignoring thruster_health with NaN/inf in it");
-        return;
-    }
-    std::ranges::copy(msg->data, health_reported_.begin());
-    update_health();
+    altitude_time_ = stamp_of(msg->header);
 }
 
 void SubControl::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+    if (msg->data) {
+        kill_seen_ = true;
+        set_armed(false);
+    }
     if (killed_ && !msg->data) {
         // Released: the pose here becomes the odom origin, and the controller
         // starts holding it once the EKF has caught up. run() asks for the reset
@@ -536,8 +565,43 @@ void SubControl::kill_callback(const std_msgs::msg::Bool::SharedPtr msg) {
     killed_ = msg->data;
     if (killed_) {
         rebasing_ = false;
-        publish_zero_thrusters();
+        publish_zero_thrusters(this->now());
     }
+}
+
+void SubControl::set_armed(bool armed) {
+    if (armed == armed_) {
+        return;
+    }
+    armed_ = armed;
+    std_msgs::msg::Bool msg;
+    msg.data = armed;
+    armed_pub_->publish(msg);
+}
+
+ArmingInputs SubControl::arming_inputs(const rclcpp::Time& now) const {
+    return {kill_seen_, age(odom_time_, now), age(imu_time_, now), age(depth_time_, now)};
+}
+
+ArmingLimits SubControl::arming_limits() const {
+    return {require_kill_cycle_, state_timeout_, attitude_timeout_, depth_timeout_};
+}
+
+bool SubControl::try_arm(const rclcpp::Time& now) {
+    arming_blockers_ = arming_blockers(arming_inputs(now), arming_limits());
+    if (arming_blockers_.empty()) {
+        RCLCPP_INFO(this->get_logger(), "armed");
+        arming_logged_.reset();
+        set_armed(true);
+        return true;
+    }
+    // Not throttled by the clock: a sim clock that has not started yet stands still.
+    if (!arming_logged_ || seconds_since(arming_logged_, now) >= 5.0) {
+        RCLCPP_ERROR(this->get_logger(), "released, but not arming (the thrusters stay off) until:\n  %s",
+                     join(arming_blockers_, "\n  ").c_str());
+        arming_logged_ = now;
+    }
+    return false;
 }
 
 void SubControl::request_pose_reset(const rclcpp::Time& now) {
@@ -603,10 +667,7 @@ void SubControl::rebase(bool zeroed) {
         carry.position[axis] = target[axis];
     }
     generator_.reset(measured_pose());
-    const double altitude = seconds_since(altitude_time_, this->now()) <= altitude_timeout_
-                                ? altitude_
-                                : std::numeric_limits<double>::quiet_NaN();
-    const std::string rejected = generator_.apply(carry, measured_pose(), altitude);
+    const std::string rejected = generator_.apply(carry, measured_pose(), fresh_altitude(this->now()));
     if (!rejected.empty()) {
         RCLCPP_WARN(this->get_logger(), "after the pose reset, holding depth and level: %s", rejected.c_str());
     }
@@ -616,10 +677,7 @@ void SubControl::rebase(bool zeroed) {
     }
     rebasing_ = false;
     RCLCPP_INFO(this->get_logger(), "pose re-zeroed: holding here");
-    for (const MotionCommand& command : pending_commands_) {
-        apply_command(command, "queued");
-    }
-    pending_commands_.clear();
+    apply_pending_commands();
 }
 
 void SubControl::seed() {
@@ -627,10 +685,16 @@ void SubControl::seed() {
     controller_.reset();
     last_command_.fill(0.0);
     seeded_ = true;
-    for (const MotionCommand& command : pending_commands_) {
-        apply_command(command, "queued");
-    }
+    apply_pending_commands();
+}
+
+void SubControl::apply_pending_commands() {
+    // Moved out first: apply_command() queues again if the pose reset is not done.
+    const auto pending = std::move(pending_commands_);
     pending_commands_.clear();
+    for (const auto& [command, id] : pending) {
+        apply_command(command, "queued", id);
+    }
 }
 
 Vector6d SubControl::measured_pose() const {
@@ -645,30 +709,54 @@ double SubControl::seconds_since(const std::optional<rclcpp::Time>& stamp, const
     return stamp && *stamp <= now ? (now - *stamp).seconds() : std::numeric_limits<double>::infinity();
 }
 
-void SubControl::apply_command(const MotionCommand& command, const std::string& source) {
-    if (killed_) {
-        RCLCPP_DEBUG(this->get_logger(), "ignoring %s while killed", source.c_str());
+double SubControl::age(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now) {
+    return message_age(stamp ? std::optional<double>(stamp->seconds()) : std::nullopt, now.seconds());
+}
+
+rclcpp::Time SubControl::stamp_of(const std_msgs::msg::Header& header) const {
+    const rclcpp::Time stamp(header.stamp, this->get_clock()->get_clock_type());
+    return stamp.nanoseconds() == 0 ? this->now() : stamp;
+}
+
+double SubControl::fresh_altitude(const rclcpp::Time& now) const {
+    return age(altitude_time_, now) <= altitude_timeout_ ? altitude_ : std::numeric_limits<double>::quiet_NaN();
+}
+
+void SubControl::apply_command(const MotionCommand& command, const std::string& source,
+                               std::optional<std::uint64_t> id) {
+    if (killed_ || !armed_) {
+        RCLCPP_DEBUG(this->get_logger(), "ignoring %s while %s", source.c_str(), killed_ ? "killed" : "not armed");
+        acknowledge(id, killed_ ? "killed" : "not armed");
         return;
     }
     if (!seeded_ || rebasing_) {
-        pending_commands_.push_back(command);
+        pending_commands_.emplace_back(command, id);
         return;
     }
-    const double altitude = seconds_since(altitude_time_, this->now()) <= altitude_timeout_
-                                ? altitude_
-                                : std::numeric_limits<double>::quiet_NaN();
-    const std::string rejected = generator_.apply(command, measured_pose(), altitude);
+    const std::string rejected = generator_.apply(command, measured_pose(), fresh_altitude(this->now()));
     if (!rejected.empty()) {
         RCLCPP_WARN(this->get_logger(), "%s rejected: %s", source.c_str(), rejected.c_str());
+    }
+    acknowledge(id, rejected);
+}
+
+void SubControl::acknowledge(std::optional<std::uint64_t> id, const std::string& rejected) {
+    // Only MotionSetpoints are acknowledged: a cmd_vel stream would hide them.
+    if (id) {
+        command_id_ = *id;
+        command_rejected_ = rejected;
     }
 }
 
 void SubControl::motion_setpoint_callback(const MotionSetpoint::SharedPtr msg) {
+    const auto reject = [&](const std::string& reason) {
+        RCLCPP_WARN(this->get_logger(), "motion_setpoint rejected: %s", reason.c_str());
+        acknowledge(msg->id, reason);
+    };
     MotionCommand command;
     for (int axis = 0; axis < NUM_DOF; ++axis) {
         if (msg->mode[axis] > MotionSetpoint::EFFORT) {
-            RCLCPP_WARN(this->get_logger(), "motion_setpoint rejected: unknown mode %d on %s", msg->mode[axis],
-                        AXIS_NAMES[axis]);
+            reject(std::format("unknown mode {} on {}", msg->mode[axis], AXIS_NAMES[axis]));
             return;
         }
         command.mode[axis] = static_cast<AxisMode>(msg->mode[axis]);
@@ -677,20 +765,27 @@ void SubControl::motion_setpoint_callback(const MotionSetpoint::SharedPtr msg) {
         command.effort[axis] = msg->effort[axis];
     }
     if (msg->velocity_frame > MotionSetpoint::WORLD) {
-        RCLCPP_WARN(this->get_logger(), "motion_setpoint rejected: unknown velocity_frame %d", msg->velocity_frame);
+        reject(std::format("unknown velocity_frame {}", msg->velocity_frame));
         return;
     }
     // NaN or inf would latch a stream that was meant to stop.
     if (!std::isfinite(msg->timeout) || msg->timeout < 0.0) {
-        RCLCPP_WARN(this->get_logger(), "motion_setpoint rejected: timeout must be finite and non-negative, not %f",
-                    msg->timeout);
+        reject(std::format("timeout must be finite and non-negative, not {}", msg->timeout));
         return;
     }
     command.velocity_frame =
         msg->velocity_frame == MotionSetpoint::WORLD ? VelocityFrame::WORLD : VelocityFrame::HEADING;
     command.altitude = msg->altitude;
-    command.expires = msg->timeout > 0.0 ? this->now().seconds() + msg->timeout : 0.0;
-    apply_command(command, "motion_setpoint");
+    if (msg->timeout > 0.0) {
+        // From when it was sent, if that is known and earlier: a command that sat
+        // in a queue has less of its time left, not more.
+        const rclcpp::Time now = this->now();
+        const rclcpp::Time sent = stamp_of(msg->header);
+        const double start = std::min(now.seconds(), sent.seconds());
+        // Positive: 0 means latched.
+        command.expires = std::max(start + msg->timeout, std::numeric_limits<double>::min());
+    }
+    apply_command(command, "motion_setpoint", msg->id);
 }
 
 void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
@@ -702,12 +797,15 @@ void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg
     apply_command(command, "cmd_vel");
 }
 
-void SubControl::publish_zero_thrusters() {
-    std_msgs::msg::Float64 msg;
-    msg.data = 0.0;
-    for (auto& pub : thruster_pubs_) {
-        pub->publish(msg);
-    }
+void SubControl::publish_thrusters(const rclcpp::Time& now, const ThrusterArray& command) {
+    sub_control_interfaces::msg::ThrusterCommand msg;
+    msg.header.stamp = now;
+    std::ranges::copy(command, msg.command.begin());
+    thruster_pub_->publish(msg);
+}
+
+void SubControl::publish_zero_thrusters(const rclcpp::Time& now) {
+    publish_thrusters(now, ThrusterArray{});
     last_command_.fill(0.0);
     last_output_ = ThrusterOutput{};
     last_wrench_.setZero();
@@ -719,26 +817,37 @@ void SubControl::run() {
         last_update_time_ ? std::clamp((now - *last_update_time_).seconds(), 1e-4, 0.1) : 1.0 / control_rate_hz_;
     last_update_time_ = now;
 
-    if (killed_) {
-        publish_zero_thrusters();
+    imu_ok_ = age(imu_time_, now) <= attitude_timeout_;
+
+    if (killed_ || (!armed_ && !try_arm(now))) {
+        publish_zero_thrusters(now);
         publish_diagnostics(now, last_output_, Vector6d::Zero());
         return;
     }
 
-    // No state estimate: nothing sensible to do but let the positively
-    // buoyant hull float up.
-    if (seconds_since(odom_time_, now) > state_timeout_) {
-        if (!failsafe_) {
-            RCLCPP_ERROR(this->get_logger(), "no odometry for %.2f s: thrusters off", state_timeout_);
+    // No state estimate, or no attitude measurement behind it (the EKF only
+    // predicts it, and acting on a drifting attitude can roll the vehicle):
+    // nothing sensible to do but let the positively buoyant hull float up.
+    std::string failsafe;
+    if (age(odom_time_, now) > state_timeout_) {
+        failsafe = std::format("no odometry for {:.2f} s", state_timeout_);
+    } else if (!imu_ok_) {
+        failsafe = std::format("no IMU for {:.2f} s", attitude_timeout_);
+    }
+    if (!failsafe.empty()) {
+        if (!failsafe_ || failsafe != failsafe_reason_) {
+            RCLCPP_ERROR(this->get_logger(), "%s: thrusters off", failsafe.c_str());
         }
         failsafe_ = true;
-        publish_zero_thrusters();
+        failsafe_reason_ = failsafe;
+        publish_zero_thrusters(now);
         publish_diagnostics(now, last_output_, Vector6d::Zero());
         return;
     }
     if (failsafe_) {
-        RCLCPP_WARN(this->get_logger(), "odometry is back; resuming");
+        RCLCPP_WARN(this->get_logger(), "state estimate and IMU are back; resuming");
         failsafe_ = false;
+        failsafe_reason_.clear();
     }
 
     if (rebasing_) {
@@ -746,11 +855,7 @@ void SubControl::run() {
         if (!confirmed && seconds_since(reset_requested_, now) <= POSE_RESET_TIMEOUT) {
             // The references are in the old frame until the EKF re-zeros, so keep
             // the thrust as it was rather than chase them or drop the hold.
-            for (size_t i = 0; i < NUM_THRUSTERS; ++i) {
-                std_msgs::msg::Float64 msg;
-                msg.data = last_command_[i];
-                thruster_pubs_[i]->publish(msg);
-            }
+            publish_thrusters(now, last_command_);
             publish_diagnostics(now, last_output_, last_wrench_);
             return;
         }
@@ -767,7 +872,7 @@ void SubControl::run() {
         const bool confirmed = reset_done_ && odom_time_ && *odom_time_ > *reset_done_;
         const bool gave_up = seconds_since(reset_requested_, now) > POSE_RESET_TIMEOUT;
         if (!confirmed && !gave_up) {
-            publish_zero_thrusters();
+            publish_zero_thrusters(now);
             return;
         }
         if (!confirmed) {
@@ -779,8 +884,8 @@ void SubControl::run() {
     // Which axes still have feedback. The EKF keeps predicting through a
     // sensor gap, so its estimate stays fresh while drifting: without DVL
     // updates x/y velocity is only a guess, and without depth so is z.
-    const bool dvl_ok = seconds_since(dvl_time_, now) <= dvl_timeout_;
-    const bool depth_ok = seconds_since(depth_time_, now) <= depth_timeout_;
+    const bool dvl_ok = age(dvl_time_, now) <= dvl_timeout_;
+    const bool depth_ok = age(depth_time_, now) <= depth_timeout_;
     if (dvl_ok != dvl_ok_) {
         if (dvl_ok) {
             RCLCPP_INFO(this->get_logger(), "DVL back: x/y feedback on");
@@ -797,7 +902,7 @@ void SubControl::run() {
     }
     dvl_ok_ = dvl_ok;
     depth_ok_ = depth_ok;
-    const bool altitude_ok = seconds_since(altitude_time_, now) <= altitude_timeout_;
+    const bool altitude_ok = age(altitude_time_, now) <= altitude_timeout_;
     if (generator_.altitude() && !altitude_ok) {
         RCLCPP_WARN(this->get_logger(), "lost DVL altitude: holding depth instead");
         generator_.drop_altitude(state_.position.z());
@@ -836,18 +941,14 @@ void SubControl::run() {
         RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                               "non-finite wrench: thrusters off, integrators reset");
         controller_.reset();
-        publish_zero_thrusters();
+        publish_zero_thrusters(now);
         publish_diagnostics(now, last_output_, Vector6d::Zero());
         return;
     }
 
     const ThrusterOutput output = drive_thrusters(allocator_, wrench, thruster_settings_, last_command_, dt);
     controller_.achieved(output.achieved, dt);
-    for (size_t i = 0; i < NUM_THRUSTERS; ++i) {
-        std_msgs::msg::Float64 msg;
-        msg.data = output.command[i];
-        thruster_pubs_[i]->publish(msg);
-    }
+    publish_thrusters(now, output.command);
     last_command_ = output.command;
     last_output_ = output;
     last_wrench_ = wrench;
@@ -868,6 +969,8 @@ void SubControl::publish_diagnostics(const rclcpp::Time& now, const ThrusterOutp
     // The mission's view: how far from the commanded target, per axis.
     sub_control_interfaces::msg::Error error;
     error.header.stamp = now;
+    error.command_id = command_id_;
+    error.command_rejected = !command_rejected_.empty();
     Eigen::Vector3d velocity_world = generator_.velocity().head<3>();
     Eigen::Vector3d rpy_target = pose.tail<3>();
     Eigen::Vector3d rpy_rates = generator_.velocity().tail<3>();
@@ -929,12 +1032,98 @@ void SubControl::publish_diagnostics(const rclcpp::Time& now, const ThrusterOutp
     }
     status.altitude = generator_.altitude();
     status.killed = killed_;
+    status.armed = armed_;
     status.failsafe = failsafe_;
+    status.imu_ok = imu_ok_;
     status.dvl_ok = dvl_ok_;
     status.depth_ok = depth_ok_;
-    status.altitude_ok = seconds_since(altitude_time_, now) <= altitude_timeout_;
-    status.state_age = std::min(seconds_since(odom_time_, now), 1e9);
+    status.altitude_ok = age(altitude_time_, now) <= altitude_timeout_;
+    status.state_age = std::min(age(odom_time_, now), 1e9);
+    status.command_id = command_id_;
+    status.command_rejected = !command_rejected_.empty();
     status_pub_->publish(status);
+}
+
+void SubControl::diagnose_arming(diagnostic_updater::DiagnosticStatusWrapper& status) {
+    using diagnostic_msgs::msg::DiagnosticStatus;
+    if (killed_) {
+        status.summary(DiagnosticStatus::OK, "killed");
+    } else if (!armed_) {
+        status.summary(DiagnosticStatus::ERROR, "released but not armed: " + join(arming_blockers_, "; "));
+    } else if (failsafe_) {
+        status.summary(DiagnosticStatus::ERROR, "failsafe, thrusters off: " + failsafe_reason_);
+    } else if (!seeded_ || rebasing_) {
+        status.summary(DiagnosticStatus::OK, "armed, waiting for the EKF's pose reset");
+    } else {
+        status.summary(DiagnosticStatus::OK, "armed");
+    }
+    status.add("killed", killed_);
+    status.add("kill switch engaged since startup", kill_seen_);
+    status.add("armed", armed_);
+    status.add("last command id", command_id_);
+    status.add("last command rejected", command_rejected_.empty() ? "no" : command_rejected_);
+}
+
+void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& status) {
+    using diagnostic_msgs::msg::DiagnosticStatus;
+    const rclcpp::Time now = this->now();
+    const auto add_age = [&](const char* name, const std::optional<rclcpp::Time>& stamp) {
+        const double a = age(stamp, now);
+        status.add(std::string(name) + " age [s]", std::isfinite(a) ? std::format("{:.2f}", a) : "none");
+    };
+    add_age("odometry/filtered", odom_time_);
+    add_age("imu/data", imu_time_);
+    add_age("odometry/depth", depth_time_);
+    add_age("odometry/dvl", dvl_time_);
+    add_age("altitude", altitude_time_);
+    const bool state_ok = age(odom_time_, now) <= state_timeout_;
+    const bool depth_ok = age(depth_time_, now) <= depth_timeout_;
+    const bool dvl_ok = age(dvl_time_, now) <= dvl_timeout_;
+    std::vector<std::string> missing;
+    for (const auto& [ok, name] : {std::pair{state_ok, "state estimate"}, {imu_ok_, "IMU"}, {depth_ok, "depth"}}) {
+        if (!ok) {
+            missing.emplace_back(name);
+        }
+    }
+    if (!missing.empty()) {
+        status.summary(DiagnosticStatus::ERROR, "stale or missing: " + join(missing, ", "));
+    } else if (!dvl_ok) {
+        status.summary(DiagnosticStatus::WARN, "no DVL velocity (bottom lock?): x/y feedback off");
+    } else {
+        status.summary(DiagnosticStatus::OK, "all fresh");
+    }
+}
+
+void SubControl::diagnose_thrusters(diagnostic_updater::DiagnosticStatusWrapper& status) {
+    using diagnostic_msgs::msg::DiagnosticStatus;
+    std::vector<std::string> failed;
+    std::vector<std::string> saturated;
+    for (int t = 0; t < NUM_THRUSTERS; ++t) {
+        status.add(std::format("thruster {} command", t), std::format("{:.3f}", last_output_.command[t]));
+        status.add(std::format("thruster {} health", t), std::format("{:.2f}", thruster_settings_.health[t]));
+        if (thruster_settings_.health[t] <= 0.0) {
+            failed.push_back(std::to_string(t));
+        }
+        if (last_output_.saturated[t]) {
+            saturated.push_back(std::to_string(t));
+        }
+    }
+    std::vector<std::string> lost;
+    for (int axis = 0; axis < NUM_DOF; ++axis) {
+        if (!controllable_[axis]) {
+            lost.emplace_back(AXIS_NAMES[axis]);
+        }
+    }
+    if (!lost.empty()) {
+        status.summary(DiagnosticStatus::ERROR,
+                       "cannot control " + join(lost, ", ") + " (failed: " + join(failed, ", ") + ")");
+    } else if (!failed.empty()) {
+        status.summary(DiagnosticStatus::WARN, "failed: " + join(failed, ", ") + "; allocating around them");
+    } else if (!saturated.empty()) {
+        status.summary(DiagnosticStatus::WARN, "saturated: " + join(saturated, ", "));
+    } else {
+        status.summary(DiagnosticStatus::OK, "ok");
+    }
 }
 
 int main(int argc, char* argv[]) {

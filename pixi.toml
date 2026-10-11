@@ -39,7 +39,8 @@ ros-jazzy-behaviortree-cpp = ">=4.9.1,<5"             # sub_mission
 ros-jazzy-marine-acoustic-msgs = ">=2.1.0,<3"         # DVL messages
 ros-jazzy-cv-bridge = ">=4.1.0,<5"
 ros-jazzy-vision-msgs = ">=4.1.1,<5"
-ros-jazzy-diagnostic-updater = ">=4.2.7,<5"           # spinnaker_camera_driver
+ros-jazzy-diagnostic-updater = ">=4.2.7,<5"           # drivers' and sub_control's /diagnostics
+ros-jazzy-diagnostic-aggregator = ">=4.2.7,<5"        # /diagnostics_agg (config/diagnostics.yaml)
 ros-jazzy-angles = ">=1.16.1,<2"                       # sub_control
 ros-jazzy-rclcpp-components = ">=28.1.21,<29"            # sub_sim_sensors
 ros-jazzy-image-transport = ">=5.1.8,<6"
@@ -74,6 +75,10 @@ onnxruntime = ">=1.30.0,<2"                            # sub_vision inference of
 ultralytics = ">=8.4.146,<9"                            # model export / run_gate_model
 aiohttp = ">=3.14.3,<4"                                # sub_pid_tuner dashboard server
 
+# Below 9: Jazzy's launch_testing pytest plugins fail to load under pytest 9
+# (fixed in Rolling by ros2/launch#972, not backported).
+pytest = ">=8.4,<9"
+
 # lint and format
 ruff = ">=0.16.7,<0.17"          # Python: formatter and linter
 clang-format = ">=23.1.1,<24"    # C/C++: formatter, reads .clang-format
@@ -90,9 +95,10 @@ clean = { cmd = "rm -rf build install log", description = "Remove colcon build, 
 prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
 fetch-weights = { cmd = "python scripts/fetch_weights.py", description = "Download the models in weights/manifest.toml into weights/, checking each sha256 (--check only reports)" }
 build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/ that has none (Jetson only)" }
-test = { cmd = "colcon test && colcon test-result --verbose", description = "Run colcon tests" }
+test = { cmd = "colcon test --return-code-on-test-failure && colcon test-result --verbose", description = "Run every package's tests; non-zero if any fails (colcon test-result --verbose shows which)" }
 format = { cmd = "scripts/format.sh", description = "Format all tracked Python and C/C++ (excludes submodules)" }
 lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }
 sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation" }
 pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
+preflight = { cmd = "ros2 run sub_bringup preflight", description = "Check a running stack before it goes in the water (--sim for the simulator)" }
 reset-dds = { cmd = "pkill -f ros2 || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Kill stray ROS processes and stale Fast DDS shared memory (Linux)" }

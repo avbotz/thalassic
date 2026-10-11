@@ -65,6 +65,8 @@ class MissionNode : public rclcpp::Node {
     std::string visionModelTask(const std::string &task) const;
     bool visionTaskMatches(const std::string &reported_task, const std::string &logical_task) const;
     bool subAlive() const { return !killed; }
+    // sub_control is armed (control/armed): released after a kill, with its sensors fresh.
+    bool controlArmed() const { return armed; }
 
     // Detections + load_model access for the vision BT nodes (src/nodes/vision.cpp).
     VisionClient &vision() { return *vision_client; }
@@ -98,6 +100,7 @@ class MissionNode : public rclcpp::Node {
     // tree holds it for each tick). `killed` is atomic for activate(), which
     // polls it outside a tick.
     std::atomic<bool> killed{true};
+    std::atomic<bool> armed{false};
     std::array<double, 12> control_errors = {};
     std::array<std::uint64_t, 12> control_error_updates = {};
     // The vehicle's pose from odometry/filtered, in odom (ENU, z up; see
@@ -137,8 +140,11 @@ class MissionNode : public rclcpp::Node {
 
     // One topic for every motion command, so they arrive in order.
     SetpointPublisher::SharedPtr setpoint_publisher;
+    // The id of the last command control/error said sub_control rejected, so it is reported once.
+    std::uint64_t reported_rejection = 0;
 
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_sub;
     rclcpp::Subscription<sub_control_interfaces::msg::Error>::SharedPtr control_error_sub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_sub;
     std::unique_ptr<VisionClient> vision_client;

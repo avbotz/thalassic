@@ -1,11 +1,21 @@
 /**:
   ros__parameters:
-    debug: false
+    # /diagnostics: sensor timeouts and bad configuration, aggregated with the rest.
+    print_diagnostics: true
 
     # The rate sub_control runs at, so every control cycle sees a fresh estimate.
     frequency: 50.0
     # Waterlinked a50 DVL can output measurements at 4 Hz - 15 Hz
     sensor_timeout: 0.65
+
+    # The DVL stamps each velocity with when it was valid, 0.1-0.2 s before it
+    # arrives (Water Linked's example report: 189 ms). Without this the filter
+    # fuses those late velocities as if they were current; with it, it rewinds to
+    # their stamp and replays what came after. The history must outlast the
+    # latest measurement: anything older is dropped (and sub_control, which
+    # judges the DVL by the same stamps, turns x/y feedback off).
+    smooth_lagged_data: true
+    history_length: 1.0
 
     # map_frame is global; odom_frame, base_link_frame and world_frame are
     # namespaced per vehicle and are set from robot_name by the launch file.
@@ -13,6 +23,8 @@
 
     # Use relative measurements for yaw
     # AUV should always start at yaw = 0 when unkilled
+    # Not gated: the IMU is the only attitude source, and a filter that rejected
+    # it could never recover.
     imu0: imu/data
     imu0_config: [
             false, false, false,
@@ -21,6 +33,7 @@
             false, false, true,
             false, false, false]
     imu0_relative: true
+    imu0_queue_size: 10
 
     # Use absolute measurements for roll and pitch
     imu1: imu/data
@@ -30,17 +43,28 @@
             false, false, false,
             true, true, false,
             false, false, false]
+    imu1_queue_size: 10
 
+    # DVL velocity. Outliers (a false bottom lock off a wall or the floor, a fish)
+    # further than this many standard deviations from the prediction are rejected
+    # (Mahalanobis distance). The prediction's own uncertainty grows while
+    # measurements are rejected, so a real change is accepted again within a
+    # fraction of a second.
     odom0: odometry/dvl
     odom0_config: [false, false, false,
             false, false, false,
             true, true, true,
             false, false, false,
             false, false, false]
+    odom0_queue_size: 10
+    odom0_twist_rejection_threshold: 5.0
 
+    # Depth, gated the same way against pressure spikes.
     odom1: odometry/depth
     odom1_config: [false, false, true,
             false, false, false,
             false, false, false,
             false, false, false,
             false, false, false]
+    odom1_queue_size: 10
+    odom1_pose_rejection_threshold: 5.0

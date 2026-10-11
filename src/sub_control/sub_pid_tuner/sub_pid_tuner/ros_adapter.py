@@ -302,7 +302,9 @@ class RosAdapter(Node):
             ],
             "altitude": bool(status.altitude),
             "killed": bool(status.killed),
+            "armed": bool(status.armed),
             "failsafe": bool(status.failsafe),
+            "imu_ok": bool(status.imu_ok),
             "dvl_ok": bool(status.dvl_ok),
             "depth_ok": bool(status.depth_ok),
             "altitude_ok": bool(status.altitude_ok),
@@ -340,8 +342,10 @@ class RosAdapter(Node):
             return "No live odometry/filtered and control/status"
         if self._status.killed:
             return "Killed"
+        if not self._status.armed:
+            return "sub_control is not armed (its log says what it is waiting for)"
         if self._status.failsafe:
-            return "sub_control is in failsafe (no state estimate)"
+            return "sub_control is in failsafe (no state estimate or no IMU)"
         return None
 
     # Parameters

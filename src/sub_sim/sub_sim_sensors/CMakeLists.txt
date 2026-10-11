@@ -17,6 +17,7 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
+find_package(sub_control_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 
@@ -39,6 +40,7 @@ ament_target_dependencies(${PROJECT_NAME}_components
   std_srvs
   sensor_msgs
   geometry_msgs
+  sub_control_interfaces
   sub_driver_interfaces
   nav_msgs
   tf2

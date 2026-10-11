@@ -1,6 +1,6 @@
 # Deployment (Jetson AGX Orin)
 
-The vehicle runs the same `pixi` environment as developers, on bare metal. Nothing starts automatically; the stack is launched by hand.
+The vehicle runs the same `pixi` environment as developers, on bare metal. The stack is launched by hand, or at boot by the `thalassic` service once it is enabled (see [Starting at boot](#starting-at-boot)).
 
 ## One-time provisioning
 
@@ -56,6 +56,31 @@ pixi run pool mission:=pool_a                   # with a mission
 pixi shell                                      # ros2 topic echo ... etc.
 ```
 
+Nothing drives until the kill switch has been engaged and released *after* the stack started: if it starts with the switch released, pull the switch and release it again. `sub_control` logs what it is waiting for, and `control/armed` says when it is armed ([control.md](control.md#safety)).
+
+### Pool-day checklist
+
+1. On the bench, with the stack running and the vehicle killed: `pixi run preflight`. It listens for 5 s and fails on any sensor or controller topic below its rate, a missing kill switch state, an uncalibrated camera, anything in error or stale on `/diagnostics_agg`, or a missing model or TensorRT engine. Fix what it reports.
+1. Tag what is running: `git tag pool-$(date +%F) && git push origin pool-$(date +%F)` (bags record `git describe`, so each bag then names its tag).
+1. In the water, killed: check `control/status` in Foxglove: `dvl_ok` once the DVL has bottom lock, `depth_ok`, `imu_ok`.
+1. Release the kill switch, watch `armed` come up, and run.
+
+### Starting at boot
+
+`deploy/jetson/setup.sh` installs a `thalassic` systemd service that runs `pixi run --frozen pool` as `avbotz`, with launch arguments from `/etc/thalassic/pool.env` (e.g. `POOL_ARGS=mission:=competition record:=true`), and restarts it if it crashes. It is not enabled by default:
+
+```bash
+sudo systemctl enable --now thalassic    # start now and at every boot
+journalctl -u thalassic -f               # its output
+sudo systemctl disable --now thalassic   # back to launching by hand
+```
+
+With it, a brownout in the water leaves the stack coming back up on its own, waiting for the kill switch to be cycled, instead of a vehicle without software until someone connects. Do not also run `pixi run pool` by hand while it is enabled: two stacks on one vehicle fight over the serial ports.
+
+### The Pico firmware
+
+The thruster board runs [maritime](https://github.com/avbotz/maritime) (Zephyr, on a Raspberry Pi Pico). `sub_low` speaks both its protocols, but only firmware with protocol 2 has the command watchdog, the hardware watchdog and the heartbeat: `/diagnostics_agg` warns "no heartbeat from the board" until the board is flashed with it. Build and flash it as maritime's README says (`west build -b rpi_pico`, then `west flash -r uf2`, or copy `build/zephyr/zephyr.uf2` to the board in BOOTSEL mode).
+
 On the vehicle a mission runs under `sub_mission`'s restart supervisor ([mission.md](mission.md#restart-supervisor)): pulling the kill switch stops it, and releasing it starts it again from the beginning, so a botched run is rerun by carrying the vehicle back to the start. `restart:=false` runs it once, as the simulator does.
 
 `pixi run pool record:=true` records the run into `~/thalassic/bags/` ([recording.md](recording.md)), which grows until it is cleared. To copy the bags to a laptop on the vehicle network:
@@ -81,6 +106,17 @@ pixi run --frozen build-engines   # builds engines only for models that changed
 
 If the pull touched `deploy/`, re-run `sudo deploy/jetson/setup.sh`.
 
+### Rolling back
+
+Every pool build is tagged (see the checklist), so going back is checking out the tag that last worked:
+
+```bash
+git checkout pool-2026-10-10 && git submodule update --init --recursive
+pixi install --frozen && pixi run --frozen build && pixi run --frozen fetch-weights
+```
+
+This needs no network if the tag's packages are still in pixi's cache (`~/.cache/rattler`) and its models in `weights/` (`fetch-weights` keeps the replaced file as `.old`). A clean build of the FLIR driver downloads the Spinnaker SDK, so do not `pixi run clean` on the vehicle away from a network.
+
 ## Network
 
 See [networking.md](networking.md) for addresses. The Jetson is `192.168.5.245`, the DVL `192.168.5.250`. A laptop plugged into the switch gets a DHCP lease and reaches the ROS graph with:
@@ -97,3 +133,5 @@ THALASSIC_DDS_PROFILE=vehicle pixi shell
 
 - x86 CUDA builds for developer machines with NVIDIA GPUs.
 - The down camera still takes its address from DHCP; it should be static like the DVL.
+- Camera calibrations are not in the repository: neither camera config sets a `camera_info_url`, so on a vehicle without `~/.ros/camera_info/` files every bearing is 0. `sub_vision` reports it on `/diagnostics` and `preflight` fails on it; calibrate both cameras underwater (`camera_calibration`) and commit the files under `sub_bringup/config/devices/`.
+- An offline bundle (a packed environment and built `install/`) for updating the vehicle without the internet.
