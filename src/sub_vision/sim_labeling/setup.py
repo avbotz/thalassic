@@ -16,7 +16,7 @@ setup(
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Automatic labeling based on a segmentation camera",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "labeling = sim_labeling.node:main",

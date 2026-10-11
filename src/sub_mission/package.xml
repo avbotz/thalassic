@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Sub_Mission package for handling mission-related logic</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
-  <license>Proprietary</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

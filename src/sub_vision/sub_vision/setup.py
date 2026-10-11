@@ -20,7 +20,7 @@ setup(
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="YOLO detection pipeline (ONNX Runtime / TensorRT) for the Marlin V3 AUV.",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "sub_vision = sub_vision.vision_node:main",

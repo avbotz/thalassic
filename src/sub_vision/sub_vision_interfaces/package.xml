@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Messages and services shared by the sub_vision perception pipeline</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
-  <license>Proprietary</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>

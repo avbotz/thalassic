@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Publishes thruster commands (-1 to 1) in response to current state and desired state.</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
-  <license>Proprietary</license>
+  <license>MIT</license>
 
   <depend>diagnostic_updater</depend>
   <depend>eigen</depend>

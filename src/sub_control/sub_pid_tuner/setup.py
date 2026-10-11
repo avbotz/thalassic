@@ -19,6 +19,6 @@ setup(
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Browser dashboard for tuning sub_control live",
-    license="Proprietary",
+    license="MIT",
     entry_points={"console_scripts": ["dashboard = sub_pid_tuner.server:main"]},
 )

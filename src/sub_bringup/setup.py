@@ -1,8 +1,21 @@
+import os
 from glob import glob
 
 from setuptools import find_packages, setup
 
 package_name = "sub_bringup"
+
+
+# Source - https://stackoverflow.com/a/65432634
+def generate_data_files(data_dir: str) -> list[tuple[str, list[str]]]:
+    data_files: list[tuple[str, list[str]]] = []
+    for path, _dirs, files in os.walk(data_dir):
+        install_dir = f"share/{package_name}/" + path
+        list_entry = (install_dir, [os.path.join(path, f) for f in files if not f.startswith(".")])
+        data_files.append(list_entry)
+
+    return data_files
+
 
 setup(
     name=package_name,
@@ -12,11 +25,8 @@ setup(
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/launch", glob("launch/*_launch.py")),
-        (f"share/{package_name}/config", glob("config/*.yaml") + glob("config/*.xml")),
-        (f"share/{package_name}/config/control", glob("config/control/*.yaml")),
-        (f"share/{package_name}/config/devices", glob("config/devices/*.yaml")),
-        (f"share/{package_name}/config/vehicles", glob("config/vehicles/*.yaml")),
         (f"share/{package_name}/rviz", glob("rviz/*.rviz")),
+        *generate_data_files("config"),
     ],
     install_requires=["setuptools"],
     extras_require={"test": ["pytest"]},
@@ -24,7 +34,7 @@ setup(
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Launch and configuration files",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "static_transforms = sub_bringup.static_transforms:main",
