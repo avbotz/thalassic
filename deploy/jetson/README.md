@@ -35,7 +35,3 @@ sysctl net.core.rmem_max     # 10485760
 ls /dev/pico /dev/naviguider_imu /dev/front_camera   # udev rules
 systemctl status thalassic-power-mode.service thalassic-fan.service
 ```
-
-## Also here
-
-`link_jetpack_python.sh` exposes JetPack's `tensorrt` and `cuda` (cuda-python, 12.6 or later for `cuda.bindings`) Python modules to the pixi environment. It runs as the vehicle user after `pixi install`, not as root. See [Decision 5](../../docs/decisions.md).

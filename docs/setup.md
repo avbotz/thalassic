@@ -130,10 +130,10 @@ Commit the submodule pointer when the version should become the team default.
 
 ## GPU inference
 
-The default environment installs CPU builds of PyTorch and ONNX Runtime; they are enough for the simulator.
+The default environment installs CPU builds of ONNX Runtime and, on `linux-64`, of PyTorch; they are enough for the simulator.
 
-- **Jetson:** TensorRT and the CUDA runtime bindings come from JetPack, not from pixi. `deploy/jetson/link_jetpack_python.sh` exposes them to the environment (see [deployment.md](deployment.md)). `sub_vision` then runs TensorRT engines that `pixi run build-engines` builds from the ONNX models.
-- **x86 with NVIDIA:** not wired up yet. conda-forge ships CUDA builds of `onnxruntime`; enabling them means declaring a CUDA-capable platform in `pixi.toml` and rebuilding. Open item.
+- **Jetson:** the `linux-aarch64` environment carries JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from the isaac-forge channel) and the CUDA 13.2 runtime and bindings from conda-forge; JetPack only has to provide the driver. `sub_vision` runs TensorRT engines that `pixi run build-engines` builds from the ONNX models and checks against ONNX Runtime ([deployment.md](deployment.md#the-gpu-stack)).
+- **x86 with an NVIDIA GPU:** on a machine whose driver supports CUDA 12 or newer, `pixi install` picks the `linux-64-cuda` entry of `pixi.toml` and the environment's ONNX Runtime has the CUDA provider; `device: auto` uses it. Nothing to opt into, and nothing changes for CI or machines without NVIDIA hardware, which get the plain `linux-64` entry. PyTorch stays the CPU build everywhere. The two entries are solved separately, so a developer switching machines rebuilds the workspace rather than copying `install/` across.
 
 ## Updating dependencies
 

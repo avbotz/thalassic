@@ -36,6 +36,31 @@ class InferenceResult:
     masks: tuple[np.ndarray | None, ...]
 
 
+def letterbox(image_bgr: MatLike, input_size: int) -> tuple[np.ndarray, float, tuple[int, int]]:
+    """The ``[1, 3, input_size, input_size]`` RGB float blob a detector takes: the image scaled
+    to fit, centred on gray padding, divided by 255. Also the scale and the (left, top) padding,
+    which map boxes back to image pixels."""
+    h, w = image_bgr.shape[:2]
+    gain = min(input_size / h, input_size / w)
+
+    new_w, new_h = int(round(w * gain)), int(round(h * gain))
+    if (new_w, new_h) != (w, h):
+        image_bgr = cv2.resize(image_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    # Center the image
+    pad_x, pad_y = (input_size - new_w) / 2, (input_size - new_h) / 2
+    top, bottom = int(round(pad_y - 0.1)), int(round(pad_y + 0.1))
+    left, right = int(round(pad_x - 0.1)), int(round(pad_x + 0.1))
+
+    padded = cv2.copyMakeBorder(
+        image_bgr, top, bottom, left, right, cv2.BORDER_CONSTANT, value=_PAD_COLOR
+    )
+
+    # Replaces manual numpy transpose, type casting, and channel swapping
+    blob = cv2.dnn.blobFromImage(padded, scalefactor=1.0 / 255.0, swapRB=True)
+    return blob, gain, (left, top)
+
+
 class Detector:
     """A YOLO detect or segment model: letterboxing in, box and mask decoding out, around the
     runner that executes it."""
@@ -56,7 +81,7 @@ class Detector:
 
     def infer(self, image_bgr: MatLike) -> InferenceResult:
         """Runs the full inference pipeline on a single image."""
-        blob, gain, pad = self._preprocess(image_bgr)
+        blob, gain, pad = letterbox(image_bgr, self.input_size)
         outputs = [output.astype(np.float32, copy=False) for output in self._runner.run(blob)]
         return self._postprocess(outputs, gain, pad, image_bgr.shape[:2])
 
@@ -74,28 +99,6 @@ class Detector:
         if isinstance(parsed, list):
             return len(parsed)
         return None
-
-    def _preprocess(self, image_bgr: MatLike) -> tuple[np.ndarray, float, tuple[int, int]]:
-        """Letterbox and normalize image to network input size."""
-        h, w = image_bgr.shape[:2]
-        gain = min(self.input_size / h, self.input_size / w)
-
-        new_w, new_h = int(round(w * gain)), int(round(h * gain))
-        if (new_w, new_h) != (w, h):
-            image_bgr = cv2.resize(image_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-
-        # Center the image
-        pad_x, pad_y = (self.input_size - new_w) / 2, (self.input_size - new_h) / 2
-        top, bottom = int(round(pad_y - 0.1)), int(round(pad_y + 0.1))
-        left, right = int(round(pad_x - 0.1)), int(round(pad_x + 0.1))
-
-        padded = cv2.copyMakeBorder(
-            image_bgr, top, bottom, left, right, cv2.BORDER_CONSTANT, value=_PAD_COLOR
-        )
-
-        # Replaces manual numpy transpose, type casting, and channel swapping
-        blob = cv2.dnn.blobFromImage(padded, scalefactor=1.0 / 255.0, swapRB=True)
-        return blob, gain, (left, top)
 
     def _postprocess(
         self,

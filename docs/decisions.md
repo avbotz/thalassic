@@ -17,7 +17,7 @@ Short records of the decisions in this repository.
 
 **Why not nix:** the reproducibility is higher, but it is much more difficult to configure, especially in regards to the Jetson where we would probably need to use NixOS.
 
-**Cost:** the Jetson's GPU stack (TensorRT, CUDA bindings) is not in the lockfile because NVIDIA only ships Orin builds through JetPack. See [Decision 5](#5-gpu-inference-on-the-jetson-comes-from-jetpack).
+**Cost:** TensorRT for the Orin is on neither RoboStack nor conda-forge, so the lockfile draws on a third channel for it. See [Decision 5](#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack).
 
 ## 2. Stonefish is built inside the workspace
 
@@ -39,9 +39,15 @@ Short records of the decisions in this repository.
 
 The middleware is pinned to `rmw_fastrtps_cpp` in both profiles so all machines behave the same; switching to CycloneDDS would be a one-line change in the profiles if the need arises.
 
-## 5. GPU inference on the Jetson comes from JetPack
+## 5. The Jetson's GPU stack comes from pixi, not JetPack
 
-conda-forge's `linux-aarch64` PyTorch is not compiled for the Orin's `sm_87` GPU, and TensorRT's Python bindings only exist in JetPack's system interpreter. So the environment installs CPU builds everywhere, and on the Jetson `deploy/jetson/link_jetpack_python.sh` adds a `.pth` file that lets the environment import JetPack's `tensorrt` and `cuda` modules. This relies on `pixi.toml` pinning Python to the Jetson's minor version (3.12). If NVIDIA publishes Python 3.12 wheels for the vehicle's JetPack release, pin them in `pixi.toml` instead.
+**Was:** TensorRT's Python bindings only existed in JetPack's system interpreter, and conda-forge's `linux-aarch64` PyTorch was not compiled for the Orin's `sm_87` GPU, so `deploy/jetson/link_jetpack_python.sh` wrote a `.pth` file that let the environment import JetPack's `tensorrt` and `cuda` modules. That tied `pixi.toml` to the Jetson's Python minor version and left the GPU stack outside the lockfile, unverified.
+
+**Now:** JetPack 7.2 moved the Orin onto the unified CUDA 13 Arm toolkit, so plain `linux-aarch64` CUDA packages run on it. `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and for it pins JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from `https://prefix.dev/isaac-forge/jazzy`, which packages NVIDIA's redistributable for RoboStack), `cuda-bindings` and the CUDA 13.2 runtime libraries from conda-forge. JetPack provides the driver and nothing else; `pixi install --frozen` is the whole GPU install. Python stays pinned to 3.12 because that is the only build of `tensorrt-python` in that channel. Every engine is checked against ONNX Runtime when it is built (`check_engines`), which the old path never had.
+
+**Why isaac-forge rather than NVIDIA's own channel or pip:** NVIDIA publishes no TensorRT wheel or conda package built for the Orin; its PyPI wheel is the server (SBSA) build without `sm_87` kernels. The channel is listed last and `tensorrt-python` names it explicitly, so nothing in it can shadow RoboStack or conda-forge.
+
+**Not done:** conda-forge's CUDA 13 PyTorch is compiled for `sm_87` too, but nothing on the vehicle needs PyTorch, so it and ultralytics are installed on `linux-64` only. conda-forge's CUDA builds of ONNX Runtime lack `sm_87` kernels and stay off the Jetson; a laptop with an NVIDIA GPU gets them through the `linux-64-cuda` platform entry, which pixi picks over plain `linux-64` wherever the driver allows ([setup.md](setup.md#gpu-inference)).
 
 ## 6. Dependencies kept although currently unused in launch files
 

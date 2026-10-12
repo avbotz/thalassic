@@ -99,9 +99,18 @@ A TensorRT engine is a cache of an ONNX file, not a second model: `pixi run
 build-engines` (on the Jetson; minutes per model) writes
 `<model>.<sha256 prefix>.trt<version>.engine` beside each ONNX file that has
 none, with the export's metadata ahead of the serialized engine. The name ties
-it to the exact export and TensorRT version, so a retrained model or a JetPack
-upgrade cannot run a stale engine: it fails to load until `build-engines` runs
-again. Engines from older exports are never loaded and can be deleted.
+it to the exact export and TensorRT version, so a retrained model or a
+TensorRT update cannot run a stale engine: it fails to load until
+`build-engines` runs again. Engines from older exports are never loaded and
+can be deleted.
+
+Each new engine is then checked against ONNX Runtime on the CPU
+(`check_engines`): the same frames through both, an end-to-end head compared
+box by box (same class, overlapping, scored alike), every other output element
+by element within what FP16 allows. `pixi run check-engines` repeats it for
+every engine, and `--bag bags/<run>` or `--images '*.jpg'` replaces the
+synthetic frames with real ones, which a detector needs before it produces
+boxes worth comparing.
 
 The model is the task's name unless `model_manager.TASK_MODELS` maps it to
 another file: `gate` runs `ffc_rs_26`.
@@ -129,10 +138,9 @@ Selection, per the `device` param (`backends.open_runner`):
    frame; mean/last timings are reported on `/diagnostics`. A warmup failure
    fails the load, and the previous model stays active.
 
-`onnxruntime` comes from pixi; `tensorrt` and `cuda-python`
-(`cuda.bindings.runtime`) from JetPack on the Jetson
-(`deploy/jetson/link_jetpack_python.sh`). Both imports are lazy, so the
-package builds and lints on a machine without them.
+`onnxruntime` comes from pixi everywhere; `tensorrt` and `cuda-bindings`
+(`cuda.bindings.runtime`) too, on `linux-aarch64` only (`pixi.toml`). Both
+imports are lazy, so the package builds and lints on a machine without them.
 
 ---
 
@@ -165,7 +173,8 @@ No core edits — add a model and a post-processor:
 
 1. **Model:** drop `<model_dir>/<task>.onnx` (an ultralytics detect or segment
    export at a fixed input size: end-to-end YOLOv10/YOLO26, or a raw
-   YOLOv8/11 head), and run `pixi run build-engines` on the Jetson.
+   YOLOv8/11 head), and run `pixi run build-engines` on the Jetson, which
+   builds and checks its engine.
 2. **Post-processor:** add `sub_vision/post_processors/<task>.py`:
 
    ```python

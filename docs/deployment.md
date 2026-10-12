@@ -9,11 +9,10 @@ As the vehicle user (`avbotz`, created when the Jetson is flashed):
 ```bash
 git clone --recurse-submodules https://github.com/avbotz/thalassic.git ~/thalassic
 cd ~/thalassic
-scripts/install.sh                            # pixi + environment + build
+scripts/install.sh                            # pixi + environment (TensorRT and CUDA included) + build
 sudo apt install chrony                       # only NTP server, needs a network once
 sudo deploy/jetson/setup.sh                   # OS configuration, see below
-deploy/jetson/link_jetpack_python.sh          # TensorRT/CUDA bindings from JetPack
-pixi run build-engines                        # TensorRT engines from weights/*.onnx, minutes each
+pixi run build-engines                        # TensorRT engines from weights/*.onnx, minutes each, checked
 ```
 
 Then reboot, so the new groups and the DDS profile apply.
@@ -43,9 +42,11 @@ The FLIR-related steps come from the `spinnaker_camera_driver` README for machin
 
 The GigE camera is opened through a GenTL producer shipped with the source-built driver. Because the workspace uses `--merge-install`, it ends up at `install/lib/spinnaker-gentl/Spinnaker_GenTL.cti`, and `scripts/setup.sh` exports `SPINNAKER_GENTL64_CTI` to that path whenever the file exists.
 
-### JetPack Python bridge
+### The GPU stack
 
-`deploy/jetson/link_jetpack_python.sh` writes a `.pth` file into the environment's `site-packages` that appends `/usr/lib/python3/dist-packages` to `sys.path`. Environment packages take precedence; only modules the environment lacks (`tensorrt`, `cuda`) resolve to JetPack's copies. The script refuses to run if the two interpreters differ in minor version, and prints whether `tensorrt` and `cuda.bindings.runtime` import: what `sub_vision`'s TensorRT backend uses, which needs cuda-python 12.6 or later.
+JetPack 7.2 provides the GPU driver (CUDA 13.2) and nothing else the stack uses. TensorRT (10.16.2, JetPack 7.2.1's version, built for the Orin), the CUDA 13.2 runtime libraries and `cuda-bindings` are `linux-aarch64` dependencies in `pixi.toml`, about 3 GB, so `pixi install --frozen` is the whole GPU install and only a `pixi.lock` change can change them ([Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack)). `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and pixi checks both against the host when it installs, so a JetPack upgrade to a newer CUDA major version means updating that entry. If `pixi install` reports that the host has no `__cuda`, the driver is not visible to pixi: `CONDA_OVERRIDE_CUDA=13.2 pixi install --frozen` declares it by hand.
+
+`pixi run build-engines` builds an engine for each ONNX model that has none, then runs each new one against ONNX Runtime on the CPU and fails on any output that disagrees beyond FP16 ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)). `pixi run check-engines` repeats that for every engine; with `--bag bags/<run>` it uses frames from a recording instead of synthetic ones, which is what makes the box comparison mean something.
 
 ## Running
 
@@ -97,10 +98,10 @@ git pull --recurse-submodules
 pixi install --frozen        # only changes anything if pixi.lock changed
 pixi run --frozen build
 pixi run --frozen fetch-weights   # downloads only models whose manifest entry changed
-pixi run --frozen build-engines   # builds engines only for models that changed
+pixi run --frozen build-engines   # engines only for models that changed, each checked
 ```
 
-`sub_vision` refuses to load a model on the vehicle until its engine is built, rather than run it on the CPU. Run `build-engines` again after a JetPack upgrade too: engines are tied to the TensorRT version.
+`sub_vision` refuses to load a model on the vehicle until its engine is built, rather than run it on the CPU. Engines are tied to the TensorRT version, which `pixi.lock` pins, so a lockfile update that changes TensorRT needs `build-engines` too; the old engines are ignored, not loaded.
 
 `--frozen` installs `pixi.lock` as it is: it never re-solves or rewrites the lockfile, even if `pixi.toml` has changed without it, which is what you want on a competition day.
 
@@ -131,7 +132,6 @@ THALASSIC_DDS_PROFILE=vehicle pixi shell
 
 ## Open items
 
-- x86 CUDA builds for developer machines with NVIDIA GPUs.
 - The down camera still takes its address from DHCP; it should be static like the DVL.
 - Camera calibrations are not in the repository: neither camera config sets a `camera_info_url`, so on a vehicle without `~/.ros/camera_info/` files every bearing is 0. `sub_vision` reports it on `/diagnostics` and `preflight` fails on it; calibrate both cameras underwater (`camera_calibration`) and commit the files under `sub_bringup/config/devices/`.
 - An offline bundle (a packed environment and built `install/`) for updating the vehicle without the internet.

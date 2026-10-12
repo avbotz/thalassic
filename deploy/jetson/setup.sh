@@ -106,6 +106,6 @@ cat <<EOF
 
 Done. Remaining manual steps:
   * Log out and back in (or reboot) so the new groups and the DDS profile apply.
-  * After 'pixi install', run deploy/jetson/link_jetpack_python.sh as $VEHICLE_USER
-    to expose JetPack's tensorrt/cuda modules to the environment.
+  * As $VEHICLE_USER, once the weights are fetched: 'pixi run build-engines'
+    (docs/deployment.md).
 EOF

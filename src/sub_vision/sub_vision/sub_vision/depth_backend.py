@@ -22,6 +22,14 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
+def to_tensor(image_bgr: np.ndarray, size: int) -> np.ndarray:
+    """The ``[1, 3, size, size]`` ImageNet-normalized RGB tensor the model takes."""
+    rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    rgb = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_CUBIC)
+    tensor = (rgb.astype(np.float32) / 255.0 - _MEAN) / _STD
+    return np.ascontiguousarray(tensor.transpose(2, 0, 1)[None])
+
+
 class DepthModel:
     """A fixed-size Depth Anything V2 export, rate limited.
 
@@ -57,10 +65,7 @@ class DepthModel:
             return None
 
         h, w = image_bgr.shape[:2]
-        rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        rgb = cv2.resize(rgb, (self.input_size, self.input_size), interpolation=cv2.INTER_CUBIC)
-        tensor = (rgb.astype(np.float32) / 255.0 - _MEAN) / _STD
-        tensor = np.ascontiguousarray(tensor.transpose(2, 0, 1)[None])
+        tensor = to_tensor(image_bgr, self.input_size)
 
         t0 = time.perf_counter()
         try:
