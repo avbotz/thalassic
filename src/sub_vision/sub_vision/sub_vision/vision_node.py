@@ -11,8 +11,6 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
-from sub_vision_interfaces.msg import Detection, DetectionArray
-from sub_vision_interfaces.srv import LoadModel
 from vision_msgs.msg import (
     BoundingBox2D,
     Detection2D,
@@ -22,6 +20,8 @@ from vision_msgs.msg import (
 from sub_vision import geometry, post_processors
 from sub_vision.depth_backend import DepthModel
 from sub_vision.model_manager import LoadResult, ModelManager
+from sub_vision_interfaces.msg import Detection, DetectionArray
+from sub_vision_interfaces.srv import LoadModel
 
 # Only the newest frame is kept: with sensor-data QoS's depth of 5, a node slower than the camera
 # works through a backlog and every detection comes from a frame up to 5 frames old.

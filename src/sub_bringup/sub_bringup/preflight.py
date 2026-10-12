@@ -26,9 +26,11 @@ import rclpy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image, Imu
 from std_msgs.msg import Bool
+
 from sub_control_interfaces.msg import ThrusterCommand
 
 
@@ -69,12 +71,22 @@ def rates(sim: bool) -> list[Rate]:
 
 
 class Preflight(Node):
-    def __init__(self, sim: bool):
-        super().__init__("preflight")
+    def __init__(self, robot: str, sim: bool):
+        # Rates are counted on the stack's clock: the simulator's can run slower than the wall's.
+        super().__init__(
+            "preflight",
+            namespace=f"/{robot}",
+            parameter_overrides=[Parameter("use_sim_time", value=sim)],
+        )
         self.rates = rates(sim)
         for rate in self.rates:
+            # Raw: counting needs no deserialising, and the images are large.
             self.create_subscription(
-                rate.kind, rate.topic, self._counter(rate), qos_profile_sensor_data
+                rate.kind,
+                rate.topic,
+                functools.partial(self._count, rate),
+                qos_profile_sensor_data,
+                raw=True,
             )
         latched = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self.killed: bool | None = None
@@ -93,11 +105,8 @@ class Preflight(Node):
         self.create_subscription(DiagnosticArray, "/diagnostics_agg", self._on_diagnostics, 10)
 
     @staticmethod
-    def _counter(rate: Rate):
-        def count(_):
-            rate.count += 1
-
-        return count
+    def _count(rate: Rate, _msg: bytes) -> None:
+        rate.count += 1
 
     def _on_kill(self, msg: Bool) -> None:
         self.killed = msg.data
@@ -115,9 +124,11 @@ class Preflight(Node):
 
 def check_models(root: Path, engines: bool) -> list[str]:
     """Problems with weights/: released models missing, or (on the vehicle) their engines."""
+    manifest = root / "weights" / "manifest.toml"
+    if not manifest.is_file():
+        return [f"{manifest} missing: is --root the workspace?"]
     problems = []
-    manifest = tomllib.loads((root / "weights" / "manifest.toml").read_text())
-    for name in manifest:
+    for name in tomllib.loads(manifest.read_text()):
         path = root / "weights" / name
         if not path.exists():
             problems.append(f"weights/{name} missing: pixi run fetch-weights")
@@ -143,10 +154,8 @@ def main(argv=None) -> int:
     )
     args, ros_args = parser.parse_known_args(argv)
 
-    # Rates are counted on the stack's clock: the simulator's can run slower than the wall's.
-    clock = ["-p", "use_sim_time:=true"] if args.sim else []
-    rclpy.init(args=["preflight", "--ros-args", "-r", f"__ns:=/{args.robot}", *clock, *ros_args])
-    node = Preflight(args.sim)
+    rclpy.init(args=ros_args)
+    node = Preflight(args.robot, args.sim)
     end = time.monotonic() + args.seconds
     start = None
     while time.monotonic() < end:

@@ -1,10 +1,9 @@
-"""Pieces the bringup launch files build in the same way.
+"""Building blocks the launch files share.
 
-The nodes both stacks run identically live in launch/common_launch.py, which
-both include. This module holds what each top-level file needs to describe its
-own half: the shared launch arguments, the sub_vision node and its annotation
-visualizer, which both run but wire to different cameras, the run's recorder,
-which records each stack's cameras differently, and lifecycle node startup.
+common_launch.py holds the nodes both stacks run identically, and both
+top-level launch files include it. This module holds what those files build
+the same way but wire differently: the launch arguments, the vision nodes
+(each stack's cameras publish on different topics) and the run's recorder.
 """
 
 import os
@@ -15,23 +14,17 @@ from pathlib import Path
 
 from launch.actions import (
     DeclareLaunchArgument,
-    EmitEvent,
     ExecuteProcess,
     IncludeLaunchDescription,
     LogInfo,
     OpaqueFunction,
-    RegisterEventHandler,
 )
 from launch.conditions import IfCondition
-from launch.events import matches_action
 from launch.some_substitutions_type import SomeSubstitutionsType
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import LifecycleNode, Node
-from launch_ros.event_handlers import OnStateTransition
-from launch_ros.events.lifecycle import ChangeState
+from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
-from lifecycle_msgs.msg import Transition
 
 
 def package_config(package: str, filename: SomeSubstitutionsType) -> PathJoinSubstitution:
@@ -44,7 +37,6 @@ def common_launch_arguments(
     use_sim_time: str = "false",
     foxglove_compression: str = "true",
     restart: str = "false",
-    dashboard_host: str = "127.0.0.1",
 ) -> list[DeclareLaunchArgument]:
     """The arguments every bringup launch file accepts.
 
@@ -93,17 +85,15 @@ def common_launch_arguments(
         DeclareLaunchArgument(
             "gains",
             default_value=gains,
-            description="sub_control profile (vehicle model, trajectory limits, gains), a path relative to sub_bringup/config",
+            description=(
+                "sub_control profile (vehicle model, trajectory limits, gains), "
+                "a path relative to sub_bringup/config"
+            ),
         ),
         DeclareLaunchArgument(
             "dashboard",
             default_value="false",
             description="Serve the sub_pid_tuner tuning dashboard, which saves to the `gains` file",
-        ),
-        DeclareLaunchArgument(
-            "dashboard_host",
-            default_value=dashboard_host,
-            description="Address the dashboard serves on; 0.0.0.0 reaches it from other machines",
         ),
         DeclareLaunchArgument(
             "dashboard_port", default_value="8080", description="Port the dashboard serves on"
@@ -149,83 +139,82 @@ def common_launch_arguments(
     ]
 
 
-def sim_time() -> dict:
-    """The use_sim_time parameter, from the launch argument of the same name."""
-    return {"use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool)}
-
-
-def common_launch_include(
-    gains: str,
-    use_sim_time: str = "false",
-    foxglove_compression: str = "true",
-    restart: str = "false",
-    dashboard_host: str = "127.0.0.1",
-) -> list:
-    """The arguments above plus common_launch.py: the nodes both stacks run identically."""
+def common_launch_include(**defaults: str) -> list:
+    """The arguments above, with `defaults` as their defaults, plus common_launch.py."""
     return [
-        *common_launch_arguments(
-            gains, use_sim_time, foxglove_compression, restart, dashboard_host
-        ),
+        *common_launch_arguments(**defaults),
         IncludeLaunchDescription(
             PathJoinSubstitution([FindPackageShare("sub_bringup"), "launch", "common_launch.py"])
         ),
     ]
 
 
-def vision_node(
-    name: str, camera: str, image_topic: str, detections_topic: str, parameters: dict | None = None
-) -> Node:
-    """One sub_vision instance reading <camera>/<image_topic>.
+def sim_time() -> dict:
+    """The use_sim_time parameter, from the launch argument of the same name."""
+    return {"use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool)}
 
-    sub_mission finds each camera's instance by name and detections_topic
-    (sub_mission/src/vision_client.cpp), so keep the two in step. `parameters`
-    override sub_vision.yaml for this instance only.
+
+def vision_entities(
+    image_topic: str, parameters: dict | None = None, front_parameters: dict | None = None
+) -> list[Node]:
+    """A sub_vision node and an annotation visualizer per camera, reading <camera>/<image_topic>.
+
+    sub_mission finds each camera's instance by its name and detections topic
+    (sub_mission/src/vision_client.cpp): sub_vision publishes vision/detections
+    from the front camera and sub_vision_down vision/detections_down from the
+    down camera. `parameters` override sub_vision.yaml for both instances,
+    `front_parameters` for the front one only.
+
+    The visualizers draw those detections over the images, on
+    vision/debug_image and vision/debug_image_down, only while something
+    subscribes. The node reads front_camera/image_color and vision/detections
+    and writes vision/debug_image, each with its /compressed JPEG copy, so it
+    is wired to a camera by remapping those names.
     """
-    return Node(
-        package="sub_vision",
-        executable="sub_vision",
-        name=name,
-        namespace=LaunchConfiguration("robot_name"),
-        output="screen",
-        parameters=[
-            package_config("sub_vision", "sub_vision.yaml"),
-            {
-                "rgb_topic": f"{camera}/{image_topic}",
-                "camera_info_topic": f"{camera}/camera_info",
-                "detections_topic": detections_topic,
-                **(parameters or {}),
-            },
-            sim_time(),
-        ],
-    )
-
-
-def annotation_visualizer(
-    name: str, camera: str, image_topic: str, detections_topic: str, debug_topic: str
-) -> Node:
-    """Draws <detections_topic> over <camera>/<image_topic> and publishes it on <debug_topic>.
-
-    The node reads front_camera/image_color and vision/detections and writes
-    vision/debug_image, each also as its /compressed JPEG copy, so every camera
-    is wired to it by remapping those names. It only draws while something
-    subscribes to its output.
-    """
-    image = f"{camera}/{image_topic}"
-    return Node(
-        package="sub_vision",
-        executable="annotation_visualizer",
-        name=name,
-        namespace=LaunchConfiguration("robot_name"),
-        output="screen",
-        parameters=[sim_time()],
-        remappings=[
-            ("front_camera/image_color", image),
-            ("front_camera/image_color/compressed", f"{image}/compressed"),
-            ("vision/detections", detections_topic),
-            ("vision/debug_image", debug_topic),
-            ("vision/debug_image/compressed", f"{debug_topic}/compressed"),
-        ],
-    )
+    entities = []
+    for camera, suffix, extra in (
+        ("front_camera", "", front_parameters),
+        ("down_camera", "_down", None),
+    ):
+        image = f"{camera}/{image_topic}"
+        detections = f"vision/detections{suffix}"
+        debug = f"vision/debug_image{suffix}"
+        entities += [
+            Node(
+                package="sub_vision",
+                executable="sub_vision",
+                name=f"sub_vision{suffix}",
+                namespace=LaunchConfiguration("robot_name"),
+                output="screen",
+                parameters=[
+                    package_config("sub_vision", "sub_vision.yaml"),
+                    {
+                        "rgb_topic": image,
+                        "camera_info_topic": f"{camera}/camera_info",
+                        "detections_topic": detections,
+                        **(parameters or {}),
+                        **(extra or {}),
+                    },
+                    sim_time(),
+                ],
+            ),
+            Node(
+                package="sub_vision",
+                executable="annotation_visualizer",
+                name=f"annotation_visualizer{suffix}",
+                namespace=LaunchConfiguration("robot_name"),
+                output="screen",
+                parameters=[sim_time()],
+                remappings=[
+                    ("front_camera/image_color", image),
+                    ("front_camera/image_color/compressed", f"{image}/compressed"),
+                    ("vision/detections", detections),
+                    ("vision/debug_image", debug),
+                    ("vision/debug_image/compressed", f"{debug}/compressed"),
+                ],
+            ),
+        ]
+    return entities
 
 
 def jpeg_quality(node_namespace: str, image_topics: Sequence[str]) -> dict:
@@ -288,8 +277,7 @@ def recorder(exclude: Sequence[str]) -> OpaqueFunction:
             "sim" if sim else config["robot_name"],
             Path(config["mission"]).stem if config.get("mission") else "",
         ]
-        bag = Path(LaunchConfiguration("bag_dir").perform(context)).expanduser().absolute()
-        bag /= "_".join(filter(None, run))
+        bag = Path(config["bag_dir"]).expanduser().absolute() / "_".join(filter(None, run))
 
         custom_data = [f"{key}={config[key]}" for key in _RUN_ARGUMENTS if config.get(key)]
         if commit := _git_describe():
@@ -315,22 +303,3 @@ def recorder(exclude: Sequence[str]) -> OpaqueFunction:
         ]
 
     return OpaqueFunction(function=record)
-
-
-def lifecycle_startup(node: LifecycleNode) -> list:
-    """The node plus the events that configure it and then activate it."""
-
-    def change_state(transition: int) -> EmitEvent:
-        return EmitEvent(
-            event=ChangeState(lifecycle_node_matcher=matches_action(node), transition_id=transition)
-        )
-
-    activate = RegisterEventHandler(
-        OnStateTransition(
-            target_lifecycle_node=node,
-            start_state="configuring",
-            goal_state="inactive",
-            entities=[change_state(Transition.TRANSITION_ACTIVATE)],
-        )
-    )
-    return [node, change_state(Transition.TRANSITION_CONFIGURE), activate]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import jinja2
 import pytest
+
 from sub_sim.generate_robot import Pose, render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import Transform, robot_scenario_to_urdf

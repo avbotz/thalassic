@@ -1,5 +1,6 @@
 import pytest
 import yaml
+
 from sub_pid_tuner.profile import GainProfile
 
 # The layout of sub_bringup/config/control/gains*.yaml.

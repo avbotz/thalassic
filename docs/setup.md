@@ -94,8 +94,8 @@ ROS 2 discovery is configured per machine role by `THALASSIC_DDS_PROFILE`, read 
 
 | Profile | When | Effect |
 |---|---|---|
-| `dev` (default) | laptops and CI | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`; `ROS_DOMAIN_ID` derived from your Unix user id (override with `THALASSIC_ROS_DOMAIN_ID`) |
-| `vehicle` | the Jetson, and a laptop plugged into the sub | `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`; fixed `ROS_DOMAIN_ID=42` (override with `THALASSIC_ROS_DOMAIN_ID`) |
+| `dev` (default) | laptops and CI | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` |
+| `vehicle` | the Jetson, and a laptop plugged into the sub | `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` |
 
 Both profiles pin `RMW_IMPLEMENTATION=rmw_fastrtps_cpp` so every machine runs the same middleware.
 
@@ -195,7 +195,6 @@ Accepted by both `sim_launch.py` and `pool_test_launch.py`:
 | `foxglove_compression` | per stack | Deflate the bridge's messages — `true` on the vehicle, for a laptop on its network; `false` in the simulator, where Foxglove connects over localhost and compression only adds latency |
 | `use_sim_time` | per stack | Run every node on the simulator's `/clock` — `false` on the vehicle, `true` in the simulator |
 | `dashboard` | `false` | Serve the `sub_pid_tuner` tuning dashboard ([README](../src/sub_control/sub_pid_tuner/README.md)), which saves tuned values to the `gains` file |
-| `dashboard_host` | per stack | Address the dashboard serves on — `0.0.0.0` on the vehicle, so laptops on its network reach it; `127.0.0.1` in the simulator |
 | `dashboard_port` | `8080` | Port the dashboard serves on |
 
 `record`, `bag_dir` and `jpeg_quality` are in [recording.md](recording.md).
@@ -230,7 +229,7 @@ Four files, layered so the two stacks cannot drift apart:
 | `pool_test_launch.py` | `common_launch.py` + the hardware drivers, the two cameras, and a `sub_vision` node and an annotation visualizer per camera |
 | `sim_launch.py` | `common_launch.py` + Stonefish, the sensor bridges, `robot_state_publisher`, and a `sub_vision` node and an annotation visualizer per camera |
 
-The two top-level files differ only in where sensor data comes from, so everything downstream of it is in `common_launch.py` and adding a node there reaches both. The only things they configure differently are the defaults of `gains`, `restart`, `dashboard_host`, `foxglove_compression` and `use_sim_time`.
+The two top-level files differ only in where sensor data comes from, so everything downstream of it is in `common_launch.py` and adding a node there reaches both. The only things they configure differently are the defaults of `gains`, `restart`, `foxglove_compression` and `use_sim_time`.
 
 `common_launch.py` is also launchable on its own, against a stack whose drivers are already running — restarting the controller and the mission executive without re-enumerating the cameras:
 
@@ -238,7 +237,7 @@ The two top-level files differ only in where sensor data comes from, so everythi
 ros2 launch sub_bringup common_launch.py mission:=pool_a restart:=true
 ```
 
-On its own its defaults are the vehicle's `gains` with `restart:=false` and `dashboard_host:=127.0.0.1`, so pass what the top-level file would: against the simulator, `gains:=control/gains_sim.yaml use_sim_time:=true foxglove_compression:=false`. Its `record` does nothing; the top-level files start the recorder.
+On its own its defaults are the vehicle's `gains` with `restart:=false`, so pass what the top-level file would: against the simulator, `gains:=control/gains_sim.yaml use_sim_time:=true foxglove_compression:=false`. Its `record` does nothing; the top-level files start the recorder.
 
 Launch configurations are inherited by an include, so an argument set on the command line or defaulted by the parent reaches the nodes inside without being threaded through by hand.
 

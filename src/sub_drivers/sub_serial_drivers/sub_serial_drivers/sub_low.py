@@ -46,6 +46,7 @@ from rclpy.qos import (
 )
 from rclpy.time import Time
 from std_msgs.msg import Bool
+
 from sub_control_interfaces.msg import ThrusterCommand
 from sub_driver_interfaces.srv import LaunchTorpedo, SetDropper
 

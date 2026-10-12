@@ -23,14 +23,14 @@ from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
 from sub_bringup.entities import (
-    annotation_visualizer,
     common_launch_include,
     jpeg_quality,
     package_config,
     recorder,
     sim_time,
-    vision_node,
+    vision_entities,
 )
 from sub_bringup.vehicle import load_vehicle
 from sub_sim.generate_robot import mount_poses, render_robot_scenario, thruster_specs
@@ -185,7 +185,6 @@ def _stonefish(context, *_, **__):
 def _sim_sensors(context, *_, **__):
     """The sensor bridges, which need the vehicle description, so robot_name must be resolved first."""
     vehicle = load_vehicle(LaunchConfiguration("robot_name").perform(context))
-    robot_name = LaunchConfiguration("robot_name")
 
     # The grabber holds things between its jaws, below their hinges.
     frames = mount_poses(vehicle)
@@ -193,76 +192,61 @@ def _sim_sensors(context, *_, **__):
     grasp_point = [(left + right) / 2 for left, right in zip(*hinges, strict=True)]
     grasp_point[2] += 0.07
 
-    def sim_component(executable, plugin, parameters=(), **kwargs):
+    def bridge(name: str, plugin: str, parameters: dict | None = None) -> ComposableNode:
         return ComposableNode(
             package="sub_sim_sensors",
             plugin=plugin,
-            name=executable,
-            namespace=robot_name,
-            parameters=[*parameters, sim_time()],
+            name=name,
+            namespace=vehicle.name,
+            parameters=[{**(parameters or {}), **sim_time()}],
             extra_arguments=[{"use_intra_process_comms": True}],
-            **kwargs,
         )
 
-    sim_sensors_container = ComposableNodeContainer(
-        package="rclcpp_components",
-        executable="component_container_mt",
-        name="sim_sensors_container",
-        namespace=robot_name,
-        output="both",
-        composable_node_descriptions=[
-            sim_component(
-                "sim_dvl_remapper",
-                "SimDVLRemapper",
-                parameters=[{"dvl_link": vehicle.devices["dvl"].frame}],
-            ),
-            sim_component(
-                "sim_imu_remapper",
-                "SimIMURemapper",
-                parameters=[{"imu_link": vehicle.devices["imu"].frame}],
-            ),
-            sim_component(
-                "sim_pressure_to_depth",
-                "SimPressureToDepth",
+    return [
+        ComposableNodeContainer(
+            package="rclcpp_components",
+            executable="component_container_mt",
+            name="sim_sensors_container",
+            namespace=vehicle.name,
+            output="both",
+            composable_node_descriptions=[
+                bridge(
+                    "sim_dvl_remapper", "SimDVLRemapper", {"dvl_link": vehicle.devices["dvl"].frame}
+                ),
+                bridge(
+                    "sim_imu_remapper", "SimIMURemapper", {"imu_link": vehicle.devices["imu"].frame}
+                ),
                 # Reports exactly like sub_low does on the vehicle.
-                parameters=[
+                bridge(
+                    "sim_pressure_to_depth",
+                    "SimPressureToDepth",
                     {
                         "frame_id": vehicle.frame("odom"),
                         "child_frame_id": vehicle.depth.frame,
                         "z_variance": vehicle.depth.z_variance,
-                    }
-                ],
-            ),
-            # Stands in for the ESCs; injects thruster faults on request.
-            sim_component("sim_thrusters", "SimThrusters"),
-            sim_component("sim_torpedo_launcher", "SimTorpedoLauncher"),
-            sim_component(
-                "sim_dropper",
-                "SimDropper",
-                parameters=[{"joint_name": [robot_name, "/dropper_joint"]}],
-            ),
-            sim_component(
-                "sim_grabber",
-                "SimGrabber",
-                parameters=[
+                    },
+                ),
+                # Stands in for the ESCs; injects thruster faults on request.
+                bridge("sim_thrusters", "SimThrusters"),
+                bridge("sim_torpedo_launcher", "SimTorpedoLauncher"),
+                bridge(
+                    "sim_dropper", "SimDropper", {"joint_name": f"{vehicle.name}/dropper_joint"}
+                ),
+                bridge(
+                    "sim_grabber",
+                    "SimGrabber",
                     {
-                        "left_joint": [robot_name, "/left_grabber_joint"],
-                        "right_joint": [robot_name, "/right_grabber_joint"],
+                        "left_joint": f"{vehicle.name}/left_grabber_joint",
+                        "right_joint": f"{vehicle.name}/right_grabber_joint",
                         "grasp_point": grasp_point,
-                    }
-                ],
-            ),
-            sim_component(
-                "sim_kill_switch",
-                "SimKillSwitch",
-                parameters=[{"off_delay": 6.0}],
-            ),
-        ],
-        parameters=[sim_time()],
-        ros_arguments=["--disable-stdout-logs"],
-    )
-
-    return [sim_sensors_container]
+                    },
+                ),
+                bridge("sim_kill_switch", "SimKillSwitch", {"off_delay": 6.0}),
+            ],
+            parameters=[sim_time()],
+            ros_arguments=["--disable-stdout-logs"],
+        )
+    ]
 
 
 def sim_entities() -> list:
@@ -274,10 +258,13 @@ def sim_entities() -> list:
             default_value="",
             description="Seed for the scenario's random placement; empty picks one at random",
         ),
-        DeclareLaunchArgument("DX", default_value="0.25"),
-        DeclareLaunchArgument("DY", default_value="0.25"),
-        DeclareLaunchArgument("DZ", default_value="0.10"),
-        DeclareLaunchArgument("DYAW", default_value="0.10"),
+        # Half-widths of the uniform jitter the scenario's random placements get.
+        DeclareLaunchArgument("DX", default_value="0.25", description="Placement jitter in x [m]"),
+        DeclareLaunchArgument("DY", default_value="0.25", description="Placement jitter in y [m]"),
+        DeclareLaunchArgument("DZ", default_value="0.10", description="Placement jitter in z [m]"),
+        DeclareLaunchArgument(
+            "DYAW", default_value="0.10", description="Placement jitter in yaw [rad]"
+        ),
         DeclareLaunchArgument(
             "course",
             default_value="D",
@@ -372,6 +359,7 @@ def sim_entities() -> list:
 
 
 def generate_launch_description():
+    vision_depth = ParameterValue(LaunchConfiguration("vision_depth"), value_type=bool)
     return LaunchDescription(
         [
             # OpenCV's OpenMP workers (cv_bridge colour conversion, the compressed
@@ -382,35 +370,14 @@ def generate_launch_description():
             # Foxglove bridge.
             # Foxglove connects over localhost, where compression only adds latency.
             *common_launch_include(
-                "control/gains_sim.yaml", use_sim_time="true", foxglove_compression="false"
+                gains="control/gains_sim.yaml", use_sim_time="true", foxglove_compression="false"
             ),
             *sim_entities(),
             # Stonefish publishes both cameras as rgb8 on image_color; cv_bridge
             # converts to bgr8 inside the node, so no bridge is needed.
-            vision_node(
-                "sub_vision",
-                "front_camera",
+            *vision_entities(
                 "image_color",
-                "vision/detections",
-                parameters={
-                    key: ParameterValue(LaunchConfiguration("vision_depth"), value_type=bool)
-                    for key in ("depth_enabled", "depth_debug")
-                },
-            ),
-            vision_node("sub_vision_down", "down_camera", "image_color", "vision/detections_down"),
-            annotation_visualizer(
-                "annotation_visualizer",
-                "front_camera",
-                "image_color",
-                "vision/detections",
-                "vision/debug_image",
-            ),
-            annotation_visualizer(
-                "annotation_visualizer_down",
-                "down_camera",
-                "image_color",
-                "vision/detections_down",
-                "vision/debug_image_down",
+                front_parameters={"depth_enabled": vision_depth, "depth_debug": vision_depth},
             ),
             # After sim_entities(), which picks the seed the bag records.
             recorder(

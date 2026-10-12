@@ -3,12 +3,7 @@
     control_rate_hz: 50.0
     power_limit: 0.6
 
-    # Vehicle model (docs/control.md#vehicle-model), body axes [x, y, z(, roll,
-    # pitch, yaw)]. PLACEHOLDERS until the pool identification session
-    # (docs/control.md#identifying-the-model): the masses only set how the
-    # feedback below is expressed and how much acceleration feedforward the
-    # trajectory gets, and with zero drag and buoyancy the integrators do all
-    # of that work, as they did before.
+    # Vehicle model (docs/control.md#vehicle-model).
     model:
       mass: [50.0, 60.0, 70.0]       # kg, rigid body plus added mass
       inertia: [1.5, 2.0, 2.0]       # kg m^2, rigid body plus added inertia

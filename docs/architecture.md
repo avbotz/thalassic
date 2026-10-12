@@ -54,7 +54,7 @@ The thruster commands go out every cycle, `control/error` and `control/status` e
 
 ### `dashboard` (`sub_pid_tuner`) — opt-in
 
-A browser dashboard for tuning `sub_control` live, started with `dashboard:=true` and served on `dashboard_host:dashboard_port` (8080). It sets any node's parameters, graphs `control/status` and `odometry/filtered` per axis, runs bounded tuning routines on `motion_setpoint`, calls `sub_control`'s `reset_pose`, and writes tuned values back to the gains file `sub_control` was started with. See its [README](../src/sub_control/sub_pid_tuner/README.md) and [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md).
+A browser dashboard for tuning `sub_control` live, started with `dashboard:=true` and served on every interface at `dashboard_port` (8080). It sets any node's parameters, graphs `control/status` and `odometry/filtered` per axis, runs bounded tuning routines on `motion_setpoint`, calls `sub_control`'s `reset_pose`, and writes tuned values back to the gains file `sub_control` was started with. See its [README](../src/sub_control/sub_pid_tuner/README.md) and [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md).
 
 ### `sub_mission` (`sub_mission/mission`)
 

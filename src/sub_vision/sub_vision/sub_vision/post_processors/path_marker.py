@@ -20,12 +20,12 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 from diagnostic_msgs.msg import KeyValue
-from sub_vision_interfaces.msg import Detection
 from vision_msgs.msg import ObjectHypothesisWithPose
 
 from sub_vision import geometry
 from sub_vision.post_processors.base import TaskPostProcessor
 from sub_vision.post_processors.registry import register_post_processor
+from sub_vision_interfaces.msg import Detection
 
 MIN_LONG_AXIS_PX = 18.0
 MIN_GEOMETRIC_AXIS_RATIO = 2.4

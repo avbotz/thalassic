@@ -14,7 +14,6 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool
-from sub_control_interfaces.msg import ThrusterCommand
 from sub_serial_drivers.sub_low import (
     MAX_COMMAND,
     SubLow,
@@ -22,6 +21,8 @@ from sub_serial_drivers.sub_low import (
     sanitize,
     thruster_lines,
 )
+
+from sub_control_interfaces.msg import ThrusterCommand
 
 
 def test_thruster_lines_batch_only_from_protocol_2():

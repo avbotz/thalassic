@@ -1,8 +1,7 @@
-"""
-Loads vehicle description (config/vehicles/<robot_name>.yaml).
+"""The vehicle description, config/vehicles/<robot_name>.yaml.
 
-Should contain hardware info (mounting offsets, thruster geometry, device names, camera
-serial numbers).
+Everything that is a property of the hull: mounting offsets, thruster
+geometry, device addresses, and the depth sensor's frame and variance.
 """
 
 import math
@@ -13,6 +12,8 @@ from typing import Any
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
+
+Vec3 = tuple[float, float, float]
 
 
 def quaternion_from_euler(roll: float, pitch: float, yaw: float) -> Quaternion:
@@ -25,6 +26,17 @@ def quaternion_from_euler(roll: float, pitch: float, yaw: float) -> Quaternion:
         y=cr * sp * cy + sr * cp * sy,
         z=cr * cp * sy - sr * sp * cy,
         w=cr * cp * cy + sr * sp * sy,
+    )
+
+
+def rotate(q: Quaternion, v: Vec3) -> Vec3:
+    """Rotate vector v by unit quaternion q."""
+    x, y, z = v
+    tx, ty, tz = 2 * (q.y * z - q.z * y), 2 * (q.z * x - q.x * z), 2 * (q.x * y - q.y * x)
+    return (
+        x + q.w * tx + (q.y * tz - q.z * ty),
+        y + q.w * ty + (q.z * tx - q.x * tz),
+        z + q.w * tz + (q.x * ty - q.y * tx),
     )
 
 
@@ -63,7 +75,7 @@ class Device:
     def frame(self) -> str:
         """The frame the device reports in (its mount's child frame)."""
         if self.mount is None:
-            raise KeyError(f"device {self.name!r} has no mount, so no frame")
+            raise ValueError(f"device {self.name!r} has no mount, so no frame")
         return self.mount.child_frame_id
 
 
@@ -73,17 +85,6 @@ class DepthSensor:
 
     frame: str
     z_variance: float
-
-
-def rotate(q: Quaternion, v: tuple[float, float, float]) -> tuple[float, float, float]:
-    """Rotate vector v by unit quaternion q."""
-    x, y, z = v
-    tx, ty, tz = 2 * (q.y * z - q.z * y), 2 * (q.z * x - q.x * z), 2 * (q.x * y - q.y * x)
-    return (
-        x + q.w * tx + (q.y * tz - q.z * ty),
-        y + q.w * ty + (q.z * tx - q.x * tz),
-        z + q.w * tz + (q.x * ty - q.y * tx),
-    )
 
 
 @dataclass(frozen=True)
@@ -96,9 +97,9 @@ class Thruster:
 
     mount: TransformStamped
     left_hand: bool
-    xyz: tuple[float, float, float]
+    xyz: Vec3
     """Position in the mount's parent frame [m], as written in the description."""
-    rpy: tuple[float, float, float]
+    rpy: Vec3
     """Orientation in the mount's parent frame [rad], applied Z-Y-X."""
 
 
@@ -119,9 +120,7 @@ class Vehicle:
         """Namespace a frame name, leaving the frames shared between vehicles alone."""
         return name if name in self.global_frames else f"{self.name}/{name}"
 
-    def in_frame(
-        self, transform: TransformStamped, root: str = "base_link"
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    def in_frame(self, transform: TransformStamped, root: str = "base_link") -> tuple[Vec3, Vec3]:
         """Position of a transform's child frame and its +X axis, expressed in `root`.
 
         Follows the description's static transforms from the child up to `root`.
@@ -234,11 +233,11 @@ class Vehicle:
         )
 
     @classmethod
-    def from_file(cls, path: Path, name: str | None = None) -> "Vehicle":
-        """Read a description file; the vehicle is named after the file unless told otherwise."""
+    def from_file(cls, path: Path) -> "Vehicle":
+        """Read a description file; the vehicle is named after the file."""
         # Launch prints only an exception's message, so it has to say which file and key.
         try:
-            return cls.from_yaml(name or path.stem, yaml.safe_load(path.read_text()) or {})
+            return cls.from_yaml(path.stem, yaml.safe_load(path.read_text()) or {})
         except KeyError as e:
             raise ValueError(f"{path}: missing key {e}") from e
         except (TypeError, ValueError, yaml.YAMLError) as e:
@@ -248,4 +247,4 @@ class Vehicle:
 def load_vehicle(robot_name: str) -> Vehicle:
     """Read config/vehicles/<robot_name>.yaml from the installed sub_bringup share."""
     share = Path(get_package_share_directory("sub_bringup"))
-    return Vehicle.from_file(share / "config" / "vehicles" / f"{robot_name}.yaml", robot_name)
+    return Vehicle.from_file(share / "config" / "vehicles" / f"{robot_name}.yaml")

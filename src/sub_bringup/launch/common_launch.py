@@ -4,14 +4,12 @@ transforms, EKF, sub_control, the mission, the tuning dashboard, the
 diagnostics aggregator and the Foxglove bridge.
 
 An include shares the parent's launch configurations, so the parent's
-robot_name, mission, role, restart, groot_port, gains, dashboard,
-dashboard_host, dashboard_port, foxglove_port, foxglove_compression and
-use_sim_time reach the nodes below.
+arguments (entities.common_launch_arguments) reach the nodes below.
 """
 
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, OpaqueFunction
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.substitutions import (
     AndSubstitution,
     LaunchConfiguration,
@@ -22,6 +20,7 @@ from launch.substitutions import (
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
 from sub_bringup.entities import common_launch_arguments, package_config, sim_time
 from sub_bringup.vehicle import load_vehicle
 
@@ -42,6 +41,28 @@ def _sub_control(context, *_, **__):
                 {"robot_name": robot_name, **vehicle.thruster_layout()},
                 sim_time(),
             ],
+        )
+    ]
+
+
+def _diagnostic_aggregator(context, *_, **__):
+    """Groups every node's /diagnostics into /diagnostics_agg (config/diagnostics.yaml).
+
+    Marks an item that stops reporting as stale. Not namespaced: the diagnostics
+    topics are global. On the vehicle (not on simulation time) it groups the
+    hardware drivers too; in the simulator that group would be empty, which
+    reads as stale.
+    """
+    configs = ["diagnostics.yaml"]
+    if not IfCondition(LaunchConfiguration("use_sim_time")).evaluate(context):
+        configs.append("diagnostics_vehicle.yaml")
+    return [
+        Node(
+            package="diagnostic_aggregator",
+            executable="aggregator_node",
+            name="diagnostic_aggregator",
+            output="log",
+            parameters=[*(package_config("sub_bringup", c) for c in configs), sim_time()],
         )
     ]
 
@@ -108,7 +129,8 @@ def generate_launch_description():
     )
 
     # Saves to the gains file sub_control was started with; installed as a
-    # symlink to the source tree, so that is where the change lands.
+    # symlink to the source tree, so that is where the change lands. Serves on
+    # every interface, like the Foxglove bridge and the Groot2 view.
     dashboard = Node(
         package="sub_pid_tuner",
         executable="dashboard",
@@ -118,39 +140,13 @@ def generate_launch_description():
         parameters=[
             {
                 "profile": package_config("sub_bringup", LaunchConfiguration("gains")),
-                "host": LaunchConfiguration("dashboard_host"),
+                "host": "0.0.0.0",
                 "port": ParameterValue(LaunchConfiguration("dashboard_port"), value_type=int),
             },
             sim_time(),
         ],
         condition=IfCondition(LaunchConfiguration("dashboard")),
     )
-
-    # Groups every node's /diagnostics into /diagnostics_agg, and marks one that
-    # stops reporting as stale (config/diagnostics.yaml). Not namespaced: the
-    # diagnostics topics are global.
-    # On the vehicle (not on simulation time) it groups the hardware drivers too.
-    diagnostic_aggregators = [
-        Node(
-            package="diagnostic_aggregator",
-            executable="aggregator_node",
-            name="diagnostic_aggregator",
-            output="log",
-            parameters=[
-                package_config("sub_bringup", "diagnostics.yaml"),
-                *extra,
-                sim_time(),
-            ],
-            condition=condition,
-        )
-        for extra, condition in (
-            ([], IfCondition(LaunchConfiguration("use_sim_time"))),
-            (
-                [package_config("sub_bringup", "diagnostics_vehicle.yaml")],
-                UnlessCondition(LaunchConfiguration("use_sim_time")),
-            ),
-        )
-    ]
 
     foxglove_bridge = Node(
         package="foxglove_bridge",
@@ -177,7 +173,7 @@ def generate_launch_description():
             mission_node,
             mission_restart_node,
             dashboard,
-            *diagnostic_aggregators,
+            OpaqueFunction(function=_diagnostic_aggregator),
             foxglove_bridge,
         ]
     )

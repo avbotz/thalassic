@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import numpy as np
     from sensor_msgs.msg import CameraInfo
+
     from sub_vision_interfaces.msg import DetectionArray
 
 

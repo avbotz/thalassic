@@ -5,9 +5,10 @@ import math
 import numpy as np
 import pytest
 from sensor_msgs.msg import CameraInfo
+from vision_msgs.msg import ObjectHypothesisWithPose
+
 from sub_vision.post_processors import gate
 from sub_vision_interfaces.msg import Detection, DetectionArray
-from vision_msgs.msg import ObjectHypothesisWithPose
 
 WIDTH, HEIGHT = 1920, 1080
 FOCAL = (WIDTH / 2) / math.tan(math.radians(70.4) / 2)  # the simulator's front camera

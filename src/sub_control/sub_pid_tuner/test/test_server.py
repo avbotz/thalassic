@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from aiohttp import WSServerHandshakeError, web
 from aiohttp.test_utils import TestClient, TestServer
+
 from sub_pid_tuner.profile import GainProfile
 from sub_pid_tuner.server import BROADCAST_HZ, DashboardServer, encode
 

@@ -35,4 +35,4 @@ The Jetson serves NTP to the DVL and the camera (`deploy/jetson/files/thalassic-
 
 ## ROS 2 discovery
 
-Discovery is separate from addressing and is set by `THALASSIC_DDS_PROFILE` — see [DDS profiles](setup.md#dds-profiles). The vehicle uses subnet discovery on domain 42; a laptop opts in with `THALASSIC_DDS_PROFILE=vehicle pixi shell`.
+Discovery is separate from addressing and is set by `THALASSIC_DDS_PROFILE` — see [DDS profiles](setup.md#dds-profiles). Developers can opt to use the vehicle's DDS settings with `THALASSIC_DDS_PROFILE=vehicle pixi shell`.

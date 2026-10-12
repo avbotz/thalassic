@@ -20,7 +20,7 @@ class StaticTransforms(Node):
         if not robot_name:
             raise ValueError("robot_name is not set; it selects config/vehicles/<robot_name>.yaml")
 
-        transforms = list(load_vehicle(robot_name).transforms)
+        transforms = load_vehicle(robot_name).transforms
         stamp = self.get_clock().now().to_msg()
         for transform in transforms:
             transform.header.stamp = stamp
@@ -32,15 +32,12 @@ class StaticTransforms(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = StaticTransforms()
     try:
-        rclpy.spin(node)
+        rclpy.spin(StaticTransforms())
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # diagnostic_aggregator's grouping of /diagnostics into /diagnostics_agg (and the
 # overall level on /diagnostics_toplevel_state), for Foxglove's diagnostics panel
-# and scripts/preflight.py. An item that stops reporting for `timeout` seconds
+# and `ros2 run sub_bringup preflight`. An item that stops reporting for `timeout` seconds
 # turns stale, so a dead driver shows up even though it can no longer say so.
 # Names are "<node name>: <task>" (diagnostic_updater) or the node name (sub_vision).
 # diagnostics_vehicle.yaml adds the hardware drivers on the vehicle (an empty

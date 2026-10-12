@@ -25,10 +25,8 @@ fi
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 if [ "${THALASSIC_DDS_PROFILE:-dev}" = vehicle ]; then
   export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
-  export ROS_DOMAIN_ID="${THALASSIC_ROS_DOMAIN_ID:-42}"
 else
   export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-  export ROS_DOMAIN_ID="${THALASSIC_ROS_DOMAIN_ID:-$(($(id -u) % 100))}"
 fi
 
 # FLIR camera setup
