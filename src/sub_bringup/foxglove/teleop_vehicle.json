@@ -1,0 +1,66 @@
+{
+  "configById": {
+    "AVBotz Teleop.6-DOF Teleop!pilot": {},
+    "AVBotz Vision.Detections!front": {
+      "imageTopic": "/marlin_v3/front_camera/image_raw/compressed",
+      "detectionsTopic": "/marlin_v3/vision/detections",
+      "mode": "all"
+    },
+    "AVBotz Vision.Detections!down": {
+      "imageTopic": "/marlin_v3/down_camera/image_raw/compressed",
+      "detectionsTopic": "/marlin_v3/vision/detections_down",
+      "mode": "all"
+    },
+    "AVBotz Teleop.Motion Setpoint!setpoint": {},
+    "DiagnosticSummary!diagnostics": {
+      "topicToRender": "/diagnostics_agg",
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "sortByLevel": true
+    },
+    "RosOut!log": {
+      "searchTerms": [],
+      "minLogLevel": 2,
+      "topicToRender": "/rosout"
+    },
+    "Tab!tools": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Setpoint",
+          "layout": "AVBotz Teleop.Motion Setpoint!setpoint"
+        },
+        {
+          "title": "Diagnostics",
+          "layout": "DiagnosticSummary!diagnostics"
+        },
+        {
+          "title": "Log",
+          "layout": "RosOut!log"
+        }
+      ]
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": "AVBotz Teleop.6-DOF Teleop!pilot",
+    "second": {
+      "direction": "column",
+      "first": "AVBotz Vision.Detections!front",
+      "second": {
+        "direction": "column",
+        "first": "AVBotz Vision.Detections!down",
+        "second": "Tab!tools",
+        "splitPercentage": 50.0
+      },
+      "splitPercentage": 40.0
+    },
+    "splitPercentage": 60.0
+  }
+}

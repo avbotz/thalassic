@@ -1,0 +1,516 @@
+{
+  "configById": {
+    "Indicator!armed": {
+      "path": "/marlin_v3/control/status.armed",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "ARMED",
+          "color": "#2e7d32"
+        }
+      ],
+      "fallbackLabel": "NOT ARMED",
+      "fallbackColor": "#616161"
+    },
+    "Indicator!killed": {
+      "path": "/marlin_v3/control/status.killed",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "KILLED",
+          "color": "#c62828"
+        }
+      ],
+      "fallbackLabel": "KILL RELEASED",
+      "fallbackColor": "#616161"
+    },
+    "Indicator!failsafe": {
+      "path": "/marlin_v3/control/status.failsafe",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "FAILSAFE",
+          "color": "#c62828"
+        }
+      ],
+      "fallbackLabel": "NO FAILSAFE",
+      "fallbackColor": "#616161"
+    },
+    "Indicator!imu_ok": {
+      "path": "/marlin_v3/control/status.imu_ok",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "IMU",
+          "color": "#2e7d32"
+        }
+      ],
+      "fallbackLabel": "NO IMU",
+      "fallbackColor": "#c62828"
+    },
+    "Indicator!dvl_ok": {
+      "path": "/marlin_v3/control/status.dvl_ok",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "DVL",
+          "color": "#2e7d32"
+        }
+      ],
+      "fallbackLabel": "NO DVL",
+      "fallbackColor": "#c62828"
+    },
+    "Indicator!depth_ok": {
+      "path": "/marlin_v3/control/status.depth_ok",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "DEPTH",
+          "color": "#2e7d32"
+        }
+      ],
+      "fallbackLabel": "NO DEPTH",
+      "fallbackColor": "#c62828"
+    },
+    "Indicator!altitude_ok": {
+      "path": "/marlin_v3/control/status.altitude_ok",
+      "style": "background",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "label": "ALTITUDE",
+          "color": "#2e7d32"
+        }
+      ],
+      "fallbackLabel": "NO ALTITUDE",
+      "fallbackColor": "#ef6c00"
+    },
+    "AVBotz Vision.Detections!front": {
+      "imageTopic": "/marlin_v3/front_camera/image_raw/compressed",
+      "detectionsTopic": "/marlin_v3/vision/detections"
+    },
+    "AVBotz Vision.Detections!down": {
+      "imageTopic": "/marlin_v3/down_camera/image_raw/compressed",
+      "detectionsTopic": "/marlin_v3/vision/detections_down"
+    },
+    "AVBotz Tuning.Controller Signals!z": {
+      "axis": "z",
+      "view": "pose",
+      "windowS": 60
+    },
+    "AVBotz Tuning.Controller Signals!yaw": {
+      "axis": "yaw",
+      "view": "pose",
+      "windowS": 60
+    },
+    "3D!map": {
+      "cameraState": {
+        "perspective": false,
+        "distance": 10,
+        "phi": 0,
+        "thetaOffset": 0,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-position",
+      "followTf": "marlin_v3/base_link",
+      "scene": {
+        "labelScaleFactor": 0.24,
+        "transforms": {
+          "showLabel": true
+        }
+      },
+      "transforms": {
+        "frame:marlin_v3/odom": {
+          "visible": true
+        },
+        "frame:marlin_v3/base_link": {
+          "visible": true
+        },
+        "frame:marlin_v3/front_camera": {
+          "visible": true
+        },
+        "frame:marlin_v3/down_camera": {
+          "visible": true
+        },
+        "frame:marlin_v3/base_link_ned": {
+          "visible": false
+        },
+        "frame:marlin_v3/imu_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/pressure_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/dvl_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/dropper_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/left_grabber_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/right_grabber_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/torpedo_0_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/torpedo_1_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_0_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_1_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_2_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_3_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_4_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_5_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_6_link": {
+          "visible": false
+        },
+        "frame:marlin_v3/thruster_7_link": {
+          "visible": false
+        }
+      },
+      "topics": {
+        "/marlin_v3/odometry/filtered": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "instanceId": "grid",
+          "label": "Grid",
+          "visible": true,
+          "frameId": "marlin_v3/odom",
+          "frameLocked": true,
+          "size": 50,
+          "divisions": 50,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        }
+      }
+    },
+    "Plot!error": {
+      "paths": [
+        {
+          "value": "/marlin_v3/control/error.pos_error[0]",
+          "label": "x (m)",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/error.pos_error[1]",
+          "label": "y (m)",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/error.pos_error[2]",
+          "label": "z (m)",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/error.att_error[2]",
+          "label": "yaw (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "xAxisVal": "timestamp",
+      "timeWindowMode": "sliding",
+      "followingViewWidth": 60,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "sidebarDimension": 240
+    },
+    "StateTransitions!modes": {
+      "paths": [
+        {
+          "value": "/marlin_v3/control/status.mode[0]",
+          "label": "x/y mode",
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "0",
+                "label": "keep",
+                "color": "#616161"
+              },
+              {
+                "value": "1",
+                "label": "position",
+                "color": "#2e7d32"
+              },
+              {
+                "value": "2",
+                "label": "velocity",
+                "color": "#1565c0"
+              },
+              {
+                "value": "3",
+                "label": "hold",
+                "color": "#ef6c00"
+              },
+              {
+                "value": "4",
+                "label": "effort",
+                "color": "#c62828"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/marlin_v3/control/status.mode[2]",
+          "label": "z mode",
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "0",
+                "label": "keep",
+                "color": "#616161"
+              },
+              {
+                "value": "1",
+                "label": "position",
+                "color": "#2e7d32"
+              },
+              {
+                "value": "2",
+                "label": "velocity",
+                "color": "#1565c0"
+              },
+              {
+                "value": "3",
+                "label": "hold",
+                "color": "#ef6c00"
+              },
+              {
+                "value": "4",
+                "label": "effort",
+                "color": "#c62828"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/marlin_v3/control/status.mode[5]",
+          "label": "yaw mode",
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "0",
+                "label": "keep",
+                "color": "#616161"
+              },
+              {
+                "value": "1",
+                "label": "position",
+                "color": "#2e7d32"
+              },
+              {
+                "value": "2",
+                "label": "velocity",
+                "color": "#1565c0"
+              },
+              {
+                "value": "3",
+                "label": "hold",
+                "color": "#ef6c00"
+              },
+              {
+                "value": "4",
+                "label": "effort",
+                "color": "#c62828"
+              }
+            ]
+          }
+        }
+      ],
+      "isSynced": true
+    },
+    "RosOut!log": {
+      "searchTerms": [],
+      "minLogLevel": 2,
+      "topicToRender": "/rosout"
+    },
+    "DiagnosticSummary!diagnostics": {
+      "topicToRender": "/diagnostics_agg",
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "sortByLevel": true
+    },
+    "AVBotz Teleop.Motion Setpoint!setpoint": {},
+    "RawMessages!detections": {
+      "topicPath": "/marlin_v3/vision/detections",
+      "diffTopicPath": "",
+      "diffMethod": "custom",
+      "diffEnabled": false,
+      "showFullMessageForDiff": false,
+      "expansion": "all"
+    },
+    "Tab!tools": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Log",
+          "layout": "RosOut!log"
+        },
+        {
+          "title": "Diagnostics",
+          "layout": "DiagnosticSummary!diagnostics"
+        },
+        {
+          "title": "Setpoint",
+          "layout": "AVBotz Teleop.Motion Setpoint!setpoint"
+        },
+        {
+          "title": "Detections",
+          "layout": "RawMessages!detections"
+        }
+      ]
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "column",
+    "first": {
+      "direction": "row",
+      "first": "Indicator!armed",
+      "second": {
+        "direction": "row",
+        "first": "Indicator!killed",
+        "second": {
+          "direction": "row",
+          "first": "Indicator!failsafe",
+          "second": {
+            "direction": "row",
+            "first": "Indicator!imu_ok",
+            "second": {
+              "direction": "row",
+              "first": "Indicator!dvl_ok",
+              "second": {
+                "direction": "row",
+                "first": "Indicator!depth_ok",
+                "second": "Indicator!altitude_ok",
+                "splitPercentage": 50.0
+              },
+              "splitPercentage": 33.33
+            },
+            "splitPercentage": 25.0
+          },
+          "splitPercentage": 20.0
+        },
+        "splitPercentage": 16.67
+      },
+      "splitPercentage": 14.29
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "row",
+        "first": "AVBotz Vision.Detections!front",
+        "second": {
+          "direction": "row",
+          "first": "AVBotz Vision.Detections!down",
+          "second": {
+            "direction": "column",
+            "first": "AVBotz Tuning.Controller Signals!z",
+            "second": "AVBotz Tuning.Controller Signals!yaw",
+            "splitPercentage": 50.0
+          },
+          "splitPercentage": 56.25
+        },
+        "splitPercentage": 36.0
+      },
+      "second": {
+        "direction": "row",
+        "first": "3D!map",
+        "second": {
+          "direction": "row",
+          "first": {
+            "direction": "column",
+            "first": "Plot!error",
+            "second": "StateTransitions!modes",
+            "splitPercentage": 50.0
+          },
+          "second": "Tab!tools",
+          "splitPercentage": 42.86
+        },
+        "splitPercentage": 30.0
+      },
+      "splitPercentage": 50.0
+    },
+    "splitPercentage": 7.69
+  }
+}

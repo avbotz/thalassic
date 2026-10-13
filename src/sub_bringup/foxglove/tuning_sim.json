@@ -1,0 +1,328 @@
+{
+  "configById": {
+    "AVBotz Tuning.Controller Gains!gains": {},
+    "AVBotz Tuning.Tuning Routines!routines": {},
+    "AVBotz Tuning.Controller Signals!x_pose": {
+      "axis": "x",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!x_tracking": {
+      "axis": "x",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!x_wrench": {
+      "axis": "x",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!y_pose": {
+      "axis": "y",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!y_tracking": {
+      "axis": "y",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!y_wrench": {
+      "axis": "y",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!z_pose": {
+      "axis": "z",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!z_tracking": {
+      "axis": "z",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!z_wrench": {
+      "axis": "z",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!roll_pose": {
+      "axis": "roll",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!roll_tracking": {
+      "axis": "roll",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!roll_wrench": {
+      "axis": "roll",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!pitch_pose": {
+      "axis": "pitch",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!pitch_tracking": {
+      "axis": "pitch",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!pitch_wrench": {
+      "axis": "pitch",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!yaw_pose": {
+      "axis": "yaw",
+      "view": "pose",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!yaw_tracking": {
+      "axis": "yaw",
+      "view": "tracking",
+      "windowS": 30
+    },
+    "AVBotz Tuning.Controller Signals!yaw_wrench": {
+      "axis": "yaw",
+      "view": "wrench",
+      "windowS": 30
+    },
+    "Tab!axes": {
+      "activeTabIdx": 2,
+      "tabs": [
+        {
+          "title": "x",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!x_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!x_tracking",
+              "second": "AVBotz Tuning.Controller Signals!x_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        },
+        {
+          "title": "y",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!y_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!y_tracking",
+              "second": "AVBotz Tuning.Controller Signals!y_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        },
+        {
+          "title": "z",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!z_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!z_tracking",
+              "second": "AVBotz Tuning.Controller Signals!z_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        },
+        {
+          "title": "roll",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!roll_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!roll_tracking",
+              "second": "AVBotz Tuning.Controller Signals!roll_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        },
+        {
+          "title": "pitch",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!pitch_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!pitch_tracking",
+              "second": "AVBotz Tuning.Controller Signals!pitch_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        },
+        {
+          "title": "yaw",
+          "layout": {
+            "direction": "row",
+            "first": "AVBotz Tuning.Controller Signals!yaw_pose",
+            "second": {
+              "direction": "column",
+              "first": "AVBotz Tuning.Controller Signals!yaw_tracking",
+              "second": "AVBotz Tuning.Controller Signals!yaw_wrench",
+              "splitPercentage": 50.0
+            },
+            "splitPercentage": 50.0
+          }
+        }
+      ]
+    },
+    "Plot!thrusters": {
+      "paths": [
+        {
+          "value": "/marlin_v3/control/thrusters.command[0]",
+          "label": "T0",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[1]",
+          "label": "T1",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[2]",
+          "label": "T2",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[3]",
+          "label": "T3",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[4]",
+          "label": "T4",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[5]",
+          "label": "T5",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[6]",
+          "label": "T6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/marlin_v3/control/thrusters.command[7]",
+          "label": "T7",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "xAxisVal": "timestamp",
+      "timeWindowMode": "sliding",
+      "followingViewWidth": 30,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "sidebarDimension": 240,
+      "minYValue": -0.6,
+      "maxYValue": 0.6
+    },
+    "DiagnosticSummary!diagnostics": {
+      "topicToRender": "/diagnostics_agg",
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "sortByLevel": true
+    },
+    "RosOut!log": {
+      "searchTerms": [],
+      "minLogLevel": 2,
+      "topicToRender": "/rosout"
+    },
+    "Tab!tools": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Diagnostics",
+          "layout": "DiagnosticSummary!diagnostics"
+        },
+        {
+          "title": "Log",
+          "layout": "RosOut!log"
+        }
+      ]
+    },
+    "Publish!kill": {
+      "topicName": "/marlin_v3/sim/kill_switch",
+      "datatype": "std_msgs/msg/Bool",
+      "value": "{\"data\": true}",
+      "buttonText": "KILL",
+      "buttonTooltip": "Engage the simulated kill switch: sub_control drops every command and the thrusters stop",
+      "buttonColor": "#c62828",
+      "advancedView": false
+    },
+    "Publish!release": {
+      "topicName": "/marlin_v3/sim/kill_switch",
+      "datatype": "std_msgs/msg/Bool",
+      "value": "{\"data\": false}",
+      "buttonText": "RELEASE",
+      "buttonTooltip": "Release it: sub_control re-zeroes the pose and arms once the ESCs have started (3 s)",
+      "buttonColor": "#2e7d32",
+      "advancedView": false
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "AVBotz Tuning.Controller Gains!gains",
+      "second": "AVBotz Tuning.Tuning Routines!routines",
+      "splitPercentage": 55.0
+    },
+    "second": {
+      "direction": "column",
+      "first": "Tab!axes",
+      "second": {
+        "direction": "row",
+        "first": "Plot!thrusters",
+        "second": {
+          "direction": "row",
+          "first": "Tab!tools",
+          "second": {
+            "direction": "column",
+            "first": "Publish!kill",
+            "second": "Publish!release",
+            "splitPercentage": 50.0
+          },
+          "splitPercentage": 66.67
+        },
+        "splitPercentage": 50.0
+      },
+      "splitPercentage": 65.0
+    },
+    "splitPercentage": 35.0
+  }
+}

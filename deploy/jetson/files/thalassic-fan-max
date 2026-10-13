@@ -4,17 +4,17 @@ set -eu
 
 found=0
 for hwmon in /sys/class/hwmon/hwmon*; do
-  case "$(cat "$hwmon/name" 2>/dev/null)" in *fan*) ;; *) continue ;; esac
-  # Drivers that have pwm1_enable want 1 (manual) before they take a duty cycle.
-  if [ -e "$hwmon/pwm1_enable" ]; then
-    echo 1 >"$hwmon/pwm1_enable";
-  fi
-  echo 255 >"$hwmon/pwm1" # 0-255; 255 is full speed
-  echo "  $hwmon/pwm1 = $(cat "$hwmon/pwm1")"
-  found=1
+	case "$(cat "$hwmon/name" 2>/dev/null)" in *fan*) ;; *) continue ;; esac
+	# Drivers that have pwm1_enable want 1 (manual) before they take a duty cycle.
+	if [ -e "$hwmon/pwm1_enable" ]; then
+		echo 1 >"$hwmon/pwm1_enable"
+	fi
+	echo 255 >"$hwmon/pwm1" # 0-255; 255 is full speed
+	echo "  $hwmon/pwm1 = $(cat "$hwmon/pwm1")"
+	found=1
 done
 
 if [ "$found" -eq 0 ]; then
-    echo "no fan found under /sys/class/hwmon" >&2
-    exit 1
+	echo "no fan found under /sys/class/hwmon" >&2
+	exit 1
 fi

@@ -7,10 +7,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FILES="$REPO_ROOT/deploy/jetson/files"
 
 step() { echo "==> $*"; }
-die()  { echo " ! $*" >&2; exit 1; }
+die() {
+  echo " ! $*" >&2
+  exit 1
+}
 trap 'echo " ! failed during the step above; fix the error and rerun" >&2' ERR
 
-[ "$(id -u)" -eq 0 ]         || die "run with sudo"
+[ "$(id -u)" -eq 0 ] || die "run with sudo"
 [ -e /etc/nv_tegra_release ] || die "not a Jetson (no /etc/nv_tegra_release)"
 
 step "Packages"
@@ -20,7 +23,7 @@ if ! command -v chronyd >/dev/null; then
 fi
 
 step "Groups for $USER"
-usermod -aG dialout,video "$USER"   # dialout: serial MCUs, video: USB cameras
+usermod -aG dialout,video "$USER" # dialout: serial MCUs, video: USB cameras
 
 step "udev rules"
 install -m 0644 "$REPO_ROOT"/deploy/udev/*.rules /etc/udev/rules.d/
@@ -56,7 +59,7 @@ mkdir "$stage/etc"
 cp -a /etc/netplan "$stage/etc/"
 install -m 0600 "$FILES/60-thalassic-vehicle.yaml" "$stage/etc/netplan/"
 netplan generate --root-dir "$stage" || die "netplan rejected 60-thalassic-vehicle.yaml (error above); nothing was changed"
-install -m 0600 "$FILES/60-thalassic-vehicle.yaml" /etc/netplan/   # 0600 or netplan warns
+install -m 0600 "$FILES/60-thalassic-vehicle.yaml" /etc/netplan/ # 0600 or netplan warns
 netplan apply
 
 cat <<EOF

@@ -5,6 +5,18 @@ from setuptools import find_packages, setup
 
 package_name = "sub_bringup"
 
+
+# Source - https://stackoverflow.com/a/65432634
+def generate_data_files(data_dir: str) -> list[tuple[str, list[str]]]:
+    data_files: list[tuple[str, list[str]]] = []
+    for path, _dirs, files in os.walk(data_dir):
+        install_dir = f"share/{package_name}/" + path
+        list_entry = (install_dir, [os.path.join(path, f) for f in files if not f.startswith(".")])
+        data_files.append(list_entry)
+
+    return data_files
+
+
 setup(
     name=package_name,
     version="0.0.0",
@@ -14,11 +26,8 @@ setup(
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/launch", glob("launch/*_launch.py")),
         (f"share/{package_name}/rviz", glob("rviz/*.rviz")),
-        # Every config file, keeping its directory (config/devices/..., config/vehicles/...).
-        *(
-            (f"share/{package_name}/{os.path.dirname(path)}", [path])
-            for path in glob("config/**/*.*", recursive=True)
-        ),
+        (f"share/{package_name}/foxglove", glob("foxglove/*.json")),
+        *generate_data_files("config"),
     ],
     install_requires=["setuptools"],
     extras_require={"test": ["pytest"]},

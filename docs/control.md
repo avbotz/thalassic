@@ -207,7 +207,7 @@ Everything except the rate, the layout and `robot_name` can be changed at runtim
 
 Gains tuned in simulation will not carry over unchanged; the structure and the procedure do.
 
-The AVBotz Tuning extension for Foxglove ([avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions), `tuning/`) runs these steps from Foxglove over the bridge: its Controller Gains panel edits the parameters live and exports what changed in the layout of the gains file, Controller Signals graphs target, reference and measurement per axis, and Tuning Routines runs bounded step, cruise, hold and square routines. Its README walks through the procedure.
+The AVBotz Tuning extension for Foxglove ([avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions), `tuning/`) runs these steps from Foxglove over the bridge: its Controller Gains panel edits the parameters live and exports what changed in the layout of the gains file, Controller Signals graphs target, reference and measurement per axis, and Tuning Routines runs bounded step, cruise, hold and square routines. Its README walks through the procedure. The `tuning` layouts in `src/sub_bringup/foxglove/` ([foxglove.md](foxglove.md)) open these panels with a tab of graphs per axis.
 
 ## Diagnostics
 

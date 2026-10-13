@@ -50,7 +50,7 @@ The main control node, at 50 Hz: a jerk-limited trajectory generator, a model-ba
 
 The thruster commands go out every cycle, `control/error` and `control/status` every cycle except while the node waits for the EKF to confirm the pose reset after a kill-switch release. Gains, the vehicle model and trajectory limits come from the hardware or simulation control profile; the thruster layout from the vehicle description. Parameters are listed in [control.md](control.md#configuration).
 
-Driving, tuning and watching the vehicle from a laptop is done in Foxglove, through the bridge, with the panels in [avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions): teleop (6-DOF Teleop, Motion Setpoint), tuning (Controller Gains, Tuning Routines, Controller Signals) and vision (Detections, drawn on the frames they were computed from).
+Driving, tuning and watching the vehicle from a laptop is done in Foxglove, through the bridge, with the panels in [avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions): teleop (6-DOF Teleop, Motion Setpoint), tuning (Controller Gains, Tuning Routines, Controller Signals) and vision (Detections, drawn on the frames they were computed from); the layouts in `src/sub_bringup/foxglove/` put them together ([foxglove.md](foxglove.md)).
 
 ### `sub_mission` (`sub_mission/mission`)
 
