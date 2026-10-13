@@ -114,7 +114,7 @@ If nodes stop discovering each other after a crash, Fast DDS may have left share
 
 ## Stonefish
 
-The simulator library is built inside the workspace by the `stonefish_vendor` package from the git submodule at `src/sub_sim/stonefish_vendor/stonefish` (AVBotz fork, branch `claude-extra-features`). It installs to `install/opt/stonefish_vendor` and is found by `stonefish_ros2` through an ament environment hook.
+The simulator library is built inside the workspace by the `stonefish_vendor` package from the git submodule at `src/sub_sim/stonefish_vendor/stonefish` (AVBotz fork, branch `claude-extra-features`). It installs to `install/opt/stonefish_vendor` and registers a forwarding `StonefishConfig.cmake` under `install/share/Stonefish/cmake`, so `stonefish_ros2` finds it through the workspace prefix with no environment hook.
 
 If you have previously installed Stonefish globally, it is recommended to remove it.
 

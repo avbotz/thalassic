@@ -17,7 +17,12 @@ ament_vendor(stonefish_vendor
   CMAKE_ARGS
     -DCMAKE_BUILD_TYPE=Release
     -DBUILD_TESTS=OFF
-  GLOBAL_HOOK
+)
+
+install(FILES
+  cmake/StonefishConfig.cmake
+  cmake/StonefishConfigVersion.cmake
+  DESTINATION share/Stonefish/cmake
 )
 
 ament_package()
