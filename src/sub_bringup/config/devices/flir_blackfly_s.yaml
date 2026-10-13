@@ -1,0 +1,17 @@
+# FLIR Blackfly S GigE, used as the down camera.
+# The serial number is in the vehicle description (config/vehicles/marlin_v3.yaml) because it changes when the camera is swapped.
+/**:
+  ros__parameters:
+    buffer_queue_size: 1
+    stream_buffer_handling_mode: "NewestOnly"
+
+    pixel_format: "BayerBG8"
+    gain_auto: "Continuous"
+    exposure_auto: "Off"
+    exposure_time: 2000.0
+    trigger_mode: "Off"
+    frame_rate_enable: true
+    frame_rate: 5.0
+
+    # TODO: Try raising to 9000 (MTU set in deploy/jetson/files/60-thalassic-vehicle.yaml).
+    gev_scps_packet_size: 1500

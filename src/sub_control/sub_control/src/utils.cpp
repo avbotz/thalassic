@@ -5,22 +5,7 @@
 #include <cmath>
 #include <numbers>
 
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-
 namespace {
-
-enum class PROPELLER_DIRECTION { CLOCKWISE = 1, COUNTER_CLOCKWISE = -1 };
-
-struct ThrusterPose {
-    double x;
-    double y;
-    double z;
-    double roll;
-    double pitch;
-    double yaw;
-    PROPELLER_DIRECTION direction;
-};
 
 struct ThrusterMap {
     // -1 to 1 (representing 1100 - 1900 µs)
@@ -28,28 +13,6 @@ struct ThrusterMap {
     // newtons
     double force;
 };
-
-constexpr double thrust_sign(PROPELLER_DIRECTION direction) { return static_cast<double>(direction); }
-
-// Should match sim thruster layout from layout.scn.j2
-// Thruster positions below are in NED, so they live in base_link_ned frame (X=Right, Y=Back, Z=Down).
-// Thruster positions are rotated into the FLU body frame before further use
-// Same thruster configuration as BlueROV2 Heavy.
-// Thrusters 0-3: vertical units (pitch 90)  -> heave / roll / pitch
-// Thrusters 4-7 : horizontal units (45-deg) -> surge / sway / yaw
-// clang-format off
-constexpr std::array<ThrusterPose, NUM_THRUSTERS> THRUSTER_GEOMETRY{{
-    // x, y, z, roll, pitch, yaw, direction
-    {-0.23, -0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},             // vertical front left (0)
-    {0.23, -0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical front right (1)
-    {-0.23, 0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},      // vertical back left (2)
-    {0.23, 0.22, 0.0, 0.0 + 0.08, -std::numbers::pi / 2.0, 0.0, PROPELLER_DIRECTION::CLOCKWISE},               // vertical back right (3)
-    {-0.285, -0.315, -0.08 + 0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},              // horizontal front left (4)
-    {0.285, -0.315, -0.08 + 0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal front right (5)
-    {-0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, 5.0 * std::numbers::pi / 4.0, PROPELLER_DIRECTION::COUNTER_CLOCKWISE},  // horizontal back left (6)
-    {0.285, 0.315, -0.08 + 0.08, 0.0, 0.0, -std::numbers::pi / 4.0, PROPELLER_DIRECTION::CLOCKWISE},               // horizontal back right (7)
-}};
-// clang-format on
 
 // Measured T200 thrust curve, one row per 0.01 of normalised command. Left
 // aligned by hand; the formatter would reflow 201 rows into an unreadable
@@ -260,129 +223,9 @@ constexpr auto THRUSTER_LOOKUP_TABLE = std::to_array<ThrusterMap>({{-1, -39.9079
 
 }  // namespace
 
-ThrusterAllocator::ThrusterAllocator() {
-    Eigen::Matrix3d ned_to_flu;
-    // clang-format off
-    ned_to_flu << 0.0, -1.0, 0.0,
-                  -1.0, 0.0, 0.0,
-                  0.0, 0.0, -1.0;
-    // clang-format on
-
-    Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> B;
-    for (int i = 0; i < NUM_THRUSTERS; ++i) {
-        const ThrusterPose& g = THRUSTER_GEOMETRY[i];
-        const Eigen::Matrix3d rot =
-            (Eigen::AngleAxisd(g.yaw, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(g.pitch, Eigen::Vector3d::UnitY()) *
-             Eigen::AngleAxisd(g.roll, Eigen::Vector3d::UnitX()))
-                .toRotationMatrix();
-        const Eigen::Vector3d axis = thrust_sign(g.direction) * (ned_to_flu * (rot * Eigen::Vector3d::UnitX()));
-        const Eigen::Vector3d r = ned_to_flu * Eigen::Vector3d(g.x, g.y, g.z);
-        B.block<3, 1>(0, i) = axis;
-        B.block<3, 1>(3, i) = r.cross(axis);
-    }
-
-    // A = pinv(B): the min-norm thruster forces that realize a desired wrench.
-    const Eigen::Matrix<double, NUM_THRUSTERS, NUM_DOF> A = B.completeOrthogonalDecomposition().pseudoInverse();
-
-    for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        for (int d = 0; d < NUM_DOF; ++d) {
-            alloc_[t][d] = A(t, d);
-        }
-    }
-    for (int d = 0; d < NUM_DOF; ++d) {
-        for (int t = 0; t < NUM_THRUSTERS; ++t) {
-            act_[d][t] = B(d, t);
-        }
-    }
-}
-
-std::array<double, NUM_DOF> ThrusterAllocator::wrench_from_forces(
-    const std::array<double, NUM_THRUSTERS>& forces) const {
-    std::array<double, NUM_DOF> wrench{};
-    for (int d = 0; d < NUM_DOF; ++d) {
-        double v = 0.0;
-        for (int t = 0; t < NUM_THRUSTERS; ++t) {
-            v += act_[d][t] * forces[t];
-        }
-        wrench[d] = v;
-    }
-    return wrench;
-}
-
-std::array<double, NUM_THRUSTERS> ThrusterAllocator::allocate(const std::array<double, NUM_DOF>& wrench,
-                                                              double max_force,
-                                                              const std::array<double, NUM_DOF>& axis_weights) const {
-    std::array<double, NUM_THRUSTERS> unconstrained{};
-    double peak_force = 0.0;
-    for (int thruster = 0; thruster < NUM_THRUSTERS; ++thruster) {
-        for (int axis = 0; axis < NUM_DOF; ++axis) {
-            unconstrained[thruster] += alloc_[thruster][axis] * wrench[axis];
-        }
-        peak_force = std::max(peak_force, std::fabs(unconstrained[thruster]));
-    }
-    if (max_force > 0.0 && peak_force <= max_force) {
-        return unconstrained;
-    }
-
-    Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> B;
-    Eigen::Matrix<double, NUM_DOF, 1> desired;
-    Eigen::DiagonalMatrix<double, NUM_DOF> weights;
-    for (int d = 0; d < NUM_DOF; ++d) {
-        desired(d) = wrench[d];
-        weights.diagonal()(d) = std::max(axis_weights[d], 1e-3);
-        for (int t = 0; t < NUM_THRUSTERS; ++t) {
-            B(d, t) = act_[d][t];
-        }
-    }
-
-    const Eigen::Matrix<double, NUM_DOF, NUM_THRUSTERS> weighted_b = weights * B;
-    const Eigen::Matrix<double, NUM_DOF, 1> weighted_desired = weights * desired;
-    constexpr double regularization = 1e-8;
-    const Eigen::Matrix<double, NUM_THRUSTERS, NUM_THRUSTERS> hessian =
-        weighted_b.transpose() * weighted_b +
-        regularization * Eigen::Matrix<double, NUM_THRUSTERS, NUM_THRUSTERS>::Identity();
-    const Eigen::Matrix<double, NUM_THRUSTERS, 1> gradient_offset = weighted_b.transpose() * weighted_desired;
-
-    Eigen::Matrix<double, NUM_THRUSTERS, 1> forces = hessian.ldlt().solve(gradient_offset);
-    if (max_force <= 0.0) {
-        forces.setZero();
-    } else {
-        forces = forces.cwiseMax(-max_force).cwiseMin(max_force);
-
-        // Projected gradient refinement solves the box-constrained problem. The
-        // row-sum bound is a cheap upper bound on the largest eigenvalue.
-        double lipschitz = 0.0;
-        for (int row = 0; row < NUM_THRUSTERS; ++row) {
-            lipschitz = std::max(lipschitz, hessian.row(row).cwiseAbs().sum());
-        }
-        const double step = 1.0 / std::max(lipschitz, 1e-6);
-        for (int iteration = 0; iteration < 256; ++iteration) {
-            const auto gradient = hessian * forces - gradient_offset;
-            forces = (forces - step * gradient).cwiseMax(-max_force).cwiseMin(max_force);
-        }
-    }
-
-    std::array<double, NUM_THRUSTERS> result{};
-    for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        result[t] = forces(t);
-    }
-    return result;
-}
-
-std::array<double, NUM_DOF> ThrusterAllocator::max_wrench(double max_force) const {
-    std::array<double, NUM_DOF> mw{};
-    for (int d = 0; d < NUM_DOF; ++d) {
-        double cost = 0.0;  // peak thruster force per unit wrench in this DOF
-        for (int t = 0; t < NUM_THRUSTERS; ++t) {
-            cost = std::max(cost, std::fabs(alloc_[t][d]));
-        }
-        mw[d] = (cost > 1e-9) ? max_force / cost : 0.0;
-    }
-    return mw;
-}
-
 double force_to_norm(double force_n) {
-    if (std::fabs(force_n) < 1e-6) {
+    // NaN fails every comparison below and would fall through to full scale.
+    if (std::isnan(force_n) || std::fabs(force_n) < 1e-6) {
         return 0.0;
     }
     if (force_n <= THRUSTER_LOOKUP_TABLE[0].force) {
@@ -406,6 +249,9 @@ double force_to_norm(double force_n) {
 }
 
 double norm_to_force(double normalized) {
+    if (std::isnan(normalized)) {
+        return 0.0;
+    }
     normalized = std::clamp(normalized, -1.0, 1.0);
     if (normalized <= THRUSTER_LOOKUP_TABLE.front().pwm) {
         return THRUSTER_LOOKUP_TABLE.front().force;
@@ -426,17 +272,51 @@ double norm_to_force(double normalized) {
     return THRUSTER_LOOKUP_TABLE.back().force;
 }
 
-std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy,
-                                     const std::array<double, 3>& current_rpy) {
-    const auto rotation = [](const std::array<double, 3>& rpy) {
-        return (Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX()))
-            .toRotationMatrix();
-    };
+double thruster_command(double force_n, bool reversed) {
+    return reversed ? -force_to_norm(force_n) : force_to_norm(force_n);
+}
 
-    const Eigen::Matrix3d error_rotation = rotation(current_rpy).transpose() * rotation(target_rpy);
-    const Eigen::AngleAxisd error(error_rotation);
-    const Eigen::Vector3d rotation_vector = error.axis() * error.angle();
-    return {rotation_vector.x(), rotation_vector.y(), rotation_vector.z()};
+double thruster_force(double command, bool reversed) {
+    return reversed ? norm_to_force(-command) : norm_to_force(command);
+}
+
+double wrap_angle(double angle) { return std::remainder(angle, 2.0 * std::numbers::pi); }
+
+Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d& rpy) {
+    return Eigen::Quaterniond(Eigen::AngleAxisd(rpy.z(), Eigen::Vector3d::UnitZ()) *
+                              Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
+                              Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()));
+}
+
+Eigen::Vector3d rpy_from_quaternion(const Eigen::Quaterniond& q) {
+    const Eigen::Quaterniond n = q.normalized();
+    const double w = n.w();
+    const double x = n.x();
+    const double y = n.y();
+    const double z = n.z();
+    const double roll = std::atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y));
+    const double pitch = std::asin(std::clamp(2.0 * (w * y - z * x), -1.0, 1.0));
+    const double yaw = std::atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
+    return {roll, pitch, yaw};
+}
+
+Eigen::Vector3d attitude_error(const Eigen::Quaterniond& target, const Eigen::Quaterniond& current) {
+    Eigen::Quaterniond error = current.normalized().conjugate() * target.normalized();
+    if (error.w() < 0.0) {
+        error.coeffs() *= -1.0;  // the same rotation the short way round
+    }
+    const Eigen::Vector3d axis = error.vec();
+    const double sine = axis.norm();
+    if (sine < 1e-9) {
+        return 2.0 * axis;
+    }
+    return (2.0 * std::atan2(sine, error.w()) / sine) * axis;
+}
+
+Eigen::Vector3d euler_rates_to_body(const Eigen::Vector3d& rpy, const Eigen::Vector3d& rates) {
+    const double sr = std::sin(rpy.x());
+    const double cr = std::cos(rpy.x());
+    const double sp = std::sin(rpy.y());
+    const double cp = std::cos(rpy.y());
+    return {rates.x() - sp * rates.z(), cr * rates.y() + sr * cp * rates.z(), -sr * rates.y() + cr * cp * rates.z()};
 }

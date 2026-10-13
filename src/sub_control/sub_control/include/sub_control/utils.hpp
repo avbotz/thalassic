@@ -1,63 +1,51 @@
 #ifndef SUB_CONTROL_UTILS_HPP_
 #define SUB_CONTROL_UTILS_HPP_
 
-#include <array>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
-static const int NUM_THRUSTERS = 8;
-static const int NUM_DOF = 6;
+static constexpr int NUM_THRUSTERS = 8;
+static constexpr int NUM_DOF = 6;
 
-// Channel order matches the sim scene (layout.scn.j2) and the ESC wiring. A
-// positive command drives thrust along the thruster's mounted +X; the allocator
-// derives each thruster's body-frame (FLU) push direction from its rpy in
-// THRUSTER_GEOMETRY (axis = R(rpy) * X, then NED->FLU), so a positive wrench is
-// realized with the correct sign on every axis -- verified by round-tripping a
-// unit wrench through allocate() -> wrench_from_forces() with no cross-axis leak:
-//   thrusters 0-3 : vertical units       (+cmd -> +Z up)  -> heave / roll / pitch
-//   thrusters 4-7 : horizontal vectored  (+cmd -> +X fwd) -> surge / sway / yaw
-class ThrusterAllocator {
-   public:
-    ThrusterAllocator();
+using Vector6d = Eigen::Matrix<double, NUM_DOF, 1>;
 
-    // Bounded weighted least-squares allocation. Higher axis weights preserve
-    // those wrench components when the requested wrench is not fully achievable.
-    std::array<double, NUM_THRUSTERS> allocate(const std::array<double, NUM_DOF>& wrench, double max_force,
-                                               const std::array<double, NUM_DOF>& axis_weights = {1.0, 1.0, 2.0, 2.0,
-                                                                                                  2.0, 1.5}) const;
+// Axis order of every 6-vector here: body forces [x, y, z] then torques [roll,
+// pitch, yaw], or positions then ZYX Euler angles.
+enum Axis { X = 0, Y = 1, Z = 2, ROLL = 3, PITCH = 4, YAW = 5 };
 
-    // Largest single-axis wrench magnitude reachable before any thruster hits
-    // max_force, per DOF: max_force / max_t |A[t][dof]|. Used to size the inner
-    // PID output limits from real actuator capacity instead of guesses.
-    std::array<double, NUM_DOF> max_wrench(double max_force) const;
-
-    // Forward map: the body wrench [Fx,Fy,Fz,Mx,My,Mz] that the given per-thruster
-    // forces actually produce (B * forces). Since A = pinv(B) and B has full row
-    // rank, wrench_from_forces(allocate(w)) == w for any unsaturated w -- the test
-    // that proves the allocation is a true inverse and not rotated/swapped.
-    std::array<double, NUM_DOF> wrench_from_forces(const std::array<double, NUM_THRUSTERS>& forces) const;
-
-    // A[thruster][dof]: per-thruster force [N] per unit wrench. Exposed for tests.
-    const std::array<std::array<double, NUM_DOF>, NUM_THRUSTERS>& matrix() const { return alloc_; }
-
-   private:
-    std::array<std::array<double, NUM_DOF>, NUM_THRUSTERS> alloc_{};  // A = pinv(B)
-    std::array<std::array<double, NUM_THRUSTERS>, NUM_DOF> act_{};    // B
-};
-
-// Invert the BlueRobotics T200 thrust curve: desired force [N] -> normalized
-// command in [-1, 1] (+/-1 == +/-400 PWM counts == full range). The curve's
-// deadband collapses to 0. This is the exact curve the simulator models, so the
-// round trip (command -> sim thrust) is faithful, and the same normalized value
-// drives the real ESCs.
+// Invert the BlueRobotics T200 thrust curve of a right-hand propeller: desired
+// force [N] along the thruster's +X -> normalized command in [-1, 1] (+/-1 ==
+// +/-400 PWM counts == full range). The curve's deadband collapses to 0. This is
+// the exact curve the simulator models, so the round trip (command -> sim
+// thrust) is faithful, and the same normalized value drives the real ESCs.
+// NaN maps to 0 (off), here and in norm_to_force().
 double force_to_norm(double force_n);
 
 // Forward BlueRobotics T200 curve: normalized command to force [N].
 double norm_to_force(double normalized);
 
-// Geodesic attitude error: the body-frame rotation vector (axis * angle) that
-// carries the current orientation to the target. Both inputs are [roll, pitch,
-// yaw] for R = Rz(yaw) * Ry(pitch) * Rx(roll). Unlike per-axis Euler differences
-// this stays in the same frame as the body angular-rate loop and has no gimbal
-// singularity, so it does not leak roll/pitch torque during large yaw moves.
-std::array<double, 3> attitude_error(const std::array<double, 3>& target_rpy, const std::array<double, 3>& current_rpy);
+// The same maps for any thruster. A left-hand propeller is the mirror image of
+// a right-hand one, so it pushes along +X when spun backwards, with the curve's
+// stronger forward half: thrust(cmd) = norm_to_force(-cmd). Either way the force
+// along +X can range over [norm_to_force(-1), norm_to_force(1)].
+double thruster_command(double force_n, bool reversed);
+double thruster_force(double command, bool reversed);
+
+// Angle wrapped into [-pi, pi].
+double wrap_angle(double angle);
+
+// Body-to-world rotation for ZYX Euler angles [roll, pitch, yaw]
+// (R = Rz(yaw) * Ry(pitch) * Rx(roll)), and back.
+Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d& rpy);
+Eigen::Vector3d rpy_from_quaternion(const Eigen::Quaterniond& q);
+
+// Geodesic attitude error: the body-frame rotation vector (axis * angle, the
+// short way round) that carries `current` onto `target`. Unlike per-axis Euler
+// differences this stays in the frame of the body angular-rate feedback and has
+// no gimbal singularity, so a large yaw move does not leak roll/pitch torque.
+Eigen::Vector3d attitude_error(const Eigen::Quaterniond& target, const Eigen::Quaterniond& current);
+
+// Body angular velocity [p, q, r] for ZYX Euler angles changing at `rates`.
+Eigen::Vector3d euler_rates_to_body(const Eigen::Vector3d& rpy, const Eigen::Vector3d& rates);
 
 #endif  // SUB_CONTROL_UTILS_HPP_

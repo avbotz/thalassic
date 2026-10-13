@@ -1,11 +1,11 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sub_vision_interfaces/msg/detection.hpp"
@@ -28,8 +28,7 @@ class VisionClient {
 
     explicit VisionClient(rclcpp::Node &node);
 
-    // Camera names in registration order ("front", "down").
-    std::vector<std::string> cameras() const;
+    // True for "front" and "down".
     bool hasCamera(const std::string &camera) const;
 
     // Latest detections for a camera; .detections is null until the first
@@ -41,10 +40,11 @@ class VisionClient {
 
     // Best detection in an array for a filter: highest score with
     // array.task == task (when task is non-empty), class_id == class_id (when
-    // non-empty), and score >= min_score. Null when nothing matches.
+    // non-empty), score >= min_score, and accept(detection) (when given).
+    // Null when nothing matches.
     static const sub_vision_interfaces::msg::Detection *bestMatch(
         const sub_vision_interfaces::msg::DetectionArray &array, const std::string &task, const std::string &class_id,
-        double min_score);
+        double min_score, const std::function<bool(const sub_vision_interfaces::msg::Detection &)> &accept = {});
 
    private:
     struct Source {
@@ -53,7 +53,8 @@ class VisionClient {
         Snapshot snapshot;
     };
 
+    // Guards each Source's snapshot, which the subscription callbacks write
+    // from the executor thread; the rest is fixed after construction.
     mutable std::mutex mutex_;
     std::map<std::string, Source> sources_;
-    std::vector<std::string> camera_names_;
 };

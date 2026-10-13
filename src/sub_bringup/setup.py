@@ -12,26 +12,25 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
-        (f"share/{package_name}/launch", glob(os.path.join("launch", "*launch.[pxy][yma]*"))),
-        (
-            f"share/{package_name}/config",
-            [
-                str(file)
-                for file in glob(os.path.join("config", "**/*"), recursive=True)
-                if os.path.isfile(file)
-            ],
+        (f"share/{package_name}/launch", glob("launch/*_launch.py")),
+        (f"share/{package_name}/rviz", glob("rviz/*.rviz")),
+        # Every config file, keeping its directory (config/devices/..., config/vehicles/...).
+        *(
+            (f"share/{package_name}/{os.path.dirname(path)}", [path])
+            for path in glob("config/**/*.*", recursive=True)
         ),
-        (f"share/{package_name}/rviz", glob(os.path.join("rviz", "*.rviz*"))),
     ],
     install_requires=["setuptools"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Launch and configuration files",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [
-            "pid_tuner = sub_bringup.pid_tuner:main",
+            "static_transforms = sub_bringup.static_transforms:main",
+            "preflight = sub_bringup.preflight:main",
         ],
     },
 )

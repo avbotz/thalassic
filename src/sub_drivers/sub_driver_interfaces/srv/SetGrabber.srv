@@ -1,0 +1,4 @@
+bool open  # true = open the jaws (let go), false = close them (grab)
+---
+bool success
+string message

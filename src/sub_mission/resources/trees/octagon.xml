@@ -1,47 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Octagon: find the table from the front, close on it, then inside the
+  octagon turn until an image to surface at is in view, and rise. Those are
+  octagon_search_image's class 0 (SOS, buoy); its class 1 (compass, hammer and
+  wrench) turns the vehicle a further 90 degrees, once.
+-->
 <root BTCPP_format="4" main_tree_to_execute="OctagonMission">
   <BehaviorTree ID="OctagonMission">
     <Sequence name="octagon_mission">
-      <PosSetpoint z="1.5"/>
+      <PosSetpoint z="-1.0"/>
       <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
-      <LoadModel camera="front" task="octagon" timeout_msec="30000"/>
-      <Fallback name="find_octagon_front">
-        <SweepCheck task="octagon" attempts="4"/>
-        <Sequence name="recover_octagon_front">
-          <MoveRelative x="1.0"/>
-          <ForwardSweepAlign task="octagon" attempts="4" num_sweeps="4"/>
-        </Sequence>
+      <LoadModel camera="front" task="octagon_table" timeout_msec="30000"/>
+      <Fallback name="find_octagon_table">
+        <SweepCheck task="octagon_table" min_score="0.6" attempts="4" sample_timeout_msec="3000.0"/>
+        <ForwardSweepAlign task="octagon_table"
+                           min_score="0.3"
+                           attempts="4"
+                           num_sweeps="4"
+                           sample_timeout_msec="3000.0"/>
       </Fallback>
-      <ForwardAlign task="octagon" max_dist="4.0" close_distance="3.0" timeout_msec="30000"/>
-      <PosSetpoint z="0.5"/>
-      <MoveRelative x="1.0"/>
-      <LoadModel camera="down" task="octagon" timeout_msec="30000"/>
-      <Fallback name="find_octagon_down">
-        <DownForwardSweepAlign task="octagon" max_dist="15.0" forward_step="1.0" timeout_msec="30000"/>
-        <DownPatternScan task="octagon" movement_dist="1.75"/>
-      </Fallback>
-      <DownContinuousAlign task="octagon" tolerance="0.25" desired_distance="1.0" min_msec="3000" timeout_msec="30000"/>
-      <DownContinuousAlign task="octagon" tolerance="0.25" min_msec="10000" timeout_msec="30000"/>
-      <PosSetpoint z="0.0"/>
-      <Sleep msec="3000"/>
-      <PosSetpoint z="1.0"/>
-      <MoveRelative x="-1.0"/>
-      <PosSetpoint y="{@gate_home_y}"/>
-      <AddAttSetpoint yaw="1.57079633"/>
-      <LoadModel camera="front" task="gate" timeout_msec="30000"/>
       <ForceSuccess>
-        <AlignToDetection camera="front"
-                          task="gate"
-                          class_id=""
-                          min_score="0.0"
-                          yaw="true"
-                          depth="false"
-                          tolerance="0.05"
-                          depth_gain="1.5"
-                          max_depth_step="0.5"
-                          timeout_msec="30000"/>
+        <ForwardContinuousAlign task="octagon_table"
+                                min_score="0.5"
+                                max_dist="20.0"
+                                forward_velocity="1.0"
+                                close_distance="1.5"
+                                continue_on_loss="false"/>
       </ForceSuccess>
-      <PosSetpoint x="{@gate_home_x}"/>
+      <MoveRelative x="2.0" z="0.3"/>
+      <Sleep msec="2000"/>
+      <LoadModel camera="front" task="octagon_search_image" timeout_msec="30000"/>
+      <OctagonSurfaceSweep task="octagon_search_image"
+                           surface_class_id="0"
+                           diversion_class_id="1"
+                           yaw_step_deg="30.0"
+                           diversion_deg="90.0"
+                           surface_z="-0.3"/>
+      <!-- Surface inside the octagon; ReturnHomeMission dives again. -->
+      <PosSetpoint z="0.0"/>
     </Sequence>
   </BehaviorTree>
 </root>

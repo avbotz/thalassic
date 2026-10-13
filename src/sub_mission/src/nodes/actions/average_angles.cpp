@@ -22,13 +22,22 @@ class AverageAnglesAction : public BT::SyncActionNode {
     BT::NodeStatus tick() override {
         double a = 0.0;
         double b = 0.0;
-        getInput("a", a);
-        getInput("b", b);
+        if (!readPort(*this, "a", a, logger_) || !readPort(*this, "b", b, logger_)) {
+            return BT::NodeStatus::FAILURE;
+        }
 
         const double x = std::cos(a) + std::cos(b);
         const double y = std::sin(a) + std::sin(b);
+        // Opposite angles (or a NaN) have no mean: atan2 would make one up.
+        if (!(std::hypot(x, y) > 1e-9)) {
+            RCLCPP_ERROR(logger_, "AverageAngles: a=%.3f and b=%.3f have no mean.", a, b);
+            return BT::NodeStatus::FAILURE;
+        }
         const double out = normalizeAngle(std::atan2(y, x));
-        setOutput("out", out);
+        if (const auto written = setOutput("out", out); !written) {
+            RCLCPP_ERROR(logger_, "AverageAngles: output 'out': %s", written.error().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
         RCLCPP_INFO(logger_, "AverageAngles: a=%.3f b=%.3f out=%.3f", a, b, out);
         return BT::NodeStatus::SUCCESS;
     }

@@ -27,11 +27,12 @@ setup(
         *generate_data_files("data"),
     ],
     install_requires=["setuptools"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Files and scripts relating to simulator",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [],
     },

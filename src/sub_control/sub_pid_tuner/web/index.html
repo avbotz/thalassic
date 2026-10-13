@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVBotz Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">AV</span><div><strong>AVBotz Dashboard</strong><small>sub_control tuning</small></div></div>
+    <div class="status">
+      <span class="pill bad" id="connection">Disconnected</span>
+      <span class="pill" id="robot">—</span>
+      <span class="pill" id="telemetry">Telemetry —</span>
+      <span class="pill" id="controller-health">Controller —</span>
+      <span class="pill" id="kill">Kill —</span>
+    </div>
+    <button class="secondary" id="reset-layout">Reset layout</button>
+  </header>
+
+  <main id="dashboard">
+    <section class="tile" id="configuration" data-w="5" data-h="10">
+      <div class="tile-title" draggable="true"><strong>Configuration</strong><span>drag</span></div>
+      <div class="toolbar">
+        <select id="node-select" aria-label="ROS node"></select>
+        <input id="parameter-filter" placeholder="Filter parameters">
+        <label class="check"><input id="modified-only" type="checkbox"> Modified only</label>
+        <span class="edit-count" id="edit-count">No staged edits</span>
+        <button class="secondary" id="reload" title="Discard staged edits and reload from ROS and the profile">Reload</button>
+        <button id="apply-all" title="Apply staged edits to the running nodes (Ctrl+S)" disabled>Apply <kbd>Ctrl S</kbd></button>
+        <button class="permanent" id="save-profile" title="Apply staged edits, then write the controller's values to its gains file (Ctrl+Shift+S)" disabled>Save profile <kbd>Ctrl Shift S</kbd></button>
+      </div>
+      <div class="config-summary" id="config-summary"></div>
+      <div class="parameter-list" id="parameter-list"><div class="empty">Waiting for ROS nodes…</div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="graph" data-w="7" data-h="6">
+      <div class="tile-title" draggable="true"><strong>Graph</strong><span>drag</span></div>
+      <div class="toolbar">
+        <select id="graph-axis" aria-label="Axis"></select>
+        <select id="graph-view" aria-label="Signals">
+          <option value="pose">Target / reference / measured</option>
+          <option value="tracking">Tracking error</option>
+          <option value="velocity">Reference / measured velocity</option>
+          <option value="wrench">Wrench / disturbance</option>
+          <option value="integral">Integral</option>
+        </select>
+        <select id="window-select" aria-label="Time window"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select>
+        <label class="scale-control" title="Vertical graph limits"><span>Y range</span><select id="scale-select" aria-label="Y range"><option value="auto">Auto fit</option><option value="0.1">±0.1</option><option value="0.5">±0.5</option><option value="1">±1</option><option value="2">±2</option><option value="5">±5</option><option value="20">±20</option><option value="50">±50</option><option value="custom">Custom…</option></select></label>
+        <div class="custom-scale" id="custom-scale" hidden><label>Min <input id="scale-min" type="number" step="any" value="-1" aria-label="Y minimum"></label><label>Max <input id="scale-max" type="number" step="any" value="1" aria-label="Y maximum"></label></div>
+        <div class="zoom-controls" aria-label="Graph zoom"><button class="secondary icon-button" id="zoom-in" title="Zoom in on Y" aria-label="Zoom in">+</button><button class="secondary icon-button" id="zoom-out" title="Zoom out on Y" aria-label="Zoom out">−</button></div>
+        <button class="secondary" id="pause">Pause</button>
+        <button class="secondary" id="clear">Clear</button>
+        <button class="secondary" id="export">CSV</button>
+      </div>
+      <div class="graph-body">
+        <aside><input id="signal-filter" placeholder="Filter signals"><div id="signal-list"></div></aside>
+        <div class="chart"><div class="chart-badges"><span id="feed-rate">Waiting for data</span><span id="range-readout" aria-live="polite">Y: auto</span></div><canvas id="chart"></canvas><div id="legend"></div></div>
+      </div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="control" data-w="7" data-h="4">
+      <div class="tile-title" draggable="true"><strong>Control</strong><span>drag</span></div>
+      <div class="section-heading"><strong>Routine</strong><span class="pill" id="routine-status">Idle</span></div>
+      <div class="routine-form">
+        <label>Routine<select id="routine-kind"><option value="step">Step</option><option value="cruise">Cruise</option><option value="hold">Hold</option><option value="square">Square</option></select></label>
+        <label id="routine-axis-wrap"><span id="routine-axis-label">Axis</span><select id="routine-axis"></select></label>
+        <label id="routine-amplitude-wrap"><span id="routine-amplitude-label">Step</span><input id="routine-amplitude" type="number" step="0.05"></label>
+        <label><span id="routine-hold-label">Hold (s)</span><input id="routine-hold" type="number" min="0.5" step="0.5"></label>
+        <label id="routine-settle-wrap">Settle (s)<input id="routine-settle" type="number" min="0.5" max="60" step="0.5"></label>
+        <label id="routine-cycles-wrap">Cycles<input id="routine-cycles" type="number" min="1" max="20" step="1"></label>
+        <button id="start-routine">Start</button>
+        <button class="secondary stop-button" id="stop-routine" disabled>Stop</button>
+      </div>
+      <div class="routine-summary"><span id="routine-hint"></span><span id="routine-progress">Ready</span></div>
+      <div class="actions">
+        <button class="secondary" id="hold-here" title="Every axis stops smoothly and holds where it stops, level">Hold here</button>
+        <button class="secondary" id="zero-pose" title="sub_control reset_pose: the current position and heading become the odom origin">Zero pose</button>
+      </div>
+      <details class="manual-command">
+        <summary><strong>Manual command</strong><span>one MotionSetpoint</span></summary>
+        <div class="command-grid" id="command-grid"></div>
+        <div class="command-options">
+          <label class="check"><input type="checkbox" id="command-altitude"> z is altitude</label>
+          <label>Velocity frame<select id="command-frame"><option value="heading">Heading</option><option value="world">Odom</option></select></label>
+          <label>Timeout (s)<input id="command-timeout" type="number" min="0" max="30" step="0.5" value="2"></label>
+          <button id="send-command">Send</button>
+        </div>
+        <p class="hint">Positions are odom ENU: z up, so 1 m deep is z = −1. Angles are ZYX Euler in rad; yaw is counter-clockwise from above. Velocity and effort axes stop and hold after the timeout; effort is body FLU, N and N·m.</p>
+        <div class="last-command" id="last-command">Nothing sent from this dashboard.</div>
+      </details>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="path-panel" data-w="7" data-h="5">
+      <div class="tile-title" draggable="true"><strong>Path</strong><span>drag</span></div>
+      <div class="toolbar path-toolbar">
+        <span class="path-status" id="path-status">Waiting for position</span>
+        <div class="view-buttons" aria-label="Path view">
+          <button class="secondary" data-path-view="xy" title="From above">XY</button>
+          <button class="secondary" data-path-view="xz" title="From the side">XZ</button>
+          <button class="secondary" data-path-view="yz" title="From the front">YZ</button>
+        </div>
+        <button class="secondary" id="clear-path">Clear trail</button>
+      </div>
+      <div class="path-view"><canvas id="path-canvas" aria-label="Path"></canvas><div class="path-legend"><span><i class="planned"></i>routine</span><span><i class="reference"></i>reference</span><span><i class="measured"></i>measured</span></div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+
+    <section class="tile" id="telemetry-panel" data-w="5" data-h="5">
+      <div class="tile-title" draggable="true"><strong>Telemetry</strong><span>drag</span></div>
+      <div class="toolbar"><input id="telemetry-filter" placeholder="Filter live values"></div>
+      <div class="telemetry-list" id="telemetry-list"><div class="empty">Waiting for telemetry…</div></div>
+      <div class="resize-handle" title="Resize"></div>
+    </section>
+  </main>
+
+  <div id="toast" role="status"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

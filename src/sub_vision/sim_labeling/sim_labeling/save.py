@@ -19,9 +19,11 @@ import numpy as np
 # Discard very small detections that are likely noise or distant objects.
 MIN_CONTOUR_AREA_PX = 400  # ~20x20 pixels minimum
 
-# Contour approximation factor: fraction of arc length used as epsilon
-# for cv2.approxPolyDP.  Lower = more points = tighter fit.
-APPROX_EPSILON_FACTOR = 0.02
+# Contour approximation tolerance for cv2.approxPolyDP, in pixels.  Lower =
+# more points = tighter fit.  A fraction of the contour's length would grow
+# with the object past the width of its thin parts: a slalom pole's polygon
+# then collapses to a line and is dropped, and the gate's frame is cut across.
+APPROX_EPSILON_PX = 1.0
 
 
 def compute_segmentation_polygons(
@@ -32,16 +34,18 @@ def compute_segmentation_polygons(
     """
     Compute YOLO segmentation polygons from a segmentation image.
 
-    Each unique segmentation pixel value is treated independently so that
-    physically separate parts of the same class (e.g. the individual pipes
+    Each object (unique segmentation pixel value) is treated independently,
+    and each of its connected regions gets its own polygon, so that
+    physically separate parts of the same object (e.g. the individual pipes
     of the gate) produce their own polygon annotation rather than being
     merged into one giant concave outline.
 
     Args:
-        seg_img:        (H, W) uint16 segmentation image where pixel value
-                        = objectId + 1 (0 = background).
+        seg_img:        (H, W) uint16 segmentation image with one pixel value
+                        per Stonefish object (0 = background).
         pixel_to_class: Mapping from segmentation pixel value to YOLO
                         class_id.
+        min_contour_area_px: Smallest region kept, in pixels.
 
     Returns:
         List of (class_id, [(x1, y1), (x2, y2), ...]) tuples,
@@ -49,7 +53,7 @@ def compute_segmentation_polygons(
     """
     height, width = seg_img.shape[:2]
 
-    # Extract contours per individual pixel value (mesh part) rather than
+    # Extract contours per individual pixel value (object) rather than
     # merging by class.  This keeps disconnected parts as separate
     # annotations and avoids huge concave polygons that span across
     # background.
@@ -73,8 +77,7 @@ def compute_segmentation_polygons(
                 continue
 
             # Approximate the contour to reduce point count
-            epsilon = APPROX_EPSILON_FACTOR * cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, epsilon, True)
+            approx = cv2.approxPolyDP(cnt, APPROX_EPSILON_PX, True)
             approx = approx.reshape(-1, 2)  # (N,1,2) -> (N,2)
 
             # Need at least 3 points for a valid polygon
@@ -108,21 +111,23 @@ def save_labeled_image(
     seg_img: np.ndarray,
     pixel_to_class: dict[int, int],
     output_dir: str = "train_imgs",
-    class_names: list[str] | None = None,
     min_contour_area_px: int = MIN_CONTOUR_AREA_PX,
 ) -> bool:
     """
     Save a training image and its YOLO annotation.
 
     Args:
-        front_cam_img:  The RGB camera image (H, W, 3).
-        seg_img:        The segmentation image (H, W) uint16.
-        pixel_to_class: Mapping from segmentation pixel value to class_id.
-        output_dir:     Directory to save images and labels.
-        class_names:    Optional list of class names for logging.
+        front_cam_img:       The RGB camera image (H, W, 3).
+        seg_img:             The segmentation image (H, W) uint16.
+        pixel_to_class:      Mapping from segmentation pixel value to class_id.
+        output_dir:          Directory to save images and labels.
+        min_contour_area_px: Smallest region kept, in pixels.
 
     Returns:
         True if an image was saved (had valid annotations), False otherwise.
+
+    Raises:
+        OSError: if the image or its annotation cannot be written.
     """
     annotations = compute_segmentation_polygons(
         seg_img,
@@ -145,10 +150,13 @@ def save_labeled_image(
     img_path = img_dir / f"{base_name}.png"
     lbl_path = lbl_dir / f"{base_name}.txt"
 
+    # The label goes first: YOLO trains on an image without a label file as one
+    # showing no objects, while a label without its image is ignored.
+    save_annotation(annotations, str(lbl_path))
     # cv_bridge decodes rgb8 as RGB, but cv2.imwrite expects BGR
     bgr_img = cv2.cvtColor(front_cam_img, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(str(img_path), bgr_img)
-    save_annotation(annotations, str(lbl_path))
+    if not cv2.imwrite(str(img_path), bgr_img):
+        raise OSError(f"Could not write {img_path}")
 
     return True
 

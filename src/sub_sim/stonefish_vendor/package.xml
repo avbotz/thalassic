@@ -4,7 +4,7 @@
   <name>stonefish_vendor</name>
   <version>1.6.0</version>
   <description>
-    Builds the AVBotz fork of the Stonefish. No global (/usr/local) Stonefish install
+    Builds the AVBotz fork of Stonefish. No global (/usr/local) Stonefish install
     is needed and the simulator version is pinned by the submodule commit.
   </description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>

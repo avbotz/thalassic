@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dead-reckoned octagon; see hard_coded_gate.xml. -->
+<root BTCPP_format="4" main_tree_to_execute="HardCodedOctagonMission">
+  <BehaviorTree ID="HardCodedOctagonMission">
+    <Sequence name="hard_coded_octagon_mission">
+      <!-- Left into the lane to the octagon, along it, and surface. -->
+      <MoveRelative y="1.0"/>
+      <MoveRelative x="3.0"/>
+      <PosSetpoint z="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

@@ -11,15 +11,15 @@ setup(
         ("share/" + package_name, ["package.xml"]),
     ],
     install_requires=["setuptools"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
     description="Automatic labeling based on a segmentation camera",
-    license="Proprietary",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "labeling = sim_labeling.node:main",
-            "parse_ids = sim_labeling.parse_ids:main",
         ],
     },
 )

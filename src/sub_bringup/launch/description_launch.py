@@ -1,33 +1,28 @@
-"""Static transforms for the vehicle named by robot_name.
+"""
+Static transforms for the vehicle selected by the robot_name launch parameter.
 
-The geometry itself is in sub_bringup/config/<robot_name>.yaml; this file only
-turns it into static_transform_publisher nodes. Included by common_launch.py.
+Every transform in config/vehicles/<robot_name>.yaml, device mounts and
+thrusters included, from one static_transforms node (sub_bringup/static_transforms.py
+says why one node and not a static_transform_publisher each).
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from sub_bringup.vehicle import load_vehicle
-
-
-def _transforms(context, *_, **__):
-    vehicle = load_vehicle(LaunchConfiguration("robot_name").perform(context))
-    return [
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            arguments=args,
-            ros_arguments=["--disable-stdout-logs"],
-        )
-        for args in vehicle.transform_arguments()
-    ]
 
 
 def generate_launch_description():
+    robot_name = LaunchConfiguration("robot_name")
     return LaunchDescription(
         [
             DeclareLaunchArgument("robot_name", default_value="marlin_v3"),
-            OpaqueFunction(function=_transforms),
+            Node(
+                package="sub_bringup",
+                executable="static_transforms",
+                namespace=robot_name,
+                parameters=[{"robot_name": robot_name}],
+                ros_arguments=["--disable-stdout-logs"],
+            ),
         ]
     )

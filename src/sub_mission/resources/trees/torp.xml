@@ -1,32 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Torpedoes: find the board, square up to its face at 1.7 m, center the
+  camera on the target image, then move each torpedo onto the camera's line
+  of sight before firing it (NavigateToTransform with the vehicle's
+  torpedo_0_link and torpedo_1_link frames). A failed approach still fires.
+-->
 <root BTCPP_format="4" main_tree_to_execute="TorpMission">
   <BehaviorTree ID="TorpMission">
     <Sequence name="torp_mission">
-      <AltitudeSetpoint z="1.0"/>
+      <PosSetpoint z="-0.55"/>
       <AttSetpoint name="torp_search_heading" yaw="{@torp_search_yaw}"/>
-      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
-      <Fallback name="find_torp_board">
-        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
-        <Sequence name="recover_torp_board_search">
-          <MoveRelative y="-2.0"/>
-          <ForwardSweepAlign task="torp" attempts="4" num_sweeps="2"/>
-        </Sequence>
-      </Fallback>
-      <MoveRelative x="0.5"/>
-      <LoadModel camera="front" task="torp" timeout_msec="30000"/>
-      <Fallback name="verify_torp_board">
-        <AlignToDetection task="torp" tolerance="0.3" timeout_msec="10000"/>
-        <ForwardSweepAlign task="torp" attempts="4" num_sweeps="4"/>
-      </Fallback>
-      <ForwardAlign task="torp" max_dist="4.0" close_distance="2.0" align_depth="false" timeout_msec="30000"/>
       <ForceSuccess>
-        <OrientToDetectionAtDist task="torp" desired_distance="2.0" min_msec="6500" timeout_msec="30000"/>
+        <Sequence name="torp_approach">
+          <LoadModel camera="front" task="torp_find" timeout_msec="30000"/>
+          <Fallback name="find_torp_board">
+            <ForwardSweepAlign task="torp_find" min_score="0.2" attempts="2" num_sweeps="4"/>
+            <Sequence name="recover_torp_board_search">
+              <MoveRelative x="-0.2" z="-0.1"/>
+              <ForwardSweepAlign task="torp_find" attempts="8" num_sweeps="3"/>
+            </Sequence>
+          </Fallback>
+          <MoveRelative x="0.5"/>
+          <Fallback name="verify_torp_board">
+            <AlignToDetection task="torp_find"
+                              min_score="0.01"
+                              depth="true"
+                              tolerance="0.3"
+                              timeout_msec="10000"/>
+            <ForwardSweepAlign task="torp_find" min_score="0.1" attempts="2" num_sweeps="4"/>
+          </Fallback>
+          <!-- Up to the board until it is 2.4 m away. Lost on the way, give
+               it a few seconds to come back into view, then carry on either
+               way: OrientToDetectionAtDist closes the rest. -->
+          <Fallback name="approach_torp_board">
+            <ForwardContinuousAlign task="torp_find"
+                                    min_score="0.2"
+                                    max_dist="4.0"
+                                    forward_velocity="0.6"
+                                    close_distance="2.4"
+                                    continue_on_loss="false"
+                                    max_yaw_step_deg="35.0"/>
+            <WaitForDetection task="torp_find" min_score="0.2" timeout_msec="2500"/>
+            <ForceSuccess>
+              <WaitForDetection task="torp_find" class_id="0" min_score="0.1" timeout_msec="5000"/>
+            </ForceSuccess>
+          </Fallback>
+          <RetryUntilSuccessful num_attempts="2">
+            <OrientToDetectionAtDist task="torp_find"
+                                     class_id="0"
+                                     min_score="0.1"
+                                     desired_distance="1.7"
+                                     tolerance="0.08"
+                                     distance_tolerance="0.20"
+                                     orient_tolerance_deg="5.0"
+                                     max_position_step="0.60"
+                                     require_heading="true"
+                                     settle_frames="1"
+                                     min_msec="500"
+                                     timeout_msec="40000"/>
+          </RetryUntilSuccessful>
+          <LoadModel camera="front" task="torp_fire_blood" timeout_msec="30000"/>
+          <Fallback name="find_fire_target">
+            <ForwardSweepAlign task="torp_fire_blood"
+                               class_id="0"
+                               min_score="0.2"
+                               attempts="2"
+                               num_sweeps="4"
+                               forward_step="1.0"/>
+            <WaitForDetection task="torp_fire_blood" class_id="0" min_score="0.1" timeout_msec="3000"/>
+          </Fallback>
+          <AlignToDetection task="torp_fire_blood"
+                            class_id="0"
+                            min_score="0.2"
+                            tolerance="0.3"
+                            timeout_msec="10000"/>
+          <MoveRelative x="0.3"/>
+          <RetryUntilSuccessful num_attempts="2">
+            <NavigateToTransform source_frame="front_camera" target_frame="torpedo_0_link"/>
+          </RetryUntilSuccessful>
+        </Sequence>
       </ForceSuccess>
-      <ShootTorpedo torpedo_id="0"/>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="0"/>
+      </ForceSuccess>
+      <!-- Back to the camera's view, 0.15 m left of the first shot, and the
+           other torpedo onto it. -->
+      <ForceSuccess>
+        <Sequence name="torp_reposition">
+          <NavigateToTransform source_frame="torpedo_0_link" target_frame="front_camera"/>
+          <MoveRelative y="0.15"/>
+          <NavigateToTransform source_frame="front_camera" target_frame="torpedo_1_link"/>
+        </Sequence>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="1"/>
+      </ForceSuccess>
       <VelocitySetpoint x="-1.5"/>
-      <ShootTorpedo torpedo_id="1"/>
-      <VelocitySetpoint x="-1.5"/>
-      <PosSetpoint z="1.0"/>
+      <PosSetpoint z="-1.0"/>
     </Sequence>
   </BehaviorTree>
 </root>

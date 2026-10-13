@@ -1,0 +1,7 @@
+# How the recorder writes the run's MCAP bag (ros2 bag record --storage-config-file).
+# The zstd_fast preset's settings, but zstd at level 1 ("Default") instead of its
+# fastest (-5): half the size for the sim's depth camera and a sixth less for
+# everything but images, still compressing at gigabytes a second. See docs/recording.md.
+compression: Zstd
+compressionLevel: Default
+noChunkCRC: true

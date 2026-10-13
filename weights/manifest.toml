@@ -1,0 +1,47 @@
+# Files are stored in thalassic GitHub repo's releases.
+# `pixi run fetch-weights` downloads the weights.
+# To add or update a model, see docs/vision.md#model-weights.
+
+["bins_blood.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/bins_blood.onnx"
+sha256 = "03c6cea317ac3be38648d21c7465521a1ac78337cca204acd34afb2b8660e61c"
+
+["bins_fire.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/bins_fire.onnx"
+sha256 = "d807d669da61acf0ae30b4014992fd571ef7c082dbff2e1711efcb71de2748a4"
+
+["depth_anything_v2_vits.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/depth_anything_v2_vits.onnx"
+sha256 = "443e95f17819f347f5f987384b8cb7d7d18ed6af6ac46dec9b0152748ba7dfd0"
+
+["ffc_rs_26.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/ffc_rs_26.onnx"
+sha256 = "1f3cddce93cab8a77a89d4d8749c0bc33ead38a542b18c1964976f9162b6424b"
+
+["ffc_rs_26.pt"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/ffc_rs_26.pt"
+sha256 = "da1e896faa6296670513cd874bf56e45abb7435e91c1d0b9a527a5396aa3492c"
+
+["gate.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/gate.onnx"
+sha256 = "539c195ba7451ef90f1de01c998a1eec17bdfa90bc2bfe290a09650219170eb2"
+
+["path_marker.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/path_marker.onnx"
+sha256 = "c009983061b1286bec0bf0c417eb5f843aaffc5558f4639964210ebd4a0684b9"
+
+["slalom.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/slalom.onnx"
+sha256 = "0756bf555e5aeb6c00b440da294ae02c4a9ff20b15d97722171aff77af45ee34"
+
+["slalom_redpoles_osu.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/slalom_redpoles_osu.onnx"
+sha256 = "0d989eee283ac801f497557cef1f0aa651a23c4e80e3b56a6364099be8ac9999"
+
+["torp.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/torp.onnx"
+sha256 = "bf79ce76f71e4e99518716aea2535de15ebf289be72ccb9f69d4b65f4b507049"
+
+["torp_find.onnx"]
+url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/torp_find.onnx"
+sha256 = "e46fe55901c76796a9657d5bbe05c5ed7ca85201c87e63eccd1bf3de3396df2d"

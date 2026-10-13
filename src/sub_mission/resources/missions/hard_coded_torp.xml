@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dead-reckoned torpedoes; see hard_coded_gate.xml. -->
+<root BTCPP_format="4" main_tree_to_execute="HardCodedTorpMission">
+  <BehaviorTree ID="HardCodedTorpMission">
+    <Sequence name="hard_coded_torp_mission">
+      <PosSetpoint z="-1.0"/>
+      <MoveRelativePos x="1.8"/>
+      <MoveRelativePos y="0.3"/>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="0"/>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ShootTorpedo torpedo_id="1"/>
+      </ForceSuccess>
+    </Sequence>
+  </BehaviorTree>
+</root>

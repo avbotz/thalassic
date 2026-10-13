@@ -11,11 +11,12 @@ setup(
         ("share/" + package_name, ["package.xml"]),
     ],
     install_requires=["setuptools", "pyserial"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
-    description="Serial bridge drivers (Nautical / Maritime, NaviGuider IMU) for the Marlin V3 AUV.",
-    license="Proprietary",
+    description="Serial bridge drivers (Maritime, NaviGuider IMU) for the Marlin V3 AUV.",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "sub_low = sub_serial_drivers.sub_low:main",

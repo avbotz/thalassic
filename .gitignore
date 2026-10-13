@@ -7,7 +7,6 @@
 
 **/build/
 **/install/
-**/devel/
 **/log/
 
 **/__pycache__/
@@ -15,7 +14,9 @@
 .ruff_cache/
 
 weights/*
-!**/.gitkeep
+!weights/manifest.toml
+bags/*
+!bags/.gitkeep
 
 *.log
 

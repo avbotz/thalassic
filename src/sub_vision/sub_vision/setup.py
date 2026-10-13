@@ -15,16 +15,19 @@ setup(
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
     ],
     install_requires=["setuptools"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
-    description="YOLOv10 perception pipeline (ONNX Runtime / TensorRT) for the Marlin V3 AUV.",
-    license="Proprietary",
+    description="YOLO detection pipeline (ONNX Runtime / TensorRT) for the Marlin V3 AUV.",
+    license="MIT",
     entry_points={
         "console_scripts": [
             "sub_vision = sub_vision.vision_node:main",
             "annotation_visualizer = sub_vision.annotating_video:main",
             "test_gate_model = sub_vision.run_gate_model:main",
+            "build_engines = sub_vision.build_engines:main",
+            "check_engines = sub_vision.check_engines:main",
         ],
     },
 )

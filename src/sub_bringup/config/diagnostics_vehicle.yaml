@@ -1,0 +1,9 @@
+# The vehicle's hardware drivers, on top of diagnostics.yaml: common_launch.py
+# loads both when not on simulation time.
+/**:
+  ros__parameters:
+    drivers:
+      type: diagnostic_aggregator/GenericAnalyzer
+      path: Drivers
+      startswith: ["sub_low", "naviguider_imu", "waterlinked_dvl", "down_camera", "logitech_c922"]
+      timeout: 3.0

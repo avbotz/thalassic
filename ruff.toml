@@ -3,7 +3,7 @@ target-version = "py312"   # pin to Python version (3.12) on Ubuntu 24.04 matchi
 
 # Exclude submodules
 extend-exclude = [
-    "src/stonefish_ros2",
+    "src/sub_sim/stonefish_ros2",
     "src/sub_drivers/flir_camera_driver",
     "src/sub_drivers/waterlinked_dvl",
     "src/sub_sim/stonefish_vendor/stonefish",
@@ -29,6 +29,9 @@ ignore = [
     # this doesn't hold.
     "RUF046",
 ]
+
+[lint.isort]
+known-first-party = ["sub_bringup", "sub_control", "sub_control_interfaces", "sub_pid_tuner", "sub_driver_interfaces", "sub_serial_interfaces", "sub_mission", "sub_sim", "sub_sim_sensors", "sim_labeling", "sub_vision", "sub_vision_interfaces"]
 
 [format]
 docstring-code-format = true

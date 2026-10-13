@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RoboSub 2026 Return Home: at the end of the run, while underwater, pass back
+  through the start gate. Runs after the octagon whether or not it succeeded.
+
+  The vehicle drives back to the gate home GateMission saved before its
+  approach (@gate_home_x/@gate_home_y, on the start side of the gate), so the
+  path crosses the gate whatever the heading: facing the gate is best effort,
+  and losing vision does not stop the drive home. The dive is not, since
+  moving off at the surface outside the octagon is a breach that ends the run.
+-->
+<root BTCPP_format="4" main_tree_to_execute="ReturnHomeMission">
+  <BehaviorTree ID="ReturnHomeMission">
+    <Sequence name="return_home_mission">
+      <PosSetpoint z="-1.0"/>
+      <ForceSuccess><MoveRelative x="-1.0"/></ForceSuccess>
+      <PosSetpoint y="{@gate_home_y}"/>
+      <ForceSuccess>
+        <Sequence name="face_gate">
+          <AddAttSetpoint yaw="-1.57079633"/>
+          <LoadModel camera="front" task="gate" timeout_msec="30000"/>
+          <AlignToDetection camera="front"
+                            task="gate"
+                            class_id=""
+                            min_score="0.0"
+                            yaw="true"
+                            depth="false"
+                            tolerance="0.05"
+                            depth_gain="1.5"
+                            max_depth_step="0.5"
+                            timeout_msec="30000"/>
+        </Sequence>
+      </ForceSuccess>
+      <PosSetpoint x="{@gate_home_x}"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

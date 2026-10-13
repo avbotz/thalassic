@@ -1,8 +1,8 @@
 #include "actions.hpp"
 
 #include "sub_mission/nodes/mission.hpp"
-#include "sub_mission/utils.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -15,36 +15,47 @@ namespace {
 class AddAttSetpointAction : public BT::StatefulActionNode {
    public:
     AddAttSetpointAction(const std::string &name, const BT::NodeConfig &config, MissionNode &node,
-                         QuaternionCmdPublisher::SharedPtr publisher, rclcpp::Clock::SharedPtr clock,
+                         SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                          rclcpp::Logger logger)
-        : BT::StatefulActionNode(name, config), node_(node), publisher_(publisher), clock_(clock), logger_(logger) {}
+        : BT::StatefulActionNode(name, config),
+          node_(node),
+          setpoint_publisher_(setpoint_publisher),
+          clock_(clock),
+          logger_(logger) {}
 
     static BT::PortsList providedPorts() {
         return {BT::InputPort<double>("roll", UNSPECIFIED_PORT, "Roll offset in radians"),
                 BT::InputPort<double>("pitch", UNSPECIFIED_PORT, "Pitch offset in radians"),
-                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw offset in radians")};
+                BT::InputPort<double>("yaw", UNSPECIFIED_PORT, "Yaw offset in radians; positive turns left"),
+                moveTimeoutPort()};
     }
 
     BT::NodeStatus onStart() override {
         std::array<double, 3> inputs{};
-        getInput("roll", inputs[0]);
-        getInput("pitch", inputs[1]);
-        getInput("yaw", inputs[2]);
-        active_axes_ = {std::isfinite(inputs[0]), std::isfinite(inputs[1]), std::isfinite(inputs[2])};
-        if (active_axes_[0]) {
-            node_.commanded_att[0] += inputs[0];
+        int timeout_msec = 0;
+        if (!readPort(*this, "roll", inputs[0], logger_) || !readPort(*this, "pitch", inputs[1], logger_) ||
+            !readPort(*this, "yaw", inputs[2], logger_) || !readPort(*this, "timeout_msec", timeout_msec, logger_)) {
+            return BT::NodeStatus::FAILURE;
         }
-        if (active_axes_[1]) {
-            node_.commanded_att[1] += inputs[1];
+        active_axes_ = {std::isfinite(inputs[0]), std::isfinite(inputs[1]), std::isfinite(inputs[2])};
+        std::array<double, 3> target{UNSPECIFIED_PORT, UNSPECIFIED_PORT, UNSPECIFIED_PORT};
+        double turn = 0.0;
+        for (std::size_t axis = 0; axis < target.size(); ++axis) {
+            if (active_axes_[axis]) {
+                target[axis] = node_.attitudeTarget(axis) + inputs[axis];
+                turn = std::max(turn, std::fabs(normalizeAngle(target[axis] - node_.measured_att[axis])));
+            }
         }
         if (active_axes_[2]) {
-            node_.commanded_att[2] = normalizeAngle(node_.commanded_att[2] + inputs[2]);
+            target[2] = normalizeAngle(target[2]);
         }
 
+        node_.commandAttitude(target);
         start_updates_ = node_.control_error_updates;
-        publisher_->publish(attitudeCommand(*clock_, node_.commanded_att));
-        RCLCPP_INFO(logger_, "Published additive attitude target rpy=(%.3f, %.3f, %.3f)", node_.commanded_att[0],
-                    node_.commanded_att[1], node_.commanded_att[2]);
+        deadline_ = moveDeadline(timeout_msec, 0.0, 0.0, turn);
+        setpoint_publisher_->publish(attitudeCommand(*clock_, target));
+        RCLCPP_INFO(logger_, "Published additive attitude target rpy=(%.3f, %.3f, %.3f)", target[0], target[1],
+                    target[2]);
         return checkErrors();
     }
 
@@ -67,25 +78,31 @@ class AddAttSetpointAction : public BT::StatefulActionNode {
             (!active_axes_[2] || freshAndWithinTolerance(8))) {
             return BT::NodeStatus::SUCCESS;
         }
+        if (std::chrono::steady_clock::now() >= deadline_) {
+            RCLCPP_WARN(logger_, "AddAttSetpoint timed out; error rpy=(%.3f, %.3f, %.3f).", node_.control_errors[6],
+                        node_.control_errors[7], node_.control_errors[8]);
+            return BT::NodeStatus::FAILURE;
+        }
         return BT::NodeStatus::RUNNING;
     }
 
     MissionNode &node_;
-    QuaternionCmdPublisher::SharedPtr publisher_;
+    SetpointPublisher::SharedPtr setpoint_publisher_;
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<bool, 3> active_axes_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
+    std::chrono::steady_clock::time_point deadline_;
 };
 
 }  // namespace
 
 void registerAddAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
-                                  QuaternionCmdPublisher::SharedPtr attitude_publisher, rclcpp::Clock::SharedPtr clock,
+                                  SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                   rclcpp::Logger logger) {
     factory.registerBuilder<AddAttSetpointAction>(
         "AddAttSetpoint",
-        [&node, attitude_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<AddAttSetpointAction>(name, config, node, attitude_publisher, clock, logger);
+        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<AddAttSetpointAction>(name, config, node, setpoint_publisher, clock, logger);
         });
 }

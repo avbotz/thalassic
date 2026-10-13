@@ -6,19 +6,25 @@
 #include "sensor_msgs/msg/fluid_pressure.hpp"
 
 #include <algorithm>
+#include <stdexcept>
+
+namespace {
+constexpr double GRAVITY_M_S2 = 9.81;
+}  // anonymous namespace
 
 SimPressureToDepth::SimPressureToDepth(const rclcpp::NodeOptions& options) : Node("sim_pressure_to_depth", options) {
-    this->declare_parameter("water_density_kg_m3", 997.0);
-    this->declare_parameter("gravity_m_s2", 9.80665);
+    this->declare_parameter("water_density_kg_m3", 1000.0);
     this->declare_parameter("frame_id", "odom");
     this->declare_parameter("child_frame_id", "depth_link");
     this->declare_parameter("z_variance", 0.01);
 
     water_density_kg_m3_ = this->get_parameter("water_density_kg_m3").as_double();
-    gravity_m_s2_ = this->get_parameter("gravity_m_s2").as_double();
     frame_id_ = this->get_parameter("frame_id").as_string();
     child_frame_id_ = this->get_parameter("child_frame_id").as_string();
     z_variance_ = this->get_parameter("z_variance").as_double();
+    if (!(water_density_kg_m3_ > 0.0) || !(z_variance_ > 0.0)) {
+        throw std::invalid_argument("water_density_kg_m3 and z_variance must be positive");
+    }
 
     subscriber_ = this->create_subscription<sensor_msgs::msg::FluidPressure>(
         "sim/pressure", 5,
@@ -27,10 +33,11 @@ SimPressureToDepth::SimPressureToDepth(const rclcpp::NodeOptions& options) : Nod
 }
 
 void SimPressureToDepth::pressure_callback(const sensor_msgs::msg::FluidPressure::SharedPtr msg) {
-    const double depth = std::max(0.0, msg->fluid_pressure / (water_density_kg_m3_ * gravity_m_s2_));
+    // Stonefish reports gauge pressure (zero at the surface), not absolute.
+    const double depth = std::max(0.0, msg->fluid_pressure / (water_density_kg_m3_ * GRAVITY_M_S2));
 
     nav_msgs::msg::Odometry odom;
-    odom.header.stamp = this->get_clock()->now();
+    odom.header.stamp = msg->header.stamp;
     odom.header.frame_id = frame_id_;
     odom.child_frame_id = child_frame_id_;
     // depth is positive down, output ENU z (positive up)

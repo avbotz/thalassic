@@ -1,36 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Bins: one marker in each of the two bins of the role (MissionNode::role,
+  read off the gate by SelectGateRole): fire images (class 0) for Survey &
+  Repair, blood (class 1) for Search & Rescue.
+-->
 <root BTCPP_format="4" main_tree_to_execute="BinsMission">
   <BehaviorTree ID="BinsMission">
     <Sequence name="bins_mission">
-      <LoadModel camera="down" task="path" timeout_msec="30000"/>
-      <Fallback name="find_bins_path_marker">
-        <DownForwardSweepAlign task="path" max_dist="8.0" forward_step="2.0" timeout_msec="30000"/>
-        <DownPatternScan task="path" movement_dist="2.0"/>
-      </Fallback>
-      <DownContinuousAlign task="path" tolerance="0.4" min_msec="10000" timeout_msec="30000"/>
-      <PosSetpoint z="0.5"/>
-      <MoveRelative x="2.2"/>
-      <LoadModel camera="down" task="bin" timeout_msec="30000"/>
-      <Fallback name="find_bins">
-        <DownForwardSweepAlign task="bin" max_dist="20.0" forward_step="0.5" timeout_msec="15000"/>
-        <DownPatternScan task="bin" movement_dist="1.65"/>
-      </Fallback>
-      <DownContinuousAlign task="bin" tolerance="0.3" desired_distance="2.3" min_msec="3000" timeout_msec="30000"/>
-      <DownContinuousAlign task="bin" tolerance="0.35" min_msec="3000" timeout_msec="30000"/>
-      <!-- Center over the selected role target before dropping. -->
-      <LoadModel camera="down" task="bin" timeout_msec="30000"/>
-      <Fallback name="align_over_role_bin_target">
-        <DownContinuousAlign task="bin" tolerance="0.35" min_msec="8500" timeout_msec="30000"/>
-        <Sequence name="retry_role_bin_target_at_depth">
-          <PosSetpoint z="1.0"/>
-          <DownContinuousAlign task="bin" tolerance="0.35" min_msec="6000" timeout_msec="30000"/>
-          <PosSetpoint z="2.0"/>
-          <DownContinuousAlign task="bin" tolerance="0.35" min_msec="6000" timeout_msec="30000"/>
+      <LoadModel camera="down" task="torp_fire_blood" timeout_msec="30000"/>
+      <Fallback name="service_role_bins">
+        <Sequence name="service_survey_bins">
+          <SurveyRole/>
+          <Script code="bin_class := '0'"/>
+          <SubTree ID="DropMarkerInBin" class_id="{bin_class}" dropper_id="0"/>
+          <!-- Past the first bin before looking for the second. -->
+          <MoveRelative x="2.0"/>
+          <SubTree ID="DropMarkerInBin" class_id="{bin_class}" dropper_id="1"/>
+        </Sequence>
+        <Sequence name="service_search_bins">
+          <SearchRole/>
+          <Script code="bin_class := '1'"/>
+          <SubTree ID="DropMarkerInBin" class_id="{bin_class}" dropper_id="0"/>
+          <MoveRelative x="2.0"/>
+          <SubTree ID="DropMarkerInBin" class_id="{bin_class}" dropper_id="1"/>
         </Sequence>
       </Fallback>
-      <AltitudeSetpoint z="0.6"/>
-      <MoveRelative x="0.178" y="0.071"/>
-      <DropBalls/>
+      <MoveRelative x="1.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Finds one bin of the role's class and drops a marker in it. -->
+  <BehaviorTree ID="DropMarkerInBin">
+    <Sequence name="drop_marker_in_bin">
+      <Fallback name="find_role_bin">
+        <DownForwardSweepAlign task="torp_fire_blood"
+                               class_id="{class_id}"
+                               min_score="0.35"
+                               max_dist="20.0"
+                               forward_step="0.5"
+                               timeout_msec="15000"/>
+        <DownPatternScan task="torp_fire_blood"
+                         class_id="{class_id}"
+                         min_score="0.35"
+                         movement_dist="1.65"/>
+      </Fallback>
+      <DownContinuousAlign task="torp_fire_blood"
+                           class_id="{class_id}"
+                           min_score="0.45"
+                           tolerance="0.35"
+                           orient="false"
+                           min_msec="2500"
+                           timeout_msec="30000"/>
+      <!-- The down camera is centered on the bin: put the dropper there. -->
+      <NavigateToTransform source_frame="down_camera"
+                           target_frame="dropper_link"
+                           horizontal_only="true"/>
+      <Sleep msec="1000"/>
+      <DropBalls dropper_id="{dropper_id}" timeout_msec="15000"/>
     </Sequence>
   </BehaviorTree>
 </root>

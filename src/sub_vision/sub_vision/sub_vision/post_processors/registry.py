@@ -8,7 +8,13 @@ from sub_vision.post_processors.base import TaskPostProcessor
 
 # Concrete post-processor classes that ship with this package. Imported lazily
 # so that simply importing the registry does not drag in OpenCV / numpy.
-_BUILTIN_MODULES = ("sub_vision.post_processors.gate",)
+_BUILTIN_MODULES = (
+    "sub_vision.post_processors.gate",
+    "sub_vision.post_processors.octagon",
+    "sub_vision.post_processors.path_marker",
+    "sub_vision.post_processors.slalom",
+    "sub_vision.post_processors.torp",
+)
 
 _REGISTRY: dict[str, type[TaskPostProcessor]] = {}
 
@@ -19,6 +25,9 @@ def register_post_processor(task: str):
     def decorator(cls: type[TaskPostProcessor]) -> type[TaskPostProcessor]:
         if not issubclass(cls, TaskPostProcessor):
             raise TypeError(f"{cls.__name__} must subclass TaskPostProcessor")
+        # A second processor for a task would silently replace the first, by import order
+        if _REGISTRY.get(task, cls) is not cls:
+            raise ValueError(f"task '{task}' is already registered to {_REGISTRY[task].__name__}")
         _REGISTRY[task] = cls
         return cls
 

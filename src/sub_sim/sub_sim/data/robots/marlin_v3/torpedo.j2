@@ -1,13 +1,22 @@
-{# Spring-launched torpedo. Glue's ros_service (std_srvs/SetBool, data=false) releases it and
-   the push actuator's ros_subscriber (std_msgs/Float64, newtons) provides the launch impulse. #}
+{# Spring-launched torpedo, loaded at the vehicle description's `frame` (in the robot's base
+   link; origin at the tail, +X the way it is launched) and glued to `parent_link`.
+   sim_torpedo_launcher releases the glue through its ros_service (std_srvs/SetBool,
+   data=false) and launches it with the push actuator's ros_subscriber (std_msgs/Float64,
+   newtons along the launch direction).
+
+   `mesh` is modelled in base_link_ned's axes, pointing along -Y, 0.106 m long. Stonefish
+   places a robot's base link by its mesh's frame, not by the link's origin, so the mesh keeps
+   an identity origin and the robot is turned instead. The default `mass` is a little over the
+   15.5 g of water the mesh displaces: a buoyant torpedo climbs off its aim. #}
 {% macro torpedo_robot(
     name,
     mesh,
-    xyz_offsets=[0.0, 0.0, 0.0],
-    mass="0.017",
+    frame,
+    mass="0.016",
     parent_link="marlin_v3/base_link_ned",
     look_name="white"
 ) -%}
+  {% set pose = world_pose(frame, rpy=[0.0, 0.0, PI / 2]) %}
   <robot name="{{ name }}" fixed="false" self_collisions="false" algorithm="featherstone">
     <base_link name="base_link" type="model" physics="submerged" buoyant="true">
       <physical>
@@ -16,6 +25,11 @@
       </physical>
 
       <mass value="{{ mass }}" />
+      <!-- Isotropic, about its axial value. Stonefish's own estimate (an ellipsoid's, 15
+           times larger sideways) brings the Munk moment, which the real fins cancel but the
+           convex hull's drag does not: it spins the light torpedo up within milliseconds
+           and the simulation blows up. -->
+      <hydrodynamics added_mass="0.002 0.002 0.002" />
 
       <material name="plastic" />
       <look name="{{ look_name }}" />
@@ -27,15 +41,16 @@
       <ros_publisher topic="/marlin_v3/sim/{{ name }}/odometry" />
     </sensor>
 
+    <!-- Along the torpedo's axis (the mesh's -Y), at the middle of its length -->
     <actuator name="{{ name }}_push" type="push">
       <link name="base_link" />
-      <specs inverted="false" lower_limit="0.0" upper_limit="5.0" />
-      <origin xyz="0.0 0.0 0.0" rpy="{{ roll }} {{ pitch }} {{ yaw + PI / 2 }}" />
+      <specs inverted="false" />
+      <limits max_positive_force="5.0" max_negative_force="0.0" />
+      <origin xyz="0.0 -0.053 0.0" rpy="0.0 0.0 {{ -PI / 2 }}" />
       <ros_subscriber topic="/marlin_v3/sim/{{ name }}/force" />
     </actuator>
 
-    {# Offset from the sub's spawn pose; only valid for the default yaw of PI. #}
-    <world_transform xyz="{{ x - xyz_offsets[0] }} {{ y + xyz_offsets[1] }} {{ z + xyz_offsets[2] }}" rpy="{{ roll }} {{ pitch }} {{ yaw }}" />
+    <world_transform xyz="{{ pose.xyz | join(' ') }}" rpy="{{ pose.rpy | join(' ') }}" />
   </robot>
 
   <glue name="{{ name }}_glue" activated="true">

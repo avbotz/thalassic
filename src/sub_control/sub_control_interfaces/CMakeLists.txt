@@ -11,9 +11,10 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/ControllerStatus.msg"
   "msg/Error.msg"
-  "msg/Setpoint.msg"
-  "msg/SetpointAxes.msg"
+  "msg/MotionSetpoint.msg"
+  "msg/ThrusterCommand.msg"
   DEPENDENCIES std_msgs
 )
 

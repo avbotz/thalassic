@@ -1,0 +1,21 @@
+/**:
+  ros__parameters:
+    # video_device and frame_id are vehicle identity and come from
+    # config/vehicles/<robot_name>.yaml via the launch file.
+    image_width: 1920
+    image_height: 1080
+    framerate: 24.0
+    # Decoded to rgb8 (usb_cam has no output encoding parameter).
+    pixel_format: "mjpeg2rgb"
+    io_method: "mmap"
+    camera_name: "logitech_c922_webcam"
+
+    # Camera Control Parameters
+    brightness: -1
+    contrast: -1
+    saturation: -1
+    sharpness: -1
+    gain: -1
+    auto_white_balance: true
+    autoexposure: true
+    autofocus: false

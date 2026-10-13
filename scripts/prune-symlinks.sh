@@ -4,23 +4,21 @@
 
 set -euo pipefail
 
-dry_run=false
-
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 dirs=()
 
 if [ -d "build" ]; then
-    dirs+=("build")
+  dirs+=("build")
 fi
 
 if [ -d "install" ]; then
-    dirs+=("install")
+  dirs+=("install")
 fi
 
 if [ ${#dirs[@]} -eq 0 ]; then
-    echo "prune-symlinks: nothing to search"
-    exit 0
+  echo "prune-symlinks: nothing to search"
+  exit 0
 fi
 
 # -xtype l matches links whose target is missing (and link loops, which are
@@ -28,9 +26,9 @@ fi
 # SDK ships a few.
 count=0
 while IFS= read -r -d '' link; do
-    echo "removing $link -> $(readlink "$link")"
-    rm -f "$link"
-    count=$((count + 1))
+  echo "removing $link -> $(readlink "$link")"
+  rm -f "$link"
+  count=$((count + 1))
 done < <(find "${dirs[@]}" -xtype l -print0)
 
 echo "prune-symlinks: removed $count dangling symlink(s)"

@@ -4,21 +4,24 @@
 # id/label, score) so downstream consumers can reuse the standard tooling,
 # and adds the perception fields this project needs on top.
 
-# Standard 2D detection: bbox + class hypotheses (id/label/score) + source header.
+# Standard 2D detection: bbox (pixels of the source image) + class hypotheses
+# (id/label/score) + source header.
 vision_msgs/Detection2D detection
 
 # Bearing from the camera optical axis to the bbox center, in radians,
-# computed from the camera intrinsics. Positive horizontal = target right of
-# center, positive vertical = target below center (optical-frame convention).
-# This is the steering signal sub_mission consumes: yaw/translate until the
-# relevant bearing is ~0. Always filled.
+# computed from the camera intrinsics and distortion: atan(x/z) and atan(y/z)
+# of the ray through it; a task's post-processor may aim them at a point it
+# knows better instead (gate, torp: see the sub_vision README). Positive
+# horizontal = target right of center, positive vertical = target below center
+# (optical-frame convention). This is the steering signal sub_mission
+# consumes: yaw/translate until the relevant bearing is ~0. Always filled; 0
+# when the camera is uncalibrated (CameraInfo K is zero).
 float32 bearing_horizontal
 float32 bearing_vertical
 
 # Estimated distance from the camera optical frame to the object, in meters.
-# Default proxy = (bbox_height / image_height) * CAMERA_HEIGHT_M (see
-# sub_vision/constants.py); a task post-processor may overwrite it with a
-# better estimate (e.g. via cv2.solvePnP on known geometry).
+# NaN when unknown: only a task post-processor fills it in, from geometry it
+# knows (e.g. a known width, or cv2.solvePnP).
 float32 distance_m
 
 # Full 6-DOF pose of the object in the camera optical frame, when the task's
@@ -28,6 +31,6 @@ geometry_msgs/Pose pose
 bool pose_valid
 
 # Task-specific metadata as free-form key/value pairs. Lets new tasks attach
-# extra information (e.g. "orientation_deg", "side") without changing this
+# extra information (e.g. "yaw_deg", "heading_yaw_deg") without changing this
 # message definition.
 diagnostic_msgs/KeyValue[] extra

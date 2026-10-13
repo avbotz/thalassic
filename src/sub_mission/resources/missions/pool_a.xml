@@ -8,21 +8,22 @@
   these values; B and C use the mirrored signs (see pool_b.xml).
 
   Mirrored per pool (the sub starts on opposite sides of the course, so search
-  and exit headings flip sign):
+  and exit headings flip sign). Odom yaws, counter-clockwise from the heading
+  the sub starts on:
     gate_exit_yaw       heading to hold after clearing the gate        (rad)
     torp_search_yaw     heading to face while searching the torp board (rad)
     octagon_search_yaw  heading to face while searching the octagon     (rad)
 
-  Mission-wide role selection comes from the sub_mission `role` ROS parameter:
-    SURVEY or SEARCH. Vision load requests use task-agnostic model names such
-    as gate.
+  The role (SURVEY or SEARCH) is the one the gate's left opening shows, read
+  off it by GateMission; the sub_mission `role` ROS parameter stands until
+  then. Vision load requests use task-agnostic model names such as gate.
 -->
 <root BTCPP_format="4" main_tree_to_execute="CompetitionPoolA">
   <BehaviorTree ID="CompetitionPoolA">
     <Sequence name="pool_a">
-      <Script code="@gate_exit_yaw := -0.34906585;
-                    @torp_search_yaw := 2.35619449;
-                    @octagon_search_yaw := 0.61086524"/>
+      <Script code="@gate_exit_yaw := 0.34906585;
+                    @torp_search_yaw := -2.35619449;
+                    @octagon_search_yaw := -0.61086524"/>
       <SubTree ID="CompetitionRun"/>
     </Sequence>
   </BehaviorTree>
