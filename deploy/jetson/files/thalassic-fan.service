@@ -1,4 +1,3 @@
-# Installed at /etc/systemd/system/thalassic-fan.service.
 [Unit]
 Description=Thalassic: Jetson fan at full speed
 Documentation=https://github.com/avbotz/thalassic/blob/main/deploy/jetson/README.md

@@ -65,7 +65,7 @@ def test_parse_line(line, parsed):
 
 
 class Board:
-    """The board's end of a pseudo-terminal, reached through a symlink like /dev/pico."""
+    """The board's end of a pseudo-terminal, reached through a symlink like /dev/maritime."""
 
     def __init__(self, link: Path):
         self.link = link
@@ -117,7 +117,7 @@ class Board:
 def rig():
     rclpy.init()
     with tempfile.TemporaryDirectory() as directory:
-        board = Board(Path(directory) / "pico")
+        board = Board(Path(directory) / "maritime")
         namespace = f"/test_sub_low_{os.getpid()}"
         node = SubLow(
             namespace=namespace,

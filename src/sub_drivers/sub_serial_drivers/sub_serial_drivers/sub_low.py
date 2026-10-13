@@ -1,4 +1,4 @@
-"""Bridge to the Maritime board (Raspberry Pi Pico) over USB serial.
+"""Bridge to the Maritime board over USB serial.
 
 The protocol is newline-terminated ASCII (maritime's README has the board's side):
 

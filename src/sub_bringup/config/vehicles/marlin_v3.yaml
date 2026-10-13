@@ -90,4 +90,4 @@ devices:
     mount: {parent: base_link, child: imu_link, x: -0.199, y: -0.09, z: 0.185622}
 
   maritime_mcu:
-    serial_port: /dev/pico
+    serial_port: /dev/maritime

@@ -63,7 +63,7 @@ Removed for real: the `--skip-keys=pcl` workaround (the `pcl` package now comes 
 
 ## 7. Hardware identity lives in a vehicle description
 
-**Was:** the down camera's serial number, `/dev/pico`, `/dev/naviguider_imu`, every mounting offset, and all eight thruster poses were Python literals in `marlin_v2_launch.py` and `pool_test_launch.py`. Swapping a camera meant editing a launch file; the frame id `marlin_v2/imu_link` was hardcoded in one place while the node beside it built the same string from `robot_name`.
+**Was:** the down camera's serial number, `/dev/maritime`, `/dev/naviguider_imu`, every mounting offset, and all eight thruster poses were Python literals in `marlin_v2_launch.py` and `pool_test_launch.py`. Swapping a camera meant editing a launch file; the frame id `marlin_v2/imu_link` was hardcoded in one place while the node beside it built the same string from `robot_name`.
 
 **Now:** `sub_bringup/config/vehicles/<robot_name>.yaml` holds everything that is a property of the physical hull, and the launch files read it through `sub_bringup.vehicle`. `description_launch.py` publishes its `transforms`, `thrusters` and each device's `mount` as static transforms (one `static_transforms` node); the hardware launch file reads each device's address (serial port, video device, camera serial, IP) and frame from its `devices` entry. Node *tuning* — controller gains, EKF configuration, camera exposure — is not vehicle identity and stays in its own file next to it.
 
@@ -145,7 +145,7 @@ The `ament_lint_auto` blocks are gone from our packages, and `colcon.meta` build
 
 ## 14. Safety is layered through the nodes that already own the vehicle, not a supervisor node
 
-**Was:** `sub_control` cut thrust without odometry and dropped axes without their sensors, judging freshness by arrival time, and `sub_low` stopped the thrusters if `sub_control` went quiet. Nothing else: an IMU that stopped went unnoticed (the EKF's predicted attitude kept being flown), a mission move could "arrive" on a `control/error` computed before its command applied, the Pico kept its last thruster command forever if the host stopped talking, a stack started with the kill switch released drove at once, and only `sub_vision` published `/diagnostics`, which nothing read.
+**Was:** `sub_control` cut thrust without odometry and dropped axes without their sensors, judging freshness by arrival time, and `sub_low` stopped the thrusters if `sub_control` went quiet. Nothing else: an IMU that stopped went unnoticed (the EKF's predicted attitude kept being flown), a mission move could "arrive" on a `control/error` computed before its command applied, maritime kept its last thruster command forever if the host stopped talking, a stack started with the kill switch released drove at once, and only `sub_vision` published `/diagnostics`, which nothing read.
 
 **Now:** each layer stops the thrusters on what it can see, and each layer below catches the one above dying ([control.md](control.md#safety)):
 

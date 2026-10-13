@@ -1,4 +1,4 @@
-# Vehicle network. Installed at /etc/netplan/60-thalassic-vehicle.yaml.
+# Vehicle network.
 
 network:
   version: 2

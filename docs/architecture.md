@@ -13,7 +13,7 @@ src/
 ├── sub_drivers/
 │   ├── flir_camera_driver/      # FLIR / Spinnaker camera driver (submodule)
 │   ├── sub_driver_interfaces/   # Dropper, torpedo and (sim only) grabber service definitions
-│   ├── sub_serial_drivers/      # Serial-device nodes (Pico low-level, IMU)
+│   ├── sub_serial_drivers/      # Serial-device nodes (maritime low-level, IMU)
 │   └── waterlinked_dvl/         # WaterLinked DVL driver (submodule)
 ├── sub_sim/
 │   ├── sub_sim/                 # Scenario generation, robot description
@@ -79,7 +79,7 @@ Driver for the WaterLinked A50 DVL (the team's fork, at commit `7163fbb` or late
 
 ### `sub_low` / `naviguider_imu_driver` (`sub_serial_drivers`) — hardware only
 
-`sub_low` talks to the RPi Pico (the [maritime](https://github.com/avbotz/maritime) firmware) over `/dev/pico`: `control/thrusters` out, as one `m` line per cycle once the board's heartbeat says it speaks protocol 2 (eight `p` lines before then, so older firmware keeps working); `kill_switch` and `odometry/depth` in; and the `launch_torpedo` and `set_dropper` services, which each pick one of two (`torpedo_id`, `dropper_id`: 0 or 1). It stops every thruster if `sub_control` goes quiet for `command_timeout` (0.5 s), ignores a thruster command older than that, and reopens the port if the link drops (stopping the thrusters first). The board has its own 0.5 s command watchdog and a hardware watchdog, so the thrusters stop even if `sub_low` or the USB link dies ([control.md](control.md#safety)). `naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and publishes ENU `imu/data` with `frame_id` `marlin_v3/imu_link`, but only while its gyro and orientation are both fresh, so a sensor that stops makes `imu/data` stop instead of repeating; it too reopens the port if the link drops. Both publish `/diagnostics`.
+`sub_low` talks to the [maritime](https://github.com/avbotz/maritime) firmware over `/dev/maritime`: `control/thrusters` out, as one `m` line per cycle once the board's heartbeat says it speaks protocol 2 (eight `p` lines before then, so older firmware keeps working); `kill_switch` and `odometry/depth` in; and the `launch_torpedo` and `set_dropper` services, which each pick one of two (`torpedo_id`, `dropper_id`: 0 or 1). It stops every thruster if `sub_control` goes quiet for `command_timeout` (0.5 s), ignores a thruster command older than that, and reopens the port if the link drops (stopping the thrusters first). The board has its own 0.5 s command watchdog and a hardware watchdog, so the thrusters stop even if `sub_low` or the USB link dies ([control.md](control.md#safety)). `naviguider_imu_driver` reads the NaviGuider IMU over `/dev/naviguider_imu` and publishes ENU `imu/data` with `frame_id` `marlin_v3/imu_link`, but only while its gyro and orientation are both fresh, so a sensor that stops makes `imu/data` stop instead of repeating; it too reopens the port if the link drops. Both publish `/diagnostics`.
 
 ### `sim_dvl_remapper` (`sub_sim_sensors`) — sim only
 
