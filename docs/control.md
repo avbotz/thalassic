@@ -130,7 +130,7 @@ Each thruster has a health in [0, 1], the fraction of its thrust it delivers; a 
 
 ```bash
 ros2 param set /marlin_v3/sub_control failed_thrusters "[3]"
-# All healthy again: an empty integer array (type 7), or [] in the dashboard.
+# All healthy again: an empty integer array (type 7), or [] in the Controller Gains panel.
 # `ros2 param set ... "[]"` is rejected: ros2cli sends an empty list as a bool array.
 ros2 service call /marlin_v3/sub_control/set_parameters rcl_interfaces/srv/SetParameters \
   "{parameters: [{name: failed_thrusters, value: {type: 7}}]}"
@@ -207,7 +207,7 @@ Everything except the rate, the layout and `robot_name` can be changed at runtim
 
 Gains tuned in simulation will not carry over unchanged; the structure and the procedure do.
 
-The `sub_pid_tuner` dashboard (`dashboard:=true` on either launch file) runs these steps from a browser: it edits the parameters live, graphs target, reference and measurement per axis, runs bounded step, cruise, hold and square routines, and saves the result into the gains file the controller was started with. [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md) walks through the procedure with it.
+The AVBotz Tuning extension for Foxglove ([avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions), `tuning/`) runs these steps from Foxglove over the bridge: its Controller Gains panel edits the parameters live and exports what changed in the layout of the gains file, Controller Signals graphs target, reference and measurement per axis, and Tuning Routines runs bounded step, cruise, hold and square routines. Its README walks through the procedure.
 
 ## Diagnostics
 

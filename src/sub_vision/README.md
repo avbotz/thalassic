@@ -8,8 +8,7 @@ Pre-processing (letterbox) and post-processing (decode, box rescaling,
 instance masks) live in `backends.py` and are the **same code** on both; only
 the runner under them differs.
 
-The pipeline is two ROS 2 (Jazzy) packages in this directory (beside
-`sim_labeling`, which has its own README):
+The pipeline is two ROS 2 (Jazzy) packages in this directory:
 
 | Package | Build type | Contents |
 | --- | --- | --- |

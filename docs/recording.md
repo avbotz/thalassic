@@ -32,9 +32,11 @@ Every topic as it was published, including `/tf_static`, `/rosout` (every node's
 | `vision/debug_image` and `vision/debug_image_down`, raw and JPEG | Drawn from the cameras' images and the detections, which are both recorded. The annotators only draw while something subscribes, so recording them would also cost the CPU to draw them |
 | `sub_vision/depth`, `sub_vision/depth/color` (in the sim with `vision_depth:=true`) | Depth Anything's maps, for viewing: about 6 MB a frame |
 | `/clock` (sim) | The bag's timestamps are already sim time; `ros2 bag play --clock` publishes it again |
-| `sim/segment` (sim, with `labeling:=true`) | `sim_labeling` saves what the segmentation camera sees itself |
+| `sim/segment/image_raw` and `sim/segment/image_color` (sim, with `segmentation_camera:=true`) | Recorded as the lossless PNG copy `sim/segment/image_raw/compressed` instead (below); `image_color` is the same object ids in false colour |
 
 The vehicle's down camera (the Blackfly) is the exception to JPEG: it sends a Bayer mosaic, which the JPEG copy stores as a grey image, so its `image_raw` is recorded raw. That is lossless (zstd in the bag), and Foxglove shows it in colour. So is the sim's depth camera (`depth_camera:=true`): its `sim/depth_camera/image_depth` is 32-bit float depth in metres, which JPEG cannot hold, so it is recorded raw and its JPEG copy is left out.
+
+The sim's segmentation camera (`segmentation_camera:=true`) is lossless too, the other way round: its `sim/segment/image_raw` is 16-bit object ids, which JPEG would clip, so `sim_launch.py` sets that topic's compressed copy to PNG (`format: png`) and the bag records the copy. The latched `sim/segment/label_info` names the object behind each id. [remora](../../remora/README.md) turns the two into training labels for the front camera's frames, which the same bag holds.
 
 The bag's metadata (`custom_data` in `metadata.yaml`, and the MCAP's `rosbag2` metadata record) holds the launch arguments that pick the run (`robot_name`, `mission`, `role`, `gains`, and in the sim `seed`, `course`, `current`, `sensor_noise`, `DX`...`DYAW`) and the commit, from `git describe --always --dirty`. The sim always seeds its scenario, with a random seed when none is given, so a recorded run's course can be rebuilt with `pixi run sim seed:=<seed> course:=<course>`.
 
@@ -51,6 +53,8 @@ Images are almost all of it. Measured in the sim with the `prelim` mission: two 
 That comes to 0.3-0.45 GB per minute of sim. At image_transport's default quality of 95 the frames are 750 KB and 295 KB, nearly twice the size. Raw frames would be 4.7 MB each, 120 MB/s for both cameras. The sim's front camera is the expensive one because the pool's caustics are fine detail everywhere, which JPEG compresses poorly. The vehicle's sizes have not been measured yet.
 
 With `depth_camera:=true` the depth camera is most of the bag. Its 1920×1080 float frames are 8.3 MB each, which zstd shrinks to 1.1-1.4 MB depending on the scene. In a two-minute sim run it rendered at 9.8 Hz, about 0.8 GB a minute, and the whole bag came to 1.2 GB a minute. Where nothing is within its 20 m, including the water surface, a pixel is 0.
+
+The segmentation camera (`segmentation_camera:=true`) costs little: its 1920×1080 frames are flat regions of object ids, 34-37 KB each as PNG, 0.35 MB/s at the 9.8 Hz it rendered at (a 57 s run on the dev laptop, the vehicle holding still at the dock). Its latched `label_info` is one small message.
 
 The MCAP is compressed in chunks with zstd at level 1 (`sub_bringup/config/mcap_writer.yaml`), which shrinks everything but the images to a quarter, at over a gigabyte a second. zstd's fastest level, which the `zstd_fast` preset uses, left that a sixth larger and the depth camera's frames twice the size. Level 19 (the `zstd_small` preset) saved only another 10% and compressed at 6-15 MB/s on a laptop core, slower than the depth camera alone sends data. JPEG does not compress at any level.
 

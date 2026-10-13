@@ -26,6 +26,7 @@ from launch_ros.substitutions import FindPackageShare
 
 from sub_bringup.entities import (
     common_launch_include,
+    compressed_parameter,
     jpeg_quality,
     package_config,
     recorder,
@@ -46,14 +47,13 @@ def _render_scn(context, *_, **__):
     }
     # Always seeded, so the seed recorded with the run reproduces its scenario.
     seed = LaunchConfiguration("seed").perform(context) or str(random.randrange(2**31))
-    # As IfCondition reads them (true, false, 1 or 0; anything else is an error), so
-    # labeling agrees with sim_labeling's condition.
-    sensor_noise, labeling, depth_camera, headless = (
+    # As IfCondition reads them (true, false, 1 or 0; anything else is an error).
+    sensor_noise, segmentation_camera, depth_camera, headless = (
         IfCondition(LaunchConfiguration(k)).evaluate(context)
-        for k in ("sensor_noise", "labeling", "depth_camera", "headless")
+        for k in ("sensor_noise", "segmentation_camera", "depth_camera", "headless")
     )
-    if headless and labeling:
-        raise ValueError("labeling needs the cameras, which headless:=true has none of")
+    if headless and segmentation_camera:
+        raise ValueError("The segmentation camera needs cameras, which headless:=true has none of")
     # Given in ENU like everything else; Stonefish's world is NED.
     current = LaunchConfiguration("current").perform(context)
     try:
@@ -81,8 +81,7 @@ def _render_scn(context, *_, **__):
             thrusters=thrusters,
             frames=frames,
             sensor_noise=sensor_noise,
-            # sim_labeling labels the segmentation camera's images.
-            segmentation_camera=labeling,
+            segmentation_camera=segmentation_camera,
             depth_camera=depth_camera,
             # Stonefish without a GPU cannot render cameras.
             cameras=not headless,
@@ -166,6 +165,11 @@ def _stonefish(context, *_, **__):
                             f"/{robot_name}/{camera}/image_color"
                             for camera in ("front_camera", "down_camera")
                         ],
+                    ),
+                    # The segmentation camera's images are 16-bit object ids, which
+                    # JPEG cannot hold: the copy the bag records is a lossless PNG.
+                    **compressed_parameter(
+                        "stonefish_ros2", f"/{robot_name}/sim/segment/image_raw", "format", "png"
                     ),
                 }
             ],
@@ -272,9 +276,12 @@ def sim_entities() -> list:
             description="The dock the robot starts from on the RoboSub 2026 course map",
         ),
         DeclareLaunchArgument(
-            "labeling",
+            "segmentation_camera",
             default_value="false",
-            description="Write labelled training images from the segmentation camera",
+            description=(
+                "Add the segmentation camera (sim/segment), which labels the front camera's "
+                "frames with the object each pixel shows; record:=true keeps them for remora"
+            ),
         ),
         DeclareLaunchArgument(
             "current",
@@ -339,22 +346,12 @@ def sim_entities() -> list:
         ],
     )
 
-    sim_labeling_node = Node(
-        package="sim_labeling",
-        executable="labeling",
-        name="sim_labeling",
-        namespace=robot_name,
-        condition=IfCondition(LaunchConfiguration("labeling")),
-        parameters=[sim_time()],
-    )
-
     return [
         *args,
         OpaqueFunction(function=_render_scn),
         OpaqueFunction(function=_stonefish),
         OpaqueFunction(function=_sim_sensors),
         robot_state_publisher,
-        sim_labeling_node,
     ]
 
 
@@ -366,8 +363,7 @@ def generate_launch_description():
             # image transport) otherwise spin between frames: with several image
             # nodes that is a few cores, taken from the physics thread.
             SetEnvironmentVariable("OMP_WAIT_POLICY", "PASSIVE"),
-            # Transforms, EKF, controller, mission executive, tuning dashboard,
-            # Foxglove bridge.
+            # Transforms, EKF, controller, mission executive, Foxglove bridge.
             # Foxglove connects over localhost, where compression only adds latency.
             *common_launch_include(
                 gains="control/gains_sim.yaml", use_sim_time="true", foxglove_compression="false"
@@ -397,8 +393,11 @@ def generate_launch_description():
                     # cannot hold (subscribing makes it log an error every frame),
                     # so they are recorded raw.
                     "sim/depth_camera/image_depth/compressed",
-                    # sim_labeling saves what the segmentation camera sees itself.
-                    "sim/segment/.*",
+                    # The segmentation camera's object ids are recorded as their lossless
+                    # PNG copy (image_raw/compressed, see _stonefish), with the latched
+                    # label_info naming each id. image_color is the same ids in false colour.
+                    "sim/segment/image_raw",
+                    "sim/segment/image_color.*",
                 ]
             ),
         ]

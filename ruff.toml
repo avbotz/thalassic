@@ -31,7 +31,7 @@ ignore = [
 ]
 
 [lint.isort]
-known-first-party = ["sub_bringup", "sub_control", "sub_control_interfaces", "sub_pid_tuner", "sub_driver_interfaces", "sub_serial_interfaces", "sub_mission", "sub_sim", "sub_sim_sensors", "sim_labeling", "sub_vision", "sub_vision_interfaces"]
+known-first-party = ["sub_bringup", "sub_control", "sub_control_interfaces", "sub_driver_interfaces", "sub_serial_interfaces", "sub_mission", "sub_sim", "sub_sim_sensors", "sub_vision", "sub_vision_interfaces"]
 
 [format]
 docstring-code-format = true

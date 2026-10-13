@@ -82,7 +82,7 @@ Packages no longer carry `ament_lint_auto` blocks, so `colcon test` (`pixi run t
 
 ## Tests and CI
 
-`pixi run test` runs every package's tests and exits non-zero if any fails; `pixi run colcon test-result --verbose` then shows which. They include unit tests of the controller, the mission nodes, the serial drivers (against a pretend board on a pseudo-terminal), scenario generation and the dashboard, and one run of the whole stack against the headless simulator ([simulation.md](simulation.md#regression-test)), which takes a minute or two. `colcon test --packages-select <pkg>` runs one package's.
+`pixi run test` runs every package's tests and exits non-zero if any fails; `pixi run colcon test-result --verbose` then shows which. They include unit tests of the controller, the mission nodes, the serial drivers (against a pretend board on a pseudo-terminal), scenario generation, and one run of the whole stack against the headless simulator ([simulation.md](simulation.md#regression-test)), which takes a minute or two. `colcon test --packages-select <pkg>` runs one package's.
 
 pytest is pinned below 9 in `pixi.toml`: Jazzy's `launch_testing` plugins do not load under pytest 9.
 
@@ -194,8 +194,6 @@ Accepted by both `sim_launch.py` and `pool_test_launch.py`:
 | `foxglove_port` | `8765` | Websocket port for the Foxglove bridge |
 | `foxglove_compression` | per stack | Deflate the bridge's messages — `true` on the vehicle, for a laptop on its network; `false` in the simulator, where Foxglove connects over localhost and compression only adds latency |
 | `use_sim_time` | per stack | Run every node on the simulator's `/clock` — `false` on the vehicle, `true` in the simulator |
-| `dashboard` | `false` | Serve the `sub_pid_tuner` tuning dashboard ([README](../src/sub_control/sub_pid_tuner/README.md)), which saves tuned values to the `gains` file |
-| `dashboard_port` | `8080` | Port the dashboard serves on |
 
 `record`, `bag_dir` and `jpeg_quality` are in [recording.md](recording.md).
 
@@ -208,7 +206,7 @@ Simulation only:
 | `DY` | `0.25` | Max Y position fuzz (m) |
 | `DZ` | `0.10` | Max Z position fuzz (m) |
 | `DYAW` | `0.10` | Max yaw fuzz applied to task objects (rad) |
-| `labeling` | `false` | Write labelled training images from the segmentation camera |
+| `segmentation_camera` | `false` | Add the segmentation camera, whose images the bag records as training labels for remora ([simulation.md](simulation.md#cameras)) |
 | `depth_camera` | `false` | Add the simulated depth camera |
 | `vision_depth` | `false` | Run Depth Anything on the front camera beside the detector and publish its maps (`sub_vision/depth`, `sub_vision/depth/color`); each run delays that frame's detections, about 0.4 s on an iGPU |
 
@@ -224,7 +222,7 @@ Four files, layered so the two stacks cannot drift apart:
 
 | File | Runs |
 |---|---|
-| `common_launch.py` | Everything both stacks run identically: the transforms, the EKF, `sub_control`, the mission executive, the tuning dashboard (opt-in), the Foxglove bridge |
+| `common_launch.py` | Everything both stacks run identically: the transforms, the EKF, `sub_control`, the mission executive, the Foxglove bridge |
 | `description_launch.py` | The vehicle's static transforms, from `config/vehicles/<robot_name>.yaml`. Included by `common_launch.py` |
 | `pool_test_launch.py` | `common_launch.py` + the hardware drivers, the two cameras, and a `sub_vision` node and an annotation visualizer per camera |
 | `sim_launch.py` | `common_launch.py` + Stonefish, the sensor bridges, `robot_state_publisher`, and a `sub_vision` node and an annotation visualizer per camera |

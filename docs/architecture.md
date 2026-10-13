@@ -7,8 +7,7 @@ src/
 ├── sub_bringup/                 # Launch files and config
 ├── sub_control/
 │   ├── sub_control/             # Control algorithm, arming and watchdogs
-│   ├── sub_control_interfaces/  # ROS2 messages for control
-│   └── sub_pid_tuner/           # Browser dashboard for tuning sub_control live
+│   └── sub_control_interfaces/  # ROS2 messages for control
 ├── sub_mission/                 # BehaviorTree.CPP mission execution
 ├── sub_drivers/
 │   ├── flir_camera_driver/      # FLIR / Spinnaker camera driver (submodule)
@@ -22,8 +21,7 @@ src/
 │   └── stonefish_ros2/          # Stonefish simulator ROS2 bridge (submodule)
 └── sub_vision/
     ├── sub_vision/              # Detection node and post-processors
-    ├── sub_vision_interfaces/   # Detection messages, load_model service
-    └── sim_labeling/            # Training data from the sim's segmentation camera
+    └── sub_vision_interfaces/   # Detection messages, load_model service
 ```
 
 ## Nodes
@@ -52,9 +50,7 @@ The main control node, at 50 Hz: a jerk-limited trajectory generator, a model-ba
 
 The thruster commands go out every cycle, `control/error` and `control/status` every cycle except while the node waits for the EKF to confirm the pose reset after a kill-switch release. Gains, the vehicle model and trajectory limits come from the hardware or simulation control profile; the thruster layout from the vehicle description. Parameters are listed in [control.md](control.md#configuration).
 
-### `dashboard` (`sub_pid_tuner`) — opt-in
-
-A browser dashboard for tuning `sub_control` live, started with `dashboard:=true` and served on every interface at `dashboard_port` (8080). It sets any node's parameters, graphs `control/status` and `odometry/filtered` per axis, runs bounded tuning routines on `motion_setpoint`, calls `sub_control`'s `reset_pose`, and writes tuned values back to the gains file `sub_control` was started with. See its [README](../src/sub_control/sub_pid_tuner/README.md) and [TUNING.md](../src/sub_control/sub_pid_tuner/TUNING.md).
+Driving, tuning and watching the vehicle from a laptop is done in Foxglove, through the bridge, with the panels in [avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions): teleop (6-DOF Teleop, Motion Setpoint), tuning (Controller Gains, Tuning Routines, Controller Signals) and vision (Detections, drawn on the frames they were computed from).
 
 ### `sub_mission` (`sub_mission/mission`)
 

@@ -1,7 +1,7 @@
 """
 Common launch arguments and nodes between the simulation and physical vehicle:
-transforms, EKF, sub_control, the mission, the tuning dashboard, the
-diagnostics aggregator and the Foxglove bridge.
+transforms, EKF, sub_control, the mission, the diagnostics aggregator and the
+Foxglove bridge.
 
 An include shares the parent's launch configurations, so the parent's
 arguments (entities.common_launch_arguments) reach the nodes below.
@@ -128,26 +128,6 @@ def generate_launch_description():
         condition=IfCondition(AndSubstitution(has_mission, restart)),
     )
 
-    # Saves to the gains file sub_control was started with; installed as a
-    # symlink to the source tree, so that is where the change lands. Serves on
-    # every interface, like the Foxglove bridge and the Groot2 view.
-    dashboard = Node(
-        package="sub_pid_tuner",
-        executable="dashboard",
-        name="dashboard",
-        namespace=robot_name,
-        output="screen",
-        parameters=[
-            {
-                "profile": package_config("sub_bringup", LaunchConfiguration("gains")),
-                "host": "0.0.0.0",
-                "port": ParameterValue(LaunchConfiguration("dashboard_port"), value_type=int),
-            },
-            sim_time(),
-        ],
-        condition=IfCondition(LaunchConfiguration("dashboard")),
-    )
-
     foxglove_bridge = Node(
         package="foxglove_bridge",
         executable="foxglove_bridge",
@@ -172,7 +152,6 @@ def generate_launch_description():
             OpaqueFunction(function=_sub_control),
             mission_node,
             mission_restart_node,
-            dashboard,
             OpaqueFunction(function=_diagnostic_aggregator),
             foxglove_bridge,
         ]

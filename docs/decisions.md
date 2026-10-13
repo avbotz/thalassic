@@ -57,7 +57,7 @@ The depth camera is not on the vehicle right now, so nothing launches the OAK-D 
 
 `sub_color_correction` (DeepSeeColor) was deleted rather than kept: it optimized its model with PyTorch on every frame, so it could not run through the ONNX/TensorRT path the rest of `sub_vision` uses and would have run on the Jetson's CPU. `git log -S DeepSeeColor` finds it.
 
-`sim_labeling` stayed, because it works: it is behind `labeling:=true` in `sim_launch.py` rather than commented out of the entity list.
+`sim_labeling`, which saved the segmentation camera's frames as YOLO labels while the sim ran, was deleted on 2026-10-12. The bag records the segmentation camera instead (`segmentation_camera:=true record:=true`, [recording.md](recording.md)), and [remora](../../remora/README.md) turns it into labels beside the pool footage it labels with SAM 3: one class list and one dataset pipeline instead of two, and labels can be redone from a bag (other classes, another sampling rate) without rendering again. `git log -S sim_labeling` finds it.
 
 Removed for real: the `--skip-keys=pcl` workaround (the `pcl` package now comes from conda-forge), the venv, the old apt-era `install.sh`, `setup.sh` / `setup.zsh`, `clean.sh`, `docker/bashrc`, and the Google Drive Spinnaker download.
 

@@ -566,7 +566,8 @@
     {% endif %}
 
     {% if segmentation_camera %}
-    <!-- Labels the front camera's images for sim_labeling: paired with it, it is
+    <!-- Labels the front camera's images with the object each pixel shows, for
+         training data (remora reads them from the bag): paired with it, it is
          rendered in the same frames, from its viewpoint, so it needs its
          resolution (its origin and field of view are then not used). -->
     <sensor name="seg_cam" rate="10.0" type="segmentation">

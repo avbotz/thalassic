@@ -47,10 +47,11 @@ def render_robot_scenario(
     ("true" for a right-hand propeller); see thruster_specs(). `frames` are the
     vehicle description's frames in the robot's base link (mount_poses()).
     `sensor_noise` gives the DVL, IMU and pressure sensor the noise of the real
-    ones. `segmentation_camera` adds that sensor, which is only used for
-    sim_labeling, and `depth_camera` the depth camera, which nothing in the
-    stack reads yet. Without `cameras` the robot has no camera at all (Stonefish
-    without a GPU cannot render one), and neither of those either.
+    ones. `segmentation_camera` adds that sensor, whose images label the front
+    camera's for training data (recorded for remora), and `depth_camera` the
+    depth camera, which nothing in the stack reads yet. Without `cameras` the
+    robot has no camera at all (Stonefish without a GPU cannot render one), and
+    neither of those either.
 
     The template's world_pose(*poses, offset, rpy) places a free body (a torpedo,
     the dropper's ball) that starts attached to the robot: it chains `poses`, given

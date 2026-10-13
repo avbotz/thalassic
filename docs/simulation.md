@@ -85,7 +85,7 @@ Nothing declares it automatically, as on the vehicle: the integrators take up it
 
 ### Cameras
 
-The front and down cameras are always simulated, where the vehicle description mounts them and as the real ones: the front camera (Logitech C922) at 1920 × 1080, 24 Hz and a 70.4° horizontal field of view, the down camera (FLIR Blackfly S) at 1280 × 1024 and 5 Hz. Stonefish publishes them on `image_color`, the vehicle's drivers on `image_raw`. The depth camera (`sim/depth_camera`) is added with `depth_camera:=true`, and the segmentation camera (`sim/segment`) with `labeling:=true`, for `sim_labeling`: nothing else reads them, and every camera costs GPU time (see [Performance](#performance)).
+The front and down cameras are always simulated, where the vehicle description mounts them and as the real ones: the front camera (Logitech C922) at 1920 × 1080, 24 Hz and a 70.4° horizontal field of view, the down camera (FLIR Blackfly S) at 1280 × 1024 and 5 Hz. Stonefish publishes them on `image_color`, the vehicle's drivers on `image_raw`. The depth camera (`sim/depth_camera`) is added with `depth_camera:=true`, and the segmentation camera (`sim/segment`) with `segmentation_camera:=true`, whose images the bag records as training labels for [remora](../../remora/README.md): nothing in the stack reads either, and every camera costs GPU time (see [Performance](#performance)).
 
 ### Droppers
 
@@ -112,7 +112,7 @@ Launch arguments:
 | `rendering_quality` | medium | `low`, `medium` or `high`, for the window and the cameras |
 | `current` | `"0.02 0.03 0.0"` | Uniform water current, ENU m/s (3.6 cm/s, a pool pump) |
 | `sensor_noise` | true | Give the DVL, IMU and pressure sensor the noise of the real ones |
-| `labeling` | false | Add the segmentation camera and run `sim_labeling`. It is paired with the front camera, so it renders in the front camera's frames instead of taking a turn of its own |
+| `segmentation_camera` | false | Add the segmentation camera (`sim/segment`): the object each front-camera pixel shows, which `record:=true` keeps for remora's labels ([recording.md](recording.md#what-a-bag-holds)). It is paired with the front camera, so it renders in the front camera's frames instead of taking a turn of its own |
 | `depth_camera` | false | Add the depth camera (`sim/depth_camera`) |
 | `headless` | false | Run `stonefish_simulator_nogpu`: no window, no GPU or display, and no cameras (so no vision); physics, the DVL, IMU, pressure sensor and actuators as usual. For control, safety and mission-logic tests, and CI |
 
@@ -164,7 +164,7 @@ Each prop's folder holds one Stonefish body:
 
 A prop with variants that only look different has a visual mesh for each, picked by an include argument: the gate's `visual` is `gate.obj`, Survey & Repair left of the way through, or `gate_swapped.obj`, its UVs swapping the two images.
 
-The name of the body is the prop's name, which `sim_labeling` matches to a class (see its README). Add a new prop the same way: in Blender, bake its materials into one texture and export the visual and collision meshes. Splitting a prop into one body per colour multiplies its draw calls, collision objects and segmentation IDs.
+The name of the body is the prop's name, which the segmentation camera labels its pixels with and remora matches to a class by prefix. Add a new prop the same way: in Blender, bake its materials into one texture and export the visual and collision meshes. Splitting a prop into one body per colour multiplies its draw calls, collision objects and segmentation IDs.
 
 ## Robot Model
 

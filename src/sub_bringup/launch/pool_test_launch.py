@@ -116,8 +116,8 @@ def _vehicle_entities(context, *_, **__):
 def generate_launch_description():
     return LaunchDescription(
         [
-            # Transforms, EKF, controller, mission executive, tuning dashboard,
-            # Foxglove bridge. A mission runs under the restart supervisor, so a
+            # Transforms, EKF, controller, mission executive, Foxglove bridge. A
+            # mission runs under the restart supervisor, so a
             # diver can kill the vehicle, carry it back to the start and release
             # it to rerun.
             *common_launch_include(gains="control/gains.yaml", restart="true"),

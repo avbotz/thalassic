@@ -91,14 +91,6 @@ def common_launch_arguments(
             ),
         ),
         DeclareLaunchArgument(
-            "dashboard",
-            default_value="false",
-            description="Serve the sub_pid_tuner tuning dashboard, which saves to the `gains` file",
-        ),
-        DeclareLaunchArgument(
-            "dashboard_port", default_value="8080", description="Port the dashboard serves on"
-        ),
-        DeclareLaunchArgument(
             "foxglove_port",
             default_value="8765",
             description="Websocket port for the Foxglove bridge; change it to run two stacks",
@@ -217,20 +209,25 @@ def vision_entities(
     return entities
 
 
-def jpeg_quality(node_namespace: str, image_topics: Sequence[str]) -> dict:
-    """The jpeg_quality parameters of a node's image_transport publishers.
+def compressed_parameter(node_namespace: str, image_topic: str, name: str, value) -> dict:
+    """One parameter of the compressed image_transport publisher of a node's image topic.
 
-    compressed_image_transport names each after its image topic with the first
-    len(node namespace) characters cut off, whether or not the topic is in that
-    namespace, and dots for slashes: /marlin_v3/front_camera/image_color
-    published from /stonefish_ros2 is t_camera.image_color.compressed.jpeg_quality.
+    compressed_image_transport names each publisher's parameters after its image
+    topic with the first len(node namespace) characters cut off, whether or not
+    the topic is in that namespace, and dots for slashes: /marlin_v3/front_camera/image_color
+    published from /stonefish_ros2 is t_camera.image_color.compressed.<name>.
     """
     namespace = "/" + node_namespace.strip("/")
+    return {image_topic[len(namespace) :].replace("/", ".") + f".compressed.{name}": value}
+
+
+def jpeg_quality(node_namespace: str, image_topics: Sequence[str]) -> dict:
+    """The jpeg_quality parameters of a node's compressed image publishers, from the launch argument."""
     quality = ParameterValue(LaunchConfiguration("jpeg_quality"), value_type=int)
-    return {
-        topic[len(namespace) :].replace("/", ".") + ".compressed.jpeg_quality": quality
-        for topic in image_topics
-    }
+    parameters = {}
+    for topic in image_topics:
+        parameters |= compressed_parameter(node_namespace, topic, "jpeg_quality", quality)
+    return parameters
 
 
 # Launch arguments that say what the run was, kept in the bag's metadata. The
