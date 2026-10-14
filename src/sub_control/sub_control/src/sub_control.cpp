@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cmath>
 #include <format>
-#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <string_view>
@@ -24,31 +23,29 @@ constexpr double DROPPED_AXIS_WEIGHT = 1e-6;
 // How long to wait for the EKF to confirm the pose reset at unkill.
 constexpr double POSE_RESET_TIMEOUT = 1.0;
 
-// A double parameter's value, if it is finite. NaN slips through every range
-// check below (each comparison is false), so it is rejected here.
-std::optional<double> finite_double(const rclcpp::Parameter& p) {
-    if (p.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE && std::isfinite(p.as_double())) {
-        return p.as_double();
-    }
-    return std::nullopt;
-}
-
-bool all_of(const std::vector<double>& v, const std::function<bool(double)>& ok) { return std::ranges::all_of(v, ok); }
-
-// A double array parameter's value, if it has n elements, all finite.
-std::optional<std::vector<double>> doubles(const rclcpp::Parameter& p, size_t n) {
-    if (p.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY && p.as_double_array().size() == n &&
-        all_of(p.as_double_array(), [](double v) { return std::isfinite(v); })) {
-        return p.as_double_array();
-    }
-    return std::nullopt;
-}
-
 Eigen::Vector3d vector3(const std::vector<double>& v, size_t offset = 0) {
     return {v[offset], v[offset + 1], v[offset + 2]};
 }
 
 Vector6d vector6(const std::vector<double>& v) { return Eigen::Map<const Vector6d>(v.data()); }
+
+ShaperLimits shaper_limits(const std::vector<double>& v) { return {v[0], v[1], v[2]}; }
+
+// What sub_control_parameters.yaml cannot check, one parameter against another
+// or within the thruster layout: why `params` are invalid, or "" if they are not.
+std::string invalid_parameters(const sub_control::Params& params) {
+    // The observer is integrated once per cycle, so its estimate error goes as
+    // (1 - K dt) per cycle: it rings once K dt passes 1 and diverges past 2.
+    if (std::ranges::any_of(params.observer.bandwidth, [&](double k) { return k >= params.control_rate_hz; })) {
+        return std::format("observer.bandwidth must stay below control_rate_hz ({} rad/s)", params.control_rate_hz);
+    }
+    for (int t = 0; t < NUM_THRUSTERS; ++t) {
+        if (vector3(params.allocation.thruster_directions, 3 * t).norm() < 1e-6) {
+            return std::format("thruster {} has no direction", t);
+        }
+    }
+    return "";
+}
 
 bool finite(const nav_msgs::msg::Odometry& msg) {
     const auto& p = msg.pose.pose;
@@ -77,26 +74,20 @@ std::string join(const std::vector<std::string>& items, std::string_view separat
 }  // namespace
 
 SubControl::SubControl() : Node("sub_control") {
-    declare_parameters();
-    std::vector<rclcpp::Parameter> initial_params;
-    for (const std::string& name : this->list_parameters({}, 0).names) {
-        // Not get_parameter(name): it throws for a parameter declared with only
-        // a type and never set, before the explanation below could be given.
-        rclcpp::Parameter param;
-        if (!this->get_parameter(name, param)) {
-            if (name.starts_with("allocation.thruster_")) {
-                throw std::invalid_argument(name +
-                                            " is not set. The thruster layout comes from the vehicle "
-                                            "description; launch sub_control through sub_bringup.");
-            }
-            continue;
-        }
-        initial_params.push_back(param);
+    try {
+        param_listener_ =
+            std::make_unique<sub_control::ParamListener>(this->get_node_parameters_interface(), this->get_logger());
+    } catch (const rclcpp::exceptions::ParameterUninitializedException& e) {
+        // Only the thruster layout has no default.
+        throw std::invalid_argument(std::string(e.what()) +
+                                    ". The thruster layout comes from the vehicle description; launch "
+                                    "sub_control through sub_bringup.");
     }
-    const auto initial = on_parameters_set(initial_params);
-    if (!initial.successful) {
-        throw std::invalid_argument(initial.reason);
+    const std::string invalid = invalid_parameters(param_listener_->get_params());
+    if (!invalid.empty()) {
+        throw std::invalid_argument(invalid);
     }
+    apply_parameters(param_listener_->get_params());
 
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -142,324 +133,108 @@ SubControl::SubControl() : Node("sub_control") {
         [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                std::shared_ptr<std_srvs::srv::Trigger::Response> response) { reset_pose_callback(response); });
 
-    control_timer_ = this->create_timer(std::chrono::duration<double>(1.0 / control_rate_hz_), [this]() { run(); });
+    control_timer_ =
+        this->create_timer(std::chrono::duration<double>(1.0 / params_.control_rate_hz), [this]() { run(); });
 
+    // The listener checks each change against sub_control_parameters.yaml and,
+    // if all of it is valid, calls back with the whole set. Callbacks run newest
+    // first, so check_parameters() runs before the listener: a change it
+    // rejects never reaches the listener's copy.
+    param_listener_->setUserCallback([this](const sub_control::Params& params) { apply_parameters(params); });
     param_cb_handle_ = this->add_on_set_parameters_callback(
-        [this](const std::vector<rclcpp::Parameter>& params) { return on_parameters_set(params); });
+        [this](const std::vector<rclcpp::Parameter>& changes) { return check_parameters(changes); });
 
     diagnostics_ = std::make_unique<diagnostic_updater::Updater>(this);
-    diagnostics_->setHardwareID(robot_name_.empty() ? "sub_control" : robot_name_);
+    diagnostics_->setHardwareID(params_.robot_name.empty() ? "sub_control" : params_.robot_name);
     diagnostics_->add("arming", this, &SubControl::diagnose_arming);
     diagnostics_->add("sensors", this, &SubControl::diagnose_sensors);
     diagnostics_->add("thrusters", this, &SubControl::diagnose_thrusters);
 }
 
-void SubControl::declare_parameters() {
-    // control_rate_hz, robot_name and the thruster layout are only used at
-    // startup, so a runtime change would be silently ignored.
-    rcl_interfaces::msg::ParameterDescriptor read_only;
-    read_only.read_only = true;
-
-    this->declare_parameter("control_rate_hz", control_rate_hz_, read_only);
-    this->declare_parameter("robot_name", robot_name_, read_only);
-    this->declare_parameter("power_limit", thruster_settings_.power_limit);
-
-    // The thruster layout comes from config/vehicles/<robot_name>.yaml via the
-    // launch file (sub_bringup/vehicle.py), base_link FLU, eight of each.
-    this->declare_parameter("allocation.thruster_positions", rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY, read_only);
-    this->declare_parameter("allocation.thruster_directions", rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY, read_only);
-    this->declare_parameter("allocation.thruster_reversed", rclcpp::ParameterType::PARAMETER_BOOL_ARRAY, read_only);
-    this->declare_parameter("allocation.axis_weights", std::vector<double>(axis_weights_.begin(), axis_weights_.end()));
-    this->declare_parameter("allocation.max_command_rate", thruster_settings_.max_command_rate);
-    this->declare_parameter("thruster_health", std::vector<double>(NUM_THRUSTERS, 1.0));
-    this->declare_parameter("failed_thrusters", std::vector<int64_t>{});
-
-    const auto v3 = [](const Eigen::Vector3d& v) { return std::vector<double>{v.x(), v.y(), v.z()}; };
-    const auto v6 = [](const Vector6d& v) { return std::vector<double>(v.begin(), v.end()); };
-    this->declare_parameter("model.mass", v3(model_.mass));
-    this->declare_parameter("model.inertia", v3(model_.inertia));
-    this->declare_parameter("model.net_buoyancy", model_.net_buoyancy);
-    this->declare_parameter("model.buoyancy", model_.buoyancy);
-    this->declare_parameter("model.center_of_gravity", v3(model_.center_of_gravity));
-    this->declare_parameter("model.center_of_buoyancy", v3(model_.center_of_buoyancy));
-    this->declare_parameter("model.linear_drag", v6(model_.linear_drag));
-    this->declare_parameter("model.quadratic_drag", v6(model_.quadratic_drag));
-
-    this->declare_parameter("feedforward.acceleration", gains_.acceleration_feedforward);
-    this->declare_parameter("feedforward.drag", gains_.drag_feedforward);
-    this->declare_parameter("feedforward.restoring", gains_.restoring_feedforward);
-
-    for (int axis = 0; axis < NUM_DOF; ++axis) {
-        this->declare_parameter(std::format("gains.{}", AXIS_NAMES[axis]), std::vector<double>{0.0, 0.0, 0.0});
+rcl_interfaces::msg::SetParametersResult SubControl::check_parameters(
+    const std::vector<rclcpp::Parameter>& changes) const {
+    // What invalid_parameters() would see after the change. Of what it reads,
+    // only observer.bandwidth can change at runtime; the rest is read-only.
+    sub_control::Params proposed = params_;
+    for (const auto& change : changes) {
+        if (change.get_name() == "observer.bandwidth" &&
+            change.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY) {
+            proposed.observer.bandwidth = change.as_double_array();
+        }
     }
-    this->declare_parameter("gains.integral_limit", v6(gains_.integral_limit));
-    this->declare_parameter("gains.anti_windup", gains_.anti_windup);
-    this->declare_parameter("observer.bandwidth", v6(gains_.observer_bandwidth));
-
-    const auto limits = [](const ShaperLimits& l) {
-        return std::vector<double>{l.max_velocity, l.max_acceleration, l.max_jerk};
-    };
-    this->declare_parameter("trajectory.horizontal", limits(limits_.horizontal));
-    this->declare_parameter("trajectory.vertical", limits(limits_.vertical));
-    this->declare_parameter("trajectory.roll", limits(limits_.roll));
-    this->declare_parameter("trajectory.pitch", limits(limits_.pitch));
-    this->declare_parameter("trajectory.yaw", limits(limits_.yaw));
-    this->declare_parameter("trajectory.translation_leash", limits_.translation_leash);
-    this->declare_parameter("trajectory.rotation_leash", limits_.rotation_leash);
-
-    this->declare_parameter("safety.state_timeout", state_timeout_);
-    this->declare_parameter("safety.imu_timeout", imu_timeout_);
-    this->declare_parameter("safety.attitude_timeout", attitude_timeout_);
-    this->declare_parameter("safety.dvl_timeout", dvl_timeout_);
-    this->declare_parameter("safety.depth_timeout", depth_timeout_);
-    this->declare_parameter("safety.altitude_timeout", altitude_timeout_);
-    this->declare_parameter("safety.cmd_vel_timeout", cmd_vel_timeout_);
-    this->declare_parameter("safety.require_kill_cycle", require_kill_cycle_);
-}
-
-rcl_interfaces::msg::SetParametersResult SubControl::on_parameters_set(const std::vector<rclcpp::Parameter>& params) {
     rcl_interfaces::msg::SetParametersResult result;
-    result.successful = true;
-    const auto reject = [&result](const std::string& reason) {
-        result.successful = false;
-        result.reason = reason;
-        return result;
-    };
-
-    // Validate everything into copies; commit only if all of it is good.
-    ControlGains gains = gains_;
-    VehicleModel model = model_;
-    ReferenceLimits limits = limits_;
-    ThrusterSettings settings = thruster_settings_;
-    ThrusterGeometries geometry = thruster_geometry_;
-    ThrusterArray health = health_parameter_;
-    std::array<bool, NUM_THRUSTERS> failed = failed_parameter_;
-    Vector6d weights = axis_weights_;
-    const std::array<std::pair<std::string_view, double*>, 7> timeouts{{
-        {"safety.state_timeout", &state_timeout_},
-        {"safety.imu_timeout", &imu_timeout_},
-        {"safety.attitude_timeout", &attitude_timeout_},
-        {"safety.dvl_timeout", &dvl_timeout_},
-        {"safety.depth_timeout", &depth_timeout_},
-        {"safety.altitude_timeout", &altitude_timeout_},
-        {"safety.cmd_vel_timeout", &cmd_vel_timeout_},
-    }};
-    std::array<double, 7> timeout_values{};
-    for (size_t i = 0; i < timeouts.size(); ++i) {
-        timeout_values[i] = *timeouts[i].second;
-    }
-    bool require_kill_cycle = require_kill_cycle_;
-    bool geometry_changed = false;
-
-    const auto positive = [](double v) { return v > 0.0; };
-    const auto non_negative = [](double v) { return v >= 0.0; };
-
-    for (const auto& param : params) {
-        const std::string& name = param.get_name();
-        const auto type = param.get_type();
-        if (type == rclcpp::ParameterType::PARAMETER_NOT_SET) {
-            continue;
-        }
-        const std::optional<double> number = finite_double(param);
-        if (name == "control_rate_hz") {
-            if (!number || *number <= 0.0) {
-                return reject("control_rate_hz must be a positive double");
-            }
-            control_rate_hz_ = *number;
-        } else if (name == "robot_name") {
-            robot_name_ = param.as_string();
-        } else if (name == "power_limit") {
-            if (!number || *number < 0.0 || *number > MAX_POWER_LIMIT) {
-                return reject(std::format("power_limit must be a double in [0, {}]", MAX_POWER_LIMIT));
-            }
-            settings.power_limit = *number;
-        } else if (name == "allocation.thruster_positions" || name == "allocation.thruster_directions") {
-            const auto v = doubles(param, 3 * NUM_THRUSTERS);
-            if (!v) {
-                return reject(std::format("{} must be {} finite doubles, x/y/z per thruster", name, 3 * NUM_THRUSTERS));
-            }
-            for (int t = 0; t < NUM_THRUSTERS; ++t) {
-                const Eigen::Vector3d value = vector3(*v, 3 * t);
-                if (name == "allocation.thruster_positions") {
-                    geometry[t].position = value;
-                } else {
-                    if (value.norm() < 1e-6) {
-                        return reject(std::format("thruster {} has no direction", t));
-                    }
-                    geometry[t].direction = value.normalized();
-                }
-            }
-            geometry_changed = true;
-        } else if (name == "allocation.thruster_reversed") {
-            if (type != rclcpp::ParameterType::PARAMETER_BOOL_ARRAY || param.as_bool_array().size() != NUM_THRUSTERS) {
-                return reject(std::format("{} must be {} booleans", name, NUM_THRUSTERS));
-            }
-            for (int t = 0; t < NUM_THRUSTERS; ++t) {
-                geometry[t].reversed = param.as_bool_array()[t];
-                settings.reversed[t] = geometry[t].reversed;
-            }
-        } else if (name == "allocation.axis_weights") {
-            const auto v = doubles(param, NUM_DOF);
-            if (!v || !all_of(*v, positive)) {
-                return reject("allocation.axis_weights must be six positive doubles [x, y, z, roll, pitch, yaw]");
-            }
-            weights = vector6(*v);
-        } else if (name == "allocation.max_command_rate") {
-            if (!number || *number < 0.0) {
-                return reject("allocation.max_command_rate must be a non-negative double");
-            }
-            settings.max_command_rate = *number;
-        } else if (name == "thruster_health") {
-            const auto v = doubles(param, NUM_THRUSTERS);
-            if (!v || !all_of(*v, [](double h) { return h >= 0.0 && h <= 1.0; })) {
-                return reject(std::format("thruster_health must be {} doubles in [0, 1]", NUM_THRUSTERS));
-            }
-            std::ranges::copy(*v, health.begin());
-        } else if (name == "failed_thrusters") {
-            if (type != rclcpp::ParameterType::PARAMETER_INTEGER_ARRAY) {
-                return reject("failed_thrusters must be an integer array");
-            }
-            failed.fill(false);
-            for (const int64_t thruster : param.as_integer_array()) {
-                if (thruster < 0 || thruster >= static_cast<int64_t>(NUM_THRUSTERS)) {
-                    return reject(std::format("failed_thrusters: no thruster {}", thruster));
-                }
-                failed[thruster] = true;
-            }
-        } else if (name == "model.mass" || name == "model.inertia") {
-            const auto v = doubles(param, 3);
-            if (!v || !all_of(*v, positive)) {
-                return reject(name + " must be three positive doubles, per body axis");
-            }
-            (name == "model.mass" ? model.mass : model.inertia) = vector3(*v);
-        } else if (name == "model.net_buoyancy" || name == "model.buoyancy") {
-            if (!number) {
-                return reject(name + " must be a finite double");
-            }
-            (name == "model.net_buoyancy" ? model.net_buoyancy : model.buoyancy) = *number;
-        } else if (name == "model.center_of_gravity" || name == "model.center_of_buoyancy") {
-            const auto v = doubles(param, 3);
-            if (!v) {
-                return reject(name + " must be three finite doubles, base_link [x, y, z]");
-            }
-            if (name == "model.center_of_gravity") {
-                model.center_of_gravity = vector3(*v);
-                geometry_changed = true;  // thruster moments are about it
-            } else {
-                model.center_of_buoyancy = vector3(*v);
-            }
-        } else if (name == "model.linear_drag" || name == "model.quadratic_drag") {
-            const auto v = doubles(param, NUM_DOF);
-            if (!v || !all_of(*v, non_negative)) {
-                return reject(name + " must be six non-negative doubles [x, y, z, roll, pitch, yaw]");
-            }
-            (name == "model.linear_drag" ? model.linear_drag : model.quadratic_drag) = vector6(*v);
-        } else if (name.starts_with("feedforward.")) {
-            if (!number || *number < 0.0) {
-                return reject(name + " must be a non-negative double (a scale, normally 0 to 1)");
-            }
-            const std::string term = name.substr(std::string("feedforward.").size());
-            if (term == "acceleration") {
-                gains.acceleration_feedforward = *number;
-            } else if (term == "drag") {
-                gains.drag_feedforward = *number;
-            } else if (term == "restoring") {
-                gains.restoring_feedforward = *number;
-            }
-        } else if (name == "gains.integral_limit" || name == "observer.bandwidth") {
-            const auto v = doubles(param, NUM_DOF);
-            if (!v || !all_of(*v, non_negative)) {
-                return reject(name + " must be six non-negative doubles [x, y, z, roll, pitch, yaw]");
-            }
-            (name == "gains.integral_limit" ? gains.integral_limit : gains.observer_bandwidth) = vector6(*v);
-        } else if (name == "gains.anti_windup") {
-            if (!number || *number < 0.0) {
-                return reject("gains.anti_windup must be a non-negative double");
-            }
-            gains.anti_windup = *number;
-        } else if (name.starts_with("gains.")) {
-            const auto axis = std::ranges::find(AXIS_NAMES, name.substr(std::string("gains.").size()));
-            if (axis == AXIS_NAMES.end()) {
-                continue;
-            }
-            const auto v = doubles(param, 3);
-            if (!v || !all_of(*v, non_negative)) {
-                return reject(name + " must be [kp, ki, kd], non-negative");
-            }
-            const auto i = std::distance(AXIS_NAMES.begin(), axis);
-            gains.kp[i] = (*v)[0];
-            gains.ki[i] = (*v)[1];
-            gains.kd[i] = (*v)[2];
-        } else if (name == "trajectory.translation_leash" || name == "trajectory.rotation_leash") {
-            if (!number || *number <= 0.0) {
-                return reject(name + " must be a positive double");
-            }
-            (name == "trajectory.translation_leash" ? limits.translation_leash : limits.rotation_leash) = *number;
-        } else if (name.starts_with("trajectory.")) {
-            const std::string group = name.substr(std::string("trajectory.").size());
-            ShaperLimits* target = group == "horizontal" ? &limits.horizontal
-                                   : group == "vertical" ? &limits.vertical
-                                   : group == "roll"     ? &limits.roll
-                                   : group == "pitch"    ? &limits.pitch
-                                   : group == "yaw"      ? &limits.yaw
-                                                         : nullptr;
-            if (target == nullptr) {
-                continue;
-            }
-            const auto v = doubles(param, 3);
-            if (!v || !all_of(*v, positive)) {
-                return reject(name + " must be [max velocity, max acceleration, max jerk], positive");
-            }
-            *target = {(*v)[0], (*v)[1], (*v)[2]};
-        } else if (name == "safety.require_kill_cycle") {
-            if (type != rclcpp::ParameterType::PARAMETER_BOOL) {
-                return reject(name + " must be a bool");
-            }
-            require_kill_cycle = param.as_bool();
-        } else if (name.starts_with("safety.")) {
-            const auto timeout =
-                std::ranges::find_if(timeouts, [&name](const auto& entry) { return entry.first == name; });
-            if (timeout == timeouts.end()) {
-                continue;
-            }
-            if (!number || *number <= 0.0) {
-                return reject(name + " must be a positive double [s]");
-            }
-            timeout_values[std::distance(timeouts.begin(), timeout)] = *number;
-        }
-    }
-    // The observer is integrated once per cycle, so its estimate error goes as
-    // (1 - K dt) per cycle: it rings once K dt passes 1 and diverges past 2.
-    // Checked here, whatever order the batch set control_rate_hz in.
-    if ((gains.observer_bandwidth.array() >= control_rate_hz_).any()) {
-        return reject(std::format("observer.bandwidth must stay below control_rate_hz ({} rad/s)", control_rate_hz_));
-    }
-
-    gains_ = gains;
-    model_ = model;
-    limits_ = limits;
-    thruster_settings_ = settings;
-    thruster_geometry_ = geometry;
-    health_parameter_ = health;
-    failed_parameter_ = failed;
-    axis_weights_ = weights;
-    for (size_t i = 0; i < timeouts.size(); ++i) {
-        *timeouts[i].second = timeout_values[i];
-    }
-    require_kill_cycle_ = require_kill_cycle;
-    controller_.set_model(model_);
-    controller_.set_gains(gains_);
-    if (geometry_changed) {
-        allocator_ = ThrusterAllocator(thruster_geometry_, model_.center_of_gravity);
-    }
-    update_health();
+    result.reason = invalid_parameters(proposed);
+    result.successful = result.reason.empty();
     return result;
 }
 
+void SubControl::apply_parameters(const sub_control::Params& params) {
+    // The layout is read-only, so after startup (params_ starts without one)
+    // only a new centre of gravity moves the thruster moments.
+    const auto& layout = params.allocation;
+    const bool geometry_changed = layout.thruster_positions != params_.allocation.thruster_positions ||
+                                  layout.thruster_directions != params_.allocation.thruster_directions ||
+                                  params.model.center_of_gravity != params_.model.center_of_gravity;
+    params_ = params;
+
+    model_.mass = vector3(params.model.mass);
+    model_.inertia = vector3(params.model.inertia);
+    model_.net_buoyancy = params.model.net_buoyancy;
+    model_.buoyancy = params.model.buoyancy;
+    model_.center_of_gravity = vector3(params.model.center_of_gravity);
+    model_.center_of_buoyancy = vector3(params.model.center_of_buoyancy);
+    model_.linear_drag = vector6(params.model.linear_drag);
+    model_.quadratic_drag = vector6(params.model.quadratic_drag);
+
+    const std::array pid{&params.gains.x,    &params.gains.y,     &params.gains.z,
+                         &params.gains.roll, &params.gains.pitch, &params.gains.yaw};
+    for (int axis = 0; axis < NUM_DOF; ++axis) {
+        gains_.kp[axis] = (*pid[axis])[0];
+        gains_.ki[axis] = (*pid[axis])[1];
+        gains_.kd[axis] = (*pid[axis])[2];
+    }
+    gains_.integral_limit = vector6(params.gains.integral_limit);
+    gains_.anti_windup = params.gains.anti_windup;
+    gains_.observer_bandwidth = vector6(params.observer.bandwidth);
+    gains_.acceleration_feedforward = params.feedforward.acceleration;
+    gains_.drag_feedforward = params.feedforward.drag;
+    gains_.restoring_feedforward = params.feedforward.restoring;
+
+    limits_.horizontal = shaper_limits(params.trajectory.horizontal);
+    limits_.vertical = shaper_limits(params.trajectory.vertical);
+    limits_.roll = shaper_limits(params.trajectory.roll);
+    limits_.pitch = shaper_limits(params.trajectory.pitch);
+    limits_.yaw = shaper_limits(params.trajectory.yaw);
+    limits_.translation_leash = params.trajectory.translation_leash;
+    limits_.rotation_leash = params.trajectory.rotation_leash;
+
+    thruster_settings_.power_limit = params.power_limit;
+    thruster_settings_.max_command_rate = layout.max_command_rate;
+    for (int t = 0; t < NUM_THRUSTERS; ++t) {
+        thruster_settings_.reversed[t] = layout.thruster_reversed[t];
+    }
+
+    controller_.set_model(model_);
+    controller_.set_gains(gains_);
+    if (geometry_changed) {
+        ThrusterGeometries geometry;
+        for (int t = 0; t < NUM_THRUSTERS; ++t) {
+            geometry[t] = {vector3(layout.thruster_positions, 3 * t),
+                           vector3(layout.thruster_directions, 3 * t).normalized(), layout.thruster_reversed[t]};
+        }
+        allocator_ = ThrusterAllocator(geometry, model_.center_of_gravity);
+    }
+    update_health();
+}
+
 void SubControl::update_health() {
+    std::array<bool, NUM_THRUSTERS> failed{};
+    for (const int64_t t : params_.failed_thrusters) {
+        failed[t] = true;
+    }
     std::array<bool, NUM_THRUSTERS> usable{};
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        const double health = failed_parameter_[t] ? 0.0 : std::clamp(health_parameter_[t], 0.0, 1.0);
+        const double health = failed[t] ? 0.0 : std::clamp(params_.thruster_health[t], 0.0, 1.0);
         if (health != thruster_settings_.health[t]) {
             if (health < 1.0) {
                 RCLCPP_WARN(this->get_logger(), "thruster %d at %.0f%% health; allocating around it", t,
@@ -483,7 +258,8 @@ void SubControl::update_health() {
                              AXIS_NAMES[axis]);
             }
         }
-        thruster_settings_.axis_weights[axis] = controllable[axis] ? axis_weights_[axis] : DROPPED_AXIS_WEIGHT;
+        thruster_settings_.axis_weights[axis] =
+            controllable[axis] ? params_.allocation.axis_weights[axis] : DROPPED_AXIS_WEIGHT;
     }
     controllable_ = controllable;
 }
@@ -502,7 +278,7 @@ void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     state_.position = {p.position.x, p.position.y, p.position.z};
     state_.orientation = orientation.normalized();
     state_.linear_velocity = {t.linear.x, t.linear.y, t.linear.z};
-    if (age(imu_rate_time_, this->now()) > imu_timeout_) {
+    if (age(imu_rate_time_, this->now()) > params_.safety.imu_timeout) {
         state_.angular_velocity = {t.angular.x, t.angular.y, t.angular.z};
     }
     odom_time_ = stamp_of(msg->header);
@@ -523,7 +299,7 @@ void SubControl::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
     // Attitude is measured, whatever happens to the rates below.
     imu_time_ = stamp_of(msg->header);
     if (!imu_to_base_) {
-        const std::string base = robot_name_.empty() ? "base_link" : robot_name_ + "/base_link";
+        const std::string base = params_.robot_name.empty() ? "base_link" : params_.robot_name + "/base_link";
         try {
             const auto tf = tf_buffer_->lookupTransform(base, msg->header.frame_id, tf2::TimePointZero);
             const auto& r = tf.transform.rotation;
@@ -584,7 +360,8 @@ ArmingInputs SubControl::arming_inputs(const rclcpp::Time& now) const {
 }
 
 ArmingLimits SubControl::arming_limits() const {
-    return {require_kill_cycle_, state_timeout_, attitude_timeout_, depth_timeout_};
+    const auto& safety = params_.safety;
+    return {safety.require_kill_cycle, safety.state_timeout, safety.attitude_timeout, safety.depth_timeout};
 }
 
 bool SubControl::try_arm(const rclcpp::Time& now) {
@@ -617,7 +394,7 @@ void SubControl::request_pose_reset(const rclcpp::Time& now) {
     const Eigen::Vector3d rpy = rpy_from_quaternion(state_.orientation);
     const Eigen::Quaterniond level_heading = quaternion_from_rpy({rpy.x(), rpy.y(), 0.0});
     auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
-    request->pose.header.frame_id = robot_name_.empty() ? "odom" : robot_name_ + "/odom";
+    request->pose.header.frame_id = params_.robot_name.empty() ? "odom" : params_.robot_name + "/odom";
     request->pose.header.stamp = now;
     request->pose.pose.pose.position.z = state_.position.z();
     request->pose.pose.pose.orientation.w = level_heading.w();
@@ -719,7 +496,8 @@ rclcpp::Time SubControl::stamp_of(const std_msgs::msg::Header& header) const {
 }
 
 double SubControl::fresh_altitude(const rclcpp::Time& now) const {
-    return age(altitude_time_, now) <= altitude_timeout_ ? altitude_ : std::numeric_limits<double>::quiet_NaN();
+    return age(altitude_time_, now) <= params_.safety.altitude_timeout ? altitude_
+                                                                       : std::numeric_limits<double>::quiet_NaN();
 }
 
 void SubControl::apply_command(const MotionCommand& command, const std::string& source,
@@ -793,7 +571,7 @@ void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg
     MotionCommand command;
     command.mode.fill(AxisMode::VELOCITY);
     command.velocity << msg->linear.x, msg->linear.y, msg->linear.z, msg->angular.x, msg->angular.y, msg->angular.z;
-    command.expires = this->now().seconds() + cmd_vel_timeout_;
+    command.expires = this->now().seconds() + params_.safety.cmd_vel_timeout;
     apply_command(command, "cmd_vel");
 }
 
@@ -814,10 +592,10 @@ void SubControl::publish_zero_thrusters(const rclcpp::Time& now) {
 void SubControl::run() {
     const rclcpp::Time now = this->now();
     const double dt =
-        last_update_time_ ? std::clamp((now - *last_update_time_).seconds(), 1e-4, 0.1) : 1.0 / control_rate_hz_;
+        last_update_time_ ? std::clamp((now - *last_update_time_).seconds(), 1e-4, 0.1) : 1.0 / params_.control_rate_hz;
     last_update_time_ = now;
 
-    imu_ok_ = age(imu_time_, now) <= attitude_timeout_;
+    imu_ok_ = age(imu_time_, now) <= params_.safety.attitude_timeout;
 
     if (killed_ || (!armed_ && !try_arm(now))) {
         publish_zero_thrusters(now);
@@ -829,10 +607,10 @@ void SubControl::run() {
     // predicts it, and acting on a drifting attitude can roll the vehicle):
     // nothing sensible to do but let the positively buoyant hull float up.
     std::string failsafe;
-    if (age(odom_time_, now) > state_timeout_) {
-        failsafe = std::format("no odometry for {:.2f} s", state_timeout_);
+    if (age(odom_time_, now) > params_.safety.state_timeout) {
+        failsafe = std::format("no odometry for {:.2f} s", params_.safety.state_timeout);
     } else if (!imu_ok_) {
-        failsafe = std::format("no IMU for {:.2f} s", attitude_timeout_);
+        failsafe = std::format("no IMU for {:.2f} s", params_.safety.attitude_timeout);
     }
     if (!failsafe.empty()) {
         if (!failsafe_ || failsafe != failsafe_reason_) {
@@ -884,25 +662,27 @@ void SubControl::run() {
     // Which axes still have feedback. The EKF keeps predicting through a
     // sensor gap, so its estimate stays fresh while drifting: without DVL
     // updates x/y velocity is only a guess, and without depth so is z.
-    const bool dvl_ok = age(dvl_time_, now) <= dvl_timeout_;
-    const bool depth_ok = age(depth_time_, now) <= depth_timeout_;
+    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl_timeout;
+    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth_timeout;
     if (dvl_ok != dvl_ok_) {
         if (dvl_ok) {
             RCLCPP_INFO(this->get_logger(), "DVL back: x/y feedback on");
         } else {
-            RCLCPP_WARN(this->get_logger(), "no DVL for %.1f s: x/y feedback off until it returns", dvl_timeout_);
+            RCLCPP_WARN(this->get_logger(), "no DVL for %.1f s: x/y feedback off until it returns",
+                        params_.safety.dvl_timeout);
         }
     }
     if (depth_ok != depth_ok_) {
         if (depth_ok) {
             RCLCPP_INFO(this->get_logger(), "depth back: z feedback on");
         } else {
-            RCLCPP_ERROR(this->get_logger(), "no depth for %.1f s: z feedback off, floating up", depth_timeout_);
+            RCLCPP_ERROR(this->get_logger(), "no depth for %.1f s: z feedback off, floating up",
+                         params_.safety.depth_timeout);
         }
     }
     dvl_ok_ = dvl_ok;
     depth_ok_ = depth_ok;
-    const bool altitude_ok = age(altitude_time_, now) <= altitude_timeout_;
+    const bool altitude_ok = age(altitude_time_, now) <= params_.safety.altitude_timeout;
     if (generator_.altitude() && !altitude_ok) {
         RCLCPP_WARN(this->get_logger(), "lost DVL altitude: holding depth instead");
         generator_.drop_altitude(state_.position.z());
@@ -1037,7 +817,7 @@ void SubControl::publish_diagnostics(const rclcpp::Time& now, const ThrusterOutp
     status.imu_ok = imu_ok_;
     status.dvl_ok = dvl_ok_;
     status.depth_ok = depth_ok_;
-    status.altitude_ok = age(altitude_time_, now) <= altitude_timeout_;
+    status.altitude_ok = age(altitude_time_, now) <= params_.safety.altitude_timeout;
     status.state_age = std::min(age(odom_time_, now), 1e9);
     status.command_id = command_id_;
     status.command_rejected = !command_rejected_.empty();
@@ -1076,9 +856,9 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     add_age("odometry/depth", depth_time_);
     add_age("odometry/dvl", dvl_time_);
     add_age("altitude", altitude_time_);
-    const bool state_ok = age(odom_time_, now) <= state_timeout_;
-    const bool depth_ok = age(depth_time_, now) <= depth_timeout_;
-    const bool dvl_ok = age(dvl_time_, now) <= dvl_timeout_;
+    const bool state_ok = age(odom_time_, now) <= params_.safety.state_timeout;
+    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth_timeout;
+    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl_timeout;
     std::vector<std::string> missing;
     for (const auto& [ok, name] : {std::pair{state_ok, "state estimate"}, {imu_ok_, "IMU"}, {depth_ok, "depth"}}) {
         if (!ok) {

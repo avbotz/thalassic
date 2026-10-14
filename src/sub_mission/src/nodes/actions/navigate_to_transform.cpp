@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <functional>
 #include <string>
 
 #include "tf2/exceptions.h"
@@ -136,9 +136,6 @@ class NavigateToTransformAction : public BT::StatefulActionNode {
 void registerNavigateToTransformAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                        SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                        rclcpp::Logger logger) {
-    factory.registerBuilder<NavigateToTransformAction>(
-        "NavigateToTransform",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<NavigateToTransformAction>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<NavigateToTransformAction>("NavigateToTransform", std::ref(node), setpoint_publisher,
+                                                        clock, logger);
 }

@@ -4,7 +4,7 @@
 
 #include <chrono>
 #include <cmath>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -80,8 +80,5 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
 }  // namespace
 
 void registerWaitUntilHitAction(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger) {
-    factory.registerBuilder<WaitUntilHitAction>(
-        "WaitUntilHit", [&node, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<WaitUntilHitAction>(name, config, node, logger);
-        });
+    factory.registerNodeType<WaitUntilHitAction>("WaitUntilHit", std::ref(node), logger);
 }

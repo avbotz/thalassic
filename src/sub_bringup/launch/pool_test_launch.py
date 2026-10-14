@@ -135,10 +135,6 @@ def generate_launch_description():
                     # stores as a grey image. Raw, they are lossless (zstd in the
                     # bag) and Foxglove shows them in colour.
                     "down_camera/image_raw/compressed",
-                    # The annotators' drawings, raw and JPEG, of images and
-                    # detections that are recorded; recording them would also
-                    # keep the annotators drawing.
-                    "vision/debug_image.*",
                     # Depth Anything's maps if depth_debug is on, about 6 MB a frame, for viewing.
                     "sub_vision.*/depth(/color)?",
                 ]

@@ -447,7 +447,7 @@ void MissionNode::execute() {
                 // rclcpp shut down under the tree: nothing left to publish on.
                 this->tree->haltTree();
                 RCLCPP_INFO(this->get_logger(), "Mission '%s' halted with %s.", this->mission.c_str(),
-                            statusName(status));
+                            BT::toStr(status).c_str());
                 return;
             }
 
@@ -457,7 +457,7 @@ void MissionNode::execute() {
                 RCLCPP_WARN(this->get_logger(), "Mission '%s' interrupted.", this->mission.c_str());
             } else {
                 RCLCPP_INFO(this->get_logger(), "Mission '%s' finished with %s.", this->mission.c_str(),
-                            statusName(status));
+                            BT::toStr(status).c_str());
             }
         } catch (const std::exception &error) {
             RCLCPP_ERROR(this->get_logger(), "Mission failed: %s", error.what());

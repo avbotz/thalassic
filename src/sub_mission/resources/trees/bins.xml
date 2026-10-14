@@ -39,10 +39,11 @@
                                max_dist="20.0"
                                forward_step="0.5"
                                timeout_msec="15000"/>
-        <DownPatternScan task="torp_fire_blood"
-                         class_id="{class_id}"
-                         min_score="0.35"
-                         movement_dist="1.65"/>
+        <SubTree ID="DownPatternScan"
+                 task="torp_fire_blood"
+                 class_id="{class_id}"
+                 min_score="0.35"
+                 movement_dist="1.65"/>
       </Fallback>
       <DownContinuousAlign task="torp_fire_blood"
                            class_id="{class_id}"

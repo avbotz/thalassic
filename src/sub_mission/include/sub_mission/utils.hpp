@@ -3,10 +3,6 @@
 #include <string>
 #include <vector>
 
-#include "behaviortree_cpp/basic_types.h"
-
-const char *statusName(BT::NodeStatus status);
-
 // Share-directory locations of the mission trees and the task trees.
 std::string missionsDirectory();
 std::string treesDirectory();

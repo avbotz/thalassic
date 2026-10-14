@@ -1,0 +1,360 @@
+# sub_control's parameters, for generate_parameter_library. It generates
+# sub_control/sub_control_parameters.hpp (sub_control::ParamListener), which
+# declares them and checks every change against the validation below; a batch
+# with any invalid value is rejected whole, with the reason. The custom
+# validators are in sub_control_validators.hpp, and the checks across
+# parameters in sub_control.cpp (invalid_parameters()).
+#
+# Sizes are NUM_THRUSTERS (8) and NUM_DOF (6) from utils.hpp. Every double is
+# checked finite first: rsl's bounds let NaN through. The values come from
+# src/sub_bringup/config/control/gains*.yaml (docs/control.md#configuration).
+sub_control:
+  # Only read at startup, so read-only: a change would be silently ignored.
+  control_rate_hz:
+    type: double
+    default_value: 50.0
+    description: "Control loop rate [Hz]"
+    read_only: true
+    validation:
+      finite: null
+      gt<>: [0.0]
+  robot_name:
+    type: string
+    default_value: ""
+    description: "Namespace prefix for frame ids"
+    read_only: true
+
+  power_limit:
+    type: double
+    default_value: 0.6
+    description: "Max |normalized thruster command|, up to MAX_POWER_LIMIT (allocator.hpp)"
+    validation:
+      finite: null
+      bounds<>: [0.0, 0.6]  # MAX_POWER_LIMIT
+
+  allocation:
+    # From config/vehicles/<robot_name>.yaml via the launch file
+    # (sub_bringup/vehicle.py), base_link FLU; no default.
+    thruster_positions:
+      type: double_array
+      description: "x, y, z per thruster in base_link [m]"
+      read_only: true
+      validation:
+        fixed_size<>: 24
+        finite_elements: null
+    thruster_directions:
+      type: double_array
+      description: "Each thruster's mounted +X in base_link, x, y, z per thruster"
+      read_only: true
+      validation:
+        fixed_size<>: 24
+        finite_elements: null
+    thruster_reversed:
+      type: bool_array
+      description: "Left-hand propellers"
+      read_only: true
+      validation:
+        fixed_size<>: 8
+    axis_weights:
+      type: double_array
+      default_value: [1.0, 1.0, 100.0, 100.0, 100.0, 10.0]
+      description: "Priorities [x, y, z, roll, pitch, yaw] when the wrench is out of reach"
+      validation:
+        fixed_size<>: 6
+        finite_elements: null
+        gt_elements: [0.0]
+    max_command_rate:
+      type: double
+      default_value: 0.0
+      description: "Slew limit on each normalized command [1/s]; 0 off"
+      validation:
+        finite: null
+        gt_eq<>: [0.0]
+
+  thruster_health:
+    type: double_array
+    default_value: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    description: "Fraction of nominal thrust each thruster delivers; 0 failed"
+    validation:
+      fixed_size<>: 8
+      finite_elements: null
+      element_bounds<>: [0.0, 1.0]
+  failed_thrusters:
+    type: int_array
+    default_value: []
+    description: "Indices of failed thrusters, which count as health 0"
+    validation:
+      element_bounds<>: [0, 7]
+
+  model:
+    mass:
+      type: double_array
+      default_value: [30.0, 30.0, 30.0]
+      description: "Rigid-body plus added mass per body axis [kg]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    inertia:
+      type: double_array
+      default_value: [1.0, 1.0, 1.0]
+      description: "Rigid-body plus added inertia per body axis [kg m^2]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    net_buoyancy:
+      type: double
+      default_value: 0.0
+      description: "Buoyancy minus weight [N]; positive floats"
+      validation:
+        finite: null
+    buoyancy:
+      type: double
+      default_value: 0.0
+      description: "Buoyancy alone [N], for its righting moment"
+      validation:
+        finite: null
+    center_of_gravity:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "base_link [x, y, z] [m]; thruster moments are about it"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+    center_of_buoyancy:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "base_link [x, y, z] [m]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+    linear_drag:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      description: "[x, y, z, roll, pitch, yaw] [N/(m/s), N m/(rad/s)]"
+      validation:
+        fixed_size<>: 6
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    quadratic_drag:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      description: "[x, y, z, roll, pitch, yaw] [N/(m/s)^2, N m/(rad/s)^2]"
+      validation:
+        fixed_size<>: 6
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+
+  # Fraction of each feedforward term applied, normally 0 to 1.
+  feedforward:
+    acceleration:
+      type: double
+      default_value: 1.0
+      description: "Scale of the reference acceleration feedforward"
+      validation:
+        finite: null
+        gt_eq<>: [0.0]
+    drag:
+      type: double
+      default_value: 1.0
+      description: "Scale of the drag feedforward at the reference velocity"
+      validation:
+        finite: null
+        gt_eq<>: [0.0]
+    restoring:
+      type: double
+      default_value: 1.0
+      description: "Scale of the restoring (buoyancy) hold"
+      validation:
+        finite: null
+        gt_eq<>: [0.0]
+
+  gains:
+    x:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    y:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    z:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    roll:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    pitch:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    yaw:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0]
+      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    integral_limit:
+      type: double_array
+      default_value: [1.0, 1.0, 1.0, 6.0, 6.0, 6.0]
+      description: "Integrator clamp [x, y, z, roll, pitch, yaw] [m/s^2, rad/s^2]"
+      validation:
+        fixed_size<>: 6
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+    anti_windup:
+      type: double
+      default_value: 5.0
+      description: "Rate integrators shed command the thrusters did not produce [1/s]"
+      validation:
+        finite: null
+        gt_eq<>: [0.0]
+
+  observer:
+    # Also below control_rate_hz: invalid_parameters() in sub_control.cpp.
+    bandwidth:
+      type: double_array
+      default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      description: "Disturbance observer bandwidth per axis [rad/s], below control_rate_hz; 0 off"
+      validation:
+        fixed_size<>: 6
+        finite_elements: null
+        lower_element_bounds<>: [0.0]
+
+  # [max velocity, max acceleration, max jerk] per group, m and rad.
+  trajectory:
+    horizontal:
+      type: double_array
+      default_value: [0.5, 0.25, 0.5]
+      description: "x/y together: [max velocity, max acceleration, max jerk]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    vertical:
+      type: double_array
+      default_value: [0.3, 0.2, 0.4]
+      description: "z: [max velocity, max acceleration, max jerk]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    roll:
+      type: double_array
+      default_value: [0.5, 1.0, 2.0]
+      description: "[max velocity, max acceleration, max jerk]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    pitch:
+      type: double_array
+      default_value: [0.5, 1.0, 2.0]
+      description: "[max velocity, max acceleration, max jerk]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    yaw:
+      type: double_array
+      default_value: [0.6, 0.8, 2.0]
+      description: "[max velocity, max acceleration, max jerk]"
+      validation:
+        fixed_size<>: 3
+        finite_elements: null
+        gt_elements: [0.0]
+    translation_leash:
+      type: double
+      default_value: 0.5
+      description: "How far the reference may get ahead of the vehicle [m]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    rotation_leash:
+      type: double
+      default_value: 0.5
+      description: "How far the reference may get ahead of the vehicle [rad]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+
+  # Arming and watchdogs [s]; ages are by message stamp (docs/control.md#safety).
+  safety:
+    require_kill_cycle:
+      type: bool
+      default_value: true
+      description: "Arm only after the kill switch has been engaged since startup"
+    state_timeout:
+      type: double
+      default_value: 0.5
+      description: "No odometry: thrusters off [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    imu_timeout:
+      type: double
+      default_value: 0.2
+      description: "Rate feedback falls back to the EKF's [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    attitude_timeout:
+      type: double
+      default_value: 1.0
+      description: "No IMU: thrusters off [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    dvl_timeout:
+      type: double
+      default_value: 1.5
+      description: "x/y feedback off [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    depth_timeout:
+      type: double
+      default_value: 1.0
+      description: "z feedback off, float up [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    altitude_timeout:
+      type: double
+      default_value: 1.0
+      description: "Altitude hold becomes depth hold [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]
+    cmd_vel_timeout:
+      type: double
+      default_value: 0.5
+      description: "cmd_vel stream stopped: stop [s]"
+      validation:
+        finite: null
+        gt<>: [0.0]

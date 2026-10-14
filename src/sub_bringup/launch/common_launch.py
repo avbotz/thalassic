@@ -4,7 +4,8 @@ transforms, EKF, sub_control, the mission, the diagnostics aggregator and the
 Foxglove bridge.
 
 An include shares the parent's launch configurations, so the parent's
-arguments (entities.common_launch_arguments) reach the nodes below.
+arguments (entities.common_launch_arguments) reach the nodes below, and the
+use_sim_time set here reaches every node the parent starts after including it.
 """
 
 from launch import LaunchDescription
@@ -17,11 +18,11 @@ from launch.substitutions import (
     NotSubstitution,
     PathJoinSubstitution,
 )
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
-from sub_bringup.entities import common_launch_arguments, package_config, sim_time
+from sub_bringup.entities import common_launch_arguments, package_config
 from sub_bringup.vehicle import load_vehicle
 
 
@@ -39,7 +40,6 @@ def _sub_control(context, *_, **__):
             parameters=[
                 package_config("sub_bringup", LaunchConfiguration("gains")),
                 {"robot_name": robot_name, **vehicle.thruster_layout()},
-                sim_time(),
             ],
         )
     ]
@@ -62,7 +62,7 @@ def _diagnostic_aggregator(context, *_, **__):
             executable="aggregator_node",
             name="diagnostic_aggregator",
             output="log",
-            parameters=[*(package_config("sub_bringup", c) for c in configs), sim_time()],
+            parameters=[package_config("sub_bringup", c) for c in configs],
         )
     ]
 
@@ -90,7 +90,6 @@ def generate_launch_description():
                 "base_link_frame": [robot_name, "/base_link"],
                 "world_frame": [robot_name, "/odom"],
             },
-            sim_time(),
         ],
         # Its INFO logs are noise: every set_pose (sub_control's pose reset on
         # kill release) dumps the whole request, covariance included.
@@ -106,8 +105,7 @@ def generate_launch_description():
             "mission": mission,
             "role": LaunchConfiguration("role"),
             "groot_port": ParameterValue(LaunchConfiguration("groot_port"), value_type=int),
-        },
-        sim_time(),
+        }
     ]
     mission_node = Node(
         package="sub_mission",
@@ -138,8 +136,7 @@ def generate_launch_description():
                 "use_compression": ParameterValue(
                     LaunchConfiguration("foxglove_compression"), value_type=bool
                 ),
-            },
-            sim_time(),
+            }
         ],
         ros_arguments=["--disable-stdout-logs"],
     )
@@ -147,6 +144,11 @@ def generate_launch_description():
     return LaunchDescription(
         [
             *common_launch_arguments(),
+            # Every node from here on runs on the simulator's /clock, or not, as the
+            # use_sim_time argument says, unless its own parameters say otherwise.
+            SetParameter(
+                "use_sim_time", ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool)
+            ),
             description,
             ekf_node,
             OpaqueFunction(function=_sub_control),

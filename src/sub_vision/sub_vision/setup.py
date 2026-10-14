@@ -24,8 +24,6 @@ setup(
     entry_points={
         "console_scripts": [
             "sub_vision = sub_vision.vision_node:main",
-            "annotation_visualizer = sub_vision.annotating_video:main",
-            "test_gate_model = sub_vision.run_gate_model:main",
             "build_engines = sub_vision.build_engines:main",
         ],
     },

@@ -11,10 +11,10 @@
 
 // Stands in for sub_low, the firmware and the ESCs between sub_control and the
 // simulated thrusters: control/thrusters -> sim/thruster_setpoints, through a
-// first-order lag (the BlueRobotics Basic ESC takes ~0.1 s to respond) and a
 // per-thruster `effectiveness` that injects faults (0 dead, 0.5 half thrust;
 // settable at runtime). Like sub_low on the vehicle, it stops every thruster
-// when the commands stop or go stale for `command_timeout`.
+// when the commands stop or go stale for `command_timeout`. The ESCs' response
+// lag is each Stonefish thruster's rotor dynamics (thruster.j2).
 class SimThrusters : public rclcpp::Node {
    public:
     static constexpr int NUM_THRUSTERS = 8;
@@ -32,12 +32,9 @@ class SimThrusters : public rclcpp::Node {
     void publish_setpoints();
 
     std::array<double, NUM_THRUSTERS> command_{};
-    std::array<double, NUM_THRUSTERS> output_{};
     std::array<double, NUM_THRUSTERS> effectiveness_{};
-    double time_constant_{0.1};
     double command_timeout_{0.5};
     std::optional<rclcpp::Time> command_stamp_;  // of the command in command_; none once stopped
-    rclcpp::Time last_publish_{0, 0, RCL_ROS_TIME};
 
     rclcpp::Subscription<sub_control_interfaces::msg::ThrusterCommand>::SharedPtr command_sub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr setpoint_pub_;

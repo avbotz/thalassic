@@ -89,7 +89,7 @@ Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Od
 
 ### `sim_thrusters` (`sub_sim_sensors`) — sim only
 
-Stands in for `sub_low`, the firmware and the ESCs: passes `control/thrusters` to Stonefish (`sim/thruster_setpoints`) through the ESC's response lag, stops every thruster when the commands stop or go stale for `command_timeout` (0.5 s), and injects faults (`effectiveness`). See [simulation.md](simulation.md#thrusters).
+Stands in for `sub_low`, the firmware and the ESCs: passes `control/thrusters` to Stonefish (`sim/thruster_setpoints`, where each thruster's rotor dynamics model the ESC's response lag), stops every thruster when the commands stop or go stale for `command_timeout` (0.5 s), and injects faults (`effectiveness`). See [simulation.md](simulation.md#thrusters).
 
 ### `sim_imu_remapper` (`sub_sim_sensors`) — sim only
 

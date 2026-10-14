@@ -4,7 +4,7 @@ Driving, tuning and watching the vehicle from a laptop is done in [Foxglove](htt
 
 ## Extensions
 
-The panels that drive and tune `sub_control` and show `sub_vision`'s detections are the three extensions in [avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions), checked out beside this repository as `../foxglove-extensions`: teleop (6-DOF Teleop, Motion Setpoint), tuning (Controller Gains, Tuning Routines, Controller Signals) and vision (Detections). `pnpm run local-install` there installs them in the desktop app; their READMEs explain the panels.
+The panels that drive and tune `sub_control` and show `sub_vision`'s detections are the three extensions in [avbotz/foxglove-extensions](https://github.com/avbotz/foxglove-extensions), checked out beside this repository as `../foxglove-extensions`: teleop (6-DOF Teleop, Motion Setpoint), tuning (Controller Gains, Tuning Routines, Controller Signals) and vision (Detections, and a converter that lets Foxglove's own Image panel draw the detections as annotations). `pnpm run local-install` there installs them in the desktop app; their READMEs explain the panels.
 
 ## Layouts
 

@@ -5,6 +5,8 @@
 #include "sub_control/controller.hpp"
 #include "sub_control/reference_generator.hpp"
 #include "sub_control/safety.hpp"
+// Generated from src/sub_control_parameters.yaml by generate_parameter_library.
+#include "sub_control/sub_control_parameters.hpp"
 #include "sub_control/utils.hpp"
 #include "sub_control_interfaces/msg/controller_status.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
@@ -90,28 +92,19 @@ class SubControl : public rclcpp::Node {
     ArmingInputs arming_inputs(const rclcpp::Time& now) const;
     ArmingLimits arming_limits() const;
 
-    rcl_interfaces::msg::SetParametersResult on_parameters_set(const std::vector<rclcpp::Parameter>& params);
-    void declare_parameters();
+    // Takes up a validated set of parameters (see sub_control_parameters.yaml).
+    void apply_parameters(const sub_control::Params& params);
+    // Rejects a change that would break a check across parameters, before the
+    // parameter listener takes it up.
+    rcl_interfaces::msg::SetParametersResult check_parameters(const std::vector<rclcpp::Parameter>& changes) const;
 
-    // Parameters
-    double control_rate_hz_{50.0};
-    std::string robot_name_{""};
+    // Parameters: as set, and mapped onto the pipeline's structs
+    std::unique_ptr<sub_control::ParamListener> param_listener_;
+    sub_control::Params params_;
     ControlGains gains_;
     VehicleModel model_;
     ReferenceLimits limits_;
     ThrusterSettings thruster_settings_;
-    ThrusterGeometries thruster_geometry_{};
-    ThrusterArray health_parameter_{1, 1, 1, 1, 1, 1, 1, 1};
-    std::array<bool, NUM_THRUSTERS> failed_parameter_{};
-    Vector6d axis_weights_{(Vector6d() << 1, 1, 100, 100, 100, 10).finished()};
-    double state_timeout_{0.5};
-    double imu_timeout_{0.2};
-    double attitude_timeout_{1.0};
-    double dvl_timeout_{1.5};
-    double depth_timeout_{1.0};
-    double altitude_timeout_{1.0};
-    double cmd_vel_timeout_{0.5};
-    bool require_kill_cycle_{true};
 
     // The pipeline
     ReferenceGenerator generator_;

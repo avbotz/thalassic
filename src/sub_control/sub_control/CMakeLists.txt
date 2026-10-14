@@ -10,6 +10,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(diagnostic_updater REQUIRED)
+find_package(generate_parameter_library REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -34,8 +35,16 @@ target_include_directories(${PROJECT_NAME}_core PUBLIC include)
 target_link_libraries(${PROJECT_NAME}_core PUBLIC Eigen3::Eigen)
 set_target_properties(${PROJECT_NAME}_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Declares and validates the node's parameters: generates
+# sub_control/sub_control_parameters.hpp from the YAML.
+generate_parameter_library(${PROJECT_NAME}_parameters
+  src/sub_control_parameters.yaml
+  src/sub_control_validators.hpp)
+# The validators header is copied when CMake configures, so reconfigure when it changes.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS src/sub_control_validators.hpp)
+
 add_executable(${PROJECT_NAME} src/sub_control.cpp)
-target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_core)
+target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_core ${PROJECT_NAME}_parameters)
 ament_target_dependencies(${PROJECT_NAME} rclcpp sub_control_interfaces geometry_msgs nav_msgs sensor_msgs std_msgs
   std_srvs robot_localization tf2 tf2_ros diagnostic_updater)
 

@@ -65,7 +65,7 @@ ros2 run sub_mission mission --ros-args -r __ns:=/marlin_v3 -p mission:=pool_a -
 | When it is up | From when the tree loads, before the kill switch is released, so Groot2 can connect and wait for the start. Under `restart`, each run's process loads the tree at the release, so the view is down between runs: connect Groot2 again after each release |
 | End of a run | The view stays up 2 s after the tree finishes or a kill ends the run, so Groot2 shows where it ended and with what; the process then exits and the view goes with it. `SIGINT` and `SIGTERM` skip the wait, so under `restart` a kill takes the view down within its 0.5 s poll |
 | Port taken | `mission` logs a warning and runs without the view, e.g. when a mission process left over from an earlier launch holds the port. A `groot_port` above 65534 (the view needs the next port too) or below 0 is FATAL at startup |
-| Groot2 edition | The free edition monitors trees of up to 20 nodes. `prelim` (7), `pid_tuning` (10), `pool_test` (13), `vision_test` (3), `slalom_perception_hold_test` (3) and the single `hard_coded_*` tasks (4 to 9) fit; the `pool_*` missions have 218 nodes, `gate_slalom_test` 64, `bins_test` and `slalom_three_test` 49, `gate_test` 37, and `hard_coded_competition` 30. Larger trees, the blackboard view and breakpoints need Groot2 PRO |
+| Groot2 edition | The free edition monitors trees of up to 20 nodes. `prelim` (7), `pid_tuning` (10), `pool_test` (13), `vision_test` (3), `slalom_perception_hold_test` (3) and the single `hard_coded_*` tasks (4 to 9) fit; the `pool_*` missions have 277 nodes, `bins_test` 157, `gate_slalom_test` 64, `slalom_three_test` 49, `gate_test` 37, and `hard_coded_competition` 30. Larger trees, the blackboard view and breakpoints need Groot2 PRO |
 | Breakpoints (PRO) | A breakpoint pauses the tick while it holds the mission's state, so the mission only sees a kill or an interrupt once the breakpoint is released. `sub_control` drops commands while killed either way. Groot2Publisher releases every breakpoint when Groot2 has been silent for 5 s |
 
 Groot2 is not part of the pixi environment: download it from [behaviortree.dev](https://www.behaviortree.dev/groot/). The tree it shows comes from `mission`, so it is the one actually running, not `Project.btproj`.
@@ -92,9 +92,7 @@ Movement-related XML nodes currently implemented in C++:
 | `Stop` | HOLD x, y, z and yaw where they come to rest, ending any velocity or spin still running |
 | `SavePose` | Write the x, y and/or yaw targets to the blackboard (gate home, a task's entry heading) |
 | `WaitUntilHit` | Wait for velocity feedback to drop after a velocity command |
-| `SweepCheck` | Turn through a yaw sweep (ahead, 40° and 80° right, 80° and 40° left, ahead); at the first heading where `attempts` front-camera frames see the target, turn to the average of their yaws toward it, each taken from the heading it was seen on |
-| `ForwardSweepAlign` | `SweepCheck`, up to `num_sweeps` sweeps with a `forward_step` move ahead between them |
-| `SweepAngle` | `SweepCheck`'s sweep without the final turn: writes the yaw toward the target to `yaw`, optionally only for one `side` of `reference_yaw` |
+| `SweepAngle` | Turn through a yaw sweep (ahead, 40° and 80° right, 80° and 40° left, ahead); at the first heading where `attempts` front-camera frames see the target, write the average of their yaws toward it, each taken from the heading it was seen on, to `yaw`; optionally only for a target on one `side` of `reference_yaw` |
 | `SearchForDetection` | Move at a fixed velocity, holding the heading, until a detection; or sweep left, then right |
 | `AlignToDetection` | Turn (and optionally change depth) until a front-camera detection's bearing is within `tolerance` |
 | `ForwardContinuousAlign` | Move forward at a fixed velocity, steering toward a front-camera detection, until it is close, lost or passed, or `max_dist` or `timeout_msec` runs out |
@@ -106,14 +104,23 @@ Movement-related XML nodes currently implemented in C++:
 | `OctagonSurfaceSweep` | Turn in steps until an image to surface at is in view, then rise |
 | `DownForwardAlign`, `DownForwardSweepAlign` | Move forward while centering a down-camera detection; the sweep zigzags along a track until it sees one |
 | `DownSweepAlign` | Search sideways over the down camera, right of the start and then left |
-| `DownPatternScan` | Sample the down camera at the start and five points around it (`movement_dist` apart), returning to the start if none sees the target |
 | `DownAlignToDetection`, `DownContinuousAlign` | Center a down-camera detection, optionally hold distance/depth, and yaw to orientation metadata (the second name is an alias) |
 
-The nodes that steer on a front-camera bearing (`AlignToDetection`, `LateralAlignToDetection`, `SweepCheck`, `ForwardSweepAlign`, `SweepAngle`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate`) fail on `camera="down"`. The `Down*` nodes read the down camera and have no `camera` port. A camera other than `front` or `down` fails the node.
+The nodes that steer on a front-camera bearing (`AlignToDetection`, `LateralAlignToDetection`, `SweepAngle`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate`) fail on `camera="down"`, and so do the searches built on `SweepAngle`. The `Down*` nodes read the down camera and have no `camera` port. A camera other than `front` or `down` fails the node.
+
+The searches the tasks share are composed from these in XML, in `trees/search.xml`, and run as SubTrees, e.g. `<SubTree ID="SweepCheck" task="octagon_table" class_id="" min_score="0.6"/>`:
+
+| SubTree | Behavior |
+|---|---|
+| `SweepCheck` | `SweepAngle`, then `AttSetpoint` to the yaw it found |
+| `ForwardSweepAlign` | `SweepAngle` up to `num_sweeps` times with a `forward_step` `MoveRelative` between sweeps (none after the last), then `AttSetpoint` to the yaw found. A forward move that does not arrive ends it with `FAILURE`; a sweep cut short by a yaw step that does not arrive counts as one that saw nothing |
+| `DownPatternScan` | `WaitForDetection` on the down camera at the start and at five points around it, (forward, left) of the start in `movement_dist`: (−1, −1), (0, 2), (2, 0), (0, −2), (−1, 1). Each point is a `MoveRelative` from the one before, along the heading the scan started on; a move that does not arrive samples where it got to. `SUCCESS` where a frame shows the target, else back to the start (`SavePose`, `PosSetpoint`) and `FAILURE` |
+
+A setting left out takes the default in the file's `TreeNodesModel`, which BT.CPP applies to a SubTree as well as Groot2 showing it; `task` and `class_id` have none, so a SubTree without them fails to load, and `class_id=""` takes any class. BT.CPP reads an attribute that looks like a number as one, and a tree loads only if that is the type of the port it reaches: a decimal setting needs its decimal point (`forward_step="1.0"`), and a numbered class comes from a `Script` (`fire_class := '0'`, then `class_id="{fire_class}"`), as in `torp.xml` and `bins.xml`.
 
 Built-in BehaviorTree.CPP nodes such as `Sleep`, `Repeat`, `Fallback`, `Sequence`, `Inverter`, and decorators must not be registered in the `TreeNodesModel`. Groot 2 can use them from its built-in palette.
 
-When editing XML in Groot 2, keep `Project.btproj`, `resources/missions/*.xml`, and `resources/trees/*.xml` synchronized with custom nodes only. Ports in XML must exactly match the C++ `providedPorts()` model; BehaviorTree.CPP rejects unknown ports when it creates the tree, before the first tick.
+When editing XML in Groot 2, keep the `TreeNodesModel`s of `Project.btproj`, `resources/missions/*.xml`, and `resources/trees/*.xml` synchronized: custom nodes only, plus the SubTree models of `trees/search.xml`, whose defaults BT.CPP takes from that file. Ports in XML must exactly match the C++ `providedPorts()` model; BehaviorTree.CPP rejects unknown ports when it creates the tree, before the first tick.
 
 ## Control Interface
 

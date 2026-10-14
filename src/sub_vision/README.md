@@ -40,7 +40,7 @@ All topics are relative to the node namespace (e.g. `/marlin_v3`):
 | `rgb_topic` (default `front_camera/image_raw`) | `sensor_msgs/Image` | any 8-bit color encoding |
 | `camera_info_topic` (default `front_camera/camera_info`) | `sensor_msgs/CameraInfo` | intrinsics; also feed the per-detection bearings |
 | **out:** `detections_topic` (default `vision/detections`) | `sub_vision_interfaces/DetectionArray` | detections + bearings + 3D metadata |
-| **out:** `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | model state + timing, one status per instance |
+| **out:** `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | `<node>: detector` (model state + timing) and, once a model is loaded, `<node>: detections topic status` (rate, frame age) |
 | **out:** `~/depth`, `~/depth/color` | `sensor_msgs/Image` | relative depth (32FC1) and a Turbo view (bgr8), only with `depth_debug` |
 
 `sim_launch.py` and `pool_test_launch.py` each run one instance per camera
@@ -157,12 +157,13 @@ by default; `depth_debug: true` publishes it on `~/depth` and `~/depth/color`.
 
 ---
 
-## Annotation visualizer
+## Viewing detections
 
-`annotation_visualizer` draws `vision/detections` on `front_camera/image_color`
-(`image_transport: compressed` reads `<image>/compressed`) and publishes
-`vision/debug_image` and its JPEG copy `vision/debug_image/compressed`. It
-draws only while one of them has a subscriber.
+Nothing on the vehicle draws them. In Foxglove, the vision extension in
+[foxglove-extensions](https://github.com/avbotz/foxglove-extensions) draws
+`vision/detections` on the frames they were computed from, in its Detections
+panel or as annotations in Foxglove's own Image panel
+([foxglove.md](../../docs/foxglove.md#extensions)).
 
 ---
 
@@ -179,6 +180,7 @@ No core edits — add a model and a post-processor:
    ```python
    from sub_vision.post_processors.base import TaskPostProcessor
    from sub_vision.post_processors.registry import register_post_processor
+
 
    @register_post_processor("buoy")
    class BuoyPostProcessor(TaskPostProcessor):

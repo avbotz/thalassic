@@ -12,12 +12,19 @@
       <AttSetpoint name="octagon_search_heading" yaw="{@octagon_search_yaw}"/>
       <LoadModel camera="front" task="octagon_table" timeout_msec="30000"/>
       <Fallback name="find_octagon_table">
-        <SweepCheck task="octagon_table" min_score="0.6" attempts="4" sample_timeout_msec="3000.0"/>
-        <ForwardSweepAlign task="octagon_table"
-                           min_score="0.3"
-                           attempts="4"
-                           num_sweeps="4"
-                           sample_timeout_msec="3000.0"/>
+        <SubTree ID="SweepCheck"
+                 task="octagon_table"
+                 class_id=""
+                 min_score="0.6"
+                 attempts="4"
+                 sample_timeout_msec="3000.0"/>
+        <SubTree ID="ForwardSweepAlign"
+                 task="octagon_table"
+                 class_id=""
+                 min_score="0.3"
+                 attempts="4"
+                 num_sweeps="4"
+                 sample_timeout_msec="3000.0"/>
       </Fallback>
       <ForceSuccess>
         <ForwardContinuousAlign task="octagon_table"

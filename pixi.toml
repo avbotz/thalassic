@@ -43,7 +43,7 @@ colcon-common-extensions = ">=0.3.0,<0.4"
 ros-jazzy-ros-base = ">=0.11.0,<0.12"
 ros-jazzy-ament-cmake-vendor-package = ">=2.5.6,<3"   # stonefish_vendor
 ros-jazzy-eigen3-cmake-module = ">=0.3.1,<0.4"          # libwaterlinked
-ros-jazzy-generate-parameter-library = ">=0.7.6,<0.8"   # waterlinked_dvl_driver
+ros-jazzy-generate-parameter-library = ">=0.7.6,<0.8"   # sub_control, waterlinked_dvl_driver
 ros-jazzy-rviz2 = ">=14.1.23,<15"
 ros-jazzy-tf2-tools = ">=0.36.22,<0.37"
 ros-jazzy-tf2-geometry-msgs = ">=0.36.22,<0.37"
@@ -53,9 +53,8 @@ ros-jazzy-behaviortree-cpp = ">=4.9.1,<5"             # sub_mission
 ros-jazzy-marine-acoustic-msgs = ">=2.1.0,<3"         # DVL messages
 ros-jazzy-cv-bridge = ">=4.1.0,<5"
 ros-jazzy-vision-msgs = ">=4.1.1,<5"
-ros-jazzy-diagnostic-updater = ">=4.2.7,<5"           # drivers' and sub_control's /diagnostics
+ros-jazzy-diagnostic-updater = ">=4.2.7,<5"           # drivers', sub_control's and sub_vision's /diagnostics
 ros-jazzy-diagnostic-aggregator = ">=4.2.7,<5"        # /diagnostics_agg (config/diagnostics.yaml)
-ros-jazzy-angles = ">=1.16.1,<2"                       # sub_control
 ros-jazzy-rclcpp-components = ">=28.1.21,<29"            # sub_sim_sensors
 ros-jazzy-image-transport = ">=5.1.8,<6"
 ros-jazzy-image-transport-plugins = ">=4.0.7,<5"      # compressed image transport for off-board vision

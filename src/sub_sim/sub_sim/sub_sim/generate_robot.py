@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from sub_sim.robot_scenario_to_urdf import Transform, _mat_to_rpy
+from sub_sim.robot_scenario_to_urdf import Transform
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class Pose:
 
     @staticmethod
     def of(transform: Transform) -> "Pose":
-        return Pose(tuple(transform.t), _mat_to_rpy(transform.R))
+        return Pose(tuple(transform.t), transform.rpy())
 
 
 def render_robot_scenario(

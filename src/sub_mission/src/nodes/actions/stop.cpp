@@ -2,7 +2,7 @@
 
 #include "sub_mission/nodes/mission.hpp"
 
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -29,7 +29,5 @@ class StopAction : public BT::SyncActionNode {
 }  // namespace
 
 void registerStopAction(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger) {
-    factory.registerBuilder<StopAction>("Stop", [&node](const std::string &name, const BT::NodeConfig &config) {
-        return std::make_unique<StopAction>(name, config, node);
-    });
+    factory.registerNodeType<StopAction>("Stop", std::ref(node));
 }

@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -87,9 +87,6 @@ class AltitudeSetpointAction : public BT::StatefulActionNode {
 void registerAltitudeSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                     SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                     rclcpp::Logger logger) {
-    factory.registerBuilder<AltitudeSetpointAction>(
-        "AltitudeSetpoint",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<AltitudeSetpointAction>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<AltitudeSetpointAction>("AltitudeSetpoint", std::ref(node), setpoint_publisher, clock,
+                                                     logger);
 }

@@ -193,10 +193,12 @@ Two profiles, loaded at startup (sim loads the sim one):
 | `allocation.thruster_{positions,directions,reversed}` | Thruster layout, from the vehicle description (read-only) |
 | `thruster_health`, `failed_thrusters` | [Thruster failure](#thruster-failure) |
 | `safety.require_kill_cycle` | Arm only after the kill switch has been engaged since startup (true) |
-| `safety.{state,imu,attitude,dvl,depth,altitude,cmd_vel,mission}_timeout` | Watchdog timeouts [s], see [Safety](#safety); `imu_timeout` is when rate feedback falls back to the EKF's, `attitude_timeout` when the IMU counts as lost |
+| `safety.{state,imu,attitude,dvl,depth,altitude,cmd_vel}_timeout` | Watchdog timeouts [s], see [Safety](#safety); `imu_timeout` is when rate feedback falls back to the EKF's, `attitude_timeout` when the IMU counts as lost |
 | `robot_name` | Namespace prefix for frame ids |
 
 Everything except the rate, the layout and `robot_name` can be changed at runtime with `ros2 param set`; changing gains or the model keeps the integrators and the disturbance estimate. Edit the YAML to make a change stick.
+
+Each parameter's type, default, description and limits are defined once, in `src/sub_control/sub_control/src/sub_control_parameters.yaml`, from which [generate_parameter_library](https://github.com/PickNikRobotics/generate_parameter_library) generates the code that declares them and validates every change (`ros2 param describe` shows the description and range). A change with a wrong length, a NaN or inf, or a value out of range is rejected with the reason, and so is an `observer.bandwidth` at or above `control_rate_hz`; a batch set atomically is rejected whole if any of it is. An invalid profile stops `sub_control` at startup, saying which parameter is wrong.
 
 ### Tuning
 

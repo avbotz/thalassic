@@ -3,7 +3,6 @@
 #include "sub_mission/nodes/commands.hpp"
 
 #include <cmath>
-#include <memory>
 #include <string>
 
 namespace {
@@ -49,8 +48,5 @@ class AverageAnglesAction : public BT::SyncActionNode {
 }  // namespace
 
 void registerAverageAnglesAction(BT::BehaviorTreeFactory &factory, rclcpp::Logger logger) {
-    factory.registerBuilder<AverageAnglesAction>("AverageAngles",
-                                                 [logger](const std::string &name, const BT::NodeConfig &config) {
-                                                     return std::make_unique<AverageAnglesAction>(name, config, logger);
-                                                 });
+    factory.registerNodeType<AverageAnglesAction>("AverageAngles", logger);
 }

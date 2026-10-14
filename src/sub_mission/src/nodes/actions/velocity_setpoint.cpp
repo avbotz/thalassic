@@ -4,7 +4,7 @@
 
 #include <array>
 #include <cmath>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -60,9 +60,6 @@ class VelocitySetpointAction : public BT::SyncActionNode {
 void registerVelocitySetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                     SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                     rclcpp::Logger logger) {
-    factory.registerBuilder<VelocitySetpointAction>(
-        "VelocitySetpoint",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<VelocitySetpointAction>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<VelocitySetpointAction>("VelocitySetpoint", std::ref(node), setpoint_publisher, clock,
+                                                     logger);
 }

@@ -33,23 +33,6 @@ std::vector<std::string> listXmlFiles(const std::string &directory, const bool s
 
 }  // namespace
 
-const char *statusName(const BT::NodeStatus status) {
-    switch (status) {
-        case BT::NodeStatus::SUCCESS:
-            return "SUCCESS";
-        case BT::NodeStatus::FAILURE:
-            return "FAILURE";
-        case BT::NodeStatus::RUNNING:
-            return "RUNNING";
-        case BT::NodeStatus::IDLE:
-            return "IDLE";
-        case BT::NodeStatus::SKIPPED:
-            return "SKIPPED";
-    }
-
-    return "UNKNOWN";
-}
-
 std::string missionsDirectory() { return resourcesDirectory() + "/missions"; }
 
 std::string treesDirectory() { return resourcesDirectory() + "/trees"; }

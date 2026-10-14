@@ -1,7 +1,8 @@
-.pixi/
+.pixi
 # legacy virtualenv from before the pixi migration
 .venv
 
+.zed
 **/.vscode/
 .cache/
 

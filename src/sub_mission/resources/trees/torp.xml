@@ -14,10 +14,15 @@
         <Sequence name="torp_approach">
           <LoadModel camera="front" task="torp_find" timeout_msec="30000"/>
           <Fallback name="find_torp_board">
-            <ForwardSweepAlign task="torp_find" min_score="0.2" attempts="2" num_sweeps="4"/>
+            <SubTree ID="ForwardSweepAlign"
+                     task="torp_find"
+                     class_id=""
+                     min_score="0.2"
+                     attempts="2"
+                     num_sweeps="4"/>
             <Sequence name="recover_torp_board_search">
               <MoveRelative x="-0.2" z="-0.1"/>
-              <ForwardSweepAlign task="torp_find" attempts="8" num_sweeps="3"/>
+              <SubTree ID="ForwardSweepAlign" task="torp_find" class_id="" attempts="8" num_sweeps="3"/>
             </Sequence>
           </Fallback>
           <MoveRelative x="0.5"/>
@@ -27,7 +32,12 @@
                               depth="true"
                               tolerance="0.3"
                               timeout_msec="10000"/>
-            <ForwardSweepAlign task="torp_find" min_score="0.1" attempts="2" num_sweeps="4"/>
+            <SubTree ID="ForwardSweepAlign"
+                     task="torp_find"
+                     class_id=""
+                     min_score="0.1"
+                     attempts="2"
+                     num_sweeps="4"/>
           </Fallback>
           <!-- Up to the board until it is 2.4 m away. Lost on the way, give
                it a few seconds to come back into view, then carry on either
@@ -60,13 +70,16 @@
                                      timeout_msec="40000"/>
           </RetryUntilSuccessful>
           <LoadModel camera="front" task="torp_fire_blood" timeout_msec="30000"/>
+          <!-- Class 0 as text: a SubTree takes class_id="0" as a number. -->
+          <Script code="fire_class := '0'"/>
           <Fallback name="find_fire_target">
-            <ForwardSweepAlign task="torp_fire_blood"
-                               class_id="0"
-                               min_score="0.2"
-                               attempts="2"
-                               num_sweeps="4"
-                               forward_step="1.0"/>
+            <SubTree ID="ForwardSweepAlign"
+                     task="torp_fire_blood"
+                     class_id="{fire_class}"
+                     min_score="0.2"
+                     attempts="2"
+                     num_sweeps="4"
+                     forward_step="1.0"/>
             <WaitForDetection task="torp_fire_blood" class_id="0" min_score="0.1" timeout_msec="3000"/>
           </Fallback>
           <AlignToDetection task="torp_fire_blood"

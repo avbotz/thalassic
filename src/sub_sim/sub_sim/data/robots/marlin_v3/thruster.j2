@@ -44,8 +44,9 @@
       <look name="{{ look_name }}" />
     </propeller>
 
+    <!-- The ESC: the BlueRobotics Basic ESC takes ~0.1 s to respond. -->
     <rotor_dynamics type="first_order">
-      <time_constant value="0.05" />
+      <time_constant value="0.1" />
     </rotor_dynamics>
     <thrust_model type="linear_interpolation">
       <!-- Supposed to be angular velocity (rad/s) -->

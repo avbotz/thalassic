@@ -499,7 +499,6 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-ament-cmake-vendor-package-2.5.6-he8cfe8b_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-ament-index-cpp-1.8.4-he8cfe8b_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-ament-index-python-1.8.4-he8cfe8b_25.conda
-      - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-angles-1.16.1-he8cfe8b_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-behaviortree-cpp-4.9.1-np2py312h61f2ce4_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-builtin-interfaces-2.0.4-he8cfe8b_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-camera-info-manager-5.1.8-he8cfe8b_25.conda
@@ -2164,7 +2163,6 @@ environments:
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-ament-cmake-vendor-package-2.5.6-hb0f4dca_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-ament-index-cpp-1.8.4-hb0f4dca_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-ament-index-python-1.8.4-hb0f4dca_25.conda
-      - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-angles-1.16.1-hb0f4dca_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-behaviortree-cpp-4.9.1-np2py312h2ed9cc7_21.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-builtin-interfaces-2.0.4-hb0f4dca_25.conda
       - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-camera-info-manager-5.1.8-hb0f4dca_25.conda
@@ -18809,14 +18807,6 @@ packages:
   run_exports: {}
   size: 68140
   timestamp: 1788189766352
-- conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-angles-1.16.1-hb0f4dca_25.conda
-  sha256: 0bf1480058b038e467f9d278e2c8b66e799083063a8902232166230f6b6c9add
-  md5: ca34fca0868ec8fd3df5e4b5effe853f
-  depends:
-  - ros2-angles ==1.16.1
-  run_exports: {}
-  size: 1999
-  timestamp: 1791429241825
 - conda: https://prefix.dev/robostack-jazzy/linux-64/ros-jazzy-angles-1.16.1-np2py312h2ed9cc7_21.conda
   sha256: 071179fd5f3e2e98da10de9c21056f7a2aa77889a3a218b1e35f5509500c7659
   md5: 0b831bd181e382a056344a93e8e2b1e2
@@ -27547,14 +27537,6 @@ packages:
   run_exports: {}
   size: 2058
   timestamp: 1791428628425
-- conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-angles-1.16.1-he8cfe8b_25.conda
-  sha256: a6a25c5b26ca6eacbff13d29574857e2aae43117fd32add0d0b9163282aa90b7
-  md5: d6d03e7943b87c619dcbe49cecb4d194
-  depends:
-  - ros2-angles ==1.16.1
-  run_exports: {}
-  size: 2006
-  timestamp: 1791429391525
 - conda: https://prefix.dev/robostack-jazzy/linux-aarch64/ros-jazzy-behaviortree-cpp-4.9.1-np2py312h61f2ce4_21.conda
   sha256: bd28b648ee99fee34ba553170b8699ca88e507795010a64192e29552a9acd2b5
   md5: fb79ffe0f4e53eca342a4cea8c48eb55

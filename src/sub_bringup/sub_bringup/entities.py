@@ -132,7 +132,11 @@ def common_launch_arguments(
 
 
 def common_launch_include(**defaults: str) -> list:
-    """The arguments above, with `defaults` as their defaults, plus common_launch.py."""
+    """The arguments above, with `defaults` as their defaults, plus common_launch.py.
+
+    common_launch.py sets use_sim_time for every node launched after it, so
+    a top-level file starts its own nodes after this.
+    """
     return [
         *common_launch_arguments(**defaults),
         IncludeLaunchDescription(
@@ -141,27 +145,16 @@ def common_launch_include(**defaults: str) -> list:
     ]
 
 
-def sim_time() -> dict:
-    """The use_sim_time parameter, from the launch argument of the same name."""
-    return {"use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool)}
-
-
 def vision_entities(
     image_topic: str, parameters: dict | None = None, front_parameters: dict | None = None
 ) -> list[Node]:
-    """A sub_vision node and an annotation visualizer per camera, reading <camera>/<image_topic>.
+    """A sub_vision node per camera, reading <camera>/<image_topic>.
 
     sub_mission finds each camera's instance by its name and detections topic
     (sub_mission/src/vision_client.cpp): sub_vision publishes vision/detections
     from the front camera and sub_vision_down vision/detections_down from the
     down camera. `parameters` override sub_vision.yaml for both instances,
     `front_parameters` for the front one only.
-
-    The visualizers draw those detections over the images, on
-    vision/debug_image and vision/debug_image_down, only while something
-    subscribes. The node reads front_camera/image_color and vision/detections
-    and writes vision/debug_image, each with its /compressed JPEG copy, so it
-    is wired to a camera by remapping those names.
     """
     entities = []
     for camera, suffix, extra in (
@@ -170,8 +163,7 @@ def vision_entities(
     ):
         image = f"{camera}/{image_topic}"
         detections = f"vision/detections{suffix}"
-        debug = f"vision/debug_image{suffix}"
-        entities += [
+        entities.append(
             Node(
                 package="sub_vision",
                 executable="sub_vision",
@@ -187,25 +179,9 @@ def vision_entities(
                         **(parameters or {}),
                         **(extra or {}),
                     },
-                    sim_time(),
                 ],
-            ),
-            Node(
-                package="sub_vision",
-                executable="annotation_visualizer",
-                name=f"annotation_visualizer{suffix}",
-                namespace=LaunchConfiguration("robot_name"),
-                output="screen",
-                parameters=[sim_time()],
-                remappings=[
-                    ("front_camera/image_color", image),
-                    ("front_camera/image_color/compressed", f"{image}/compressed"),
-                    ("vision/detections", detections),
-                    ("vision/debug_image", debug),
-                    ("vision/debug_image/compressed", f"{debug}/compressed"),
-                ],
-            ),
-        ]
+            )
+        )
     return entities
 
 

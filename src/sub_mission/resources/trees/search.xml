@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Searches the task trees share, composed of the vision and movement nodes.
+  Run one as a SubTree with its settings as attributes:
+
+    <SubTree ID="SweepCheck" task="octagon_table" class_id="" min_score="0.6"/>
+
+  Settings left out take the defaults in the TreeNodesModel at the end of
+  this file, which BT.CPP applies. task and class_id have none: a SubTree
+  without them fails to load. class_id="" takes any class.
+
+  BT.CPP reads a SubTree attribute that looks like a number as one, and the
+  tree loads only if that is the type of the port it reaches. The defaults
+  show which each takes: attempts="4" a whole number, forward_step="2.0" a
+  decimal (so not "2"), sample_timeout_msec a decimal in the sweeps and a
+  whole number in DownPatternScan, as on the C++ nodes they replaced. A class
+  id is text, so a numbered class comes from a Script, as in torp.xml:
+  <Script code="fire_class := '0'"/>, then class_id="{fire_class}".
+-->
+<root BTCPP_format="4">
+  <!-- Turn through SweepAngle's yaw sweep (ahead, 40 and 80 degrees right,
+       80 and 40 left, ahead) and, at the first heading where `attempts`
+       front-camera frames see the target, turn to the average of their yaws
+       toward it. -->
+  <BehaviorTree ID="SweepCheck">
+    <Sequence name="sweep_check">
+      <SweepAngle camera="{camera}"
+                  task="{task}"
+                  class_id="{class_id}"
+                  min_score="{min_score}"
+                  attempts="{attempts}"
+                  sample_timeout_msec="{sample_timeout_msec}"
+                  move_timeout_msec="{move_timeout_msec}"
+                  yaw="{target_yaw}"/>
+      <AttSetpoint yaw="{target_yaw}" timeout_msec="{move_timeout_msec}"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- SweepCheck, up to num_sweeps sweeps, moving forward_step ahead between
+       them (not after the last). A forward move that does not arrive ends the
+       search with FAILURE, as does the final turn toward the target; a sweep
+       cut short by a yaw step that does not arrive counts as not seeing it. -->
+  <BehaviorTree ID="ForwardSweepAlign">
+    <Sequence name="forward_sweep_align">
+      <Script code="first_sweep := true; found := false"/>
+      <!-- Repeat stops at the first FAILURE: a sweep that sees the target
+           (inverted) or a move that does not arrive. found tells them apart. -->
+      <ForceSuccess>
+        <Repeat num_cycles="{num_sweeps}">
+          <Sequence name="move_then_sweep">
+            <MoveRelative x="{forward_step}" timeout_msec="{move_timeout_msec}" _skipIf="first_sweep"/>
+            <Script code="first_sweep := false"/>
+            <Inverter>
+              <SweepAngle camera="{camera}"
+                          task="{task}"
+                          class_id="{class_id}"
+                          min_score="{min_score}"
+                          attempts="{attempts}"
+                          sample_timeout_msec="{sample_timeout_msec}"
+                          move_timeout_msec="{move_timeout_msec}"
+                          yaw="{target_yaw}"
+                          _onSuccess="found := true"/>
+            </Inverter>
+          </Sequence>
+        </Repeat>
+      </ForceSuccess>
+      <ScriptCondition name="target_found" code="found"/>
+      <AttSetpoint yaw="{target_yaw}" timeout_msec="{move_timeout_msec}"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Sample the down camera for up to sample_timeout_msec at the start and
+       at five points around it, (forward, left) of the start in units of
+       movement_dist: back right (-1, -1), left (0, 2), ahead (2, 0), right
+       (0, -2) and back left (-1, 1). SUCCESS at the first point where a
+       frame shows the target; if none does, back to the start, and FAILURE.
+       A move that does not arrive samples where it got to. Each move is
+       from the point before, along the heading the scan started on, so the
+       points stay where they are meant to be even after one that was not
+       reached. -->
+  <BehaviorTree ID="DownPatternScan">
+    <Sequence name="down_pattern_scan">
+      <SavePose x="{start_x}" y="{start_y}"/>
+      <!-- The moves between the points, in multiples of movement_dist. -->
+      <Script code="d := movement_dist; minus_d := -d; two_d := 2 * d; minus_two_d := -2 * d; three_d := 3 * d"/>
+      <Fallback name="sample_each_point">
+        <WaitForDetection camera="down"
+                          task="{task}"
+                          class_id="{class_id}"
+                          min_score="{min_score}"
+                          timeout_msec="{sample_timeout_msec}"/>
+        <Sequence name="back_right">
+          <ForceSuccess>
+            <MoveRelative x="{minus_d}" y="{minus_d}" timeout_msec="{move_timeout_msec}"/>
+          </ForceSuccess>
+          <WaitForDetection camera="down"
+                            task="{task}"
+                            class_id="{class_id}"
+                            min_score="{min_score}"
+                            timeout_msec="{sample_timeout_msec}"/>
+        </Sequence>
+        <Sequence name="left">
+          <ForceSuccess>
+            <MoveRelative x="{d}" y="{three_d}" timeout_msec="{move_timeout_msec}"/>
+          </ForceSuccess>
+          <WaitForDetection camera="down"
+                            task="{task}"
+                            class_id="{class_id}"
+                            min_score="{min_score}"
+                            timeout_msec="{sample_timeout_msec}"/>
+        </Sequence>
+        <Sequence name="ahead">
+          <ForceSuccess>
+            <MoveRelative x="{two_d}" y="{minus_two_d}" timeout_msec="{move_timeout_msec}"/>
+          </ForceSuccess>
+          <WaitForDetection camera="down"
+                            task="{task}"
+                            class_id="{class_id}"
+                            min_score="{min_score}"
+                            timeout_msec="{sample_timeout_msec}"/>
+        </Sequence>
+        <Sequence name="right">
+          <ForceSuccess>
+            <MoveRelative x="{minus_two_d}" y="{minus_two_d}" timeout_msec="{move_timeout_msec}"/>
+          </ForceSuccess>
+          <WaitForDetection camera="down"
+                            task="{task}"
+                            class_id="{class_id}"
+                            min_score="{min_score}"
+                            timeout_msec="{sample_timeout_msec}"/>
+        </Sequence>
+        <Sequence name="back_left">
+          <ForceSuccess>
+            <MoveRelative x="{minus_d}" y="{three_d}" timeout_msec="{move_timeout_msec}"/>
+          </ForceSuccess>
+          <WaitForDetection camera="down"
+                            task="{task}"
+                            class_id="{class_id}"
+                            min_score="{min_score}"
+                            timeout_msec="{sample_timeout_msec}"/>
+        </Sequence>
+        <ForceFailure>
+          <PosSetpoint name="back_to_start" x="{start_x}" y="{start_y}" timeout_msec="{move_timeout_msec}"/>
+        </ForceFailure>
+      </Fallback>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot): the SubTrees' settings,
+       and their defaults, which BT.CPP applies too. -->
+  <TreeNodesModel>
+    <SubTree ID="SweepCheck" editable="true">
+      <input_port name="camera" default="front">Detection source; only front works</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec" default="20000">Maximum wait for each yaw move</input_port>
+    </SubTree>
+    <SubTree ID="ForwardSweepAlign" editable="true">
+      <input_port name="camera" default="front">Detection source; only front works</input_port>
+      <input_port name="task">Only accept detections from this task's model</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="attempts" default="4">Detection frames sampled at each yaw</input_port>
+      <input_port name="num_sweeps" default="3">Sweeps before FAILURE</input_port>
+      <input_port name="forward_step" default="2.0">Forward move between sweeps in meters</input_port>
+      <input_port name="sample_timeout_msec" default="2500.0">Maximum detection sample time per yaw</input_port>
+      <input_port name="move_timeout_msec" default="20000">Maximum wait for each commanded movement</input_port>
+    </SubTree>
+    <SubTree ID="DownPatternScan" editable="true">
+      <input_port name="task">Task model to search for with the down camera</input_port>
+      <input_port name="class_id">Only accept this class id (empty = any)</input_port>
+      <input_port name="min_score" default="0.0">Minimum detection confidence</input_port>
+      <input_port name="movement_dist" default="1.65">Search-pattern movement distance in meters</input_port>
+      <input_port name="sample_timeout_msec" default="2500">Maximum detection sample time at each point</input_port>
+      <input_port name="move_timeout_msec" default="20000">Maximum wait for each pattern move</input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

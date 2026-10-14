@@ -60,6 +60,8 @@ source $CONDA_PREFIX/share/colcon_argcomplete/hook/colcon-argcomplete.zsh   # or
 
 `pyrightconfig.json` points at the environment's `site-packages`; `compile_commands.json` lands in `build/`. VS Code users can install the `prefix-dev.pixi-vscode` extension or select `.pixi/envs/default/bin/python` as the interpreter.
 
+clangd also needs `--query-driver=**/.pixi/envs/*/bin/*`. The pixi compiler searches `.pixi/envs/default/include` without being told to, so CMake leaves it out of `compile_commands.json`, and without the flag clangd cannot find headers installed there (`fmt/core.h` from generated parameter headers, `behaviortree_cpp/`, `nlohmann/json.hpp`) and reports errors that cascade from the missing include. `.zed/settings.json` passes it in Zed; in VS Code add it to `clangd.arguments`.
+
 ## Formatting and linting
 
 ```bash
@@ -224,8 +226,8 @@ Four files, layered so the two stacks cannot drift apart:
 |---|---|
 | `common_launch.py` | Everything both stacks run identically: the transforms, the EKF, `sub_control`, the mission executive, the Foxglove bridge |
 | `description_launch.py` | The vehicle's static transforms, from `config/vehicles/<robot_name>.yaml`. Included by `common_launch.py` |
-| `pool_test_launch.py` | `common_launch.py` + the hardware drivers, the two cameras, and a `sub_vision` node and an annotation visualizer per camera |
-| `sim_launch.py` | `common_launch.py` + Stonefish, the sensor bridges, `robot_state_publisher`, and a `sub_vision` node and an annotation visualizer per camera |
+| `pool_test_launch.py` | `common_launch.py` + the hardware drivers, the two cameras, and a `sub_vision` node per camera |
+| `sim_launch.py` | `common_launch.py` + Stonefish, the sensor bridges, `robot_state_publisher`, and a `sub_vision` node per camera |
 
 The two top-level files differ only in where sensor data comes from, so everything downstream of it is in `common_launch.py` and adding a node there reaches both. The only things they configure differently are the defaults of `gains`, `restart`, `foxglove_compression` and `use_sim_time`.
 

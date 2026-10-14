@@ -2,7 +2,7 @@
 
 #include "sub_mission/nodes/mission.hpp"
 
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -40,8 +40,5 @@ class SavePoseAction : public BT::SyncActionNode {
 }  // namespace
 
 void registerSavePoseAction(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger) {
-    factory.registerBuilder<SavePoseAction>("SavePose",
-                                            [&node, logger](const std::string &name, const BT::NodeConfig &config) {
-                                                return std::make_unique<SavePoseAction>(name, config, node, logger);
-                                            });
+    factory.registerNodeType<SavePoseAction>("SavePose", std::ref(node), logger);
 }

@@ -15,7 +15,7 @@ Mission nodes filter detections by:
 | `class_id` | Optional object class within the model |
 | `min_score` | Minimum confidence |
 
-`AlignToDetection`, `LateralAlignToDetection`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate` and the yaw sweeps (`SweepCheck`, `ForwardSweepAlign`, `SweepAngle`) steer on front-camera bearings and fail on `camera="down"`. The `Down*` nodes have no `camera` port and read the down camera.
+`AlignToDetection`, `LateralAlignToDetection`, `ForwardContinuousAlign`, `OrientToDetectionAtDist`, `SquareUpToGate` and the yaw sweeps (`SweepAngle`, and the `SweepCheck` and `ForwardSweepAlign` subtrees built on it in `trees/search.xml`) steer on front-camera bearings and fail on `camera="down"`. The `Down*` nodes have no `camera` port and read the down camera.
 
 ## Tasks
 

@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -127,14 +127,8 @@ class MoveRelativeAction : public BT::StatefulActionNode {
 void registerMoveRelativeAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                 SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                 rclcpp::Logger logger) {
-    factory.registerBuilder<MoveRelativeAction<false>>(
-        "MoveRelative",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<MoveRelativeAction<false>>(name, config, node, setpoint_publisher, clock, logger);
-        });
-    factory.registerBuilder<MoveRelativeAction<true>>(
-        "MoveRelativePos",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<MoveRelativeAction<true>>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<MoveRelativeAction<false>>("MoveRelative", std::ref(node), setpoint_publisher, clock,
+                                                        logger);
+    factory.registerNodeType<MoveRelativeAction<true>>("MoveRelativePos", std::ref(node), setpoint_publisher, clock,
+                                                       logger);
 }

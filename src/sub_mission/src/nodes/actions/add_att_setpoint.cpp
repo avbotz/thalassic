@@ -7,7 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -100,9 +100,5 @@ class AddAttSetpointAction : public BT::StatefulActionNode {
 void registerAddAttSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                   SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                   rclcpp::Logger logger) {
-    factory.registerBuilder<AddAttSetpointAction>(
-        "AddAttSetpoint",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<AddAttSetpointAction>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<AddAttSetpointAction>("AddAttSetpoint", std::ref(node), setpoint_publisher, clock, logger);
 }

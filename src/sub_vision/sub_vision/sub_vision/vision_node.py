@@ -6,10 +6,18 @@ import cv2
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
-from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_updater import (
+    DiagnosticStatusWrapper,
+    FrequencyStatusParam,
+    TimeStampStatusParam,
+    TopicDiagnostic,
+    Updater,
+)
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from vision_msgs.msg import (
     BoundingBox2D,
@@ -26,6 +34,11 @@ from sub_vision_interfaces.srv import LoadModel
 # Only the newest frame is kept: with sensor-data QoS's depth of 5, a node slower than the camera
 # works through a backlog and every detection comes from a frame up to 5 frames old.
 FRAME_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+
+# Once a model is loaded, detections slower than this [Hz] are a warning in /diagnostics, and none
+# at all (a camera that stopped) or one from a frame older than MAX_DETECTION_AGE [s] an error.
+MIN_DETECTION_RATE = 1.0
+MAX_DETECTION_AGE = 1.0
 
 
 def workspace_path(path: str) -> str:
@@ -95,7 +108,6 @@ class VisionNode(Node):
         self._pub = self.create_publisher(
             DetectionArray, self.get_parameter("detections_topic").value, qos_profile_sensor_data
         )
-        self._diag_pub = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
         self._depth_pub = self._depth_color_pub = None
         if self._depth is not None and self.get_parameter("depth_debug").value:
             self._depth_pub = self.create_publisher(Image, "~/depth", qos_profile_sensor_data)
@@ -122,7 +134,13 @@ class VisionNode(Node):
             raise ValueError(f"unsupported image_transport '{transport}' (raw|compressed)")
 
         self._load_srv = self.create_service(LoadModel, "~/load_model", self._on_load_model)
-        self.create_timer(2.0, self._publish_diagnostics)
+
+        # One instance per camera (sub_vision, sub_vision_down), told apart by node name.
+        self._diagnostics = Updater(self, period=2.0)
+        self._diagnostics.setHardwareID(rgb_topic)
+        self._diagnostics.add("detector", self._diagnose)
+        # The detections' rate and age, from the first model loaded: before that there are none.
+        self._detections_diagnostic: TopicDiagnostic | None = None
 
         # Optionally pre-load a task so the node is ready without a service call.
         default_task = self.get_parameter("default_task").value
@@ -151,6 +169,13 @@ class VisionNode(Node):
         result = self._manager.load(task)
         if not result.success:
             self.get_logger().error(result.message)
+        elif self._detections_diagnostic is None:
+            self._detections_diagnostic = TopicDiagnostic(
+                "detections",
+                self._diagnostics,
+                FrequencyStatusParam({"min": MIN_DETECTION_RATE}),
+                TimeStampStatusParam(max_acceptable=MAX_DETECTION_AGE),
+            )
         return result
 
     def _on_frame(self, rgb_msg: Image) -> None:
@@ -216,6 +241,11 @@ class VisionNode(Node):
             msg = processor.process(msg, rgb, depth, camera_info, raw.masks)
 
         self._pub.publish(msg)
+        # diagnostic_updater's Python TimeStampStatus ages a stamp on the wall clock, not on the
+        # node's (the simulator's under use_sim_time), so it is given the frame's age on the
+        # node's clock as a wall-clock stamp.
+        age = (self.get_clock().now() - Time.from_msg(header.stamp)).nanoseconds * 1e-9
+        self._detections_diagnostic.tick(time.time() - age)
 
     def _infer_depth(self, rgb: np.ndarray) -> np.ndarray | None:
         if self._depth is None:
@@ -291,40 +321,29 @@ class VisionNode(Node):
     # ----------------------------------------------------------------------- #
     # Diagnostics
     # ----------------------------------------------------------------------- #
-    def _publish_diagnostics(self) -> None:
-        # One instance per camera (sub_vision, sub_vision_down), told apart by name.
-        status = DiagnosticStatus(
-            name=self.get_name(), hardware_id=self.get_parameter("rgb_topic").value
-        )
-        status.level = DiagnosticStatus.OK if self._manager.active_task else DiagnosticStatus.WARN
-        status.message = (
-            f"active: {self._manager.active_model}"
-            if self._manager.active_task
-            else "no model loaded"
-        )
+    def _diagnose(self, stat: DiagnosticStatusWrapper) -> DiagnosticStatusWrapper:
         # Without intrinsics every bearing is 0, so alignments "succeed" at once.
         camera_info = self._camera_info
         if camera_info is None:
-            status.level = DiagnosticStatus.ERROR
-            status.message = "no camera_info"
+            stat.summary(DiagnosticStatus.ERROR, "no camera_info")
         elif camera_info.k[0] <= 0.0 or camera_info.k[4] <= 0.0:
-            status.level = DiagnosticStatus.ERROR
-            status.message = "camera not calibrated (camera_info has no intrinsics): bearings are 0"
-        status.values.append(KeyValue(key="active_task", value=str(self._manager.active_task)))
-        status.values.append(KeyValue(key="last_infer_ms", value=f"{self._last_infer_ms:.1f}"))
-        if self._depth is not None:
-            status.values.append(
-                KeyValue(key="depth_infer_ms", value=f"{self._depth.last_infer_ms:.1f}")
+            stat.summary(
+                DiagnosticStatus.ERROR,
+                "camera not calibrated (camera_info has no intrinsics): bearings are 0",
             )
+        elif self._manager.active_task:
+            stat.summary(DiagnosticStatus.OK, f"active: {self._manager.active_model}")
+        else:
+            stat.summary(DiagnosticStatus.WARN, "no model loaded")
+        stat.add("active_task", str(self._manager.active_task))
+        stat.add("last_infer_ms", f"{self._last_infer_ms:.1f}")
+        if self._depth is not None:
+            stat.add("depth_infer_ms", f"{self._depth.last_infer_ms:.1f}")
         warmup = self._manager.last_warmup
         if warmup is not None:
-            status.values.append(KeyValue(key="warmup_mean_ms", value=f"{warmup.mean_ms:.1f}"))
-            status.values.append(KeyValue(key="warmup_last_ms", value=f"{warmup.last_ms:.1f}"))
-
-        diag = DiagnosticArray()
-        diag.header.stamp = self.get_clock().now().to_msg()
-        diag.status.append(status)
-        self._diag_pub.publish(diag)
+            stat.add("warmup_mean_ms", f"{warmup.mean_ms:.1f}")
+            stat.add("warmup_last_ms", f"{warmup.last_ms:.1f}")
+        return stat
 
     def destroy_node(self) -> None:
         self._manager.close()

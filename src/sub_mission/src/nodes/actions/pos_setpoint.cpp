@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <functional>
 #include <string>
 
 namespace {
@@ -99,9 +99,5 @@ class PosSetpointAction : public BT::StatefulActionNode {
 void registerPosSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,
                                SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock,
                                rclcpp::Logger logger) {
-    factory.registerBuilder<PosSetpointAction>(
-        "PosSetpoint",
-        [&node, setpoint_publisher, clock, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<PosSetpointAction>(name, config, node, setpoint_publisher, clock, logger);
-        });
+    factory.registerNodeType<PosSetpointAction>("PosSetpoint", std::ref(node), setpoint_publisher, clock, logger);
 }

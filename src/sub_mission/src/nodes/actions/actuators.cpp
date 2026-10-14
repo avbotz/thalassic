@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <string>
@@ -223,13 +224,7 @@ class ShootTorpedoAction : public BT::StatefulActionNode {
 }  // namespace
 
 void registerActuatorActions(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger) {
-    factory.registerBuilder<DropBallsAction>("DropBalls",
-                                             [&node, logger](const std::string &name, const BT::NodeConfig &config) {
-                                                 return std::make_unique<DropBallsAction>(name, config, node, logger);
-                                             });
+    factory.registerNodeType<DropBallsAction>("DropBalls", std::ref(node), logger);
 
-    factory.registerBuilder<ShootTorpedoAction>(
-        "ShootTorpedo", [&node, logger](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<ShootTorpedoAction>(name, config, node, logger);
-        });
+    factory.registerNodeType<ShootTorpedoAction>("ShootTorpedo", std::ref(node), logger);
 }

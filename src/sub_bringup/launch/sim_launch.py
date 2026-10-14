@@ -30,7 +30,6 @@ from sub_bringup.entities import (
     jpeg_quality,
     package_config,
     recorder,
-    sim_time,
     vision_entities,
 )
 from sub_bringup.vehicle import load_vehicle
@@ -150,8 +149,10 @@ def _stonefish(context, *_, **__):
             ],
             parameters=[
                 {
-                    # Everything else runs on this clock (use_sim_time).
+                    # Everything else runs on this clock (use_sim_time, which
+                    # common_launch.py sets for every node but this one).
                     "publish_clock": True,
+                    "use_sim_time": False,
                     "realtime_factor": 1.0,
                     # /clock and the robot's joint and thruster states, published from the
                     # physics thread at a cost per subscriber. A whole number of physics
@@ -202,7 +203,7 @@ def _sim_sensors(context, *_, **__):
             plugin=plugin,
             name=name,
             namespace=vehicle.name,
-            parameters=[{**(parameters or {}), **sim_time()}],
+            parameters=[parameters or {}],
             extra_arguments=[{"use_intra_process_comms": True}],
         )
 
@@ -247,7 +248,6 @@ def _sim_sensors(context, *_, **__):
                 ),
                 bridge("sim_kill_switch", "SimKillSwitch", {"off_delay": 6.0}),
             ],
-            parameters=[sim_time()],
             ros_arguments=["--disable-stdout-logs"],
         )
     ]
@@ -341,8 +341,7 @@ def sim_entities() -> list:
                 "robot_description": ParameterValue(
                     LaunchConfiguration("robot_description"), value_type=str
                 )
-            },
-            sim_time(),
+            }
         ],
     )
 
@@ -381,10 +380,6 @@ def generate_launch_description():
                     # Recorded as JPEG (image_color/compressed): a tenth the size or less.
                     "front_camera/image_color",
                     "down_camera/image_color",
-                    # The annotators' drawings, raw and JPEG, of images and
-                    # detections that are recorded; recording them would also
-                    # keep the annotators drawing.
-                    "vision/debug_image.*",
                     # vision_depth's maps, about 6 MB a frame, for viewing.
                     "sub_vision.*/depth(/color)?",
                     # The bag's timestamps are already sim time.

@@ -40,7 +40,9 @@ Groot2's Monitor mode can watch the tree run: connect it to port 5555 (the
 resources/
   trees/       # task library, one file per element:
                #   gate, slalom, bins, torp, octagon, return_home, coin_flip,
-               #   competition (the shared 2026 run)
+               #   competition (the shared 2026 run); and search, the
+               #   searches the tasks share (SweepCheck, ForwardSweepAlign,
+               #   DownPatternScan)
   missions/    # runnable entrypoints (pool_a..pool_d, prelim, pool_test,
                #   vision_test, pid_tuning; hard_coded_* (the tasks
                #   dead-reckoned, without vision) and hard_coded_competition
@@ -164,7 +166,7 @@ They share the filter ports `camera` (default `front`; `down` reads the
 `task`, `class_id`, and `min_score` (`LoadModel` only the first two).
 `AlignToDetection` takes the front camera only, as do the other nodes
 that steer on a bearing as a turn or a sideways move (`LateralAlignToDetection`,
-`SweepCheck`, `ForwardSweepAlign`, `SweepAngle`, `ForwardContinuousAlign`,
+`SweepAngle` and the searches built on it, `ForwardContinuousAlign`,
 `OrientToDetectionAtDist`, `SquareUpToGate`): they fail on `camera="down"`. The `Down*` nodes
 read the down camera and have no `camera` port. Detections arrive as
 `sub_vision_interfaces/DetectionArray` on `vision/detections`
@@ -194,6 +196,19 @@ The task trees also use task mechanics built on these, listed in
 centering (`LateralAlignToDetection`, the `Down*` nodes), the gate's role
 (`SelectGateRole`), lining up square to the gate (`SquareUpToGate`) and the
 torpedo board's face (`OrientToDetectionAtDist`).
+
+The searches the tasks share are XML too, in `trees/search.xml`, run as
+SubTrees with their settings as attributes:
+`SweepCheck` (`SweepAngle`, then a turn to the yaw it found),
+`ForwardSweepAlign` (up to `num_sweeps` of those sweeps with a move ahead
+between them) and `DownPatternScan` (the down camera sampled at the start and
+five points around it). A setting left out takes the default in that file's
+`TreeNodesModel`, which BT.CPP applies; `task` and `class_id` have none, and
+`class_id=""` takes any class. BT.CPP reads an attribute that looks like a
+number as one, and the tree loads only if it is the type of the port it
+reaches: a decimal setting needs its decimal point (`forward_step="1.0"`),
+and a numbered class comes from a `Script` (`fire_class := '0'`, then
+`class_id="{fire_class}"`, as in `trees/torp.xml`).
 
 The worked example is `trees/gate.xml`:
 
@@ -233,6 +248,6 @@ pixi run colcon test --packages-select sub_mission && pixi run colcon test-resul
 `test/test_mission.cpp` loads every file in `resources/missions/` against the
 registered C++ nodes, so a port the XML sets but the node no longer declares
 fails here instead of at launch on the pool deck. It also drives the movement
-and vision nodes, `Transit` and `RecoverTaskEntry` against a scripted
-`control/error` and camera frames, and checks which way they move the vehicle;
-no other ROS node needs to be running.
+and vision nodes, `Transit`, `RecoverTaskEntry` and the searches in
+`trees/search.xml` against a scripted `control/error` and camera frames, and
+checks which way they move the vehicle; no other ROS node needs to be running.

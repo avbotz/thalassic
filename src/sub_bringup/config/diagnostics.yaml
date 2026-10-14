@@ -2,7 +2,7 @@
 # overall level on /diagnostics_toplevel_state), for Foxglove's diagnostics panel
 # and `ros2 run sub_bringup preflight`. An item that stops reporting for `timeout` seconds
 # turns stale, so a dead driver shows up even though it can no longer say so.
-# Names are "<node name>: <task>" (diagnostic_updater) or the node name (sub_vision).
+# Names are "<node name>: <task>" (diagnostic_updater).
 # diagnostics_vehicle.yaml adds the hardware drivers on the vehicle (an empty
 # group would read as stale in the simulator).
 /**:

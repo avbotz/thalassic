@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -44,6 +45,11 @@ class MissionTest : public ::testing::Test {
         node = std::make_shared<MissionNode>();
         node->killed = false;
         node->registerNodes(factory);
+        registerTrees();
+    }
+
+    // Every packaged tree and mission, as `mission` registers them.
+    void registerTrees() {
         for (const char *directory : {"trees", "missions"}) {
             for (const auto &entry : std::filesystem::directory_iterator(RESOURCES / directory)) {
                 factory.registerBehaviorTreeFromFile(entry.path());
@@ -867,7 +873,7 @@ TEST_F(MissionTest, UnknownCameraFailsAtStart) {
 TEST_F(MissionTest, YawAlignmentRefusesTheDownCamera) {
     auto t = tree(R"(<AlignToDetection camera="down" task="bin"/>)");
     EXPECT_EQ(t.tickOnce(), BT::NodeStatus::FAILURE);
-    auto s = tree(R"(<SweepCheck camera="down" task="bin"/>)");
+    auto s = tree(R"(<SubTree ID="SweepCheck" camera="down" task="bin" class_id=""/>)");
     EXPECT_EQ(s.tickOnce(), BT::NodeStatus::FAILURE);
 }
 
@@ -886,7 +892,7 @@ TEST_F(MissionTest, MissingFilterEntryFails) {
 }
 
 TEST_F(MissionTest, SweepCheckAveragesTheYawEachFrameWasSeenFrom) {
-    auto t = tree(R"(<SweepCheck task="gate" attempts="2"/>)");
+    auto t = tree(R"(<SubTree ID="SweepCheck" task="gate" class_id="" attempts="2"/>)");
     EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING);  // yaw step 0
     arrive();
     EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING);  // arrived: sampling
@@ -895,8 +901,130 @@ TEST_F(MissionTest, SweepCheckAveragesTheYawEachFrameWasSeenFrom) {
     EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING);
     node->measured_att[2] = 0.0;
     frame("front", "gate", {{"0", 0.9, 0.05}});
-    EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING);
+    EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING);  // turning to it
     EXPECT_NEAR(node->commanded_att[2], -0.05, 1e-6);
+    arrive();
+    EXPECT_EQ(t.tickOnce(), BT::NodeStatus::SUCCESS);
+}
+
+TEST_F(MissionTest, ForwardSweepAlignMovesAheadOnlyBetweenSweeps) {
+    // Nothing in view: two sweeps with one move ahead between them, then
+    // FAILURE, facing the way it started.
+    auto two = tree(R"(<SubTree ID="ForwardSweepAlign" task="gate" class_id="" num_sweeps="2" forward_step="1.5"
+                                sample_timeout_msec="10.0"/>)");
+    EXPECT_EQ(run(two, true), BT::NodeStatus::FAILURE);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.5);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[1], 0.0);
+    EXPECT_NEAR(node->commanded_att[2], 0.0, 1e-9);
+
+    // A single sweep does not move at all.
+    auto one = tree(R"(<SubTree ID="ForwardSweepAlign" task="gate" class_id="" num_sweeps="1" forward_step="1.5"
+                                sample_timeout_msec="10.0"/>)");
+    EXPECT_EQ(run(one, true), BT::NodeStatus::FAILURE);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.5);
+}
+
+TEST_F(MissionTest, ForwardSweepAlignTurnsToATargetFoundAfterAMove) {
+    auto t = tree(R"(<SubTree ID="ForwardSweepAlign" task="gate" class_id="" attempts="2" num_sweeps="3"
+                              forward_step="1.0" sample_timeout_msec="10.0"/>)");
+    // The first sweep sees nothing; on to the move ahead.
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    BT::NodeStatus status = t.tickOnce();
+    while (status == BT::NodeStatus::RUNNING && std::isnan(node->commanded_pos[0]) &&
+           std::chrono::steady_clock::now() < deadline) {
+        arrive();
+        std::this_thread::sleep_for(5ms);
+        status = t.tickOnce();
+    }
+    ASSERT_EQ(status, BT::NodeStatus::RUNNING);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.0);
+    // The second sweep sees it 0.1 rad right of its first heading.
+    EXPECT_EQ(watch(t, "front", "gate", {{"0", 0.9, 0.1}}), BT::NodeStatus::SUCCESS);
+    EXPECT_NEAR(node->commanded_att[2], -0.1, 1e-6);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.0);
+}
+
+TEST_F(MissionTest, ForwardSweepAlignStopsWhenAMoveDoesNotArrive) {
+    // The turns arrive and the move ahead does not: FAILURE once it times
+    // out, without another move from its target or another sweep.
+    auto t = tree(R"(<SubTree ID="ForwardSweepAlign" task="gate" class_id="" num_sweeps="3" forward_step="1.0"
+                              sample_timeout_msec="10.0" move_timeout_msec="300"/>)");
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    BT::NodeStatus status = t.tickOnce();
+    while (status == BT::NodeStatus::RUNNING && std::chrono::steady_clock::now() < deadline) {
+        node->control_errors[8] = 0.0;  // a control/error with only the yaw on target
+        ++node->control_error_updates[8];
+        std::this_thread::sleep_for(5ms);
+        status = t.tickOnce();
+    }
+    EXPECT_EQ(status, BT::NodeStatus::FAILURE);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.0);
+}
+
+TEST_F(MissionTest, DownPatternScanVisitsThePointsAroundTheStartThenReturns) {
+    // Facing odom +y from (1, 2): forward is +y and left is -x. Nothing in
+    // view: each point, (forward, left) of the start in movement_dist, then
+    // back to the start, and FAILURE.
+    node->commanded_pos = {1.0, 2.0, -1.0};
+    node->commanded_att[2] = M_PI_2;
+    auto t = tree(R"(<SubTree ID="DownPatternScan" task="bin" class_id="" movement_dist="0.5"
+                              sample_timeout_msec="10"/>)");
+    std::vector<std::array<double, 2>> targets;
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    BT::NodeStatus status = t.tickOnce();
+    while (std::chrono::steady_clock::now() < deadline) {
+        const std::array<double, 2> target = {node->commanded_pos[0], node->commanded_pos[1]};
+        if (target != std::array<double, 2>{1.0, 2.0} && (targets.empty() || targets.back() != target)) {
+            targets.push_back(target);
+        }
+        if (status != BT::NodeStatus::RUNNING) {
+            break;
+        }
+        arrive();
+        std::this_thread::sleep_for(5ms);
+        status = t.tickOnce();
+    }
+    EXPECT_EQ(status, BT::NodeStatus::FAILURE);
+    const std::vector<std::array<double, 2>> pattern = {{-1.0, -1.0}, {0.0, 2.0}, {2.0, 0.0}, {0.0, -2.0}, {-1.0, 1.0}};
+    ASSERT_EQ(targets.size(), pattern.size());
+    for (std::size_t i = 0; i < pattern.size(); ++i) {
+        EXPECT_NEAR(targets[i][0], 1.0 - 0.5 * pattern[i][1], 1e-9) << i;
+        EXPECT_NEAR(targets[i][1], 2.0 + 0.5 * pattern[i][0], 1e-9) << i;
+    }
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], 1.0);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[1], 2.0);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[2], -1.0);
+}
+
+TEST_F(MissionTest, DownPatternScanStopsWhereItSeesTheTarget) {
+    auto t = tree(R"(<SubTree ID="DownPatternScan" task="bin" class_id="" movement_dist="1.0"
+                              sample_timeout_msec="300"/>)");
+    // Nothing at the start; on to the first point, back and to the right.
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    BT::NodeStatus status = t.tickOnce();
+    while (status == BT::NodeStatus::RUNNING && std::isnan(node->commanded_pos[0]) &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(5ms);
+        status = t.tickOnce();
+    }
+    ASSERT_EQ(status, BT::NodeStatus::RUNNING);
+    EXPECT_EQ(watch(t, "down", "bin", {{"0", 0.9, 0.0}}), BT::NodeStatus::SUCCESS);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[0], -1.0);
+    EXPECT_DOUBLE_EQ(node->commanded_pos[1], -1.0);
+}
+
+TEST_F(MissionTest, SearchSubTreesNeedATaskAndAClass) {
+    // Neither has a default, so a SubTree without one fails to load;
+    // class_id="" takes any class. A SubTree takes class_id="0" as a number,
+    // which no detection filter does: the trees give one from a Script.
+    for (const char *body : {
+             R"(<SubTree ID="SweepCheck" task="gate"/>)",
+             R"(<SubTree ID="ForwardSweepAlign" class_id=""/>)",
+             R"(<SubTree ID="DownPatternScan" task="bin"/>)",
+             R"(<SubTree ID="SweepCheck" task="gate" class_id="0"/>)",
+         }) {
+        EXPECT_THROW(tree(body), BT::RuntimeError) << body;
+    }
 }
 
 TEST_F(MissionTest, InvalidSettingsFailAtStart) {
@@ -912,7 +1040,6 @@ TEST_F(MissionTest, InvalidSettingsFailAtStart) {
              R"(<SweepAngle task="slalom" sample_timeout_msec="nan" yaw="{@w}"/>)",
              R"(<SweepAngle camera="down" task="slalom" yaw="{@w}"/>)",
              R"(<SweepAngle camera="side" task="slalom" yaw="{@w}"/>)",
-             R"(<DownPatternScan task="bin" class_id="{nope}"/>)",
              R"(<SquareUpToGate task="gate" class_id="8" max_slant_deg="90"/>)",
              R"(<SquareUpToGate task="gate" class_id="8" standoff="0"/>)",
              R"(<SquareUpToGate task="gate"/>)",
@@ -931,7 +1058,14 @@ TEST_F(MissionTest, PackagedTreeSettingsStart) {
     for (const char *body : {
              R"(<DownForwardSweepAlign task="torp_fire_blood" class_id="1" min_score="0.35" max_dist="20.0"
                                        forward_step="0.5" timeout_msec="15000"/>)",
-             R"(<DownPatternScan task="torp_fire_blood" class_id="1" min_score="0.35" movement_dist="1.65"/>)",
+             R"(<Sequence><Script code="bin_class := '1'"/>
+                 <SubTree ID="DownPatternScan" task="torp_fire_blood" class_id="{bin_class}" min_score="0.35"
+                          movement_dist="1.65"/></Sequence>)",
+             R"(<SubTree ID="SweepCheck" task="octagon_table" class_id="" min_score="0.6" attempts="4"
+                         sample_timeout_msec="3000.0"/>)",
+             R"(<Sequence><Script code="fire_class := '0'"/>
+                 <SubTree ID="ForwardSweepAlign" task="torp_fire_blood" class_id="{fire_class}" min_score="0.2"
+                          attempts="2" num_sweeps="4" forward_step="1.0"/></Sequence>)",
              R"(<DownContinuousAlign task="torp_fire_blood" class_id="1" min_score="0.45" tolerance="0.35"
                                      orient="false" min_msec="2500" timeout_msec="30000"/>)",
              R"(<ForwardContinuousAlign task="octagon_table" min_score="0.5" max_dist="20.0" forward_velocity="1.0"
@@ -953,6 +1087,7 @@ TEST_F(MissionTest, PackagedTreeSettingsStart) {
                                 target_offset_left="0.0" timeout_msec="60000"/>)",
          }) {
         factory.clearRegisteredBehaviorTrees();
+        registerTrees();
         auto t = tree(body);
         EXPECT_EQ(t.tickOnce(), BT::NodeStatus::RUNNING) << body;
         t.haltTree();
