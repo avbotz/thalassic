@@ -85,7 +85,7 @@ Nothing declares it automatically, as on the vehicle: the integrators take up it
 
 ### Cameras
 
-The front and down cameras are always simulated, where the vehicle description mounts them and as the real ones: the front camera (Logitech C922) at 1920 × 1080, 24 Hz and a 70.4° horizontal field of view, the down camera (FLIR Blackfly S) at 1280 × 1024 and 5 Hz. Stonefish publishes them on `image_color`, the vehicle's drivers on `image_raw`. The depth camera (`sim/depth_camera`) is added with `depth_camera:=true`, and the segmentation camera (`sim/segment`) with `segmentation_camera:=true`, whose images the bag records as training labels for [remora](../../remora/README.md): nothing in the stack reads either, and every camera costs GPU time (see [Performance](#performance)).
+The front and down cameras are always simulated, where the vehicle description mounts them and as the real ones: the front camera (Logitech C922) at 1920 × 1080, 24 Hz and a 70.4° horizontal field of view, the down camera (FLIR Blackfly S) at 1280 × 1024 and 5 Hz. Each publishes `image_raw` and `camera_info` under its name, as the vehicle's drivers do. The depth camera (`sim/depth_camera`) is added with `depth_camera:=true`, and the segmentation camera (`sim/segment`) with `segmentation_camera:=true`, whose images the bag records as training labels for [remora](../../remora/README.md): nothing in the stack reads either, and every camera costs GPU time (see [Performance](#performance)).
 
 ### Droppers
 

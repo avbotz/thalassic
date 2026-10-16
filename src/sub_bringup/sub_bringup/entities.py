@@ -146,9 +146,9 @@ def common_launch_include(**defaults: str) -> list:
 
 
 def vision_entities(
-    image_topic: str, parameters: dict | None = None, front_parameters: dict | None = None
+    parameters: dict | None = None, front_parameters: dict | None = None
 ) -> list[Node]:
-    """A sub_vision node per camera, reading <camera>/<image_topic>.
+    """A sub_vision node per camera, reading <camera>/image_raw.
 
     sub_mission finds each camera's instance by its name and detections topic
     (sub_mission/src/vision_client.cpp): sub_vision publishes vision/detections
@@ -161,7 +161,7 @@ def vision_entities(
         ("front_camera", "", front_parameters),
         ("down_camera", "_down", None),
     ):
-        image = f"{camera}/{image_topic}"
+        image = f"{camera}/image_raw"
         detections = f"vision/detections{suffix}"
         entities.append(
             Node(
@@ -190,8 +190,8 @@ def compressed_parameter(node_namespace: str, image_topic: str, name: str, value
 
     compressed_image_transport names each publisher's parameters after its image
     topic with the first len(node namespace) characters cut off, whether or not
-    the topic is in that namespace, and dots for slashes: /marlin_v3/front_camera/image_color
-    published from /stonefish_ros2 is t_camera.image_color.compressed.<name>.
+    the topic is in that namespace, and dots for slashes: /marlin_v3/front_camera/image_raw
+    published from /stonefish_ros2 is t_camera.image_raw.compressed.<name>.
     """
     namespace = "/" + node_namespace.strip("/")
     return {image_topic[len(namespace) :].replace("/", ".") + f".compressed.{name}": value}

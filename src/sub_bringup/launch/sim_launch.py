@@ -158,12 +158,12 @@ def _stonefish(context, *_, **__):
                     # physics thread at a cost per subscriber. A whole number of physics
                     # steps, into which the 50 Hz control and EKF periods divide evenly.
                     "state_publish_rate": 250.0,
-                    # The cameras' JPEG copies (image_color/compressed), which the bag
+                    # The cameras' JPEG copies (image_raw/compressed), which the bag
                     # records and Foxglove shows.
                     **jpeg_quality(
                         "stonefish_ros2",
                         [
-                            f"/{robot_name}/{camera}/image_color"
+                            f"/{robot_name}/{camera}/image_raw"
                             for camera in ("front_camera", "down_camera")
                         ],
                     ),
@@ -368,18 +368,17 @@ def generate_launch_description():
                 gains="control/gains_sim.yaml", use_sim_time="true", foxglove_compression="false"
             ),
             *sim_entities(),
-            # Stonefish publishes both cameras as rgb8 on image_color; cv_bridge
-            # converts to bgr8 inside the node, so no bridge is needed.
+            # Stonefish publishes both cameras as rgb8; cv_bridge converts to
+            # bgr8 inside the node, so no bridge is needed.
             *vision_entities(
-                "image_color",
                 front_parameters={"depth_enabled": vision_depth, "depth_debug": vision_depth},
             ),
             # After sim_entities(), which picks the seed the bag records.
             recorder(
                 exclude=[
-                    # Recorded as JPEG (image_color/compressed): a tenth the size or less.
-                    "front_camera/image_color",
-                    "down_camera/image_color",
+                    # Recorded as JPEG (image_raw/compressed): a tenth the size or less.
+                    "front_camera/image_raw",
+                    "down_camera/image_raw",
                     # vision_depth's maps, about 6 MB a frame, for viewing.
                     "sub_vision.*/depth(/color)?",
                     # The bag's timestamps are already sim time.

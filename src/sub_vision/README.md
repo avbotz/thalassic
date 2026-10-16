@@ -44,13 +44,13 @@ All topics are relative to the node namespace (e.g. `/marlin_v3`):
 | **out:** `~/depth`, `~/depth/color` | `sensor_msgs/Image` | relative depth (32FC1) and a Turbo view (bgr8), only with `depth_debug` |
 
 `sim_launch.py` and `pool_test_launch.py` each run one instance per camera
-from the shared `config/sub_vision.yaml`, setting the topics (`vision_node` in
+from the shared `config/sub_vision.yaml`, setting the topics (`vision_entities` in
 `sub_bringup/entities.py`):
 
-| Node | Camera | `rgb_topic` (sim / vehicle) | `detections_topic` |
+| Node | Camera | `rgb_topic` | `detections_topic` |
 | --- | --- | --- | --- |
-| `sub_vision` | front | `front_camera/image_color` / `front_camera/image_raw` | `vision/detections` |
-| `sub_vision_down` | down | `down_camera/image_color` / `down_camera/image_raw` | `vision/detections_down` |
+| `sub_vision` | front | `front_camera/image_raw` | `vision/detections` |
+| `sub_vision_down` | down | `down_camera/image_raw` | `vision/detections_down` |
 
 The depth camera is **not** used: `sub_vision` subscribes to RGB only.
 Bounding boxes, bearings, and `pose` are expressed in the camera **optical**

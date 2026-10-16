@@ -2,12 +2,12 @@
   "configById": {
     "AVBotz Teleop.6-DOF Teleop!pilot": {},
     "AVBotz Vision.Detections!front": {
-      "imageTopic": "/marlin_v3/front_camera/image_color/compressed",
+      "imageTopic": "/marlin_v3/front_camera/image_raw/compressed",
       "detectionsTopic": "/marlin_v3/vision/detections",
       "mode": "all"
     },
     "AVBotz Vision.Detections!down": {
-      "imageTopic": "/marlin_v3/down_camera/image_color/compressed",
+      "imageTopic": "/marlin_v3/down_camera/image_raw/compressed",
       "detectionsTopic": "/marlin_v3/vision/detections_down",
       "mode": "all"
     },

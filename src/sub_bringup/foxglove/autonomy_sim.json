@@ -99,11 +99,11 @@
       "fallbackColor": "#ef6c00"
     },
     "AVBotz Vision.Detections!front": {
-      "imageTopic": "/marlin_v3/front_camera/image_color/compressed",
+      "imageTopic": "/marlin_v3/front_camera/image_raw/compressed",
       "detectionsTopic": "/marlin_v3/vision/detections"
     },
     "AVBotz Vision.Detections!down": {
-      "imageTopic": "/marlin_v3/down_camera/image_color/compressed",
+      "imageTopic": "/marlin_v3/down_camera/image_raw/compressed",
       "detectionsTopic": "/marlin_v3/vision/detections_down"
     },
     "AVBotz Tuning.Controller Signals!z": {

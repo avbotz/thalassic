@@ -27,7 +27,7 @@ Every topic as it was published, including `/tf_static`, `/rosout` (every node's
 
 | Left out | Why |
 |---|---|
-| Raw colour camera images (`front_camera/image_color` and `down_camera/image_color` in the sim, `front_camera/image_raw` on the vehicle) | Recorded as JPEG instead: the `<image>/compressed` copy that image_transport publishes beside them |
+| Raw colour camera images (`front_camera/image_raw`, and in the sim `down_camera/image_raw`) | Recorded as JPEG instead: the `<image>/compressed` copy that image_transport publishes beside them |
 | image_transport's `theora`, `zstd` and `compressedDepth` copies | The same images again |
 | `sub_vision/depth`, `sub_vision/depth/color` (in the sim with `vision_depth:=true`) | Depth Anything's maps, for viewing: about 6 MB a frame |
 | `/clock` (sim) | The bag's timestamps are already sim time; `ros2 bag play --clock` publishes it again |

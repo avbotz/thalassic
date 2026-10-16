@@ -53,11 +53,10 @@ LEVELS = {
 }
 
 
-def rates(sim: bool) -> list[Rate]:
+def rates() -> list[Rate]:
     # Well under each stream's rate (IMU 50 Hz, 30 in the simulator; depth 5; DVL
     # 4-15; control 50; cameras 24 and 5): these catch a dead or collapsing
     # stream, not a few hertz of jitter.
-    image = "image_color" if sim else "image_raw"
     return [
         Rate("imu/data", Imu, 20.0),
         Rate("odometry/depth", Odometry, 3.0),
@@ -65,8 +64,8 @@ def rates(sim: bool) -> list[Rate]:
         # The EKF publishes as measurements arrive: about the IMU's rate.
         Rate("odometry/filtered", Odometry, 20.0),
         Rate("control/thrusters", ThrusterCommand, 30.0),
-        Rate(f"front_camera/{image}", Image, 5.0),
-        Rate(f"down_camera/{image}", Image, 2.0),
+        Rate("front_camera/image_raw", Image, 5.0),
+        Rate("down_camera/image_raw", Image, 2.0),
     ]
 
 
@@ -78,7 +77,7 @@ class Preflight(Node):
             namespace=f"/{robot}",
             parameter_overrides=[Parameter("use_sim_time", value=sim)],
         )
-        self.rates = rates(sim)
+        self.rates = rates()
         for rate in self.rates:
             # Raw: counting needs no deserialising, and the images are large.
             self.create_subscription(

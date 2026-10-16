@@ -16,7 +16,7 @@ The panels that drive and tune `sub_control` and show `sub_vision`'s detections 
 | `tuning` | [Tuning `sub_control`](control.md#tuning) | Controller Gains and Tuning Routines; a tab per axis with Controller Signals graphs (target / reference / measured, tracking error, wrench / disturbance); the thruster commands; diagnostics and the log |
 | `autonomy` | Watching a mission run | Arming, kill, failsafe and sensor state; both cameras with the detections, on the frames the detector processed; depth and heading graphs; a top-down map in odom; the position error and each axis's mode over time; the log, diagnostics, Motion Setpoint (to take over: *Hold* stops the vehicle) and the raw detections in tabs |
 
-The `_sim` and `_vehicle` files differ in what the cameras publish (the simulator `image_color`, the vehicle `image_raw`; the layouts show each camera's JPEG copy), and the simulator's add **KILL** and **RELEASE** buttons for its kill switch (`sim/kill_switch`) and the robot model on the map. The vehicle's down camera sends a Bayer mosaic, which its JPEG copy stores as a grey image; for colour, add an Image panel on `down_camera/image_raw`.
+The `_sim` files add **KILL** and **RELEASE** buttons for the simulator's kill switch (`sim/kill_switch`) and the robot model on the map. The vehicle's down camera sends a Bayer mosaic, which its JPEG copy stores as a grey image; for colour, add an Image panel on `down_camera/image_raw`.
 
 ### Changing them
 
