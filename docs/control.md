@@ -162,8 +162,8 @@ Even an *undeclared* failure is ridden through: the integrators take up the miss
 | No depth for `safety.depth_timeout` | z feedback and the buoyancy hold off: the vehicle floats up. An `EFFORT` axis still gets exactly its effort |
 | No DVL altitude for `safety.altitude_timeout` while holding altitude | Holds depth instead |
 | `cmd_vel` stream stops for `safety.cmd_vel_timeout` | Those axes stop and hold |
-| `sub_control` stops publishing, or its commands arrive late | `sub_low` (in the simulator `sim_thrusters`) stops all thrusters after its `command_timeout` (0.5 s), and ignores a command older than that |
-| `sub_low` or the USB link dies | The board's own watchdog stops every thruster after 0.5 s without a command; `sub_low` reopens the port when it can, stopping the thrusters first |
+| `sub_control` stops publishing, or `sub_low` or the USB link dies | The board's own watchdog stops every thruster after 0.5 s without a command (in the simulator `sim_thrusters` does, after its `command_timeout`); `sub_low` reopens the port when it can, stopping the thrusters first |
+| `sub_control`'s commands arrive late | `sub_low` (in the simulator `sim_thrusters`) ignores a command older than its `command_timeout` (0.5 s), so the board's watchdog stops the thrusters if no fresh one follows |
 | The board's main loop stalls | Its hardware watchdog resets it after 1 s, which stops the thruster PWM. After any board reset it stays killed until the kill switch is cycled |
 | Thruster fails | See [Thruster failure](#thruster-failure) |
 

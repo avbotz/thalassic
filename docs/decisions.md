@@ -164,6 +164,6 @@ The `ament_lint_auto` blocks are gone from our packages, and `colcon.meta` build
 
 **Was:** eight unstamped `std_msgs/Float64` topics (`control/thruster_0`..`7`) and eight `p` lines to the board per control cycle, each its own callback.
 
-**Now:** `control/thrusters` (`sub_control_interfaces/ThrusterCommand`, a header and eight commands) and one `m` line, once the board's heartbeat says it speaks protocol 2; `sub_low` still sends `p` lines to older firmware.
+**Now:** `control/thrusters` (`sub_control_interfaces/ThrusterCommand`, a header and eight commands) and one `m` line (protocol 2). `sub_low` no longer speaks older firmware: it relies on protocol 2's command watchdog to stop the thrusters when the commands stop.
 
 **Why:** a cycle's eight commands now arrive together or not at all, so a dropped message cannot leave one thruster a cycle behind the rest; the stamp lets `sub_low` and the simulator refuse commands that arrive late; and the board's ten-line command queue no longer fills when its loop is busy (ten lines is 25 ms of `p` lines at 50 Hz).

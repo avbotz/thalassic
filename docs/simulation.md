@@ -27,7 +27,6 @@ The Jinja2 pool scenario (`woollett.scn.j2`) has access to these helpers:
 | `rand(a, b)` | `uniform(a, b)` |
 | `choose(options)` | Pick one item at random |
 | `DX`, `DY`, `DZ`, `DYAW` | Per-axis fuzz magnitudes passed from launch args |
-| `current` | Uniform water current, NED `"x y z"` m/s, converted from the ENU `current` launch argument |
 | `course` | The dock the robot starts from (`A`, `B1`, `C1` or `D`), from the `course` launch argument |
 | `render_robot(x, y, z, roll, pitch, yaw)` | Renders the robot at that pose and returns the `.scn` path to `<include>` |
 | `PI` | `math.pi` |
@@ -44,7 +43,7 @@ Use `seed` in the launch argument to get reproducible scenarios. Without one, th
 | `robot_state_publisher` | `robot_state_publisher` | Publishes the URDF on `robot_description`. Nothing publishes the `joint_states` it reads (Stonefish's are on `sim/joint_states`), so it publishes no TF; the grabber and dropper frames come from `static_transforms` |
 | `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `odometry/dvl` (velocity only) and `altitude` |
 | `sim_pressure_to_depth` | `sub_sim_sensors` | `sim/pressure` → `odometry/depth` (ENU z), as `sub_low` reports it on the vehicle |
-| `sim_thrusters` | `sub_sim_sensors` | `control/thrusters` → Stonefish, with ESC lag, `sub_low`'s command watchdog and fault injection |
+| `sim_thrusters` | `sub_sim_sensors` | `control/thrusters` → Stonefish, with ESC lag, the board's command watchdog and fault injection |
 | `sim_imu_remapper` | `sub_sim_sensors` | Stonefish NED IMU → ENU `imu/data` |
 | `sim_kill_switch` | `sub_sim_sensors` | `sim/kill_switch` → `kill_switch` after startup delay (`off_delay`; 0 starts released) |
 | `sim_torpedo_launcher` | `sub_sim_sensors` | Torpedo launch service |
@@ -99,7 +98,7 @@ Fixed in `sim_launch.py`:
 |---|---|
 | `simulation_rate` | 500 Hz |
 | `publish_clock` | true: every node runs on the simulation's `/clock` (`use_sim_time`) |
-| `state_publish_rate` | 250 Hz: `/clock` and the robot's joint and thruster states |
+| `state_publish_rate` | 100 Hz: `/clock` and the robot's joint and thruster states |
 | `OMP_WAIT_POLICY` | `PASSIVE`, for every node |
 | Fast DDS profile | `config/stonefish_fastdds.xml`, for Stonefish only: a 64 MB shared-memory segment for the camera images |
 
@@ -122,14 +121,15 @@ Launch arguments:
 
 ## Performance
 
-The simulation keeps real time (`/clock` advancing one second per second) on a laptop with integrated graphics. What limits it:
+The simulation keeps real time (`/clock` advancing one second per second) on a laptop with integrated graphics, and the cameras keep their rates evenly: on a Radeon 780M (October 2026, `balanced` power profile, Foxglove connected) the front camera's frames arrived 41.7 ms apart on average, 50 ms at the 99th percentile, with 1 of 2146 late. What limits it:
 
-- **Physics** runs on its own thread, paced by the wall clock: when a step cannot finish in time, Stonefish drops the time and warns *Simulation cannot keep up with real time*. A 500 Hz step takes about 1 ms. The octagon's bottles and ladles, resting on the table, cost as much as everything else together until they settle and sleep (`sleeping_thresholds` in `layout.scn.j2`). `/clock` and the robot's state are published from this thread, at a cost per subscriber, so they go out at `state_publish_rate` rather than every step.
-- **Cameras** are rendered on the main thread, which draws the window and *one* camera each frame, so a camera's rate is the window's frame rate divided by the number of cameras. The frame rate is set by the GPU: shrinking the window, `rendering_quality:=low` (which changes the camera images too) or fewer cameras all raise it. Keep the robot's visual meshes low-poly; they are drawn in every view and shadow pass.
-- **Other nodes** compete for the same cores. OpenCV's OpenMP workers (in `cv_bridge` and the compressed image transport) spin between frames unless `OMP_WAIT_POLICY=PASSIVE`, which took several cores from the physics thread.
+- **Physics** runs on its own thread, paced by the wall clock: when a step cannot finish in time, Stonefish drops the time and warns *Simulation cannot keep up with real time*. A 500 Hz step takes about 1 ms. The octagon's bottles and ladles, resting on the table, cost as much as everything else together until they settle and sleep (`sleeping_thresholds` in `layout.scn.j2`). `/clock` and the robot's state are published from this thread, at a cost per subscriber, so they go out at `state_publish_rate` rather than every step. Every node on sim time subscribes to `/clock`, which at 250 Hz took a Python node 20% of a core, so it is 100 Hz, the fastest any node needs (the thruster setpoints).
+- **Cameras** are rendered on the main thread, which renders one camera per frame as it becomes due (it checks every 4 ms and renders nothing when nothing is due). The fastest camera sets the pace: the slower cameras and the window are rendered in the gap right after its frames, so they do not delay its next one, and the window is redrawn at most 20 times a second (at least 5) while cameras run. The GPU sets how much fits: a front-camera frame takes about 20 ms on the 780M, which the power limit keeps at its lowest clock, 800 MHz, while the CPU is busy (the `performance` power profile did not raise it). Shrinking the window, `rendering_quality:=low` (which changes the camera images too) or fewer cameras all leave more room. Keep the robot's visual meshes low-poly; they are drawn in every view and in each of the four shadow passes.
+- **Unused work is skipped.** A camera nobody subscribes to (in any transport) is not rendered; its `camera_info` keeps its rate. `sub_vision` subscribes its camera only once a model is loaded, so with no model, no Foxglove camera panel and no recording, the GPU only draws the window: at most 30 times a second, and not at all while it is minimized.
+- **Other nodes** compete for the same cores. ONNX Runtime on the CPU runs 4 sleeping threads instead of a spinning one per core (see `sub_vision`'s README). The sensor container runs a single-threaded executor and the Foxglove bridge 2 threads with `sysinfo` off: by default each runs a thread per core, which took 13% and 11% of a core while idle. Nodes that do not read the clock (`static_transforms`, the sensor remappers) are not on sim time. OpenCV's OpenMP workers (in `cv_bridge` and the compressed image transport) spin between frames unless `OMP_WAIT_POLICY=PASSIVE`, which took several cores from the physics thread.
 - **Images between processes** go through Fast DDS shared memory, as ~64 KB fragments in the publisher's segment. The default segment is 512 KB, and a raw front-camera frame is 6.2 MB: it was overwritten before subscribers read it, so best-effort subscribers (`sub_vision`) got half the frames and reliable ones (the Foxglove bridge) waited hundreds of milliseconds for repairs, making the cameras stutter and lag in Foxglove. Stonefish therefore runs with its own profile and a 64 MB segment (see the comment in `stonefish_fastdds.xml`). It publishes the camera images; the other nodes' images (`vision_depth`'s maps) are for viewing and keep the default.
 
-Our Stonefish fork adds to this: the physics thread never waits for the renderer, camera images are published on their own thread (so a Foxglove client subscribing to `.../compressed` costs no frame rate), and actuator setpoints are handled on their own thread, a few milliseconds after they are published rather than after the frame being rendered.
+Our Stonefish fork adds to this: the physics thread never waits for the renderer, camera images are published on their own thread (so a Foxglove client subscribing to `.../compressed` costs no frame rate), and actuator setpoints are handled on their own thread, a few milliseconds after they are published rather than after the frame being rendered. For the frame time it also computes the caustics only for the cameras, at most 30 times a second and only down to the pool's `<bottom>`, skips the wave simulation of a flat surface and the screen-space reflections a flat surface does not need, renders the surface's mirror image without the sun's shadows, and takes fewer shadow samples; it draws each mesh with its own index count, where Stonefish drew four times as many indices.
 
 ## Task Models
 

@@ -80,7 +80,7 @@ With it, a brownout in the water leaves the stack coming back up on its own, wai
 
 ### maritime
 
-The thruster board runs [maritime](https://github.com/avbotz/maritime). `sub_low` speaks both its protocols, but only firmware with protocol 2 has the command watchdog, the hardware watchdog and the heartbeat: `/diagnostics_agg` warns "no heartbeat from the board" until the board is flashed with it. Build and flash it as maritime's README says (`west build -b rpi_pico`, then `west flash -r uf2`, or copy `build/zephyr/zephyr.uf2` to the board in BOOTSEL mode).
+The thruster board runs [maritime](https://github.com/avbotz/maritime). `sub_low` needs firmware with protocol 2: older firmware does not understand its `m` thruster lines and has no command watchdog to stop the thrusters when the commands stop. `/diagnostics_agg` shows the protocol the board reports under `sub_low: board`. Build and flash it as maritime's README says (`west build -b rpi_pico`, then `west flash -r uf2`, or copy `build/zephyr/zephyr.uf2` to the board in BOOTSEL mode).
 
 On the vehicle a mission runs under `sub_mission`'s restart supervisor ([mission.md](mission.md#restart-supervisor)): pulling the kill switch stops it, and releasing it starts it again from the beginning, so a botched run is rerun by carrying the vehicle back to the start. `restart:=false` runs it once, as the simulator does.
 
