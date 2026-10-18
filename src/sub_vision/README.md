@@ -66,6 +66,11 @@ directly; `compressed` subscribes `<rgb_topic>/compressed`
 e.g. running vision on a laptop against the sub's cameras. Any other value
 fails fast at startup.
 
+Frames are only subscribed once a model is loaded (`CameraInfo` always is): a raw
+frame costs its conversion to a Python message even when the callback drops it,
+and with no model loaded that took 40% of a core. The simulator in turn does not
+render a camera nobody subscribes to.
+
 ---
 
 ## Loading / swapping models live
@@ -126,7 +131,11 @@ Selection, per the `device` param (`backends.open_runner`):
    for the current ONNX file; it never falls back to the CPU.
    `pool_test_launch.py` sets it for the vehicle.
 2. `cuda` and `cpu` run the ONNX file in ONNX Runtime; `cuda` uses the CPU
-   when ONNX Runtime has no CUDA provider (the default pixi environment).
+   when ONNX Runtime has no CUDA provider (the default pixi environment). On the
+   CPU it runs 4 threads that sleep between operators (`CPU_THREADS` in
+   `backends.py`): its default, a spinning thread per core, kept 7.7 cores busy for
+   the gate model at 24 Hz on the dev laptop, against 2.7 for 35 ms instead of 25
+   per frame.
 3. `auto` (default) is `tensorrt` where the `tensorrt` module imports (the
    Jetson), else `cuda`.
 4. `Detector` owns all pre/post processing: letterbox to the square network

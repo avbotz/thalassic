@@ -22,6 +22,9 @@ DEVICES = ("auto", "cpu", "cuda", "tensorrt")
 NMS_IOU_THRESHOLD = 0.45
 _PAD_COLOR = (114, 114, 114)
 
+# Threads of ONNX Runtime on the CPU (see OnnxRunner)
+CPU_THREADS = 4
+
 # An engine file starts with the ONNX export's metadata as JSON, after its length as a
 # little-endian uint32, then holds the serialized engine: TensorRT keeps no metadata of its own.
 _HEADER_LEN = struct.Struct("<I")
@@ -206,20 +209,31 @@ class Detector:
 
         orig_h, orig_w = orig_hw
         pad_x, pad_y = pad
-        unpadded_w, unpadded_h = int(round(orig_w * gain)), int(round(orig_h * gain))
+        # Prototype pixels per model-input pixel
+        scale_x, scale_y = proto.shape[2] / self.input_size, proto.shape[1] / self.input_size
         masks: list[np.ndarray | None] = []
         for prob, box in zip(probs, dets[:, :4], strict=True):
-            prob = cv2.resize(
-                prob, (self.input_size, self.input_size), interpolation=cv2.INTER_LINEAR
-            )
-            prob = prob[pad_y : pad_y + unpadded_h, pad_x : pad_x + unpadded_w]
-            if prob.shape != (unpadded_h, unpadded_w):
-                masks.append(None)
-                continue
-            prob = cv2.resize(prob, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
             mask = np.zeros((orig_h, orig_w), dtype=np.uint8)
             x0, y0, x1, y1 = np.round(box).astype(int)
-            mask[y0:y1, x0:x1] = (prob[y0:y1, x0:x1] >= 0.5).astype(np.uint8) * 255
+            x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, orig_w), min(y1, orig_h)
+            if x1 > x0 and y1 > y0:
+                # The prototypes sampled at the box's pixels only (resizing them to the whole
+                # image took most of the post-processing): each pixel's centre, through the
+                # letterbox, in prototype pixels.
+                to_proto = np.float32(
+                    [
+                        [gain * scale_x, 0.0, ((x0 + 0.5) * gain + pad_x) * scale_x - 0.5],
+                        [0.0, gain * scale_y, ((y0 + 0.5) * gain + pad_y) * scale_y - 0.5],
+                    ]
+                )
+                region = cv2.warpAffine(
+                    prob,
+                    to_proto,
+                    (x1 - x0, y1 - y0),
+                    flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                    borderMode=cv2.BORDER_REPLICATE,
+                )
+                mask[y0:y1, x0:x1] = (region >= 0.5).astype(np.uint8) * 255
             masks.append(mask)
         return tuple(masks)
 
@@ -249,7 +263,14 @@ class OnnxRunner(Runner):
         if device == "cpu":
             wanted = wanted[1:]
         providers = [p for p in wanted if p in ort.get_available_providers()]
-        self._session = ort.InferenceSession(onnx_path, providers=providers)
+        # On the CPU: by default a thread per core, each spinning between operators and frames.
+        # On the laptop that took 7.7 cores for 24 Hz of the gate model, and starved the
+        # simulator; 4 sleeping threads keep 24 Hz (35 ms instead of 25 per frame) on 2.7.
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = CPU_THREADS
+        options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+        self._session = ort.InferenceSession(onnx_path, options, providers=providers)
         # ONNX Runtime falls back to the CPU, with only a warning, when the CUDA provider fails
         cuda = "CUDAExecutionProvider" in self._session.get_providers()
         self.name = f"onnxruntime/{'cuda' if cuda else 'cpu'}"

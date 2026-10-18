@@ -123,15 +123,15 @@ class VisionNode(Node):
         )
 
         rgb_topic = self.get_parameter("rgb_topic").value
-        transport = self.get_parameter("image_transport").value
-        if transport == "compressed":
-            self.create_subscription(
-                CompressedImage, f"{rgb_topic}/compressed", self._on_compressed_frame, FRAME_QOS
-            )
-        elif transport == "raw":
-            self.create_subscription(Image, rgb_topic, self._on_frame, FRAME_QOS)
-        else:
-            raise ValueError(f"unsupported image_transport '{transport}' (raw|compressed)")
+        self._transport = self.get_parameter("image_transport").value
+        if self._transport not in ("raw", "compressed"):
+            raise ValueError(f"unsupported image_transport '{self._transport}' (raw|compressed)")
+        # Frames are subscribed once there is a model to run: rclpy turns every frame into a
+        # Python message before a callback can drop it, which for raw frames with no model
+        # loaded took 40% of a core.
+        self._frame_sub = None
+        if self._depth is not None:
+            self._subscribe_frames()
 
         self._load_srv = self.create_service(LoadModel, "~/load_model", self._on_load_model)
 
@@ -165,11 +165,24 @@ class VisionNode(Node):
         response.load_time_s = float(result.load_time_s)
         return response
 
+    def _subscribe_frames(self) -> None:
+        if self._frame_sub is not None:
+            return
+        rgb_topic = self.get_parameter("rgb_topic").value
+        if self._transport == "compressed":
+            self._frame_sub = self.create_subscription(
+                CompressedImage, f"{rgb_topic}/compressed", self._on_compressed_frame, FRAME_QOS
+            )
+        else:
+            self._frame_sub = self.create_subscription(Image, rgb_topic, self._on_frame, FRAME_QOS)
+
     def _load(self, task: str) -> LoadResult:
         result = self._manager.load(task)
         if not result.success:
             self.get_logger().error(result.message)
-        elif self._detections_diagnostic is None:
+            return result
+        self._subscribe_frames()
+        if self._detections_diagnostic is None:
             self._detections_diagnostic = TopicDiagnostic(
                 "detections",
                 self._diagnostics,
