@@ -537,6 +537,8 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1920" resolution_y="1080" horizontal_fov="70.4" />
+      <!-- Exposed like the real one in the July 2026 Woollett footage -->
+      <rendering exposure_compensation="-0.7" />
       <origin xyz="{{ front.xyz | join(' ') }}" rpy="{{ front.rpy | join(' ') }}" />
       <ros_publisher topic="/marlin_v3/front_camera" />
     </sensor>

@@ -8,10 +8,9 @@
       <water density="1000.0" jerlov="0.20" />
       <waves height="0" ripples="0.05" />
       <particles enabled="false" />
-      <!-- From the `current` launch argument, converted from ENU: NED "x y z" in m/s -->
-      <current type="uniform">
-        <velocity xyz="{{ current }}" />
-      </current>
+      <!-- The pool's floor (bottom.obj): the light it reflects, and the surface reflects
+           back down, is what lights everything that the sun does not -->
+      <bottom depth="2.15" albedo="0.85" />
     </ocean>
 
     <atmosphere>

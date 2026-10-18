@@ -64,7 +64,6 @@ def render(course="D", seed=0, **robot_options):
         DYAW=0.10,
         render_robot=render_robot,
         seed=seed,
-        current="0.03 0.02 0.0",
         course=course,
     )
     return scenario, robots

@@ -102,8 +102,7 @@ void SimThrusters::command_callback(const sub_control_interfaces::msg::ThrusterC
 
 void SimThrusters::publish_setpoints() {
     const rclcpp::Time now = this->now();
-    // sub_control publishes every control cycle, killed or not; if it stops,
-    // so do the thrusters (sub_low's watchdog, and the firmware's, on the vehicle).
+
     if (command_stamp_ && (now - *command_stamp_).seconds() > command_timeout_) {
         RCLCPP_ERROR(this->get_logger(), "no thruster commands for %.1f s: stopping all thrusters", command_timeout_);
         command_.fill(0.0);
