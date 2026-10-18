@@ -45,46 +45,29 @@ thrusters:
   - {x: -0.285, y:  0.315, z: -0.08, yaw: 225, propeller: left}
   - {x:  0.285, y:  0.315, z: -0.08, yaw: -45, propeller: right}
 
-# The depth reading on odometry/depth, published by sub_low on the vehicle and by
-# sim_pressure_to_depth in simulation.
-#   frame      - where the pressure sensor sits, one of the frames above
-#   z_variance - variance of the depth reading [m^2]. 4e-4 is a 2 cm standard
-#                deviation: the 12-bit ADC is 2.7 mm a count, and the board
-#                averages ten readings. An estimate, not a measurement: replace it
-#                with the variance of odometry/depth logged at rest in the pool.
-#                Too large and the EKF's depth lags the sensor; too small and it
-#                passes the noise to the depth loop.
 depth:
   frame: pressure_link
+  # TODO: Experimentally determine a more accurate z_variance.
   z_variance: 0.0004
 
-# The devices bolted to this hull, by the role the launch files know them by.
-#
-# Each names how to reach this particular unit, by exactly one of:
-#   serial_number - a GigE camera, found by its serial on the vehicle switch
-#   video_device  - a V4L2 device
-#   serial_port   - a serial device
-#   ip_address    - a device on the vehicle network (see docs/networking.md)
-# Device paths are the stable names deploy/udev gives them.
-#
-# `mount` is the device's frame and where it sits, written like a transforms entry.
 devices:
-  # FLIR Blackfly S GigE; tuning in config/devices/flir_blackfly_s.yaml.
+  # FLIR Blackfly S GigE. Other config at config/devices/flir_blackfly_s.yaml.
   down_camera:
     serial_number: "16359776"
     mount: {parent: base_link_ned, child: down_camera, x: -0.078914, y: 0.22841, z: 0.12}
 
-  # Logitech C922 on USB; tuning in config/devices/logitech_c922.yaml.
+  # Logitech C922 on USB. Other config at config/devices/logitech_c922.yaml.
   front_camera:
     video_device: /dev/front_camera
     mount: {parent: base_link_ned, child: front_camera, y: -0.33, z: -0.16631, roll: 90}
 
-  # Water Linked DVL A50; setup in config/devices/waterlinked_dvl_a50.yaml.
+  # Water Linked DVL A50. Other config at config/devices/waterlinked_dvl_a50.yaml.
+  # Reports in NED so parent is base_link_ned
   dvl:
     ip_address: "192.168.5.250"
     mount: {parent: base_link_ned, child: dvl_link, z: 0.015797, yaw: -90}
 
-  # NaviGuider. Off base_link, not base_link_ned: it reports in ENU.
+  # NaviGuider.
   imu:
     serial_port: /dev/naviguider_imu
     mount: {parent: base_link, child: imu_link, x: -0.199, y: -0.09, z: 0.185622}

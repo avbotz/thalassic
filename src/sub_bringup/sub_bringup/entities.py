@@ -210,7 +210,7 @@ def jpeg_quality(node_namespace: str, image_topics: Sequence[str]) -> dict:
 # sim's own (seed, course, ...) are what its scenario was rendered from.
 _RUN_ARGUMENTS = (
     *("robot_name", "mission", "role", "gains"),
-    *("seed", "course", "current", "sensor_noise", "DX", "DY", "DZ", "DYAW"),
+    *("seed", "course", "sensor_noise", "DX", "DY", "DZ", "DYAW"),
 )
 
 

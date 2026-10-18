@@ -3,7 +3,7 @@
     control_rate_hz: 50.0
     power_limit: 0.6
 
-    # Vehicle sim model (docs/control.md#vehicle-model).
+    # Vehicle sim model
     model:
       mass: [112.2, 94.1, 137.7]     # kg; Stonefish's added mass is large
       inertia: [12.24, 15.46, 13.99] # kg m^2

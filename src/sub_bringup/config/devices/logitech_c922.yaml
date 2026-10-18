@@ -1,7 +1,7 @@
+# Logitech C922, used as front camera.
+# The video_device and frame_id are in the vehicle description (config/vehicles/<robot_name>.yaml).
 /**:
   ros__parameters:
-    # video_device and frame_id are vehicle identity and come from
-    # config/vehicles/<robot_name>.yaml via the launch file.
     image_width: 1920
     image_height: 1080
     framerate: 24.0

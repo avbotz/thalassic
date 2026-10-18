@@ -3,14 +3,19 @@
     control_rate_hz: 50.0
     power_limit: 0.6
 
-    # Vehicle model (docs/control.md#vehicle-model).
+    # Vehicle model
     model:
-      mass: [50.0, 60.0, 70.0]       # kg, rigid body plus added mass
-      inertia: [1.5, 2.0, 2.0]       # kg m^2, rigid body plus added inertia
-      net_buoyancy: 0.0              # N, buoyancy minus weight; positive floats
-      buoyancy: 0.0                  # N, for the righting moment
-      center_of_gravity: [0.0, 0.0, 0.08]   # base_link [m]; level with the horizontal thrusters
-      center_of_buoyancy: [0.0, 0.0, 0.08]  # base_link [m]
+      # Rigid body plus added mass
+      mass: [50.0, 60.0, 70.0] # kg
+      # Rigid body plus added inertia
+      inertia: [1.5, 2.0, 2.0] # kg m^2
+      # Buoyancy minus weight
+      net_buoyancy: 0.0 # N
+      # For the righting moment
+      buoyancy: 0.0  # N
+      # Relative to base_link
+      center_of_gravity: [0.0, 0.0, 0.08]   # m
+      center_of_buoyancy: [0.0, 0.0, 0.08]  # m
       linear_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
       quadratic_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 

@@ -21,7 +21,9 @@ def generate_launch_description():
                 package="sub_bringup",
                 executable="static_transforms",
                 namespace=robot_name,
-                parameters=[{"robot_name": robot_name}],
+                # It publishes once, and static transforms hold at any time: on sim time
+                # it would only handle every /clock message.
+                parameters=[{"robot_name": robot_name, "use_sim_time": False}],
                 ros_arguments=["--disable-stdout-logs"],
             ),
         ]

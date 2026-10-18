@@ -1,9 +1,8 @@
+# Descriptions for all DVL configurations can be found on the Water Linked
+# Documentation: https://docs.waterlinked.com/dvl/dvl-protocol
+# The DVL's static address and frame are in the vehicle description (config/vehicles/<robot_name>.yaml).
 /**:
   ros__parameters:
-    # Descriptions for all DVL configurations can be found on the Water Linked
-    # Documentation: https://docs.waterlinked.com/dvl/dvl-protocol/
-
-    # The DVL's static address and the frame it reports in come from config/vehicles/<robot_name>.yaml via the launch file.
 
     # Default port for the DVL-A50
     port: 16171

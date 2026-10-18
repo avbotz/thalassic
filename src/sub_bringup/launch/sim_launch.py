@@ -53,13 +53,6 @@ def _render_scn(context, *_, **__):
     )
     if headless and segmentation_camera:
         raise ValueError("The segmentation camera needs cameras, which headless:=true has none of")
-    # Given in ENU like everything else; Stonefish's world is NED.
-    current = LaunchConfiguration("current").perform(context)
-    try:
-        east, north, up = (float(v) for v in current.split())
-    except ValueError as e:
-        raise ValueError(f'current must be ENU "x y z" in m/s, not {current!r}') from e
-    current_ned = f"{north} {east} {-up}"
 
     sub_sim_share = Path(get_package_share_directory("sub_sim"))
     robot_scenario_file = sub_sim_share / "data" / "robots" / robot_name / "layout.scn.j2"
@@ -91,7 +84,6 @@ def _render_scn(context, *_, **__):
         scenario_template_file=sub_sim_share / "scenarios" / "woollett.scn.j2",
         seed=int(seed),
         render_robot=render_robot,
-        current=current_ned,
         course=LaunchConfiguration("course").perform(context),
         **offsets,
     )
@@ -155,9 +147,10 @@ def _stonefish(context, *_, **__):
                     "use_sim_time": False,
                     "realtime_factor": 1.0,
                     # /clock and the robot's joint and thruster states, published from the
-                    # physics thread at a cost per subscriber. A whole number of physics
-                    # steps, into which the 50 Hz control and EKF periods divide evenly.
-                    "state_publish_rate": 250.0,
+                    # physics thread at a cost per subscriber, and every node on sim time
+                    # subscribes to /clock. A whole number of physics steps, into which the
+                    # 100 Hz thruster setpoints and the 50 Hz control and EKF periods divide.
+                    "state_publish_rate": 100.0,
                     # The cameras' JPEG copies (image_raw/compressed), which the bag
                     # records and Foxglove shows.
                     **jpeg_quality(
@@ -210,16 +203,21 @@ def _sim_sensors(context, *_, **__):
     return [
         ComposableNodeContainer(
             package="rclcpp_components",
-            executable="component_container_mt",
+            executable="component_container",
             name="sim_sensors_container",
             namespace=vehicle.name,
             output="both",
+            parameters=[{"use_sim_time": False}],
             composable_node_descriptions=[
                 bridge(
-                    "sim_dvl_remapper", "SimDVLRemapper", {"dvl_link": vehicle.devices["dvl"].frame}
+                    "sim_dvl_remapper",
+                    "SimDVLRemapper",
+                    {"dvl_link": vehicle.devices["dvl"].frame, "use_sim_time": False},
                 ),
                 bridge(
-                    "sim_imu_remapper", "SimIMURemapper", {"imu_link": vehicle.devices["imu"].frame}
+                    "sim_imu_remapper",
+                    "SimIMURemapper",
+                    {"imu_link": vehicle.devices["imu"].frame, "use_sim_time": False},
                 ),
                 # Reports exactly like sub_low does on the vehicle.
                 bridge(
@@ -229,6 +227,7 @@ def _sim_sensors(context, *_, **__):
                         "frame_id": vehicle.frame("odom"),
                         "child_frame_id": vehicle.depth.frame,
                         "z_variance": vehicle.depth.z_variance,
+                        "use_sim_time": False,
                     },
                 ),
                 # Stands in for the ESCs; injects thruster faults on request.
@@ -282,11 +281,6 @@ def sim_entities() -> list:
                 "Add the segmentation camera (sim/segment), which labels the front camera's "
                 "frames with the object each pixel shows; record:=true keeps them for remora"
             ),
-        ),
-        DeclareLaunchArgument(
-            "current",
-            default_value="0.02 0.03 0.0",
-            description='Uniform water current, ENU "x y z" in m/s (a pool pump moves a few cm/s)',
         ),
         DeclareLaunchArgument(
             "depth_camera",

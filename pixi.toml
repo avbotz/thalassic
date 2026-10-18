@@ -80,7 +80,6 @@ numpy = ">=2.5.3,<3"
 opencv = ">=4.13.0,<5"                                 # must be the conda build: cv_bridge links against it
 pyyaml = ">=6.0.3,<7"                                 # sub_bringup vehicle description
 jinja2 = ">=3.1.6,<4"                                 # sub_sim scenario templates
-pyserial = ">=3.5,<4"                               # sub_serial_drivers
 onnxruntime = ">=1.30.0,<2"
 
 # Below 9: Jazzy's launch_testing pytest plugins fail to load under pytest 9
@@ -117,4 +116,5 @@ lint = { cmd = "scripts/format.sh --check", description = "Check formatting and 
 sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation" }
 pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
 preflight = { cmd = "ros2 run sub_bringup preflight", description = "Check a running stack before it goes in the water (--sim for the simulator)" }
+sync-mission = { cmd = "scripts/sync-mission.sh", description = "Test the mission trees, then copy them to the vehicle (default avbotz@192.168.5.245) for its next release" }
 reset-dds = { cmd = "pkill -f ros2 || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Kill stray ROS processes and stale Fast DDS shared memory (Linux)" }

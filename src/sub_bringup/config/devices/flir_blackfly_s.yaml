@@ -1,5 +1,5 @@
 # FLIR Blackfly S GigE, used as the down camera.
-# The serial number is in the vehicle description (config/vehicles/marlin_v3.yaml) because it changes when the camera is swapped.
+# The serial number is in the vehicle description (config/vehicles/<robot_name>.yaml).
 /**:
   ros__parameters:
     buffer_queue_size: 1

@@ -3,23 +3,25 @@
 <package format="3">
   <name>sub_serial_drivers</name>
   <version>0.0.0</version>
-  <description>Serial bridge drivers (Maritime, NaviGuider IMU) for the Marlin V3 AUV.</description>
+  <description>Serial bridge drivers (Maritime, NaviGuider IMU).</description>
   <maintainer email="software@avbotz.com">AVBotz</maintainer>
   <license>MIT</license>
 
-  <depend>rclpy</depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
   <depend>diagnostic_msgs</depend>
   <depend>diagnostic_updater</depend>
   <depend>nav_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>sub_control_interfaces</depend>
   <depend>sub_driver_interfaces</depend>
-  <depend>python3-serial</depend>
 
-  <test_depend>python3-pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

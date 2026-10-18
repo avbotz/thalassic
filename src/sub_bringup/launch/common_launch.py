@@ -136,8 +136,14 @@ def generate_launch_description():
                 "use_compression": ParameterValue(
                     LaunchConfiguration("foxglove_compression"), value_type=bool
                 ),
+                # Its defaults, a ROS executor thread per core and system stats polled every
+                # 0.5 s (which no layout shows), took 11% of a core with no client connected.
+                "num_threads": 2,
+                "sysinfo": False,
             }
         ],
+        # Its websocket runtime, likewise a thread per core by default.
+        additional_env={"TOKIO_WORKER_THREADS": "2"},
         ros_arguments=["--disable-stdout-logs"],
     )
 

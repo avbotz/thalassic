@@ -1,7 +1,5 @@
-# Brings up an RGB + aligned stereo-depth pipeline (no on-device NN; detection
-# runs in sub_vision). Topics are published under the node name "oak":
-#   <ns>/oak/rgb/image_raw, <ns>/oak/rgb/camera_info
-#   <ns>/oak/stereo/image_raw (16UC1, mm), <ns>/oak/stereo/camera_info
+# Luxonis Oak D Pro, will be used as front camera this season.
+# Brings up an RGB + aligned stereo-depth pipeline (no on-device NN).
 /**:
   ros__parameters:
     camera:

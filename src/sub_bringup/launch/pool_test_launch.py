@@ -63,8 +63,7 @@ def camera_entities(vehicle: Vehicle) -> list[Node]:
     ]
 
 
-def driver_entities(vehicle: Vehicle) -> list[LifecycleNode]:
-    """The sensor and MCU drivers: lifecycle nodes, configured and activated as they start."""
+def driver_entities(vehicle: Vehicle) -> list[Node]:
     dvl, imu = vehicle.devices["dvl"], vehicle.devices["imu"]
     return [
         LifecycleNode(
@@ -80,21 +79,23 @@ def driver_entities(vehicle: Vehicle) -> list[LifecycleNode]:
             ],
             remappings=[("~/odom", "odometry/dvl"), ("~/altitude", "altitude")],
         ),
-        LifecycleNode(
+        Node(
             package="sub_serial_drivers",
             executable="naviguider_imu_driver",
             name="naviguider_imu_driver",
             namespace=vehicle.name,
             output="both",
-            autostart=True,
+            respawn=True,
+            respawn_delay=1.0,
             parameters=[{"device": imu.serial_port, "frame_id": imu.frame}],
         ),
-        LifecycleNode(
+        Node(
             package="sub_serial_drivers",
             executable="sub_low",
             name="sub_low",
             namespace=vehicle.name,
-            autostart=True,
+            respawn=True,
+            respawn_delay=1.0,
             parameters=[
                 {
                     "device": vehicle.devices["maritime_mcu"].serial_port,
