@@ -103,9 +103,11 @@ SubControl::SubControl() : Node("sub_control") {
     // being corrected or only predicted. By stamp, not arrival, so that a
     // delayed stream (the EKF drops what is older than its history) counts as
     // missing, and a DVL whose clock is not synced to this one is noticed.
-    dvl_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "odometry/dvl", rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::Odometry::SharedPtr msg) { dvl_time_ = stamp_of(msg->header); });
+    dvl_sub_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
+        "dvl/velocity", rclcpp::SensorDataQoS(),
+        [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg) {
+            dvl_time_ = stamp_of(msg->header);
+        });
     depth_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "odometry/depth", rclcpp::SensorDataQoS(),
         [this](const nav_msgs::msg::Odometry::SharedPtr msg) { depth_time_ = stamp_of(msg->header); });
@@ -854,7 +856,7 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     add_age("odometry/filtered", odom_time_);
     add_age("imu/data", imu_time_);
     add_age("odometry/depth", depth_time_);
-    add_age("odometry/dvl", dvl_time_);
+    add_age("dvl/velocity", dvl_time_);
     add_age("altitude", altitude_time_);
     const bool state_ok = age(odom_time_, now) <= params_.safety.state_timeout;
     const bool depth_ok = age(depth_time_, now) <= params_.safety.depth_timeout;

@@ -24,6 +24,7 @@ from pathlib import Path
 
 import rclpy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from geometry_msgs.msg import TwistWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -60,7 +61,7 @@ def rates() -> list[Rate]:
     return [
         Rate("imu/data", Imu, 20.0),
         Rate("odometry/depth", Odometry, 3.0),
-        Rate("odometry/dvl", Odometry, 3.0, required=False),
+        Rate("dvl/velocity", TwistWithCovarianceStamped, 3.0, required=False),
         # The EKF publishes as measurements arrive: about the IMU's rate.
         Rate("odometry/filtered", Odometry, 20.0),
         Rate("control/thrusters", ThrusterCommand, 30.0),

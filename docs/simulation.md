@@ -41,7 +41,7 @@ Use `seed` in the launch argument to get reproducible scenarios. Without one, th
 |---|---|---|
 | `stonefish_simulator` | `stonefish_ros2` | Physics engine + sensor simulation |
 | `robot_state_publisher` | `robot_state_publisher` | Publishes the URDF on `robot_description`. Nothing publishes the `joint_states` it reads (Stonefish's are on `sim/joint_states`), so it publishes no TF; the grabber and dropper frames come from `static_transforms` |
-| `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `odometry/dvl` (velocity only) and `altitude` |
+| `sim_dvl_remapper` | `sub_sim_sensors` | `stonefish_ros2/DVL` → `dvl/velocity` (`TwistWithCovarianceStamped`) and `altitude` |
 | `sim_pressure_to_depth` | `sub_sim_sensors` | `sim/pressure` → `odometry/depth` (ENU z), as `sub_low` reports it on the vehicle |
 | `sim_thrusters` | `sub_sim_sensors` | `control/thrusters` → Stonefish, with ESC lag, the board's command watchdog and fault injection |
 | `sim_imu_remapper` | `sub_sim_sensors` | Stonefish NED IMU → ENU `imu/data` |
@@ -54,7 +54,7 @@ Use `seed` in the launch argument to get reproducible scenarios. Without one, th
 
 ### DVL
 
-Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` converts it to a velocity-only `nav_msgs/Odometry` on `odometry/dvl` and a `sensor_msgs/Range` on `altitude` — the same topics the hardware WaterLinked driver publishes. Like the driver it drops readings without bottom lock, and it reports a velocity variance of at least `velocity_variance` so the EKF does not treat the DVL as perfect.
+Stonefish publishes `stonefish_ros2/DVL` on `sim/dvl`. `sim_dvl_remapper` converts it to a `geometry_msgs/TwistWithCovarianceStamped` on `dvl/velocity` and a `sensor_msgs/Range` on `altitude` — the same topics the hardware WaterLinked driver publishes. Like the driver it drops readings without bottom lock, and it reports a velocity variance of at least `velocity_variance` so the EKF does not treat the DVL as perfect.
 
 Like the real A50, a reading arrives `latency` (0.15 s) after the instant it is stamped with, which is what the EKF's `smooth_lagged_data` is for, and `dropout_probability` (0) of the readings can be dropped to rehearse losing lock near walls and the floor. Both can be changed while the simulation runs:
 

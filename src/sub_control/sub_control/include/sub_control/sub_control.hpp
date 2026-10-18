@@ -18,6 +18,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -152,7 +153,7 @@ class SubControl : public rclcpp::Node {
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr altitude_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr dvl_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvl_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr depth_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr kill_sub_;
     rclcpp::Subscription<sub_control_interfaces::msg::MotionSetpoint>::SharedPtr motion_setpoint_sub_;

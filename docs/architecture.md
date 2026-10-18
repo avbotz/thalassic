@@ -36,7 +36,8 @@ The main control node, at 50 Hz: a jerk-limited trajectory generator, a model-ba
 | Sub | `cmd_vel` | `geometry_msgs/Twist` (stops if the stream does) |
 | Sub | `odometry/filtered` | `nav_msgs/Odometry` |
 | Sub | `imu/data` | `sensor_msgs/Imu` (rate feedback) |
-| Sub | `odometry/dvl`, `odometry/depth` | `nav_msgs/Odometry` (watchdogs only) |
+| Sub | `dvl/velocity` | `geometry_msgs/TwistWithCovarianceStamped` (watchdog only) |
+| Sub | `odometry/depth` | `nav_msgs/Odometry` (watchdog only) |
 | Sub | `altitude` | `sensor_msgs/Range` (DVL altitude) |
 | Sub | `kill_switch` | `std_msgs/Bool` |
 | Sub | `/tf`, `/tf_static` | `tf2_msgs/TFMessage` (the IMU's mounting) |
@@ -71,7 +72,7 @@ Runs the selected mission as BehaviorTree.CPP XML. See [mission.md](mission.md) 
 
 ### `waterlinked_dvl_driver` (`waterlinked_dvl`) — hardware only
 
-Driver for the WaterLinked A50 DVL (the team's fork, at commit `7163fbb` or later). Its `~/odom` output is remapped to `odometry/dvl` (velocity-only `nav_msgs/Odometry`) for the EKF: one message per bottom-track velocity report the DVL marks valid, stamped with the report's `time_of_validity` (the DVL's clock, synced to the Jetson's by chrony); invalid and water-track reports are dropped. Its `~/altitude` (`sensor_msgs/Range`) is remapped to `altitude` for altitude hold. An older driver (before `7163fbb`) published invalid velocities, published each one twice and had no altitude.
+Driver for the WaterLinked A50 DVL (the team's fork, at commit `7df97ed` or later). Its `~/velocity` output (`geometry_msgs/TwistWithCovarianceStamped` in `dvl_link`, with the report's velocity covariance) is remapped to `dvl/velocity` for the EKF: one message per velocity report the DVL marks valid, stamped with the report's `time_of_validity` (the DVL's clock, synced to the Jetson's by chrony); invalid reports are dropped, but water-track (`velocity_water`) reports are not. Its `~/altitude` (`sensor_msgs/Range`, bottom-track reports only) is remapped to `altitude` for altitude hold. Drivers before `7df97ed` published `~/odom` (`nav_msgs/Odometry`) instead; before `7163fbb` they also published invalid velocities, published each one twice and had no altitude.
 
 ### `sub_low` / `naviguider_imu_driver` (`sub_serial_drivers`) — hardware only
 
@@ -81,12 +82,12 @@ Both are C++ nodes on one base, `SerialNode`, which keeps the link up: whenever 
 
 ### `sim_dvl_remapper` (`sub_sim_sensors`) — sim only
 
-Converts Stonefish's proprietary DVL message into the velocity-only `nav_msgs/Odometry` the EKF expects and the altitude, matching the hardware DVL topics. Readings without bottom lock are dropped, as the driver drops invalid ones. Like the real A50, each reading arrives `latency` (0.15 s) after its stamp, and `dropout_probability` (0 by default) of them can be dropped; both are settable at runtime.
+Converts Stonefish's proprietary DVL message into the `geometry_msgs/TwistWithCovarianceStamped` velocity the EKF expects and the altitude, matching the hardware DVL topics. Readings without bottom lock are dropped, as the driver drops invalid ones. Like the real A50, each reading arrives `latency` (0.15 s) after its stamp, and `dropout_probability` (0 by default) of them can be dropped; both are settable at runtime.
 
 | | Topic | Type |
 |---|---|---|
 | Sub | `sim/dvl` | `stonefish_ros2/DVL` |
-| Pub | `odometry/dvl` | `nav_msgs/Odometry` (velocity only) |
+| Pub | `dvl/velocity` | `geometry_msgs/TwistWithCovarianceStamped` |
 | Pub | `altitude` | `sensor_msgs/Range` |
 
 ### `sim_thrusters` (`sub_sim_sensors`) — sim only
@@ -125,8 +126,8 @@ Fuses the IMU, the DVL and the pressure sensor into a filtered odometry estimate
 
 - `imu0`: `imu/data` — yaw, relative to where it started, and yaw rate
 - `imu1`: `imu/data` — roll and pitch, absolute, and their rates
-- `odom0`: `odometry/dvl` — linear velocity, gated at 5 standard deviations
-- `odom1`: `odometry/depth` — z, from the pressure sensor, gated at 5 standard deviations
+- `twist0`: `dvl/velocity` — linear velocity, gated at 5 standard deviations
+- `odom0`: `odometry/depth` — z, from the pressure sensor, gated at 5 standard deviations
 - Output: `odometry/filtered` (and the `odom` → `base_link` transform), and `/diagnostics`
 
 `smooth_lagged_data` with a 1 s history fuses the DVL's late velocities at their stamps instead of as if they were current. The IMU is not gated: it is the only attitude source, and a filter that rejected it could not recover.
@@ -163,7 +164,7 @@ Control runs in `base_link` (ENU/FLU). `base_link_ned` is a static mounting fram
 
 ```
 Stonefish
-  ├─ sim/dvl ──────► sim_dvl_remapper ──────► odometry/dvl ──────────────────────► EKF
+  ├─ sim/dvl ──────► sim_dvl_remapper ──────► dvl/velocity ──────────────────────► EKF
   ├─ sim/imu ──────► sim_imu_remapper ──────► imu/data ──────────────────────────► EKF
   ├─ sim/pressure ─► sim_pressure_to_depth ─► odometry/depth ────────────────────► EKF
   └─ sim/thruster_setpoints ◄── sim_thrusters ◄── control/thrusters ◄────────────── sub_control
@@ -173,4 +174,4 @@ Operator (ros2 topic pub, Foxglove)
   └─ sim/kill_switch ─► sim_kill_switch ────► kill_switch ───────────────────────► sub_control
 ```
 
-On hardware the same graph applies, with `waterlinked_dvl_driver` publishing `odometry/dvl` and `altitude` and `naviguider_imu_driver` publishing `imu/data` in place of the sim remappers, and `sub_low` publishing `odometry/depth` and `kill_switch` and driving the thrusters. There is no `robot_state_publisher` (the simulator's URDF is its only user).
+On hardware the same graph applies, with `waterlinked_dvl_driver` publishing `dvl/velocity` and `altitude` and `naviguider_imu_driver` publishing `imu/data` in place of the sim remappers, and `sub_low` publishing `odometry/depth` and `kill_switch` and driving the thrusters. There is no `robot_state_publisher` (the simulator's URDF is its only user).

@@ -77,7 +77,7 @@ def driver_entities(vehicle: Vehicle) -> list[Node]:
                 package_config("sub_bringup", "devices/waterlinked_dvl_a50.yaml"),
                 {"ip_address": dvl.ip_address, "frame_id": dvl.frame},
             ],
-            remappings=[("~/odom", "odometry/dvl"), ("~/altitude", "altitude")],
+            remappings=[("~/velocity", "dvl/velocity"), ("~/altitude", "altitude")],
         ),
         Node(
             package="sub_serial_drivers",

@@ -1,7 +1,7 @@
 #include "sub_sim_sensors/sim_dvl_remapper.hpp"
 #include <rclcpp/qos.hpp>
 
-#include "nav_msgs/msg/odometry.hpp"
+#include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 #include "stonefish_ros2/msg/dvl.hpp"
@@ -28,7 +28,8 @@ SimDVLRemapper::SimDVLRemapper(const rclcpp::NodeOptions& options) : Node("sim_d
     subscriber_ = this->create_subscription<stonefish_ros2::msg::DVL>(
         "sim/dvl", 10, std::bind(&SimDVLRemapper::dvl_callback, this, _1));
 
-    vel_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("odometry/dvl", rclcpp::SystemDefaultsQoS());
+    vel_publisher_ = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
+        "dvl/velocity", rclcpp::SystemDefaultsQoS());
     altitude_publisher_ = this->create_publisher<sensor_msgs::msg::Range>("altitude", rclcpp::SystemDefaultsQoS());
 }
 
@@ -39,29 +40,26 @@ void SimDVLRemapper::dvl_callback(const stonefish_ros2::msg::DVL::SharedPtr msg_
         return;
     }
 
-    nav_msgs::msg::Odometry odom_msg{};
+    geometry_msgs::msg::TwistWithCovarianceStamped velocity_msg{};
 
-    odom_msg.header = msg_stonefish->header;
-    odom_msg.header.frame_id = dvl_link_;
-    odom_msg.child_frame_id = dvl_link_;
+    velocity_msg.header = msg_stonefish->header;
+    velocity_msg.header.frame_id = dvl_link_;
 
-    odom_msg.pose.pose.orientation.w = 1.0;
-
-    odom_msg.twist.twist.linear.x = msg_stonefish->velocity.x;
-    odom_msg.twist.twist.linear.y = msg_stonefish->velocity.y;
-    odom_msg.twist.twist.linear.z = msg_stonefish->velocity.z;
+    velocity_msg.twist.twist.linear.x = msg_stonefish->velocity.x;
+    velocity_msg.twist.twist.linear.y = msg_stonefish->velocity.y;
+    velocity_msg.twist.twist.linear.z = msg_stonefish->velocity.z;
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
-            odom_msg.twist.covariance[i * 6 + j] = msg_stonefish->velocity_covariance[i * 3 + j];
+            velocity_msg.twist.covariance[i * 6 + j] = msg_stonefish->velocity_covariance[i * 3 + j];
         }
-        odom_msg.twist.covariance[i * 7] = std::max(odom_msg.twist.covariance[i * 7], velocity_variance_);
+        velocity_msg.twist.covariance[i * 7] = std::max(velocity_msg.twist.covariance[i * 7], velocity_variance_);
     }
 
-    vel_publisher_->publish(odom_msg);
+    vel_publisher_->publish(velocity_msg);
 
     if (std::isfinite(msg_stonefish->altitude)) {
         sensor_msgs::msg::Range range;
-        range.header = odom_msg.header;
+        range.header = velocity_msg.header;
         range.radiation_type = sensor_msgs::msg::Range::ULTRASOUND;
         range.min_range = 0.05F;
         range.max_range = static_cast<float>(max_altitude_);
