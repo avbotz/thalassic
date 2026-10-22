@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Gate: through the left opening, taking the role its images show. The gate
-  post-processor's class 8 is that opening, carrying its role (gate_role), so
-  the vehicle passes the same side whichever role the course puts there, and
-  SelectGateRole sets the role the later tasks (bins) use. SquareUpToGate
-  lines up on that opening's normal, so a gate set at an angle to the course
-  is still crossed square, through the middle of the opening.
--->
 <root BTCPP_format="4"
       main_tree_to_execute="GateMission">
   <BehaviorTree ID="AlignWithGate">
@@ -19,7 +11,8 @@
                           task="gate"
                           class_id="8"
                           min_score="0.0"
-                          timeout_msec="15000"/>
+                          timeout_msec="15000"
+                          start_timeout_after_first_frame="false"/>
         <AlignToDetection camera="front"
                           task="gate"
                           class_id="8"
@@ -36,64 +29,70 @@
 
   <BehaviorTree ID="GateMission">
     <Sequence name="gate_mission">
-      <!-- Return Home drives back here, on the start side of the gate. -->
       <SavePose name="gate_home"
                 x="{@gate_home_x}"
-                y="{@gate_home_y}"/>
-      <!-- Down to where the role panels are in view, a little above the
-           camera; after the coin flip it is there already. -->
+                y="{@gate_home_y}"
+                yaw="{@gate_home_yaw}"/>
       <PosSetpoint name="gate_search_depth"
                    x="nan"
                    y="nan"
-                   z="-0.7"/>
+                   z="-0.7"
+                   timeout_msec="0"/>
       <LoadModel camera="front"
                  task="gate"
                  timeout_msec="120000"/>
-      <!-- Close in slowly, holding the heading, until the left opening is in
-           view; at most 2 m once the camera is up. -->
       <SearchForDetection camera="front"
                           task="gate"
                           class_id="8"
                           min_score="0.20"
                           x="0.10"
-                          start_timeout_after_first_frame="true"
-                          timeout_msec="20000"/>
+                          y="nan"
+                          z="nan"
+                          sweep_left_m="0.0"
+                          sweep_right_m="0.0"
+                          timeout_msec="20000"
+                          start_timeout_after_first_frame="true"/>
       <SelectGateRole camera="front"
                       task="gate"
                       class_id="8"
                       min_score="0.20"
                       confirmation_frames="3"
                       timeout_msec="30000"/>
-      <!-- 2 m out in front of the left opening, on its normal and facing
-           through it, however the gate is turned: from both panels, the way
-           the gate faces, and from the left one, where the opening is. -->
       <SquareUpToGate camera="front"
                       task="gate"
                       class_id="8"
                       min_score="0.20"
                       standoff="2.0"
                       target_offset_left="0.0"
-                      timeout_msec="60000"/>
-      <!-- Under the panels and the divider for the crossing: the posts reach
-           well below. -->
+                      look_distance="2.8"
+                      min_facing_frames="6"
+                      max_slant_deg="60.0"
+                      position_tolerance="0.15"
+                      yaw_tolerance_deg="3.0"
+                      settle_msec="1500"
+                      facing_timeout_msec="15000"
+                      detection_loss_msec="8000"
+                      timeout_msec="60000"
+                      update_msec="250"/>
       <PosSetpoint name="gate_crossing_depth"
                    x="nan"
                    y="nan"
-                   z="-1.2"/>
-      <!-- Straight through along the gate's normal, the 2 m standoff and on
-           to 1 m past it: the style spin counts when passing through, and any
-           turn before the gate risks a post or the wrong side of the divider. -->
+                   z="-0.9"
+                   timeout_msec="0"/>
       <MoveRelative name="through_the_gate"
                     x="3.0"
                     y="0.0"
-                    z="0.0"/>
+                    z="0.0"
+                    timeout_msec="0"/>
       <Spin name="style"
             yaw="-12.56637061"
-            rate="3.14159265"/>
+            rate="3.14159265"
+            timeout_msec="0"/>
       <AttSetpoint name="pool_exit_heading"
                    roll="nan"
                    pitch="nan"
-                   yaw="{@gate_exit_yaw}"/>
+                   yaw="{@gate_exit_yaw}"
+                   timeout_msec="0"/>
     </Sequence>
   </BehaviorTree>
 
@@ -195,6 +194,14 @@
       <input_port name="timeout_msec"
                   default="20000">Maximum wait before FAILURE</input_port>
     </Action>
+    <Action ID="Spin">
+      <input_port name="yaw"
+                  default="-12.56637061">Yaw distance to spin in radians; positive turns left</input_port>
+      <input_port name="rate"
+                  default="3.14159265">Yaw rate in radians per second</input_port>
+      <input_port name="timeout_msec"
+                  default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
+    </Action>
     <Action ID="SquareUpToGate">
       <input_port name="camera"
                   default="front">Detection source: front or down</input_port>
@@ -226,14 +233,6 @@
                   default="60000">Maximum time before FAILURE</input_port>
       <input_port name="update_msec"
                   default="250">Minimum time between commands</input_port>
-    </Action>
-    <Action ID="Spin">
-      <input_port name="yaw"
-                  default="-12.56637061">Yaw distance to spin in radians; positive turns left</input_port>
-      <input_port name="rate"
-                  default="3.14159265">Yaw rate in radians per second</input_port>
-      <input_port name="timeout_msec"
-                  default="0">Maximum wait before FAILURE; 0 scales it with the size of the move</input_port>
     </Action>
     <Action ID="WaitForDetection">
       <input_port name="camera"

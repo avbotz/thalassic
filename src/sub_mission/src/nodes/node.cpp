@@ -350,7 +350,7 @@ void MissionNode::activate() {
 
     RCLCPP_INFO(this->get_logger(), "Wait for motors to start up");
     // In steps, so that an interrupt need not wait it out.
-    const auto motors_ready = std::chrono::steady_clock::now() + 7s;
+    const auto motors_ready = std::chrono::steady_clock::now() + 4s;
     while (rclcpp::ok() && !this->interrupted && std::chrono::steady_clock::now() < motors_ready) {
         std::this_thread::sleep_for(100ms);
     }

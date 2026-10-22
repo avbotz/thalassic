@@ -16,7 +16,7 @@
       <SavePose name="gate_home"
                 x="{@gate_home_x}"
                 y="{@gate_home_y}"
-                yaw="0.0"/>
+                yaw="{@gate_home_yaw}"/>
       <MoveRelativePos x="0.0"
                        y="0.4"
                        z="0.0"
