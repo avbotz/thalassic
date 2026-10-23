@@ -66,5 +66,5 @@ cat <<EOF
 
 Done. Remaining manual steps:
   * Log out and back in (or reboot) so the new groups and the DDS profile apply.
-  * Once the weights are fetched: 'pixi run build-engines'.
+  * Once the weights are fetched: 'pixi run -e jetson build-engines'.
 EOF

@@ -2,7 +2,7 @@
 # Setup on a fresh machine. Safe to re-run:
 #  - installs pixi if it is missing
 #  - fetches the submodules
-#  - creates the environment from pixi.lock
+#  - creates the environment from pixi.lock (on the Jetson, its own: jetson)
 #  - builds the workspace
 #  - downloads the model weights in weights/manifest.toml
 #
@@ -20,14 +20,19 @@ if ! command -v pixi >/dev/null 2>&1; then
   export PATH="$HOME/.pixi/bin:$PATH"
 fi
 
+env=default
+if [ -e /etc/nv_tegra_release ]; then
+  env=jetson
+fi
+
 echo "Fetching submodules"
 git submodule update --init --recursive
 
-echo "Creating the pixi environment from pixi.lock"
-pixi install --frozen
+echo "Creating the pixi environment '$env' from pixi.lock"
+pixi install --frozen -e "$env"
 
 echo "Building the workspace"
-pixi run --frozen build
+pixi run --frozen -e "$env" build
 
 echo "Downloading the model weights"
-pixi run --frozen fetch-weights
+pixi run --frozen -e "$env" fetch-weights

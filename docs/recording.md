@@ -18,7 +18,7 @@ Each run gets a folder named after its start time, `sim` or the robot's name, an
 
 ```bash
 pixi run sim record:=true
-pixi run pool record:=true bag_dir:=/mnt/ssd/bags jpeg_quality:=95
+pixi run -e jetson pool record:=true bag_dir:=/mnt/ssd/bags jpeg_quality:=95
 ```
 
 ## What a bag holds

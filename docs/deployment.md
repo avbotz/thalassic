@@ -1,6 +1,6 @@
 # Deployment (Jetson AGX Orin)
 
-The vehicle runs the same `pixi` environment as developers, on bare metal. The stack is launched by hand, or at boot by the `thalassic` service once it is enabled (see [Starting at boot](#starting-at-boot)).
+The vehicle runs the developers' `pixi` packages plus its GPU stack, in an environment of its own, `jetson`, on bare metal. Every `pixi` command on it names that environment (`-e jetson`). The stack is launched by hand, or at boot by the `thalassic` service once it is enabled (see [Starting at boot](#starting-at-boot)).
 
 ## One-time provisioning
 
@@ -9,10 +9,10 @@ As the vehicle user (`avbotz`, created when the Jetson is flashed):
 ```bash
 git clone --recurse-submodules https://github.com/avbotz/thalassic.git ~/thalassic
 cd ~/thalassic
-scripts/install.sh                            # pixi + environment (TensorRT and CUDA included) + build
+scripts/install.sh                            # pixi + the jetson environment (TensorRT and CUDA included) + build
 sudo apt install chrony                       # only NTP server, needs a network once
 sudo deploy/jetson/setup.sh                   # OS configuration, see below
-pixi run build-engines                        # TensorRT engines from weights/*.onnx, minutes each, checked
+pixi run -e jetson build-engines              # TensorRT engines from weights/*.onnx, minutes each, checked
 ```
 
 Then reboot, so the new groups and the DDS profile apply.
@@ -44,31 +44,31 @@ The GigE camera is opened through a GenTL producer shipped with the source-built
 
 ### The GPU stack
 
-JetPack 7.2 provides the GPU driver (CUDA 13.2) and nothing else the stack uses. TensorRT (10.16.2, JetPack 7.2.1's version, built for the Orin), the CUDA 13.2 runtime libraries and `cuda-bindings` are `linux-aarch64` dependencies in `pixi.toml`, about 3 GB, so `pixi install --frozen` is the whole GPU install and only a `pixi.lock` change can change them ([Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack)). `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and pixi checks both against the host when it installs, so a JetPack upgrade to a newer CUDA major version means updating that entry. If `pixi install` reports that the host has no `__cuda`, the driver is not visible to pixi: `CONDA_OVERRIDE_CUDA=13.2 pixi install --frozen` declares it by hand.
+JetPack 7.2 provides the GPU driver (CUDA 13.2) and nothing else the stack uses. TensorRT (10.16.2, JetPack 7.2.1's version, built for the Orin), the CUDA 13.2 runtime libraries and `cuda-bindings` are the `jetson` environment's dependencies in `pixi.toml`, about 3 GB, so `pixi install --frozen -e jetson` is the whole GPU install and only a `pixi.lock` change can change them ([Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack)). `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and pixi checks both against the host when it installs, so a JetPack upgrade to a newer CUDA major version means updating that entry. If `pixi install` reports that the host has no `__cuda`, the driver is not visible to pixi: `CONDA_OVERRIDE_CUDA=13.2 CONDA_OVERRIDE_CUDA_ARCH=8.7 pixi install --frozen -e jetson` declares it by hand.
 
-`pixi run build-engines` builds an engine for each ONNX model that has none, then runs each new one against ONNX Runtime on the CPU and fails on any output that disagrees beyond FP16 ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)). `pixi run check-engines` repeats that for every engine; with `--bag bags/<run>` it uses frames from a recording instead of synthetic ones, which is what makes the box comparison mean something.
+`pixi run -e jetson build-engines` builds an engine for each ONNX model that has none, then runs each new one against ONNX Runtime on the CPU and fails on any output that disagrees beyond FP16 ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)). `pixi run check-engines` repeats that for every engine; with `--bag bags/<run>` it uses frames from a recording instead of synthetic ones, which is what makes the box comparison mean something.
 
 ## Running
 
 ```bash
 cd ~/thalassic
-pixi run pool                                   # hardware stack
-pixi run pool mission:=pool_a                   # with a mission
-pixi shell                                      # ros2 topic echo ... etc.
+pixi run -e jetson pool                         # hardware stack
+pixi run -e jetson pool mission:=pool_a         # with a mission
+pixi shell -e jetson                            # ros2 topic echo ... etc.
 ```
 
 Nothing drives until the kill switch has been engaged and released *after* the stack started: if it starts with the switch released, pull the switch and release it again. `sub_control` logs what it is waiting for, and `control/armed` says when it is armed ([control.md](control.md#safety)).
 
 ### Pool-day checklist
 
-1. On the bench, with the stack running and the vehicle killed: `pixi run preflight`. It listens for 5 s and fails on any sensor or controller topic below its rate, a missing kill switch state, an uncalibrated camera, anything in error or stale on `/diagnostics_agg`, or a missing model or TensorRT engine. Fix what it reports.
+1. On the bench, with the stack running and the vehicle killed: `pixi run -e jetson preflight`. It listens for 5 s and fails on any sensor or controller topic below its rate, a missing kill switch state, an uncalibrated camera, anything in error or stale on `/diagnostics_agg`, or a missing model or TensorRT engine. Fix what it reports.
 1. Tag what is running: `git tag pool-$(date +%F) && git push origin pool-$(date +%F)` (bags record `git describe`, so each bag then names its tag).
 1. In the water, killed: check `control/status` in Foxglove: `dvl_ok` once the DVL has bottom lock, `depth_ok`, `imu_ok`.
 1. Release the kill switch, watch `armed` come up, and run.
 
 ### Starting at boot
 
-`deploy/jetson/setup.sh` installs a `thalassic` systemd service that runs `pixi run --frozen pool` as `avbotz`, with launch arguments from `/etc/thalassic/pool.env` (e.g. `POOL_ARGS=mission:=competition record:=true`), and restarts it if it crashes. It is not enabled by default:
+`deploy/jetson/setup.sh` installs a `thalassic` systemd service that runs `pixi run --frozen -e jetson pool` as `avbotz`, with launch arguments from `/etc/thalassic/pool.env` (e.g. `POOL_ARGS=mission:=competition record:=true`), and restarts it if it crashes. It is not enabled by default:
 
 ```bash
 sudo systemctl enable --now thalassic    # start now and at every boot
@@ -76,7 +76,7 @@ journalctl -u thalassic -f               # its output
 sudo systemctl disable --now thalassic   # back to launching by hand
 ```
 
-With it, a brownout in the water leaves the stack coming back up on its own, waiting for the kill switch to be cycled, instead of a vehicle without software until someone connects. Do not also run `pixi run pool` by hand while it is enabled: two stacks on one vehicle fight over the serial ports.
+With it, a brownout in the water leaves the stack coming back up on its own, waiting for the kill switch to be cycled, instead of a vehicle without software until someone connects. Do not also run `pixi run -e jetson pool` by hand while it is enabled: two stacks on one vehicle fight over the serial ports.
 
 ### maritime
 
@@ -84,7 +84,7 @@ The thruster board runs [maritime](https://github.com/avbotz/maritime). `sub_low
 
 On the vehicle a mission runs under `sub_mission`'s restart supervisor ([mission.md](mission.md#restart-supervisor)): pulling the kill switch stops it, and releasing it starts it again from the beginning, so a botched run is rerun by carrying the vehicle back to the start. `restart:=false` runs it once, as the simulator does.
 
-`pixi run pool record:=true` records the run into `~/thalassic/bags/` ([recording.md](recording.md)), which grows until it is cleared. To copy the bags to a laptop on the vehicle network:
+`pixi run -e jetson pool record:=true` records the run into `~/thalassic/bags/` ([recording.md](recording.md)), which grows until it is cleared. To copy the bags to a laptop on the vehicle network:
 
 ```bash
 rsync -av avbotz@192.168.5.245:thalassic/bags/ bags/
@@ -95,10 +95,10 @@ rsync -av avbotz@192.168.5.245:thalassic/bags/ bags/
 ```bash
 cd ~/thalassic
 git pull --recurse-submodules
-pixi install --frozen        # only changes anything if pixi.lock changed
-pixi run --frozen build
-pixi run --frozen fetch-weights   # downloads only models whose manifest entry changed
-pixi run --frozen build-engines   # engines only for models that changed, each checked
+pixi install --frozen -e jetson        # only changes anything if pixi.lock changed
+pixi run --frozen -e jetson build
+pixi run --frozen -e jetson fetch-weights   # downloads only models whose manifest entry changed
+pixi run --frozen -e jetson build-engines   # engines only for models that changed, each checked
 ```
 
 `sub_vision` refuses to load a model on the vehicle until its engine is built, rather than run it on the CPU. Engines are tied to the TensorRT version, which `pixi.lock` pins, so a lockfile update that changes TensorRT needs `build-engines` too; the old engines are ignored, not loaded.
@@ -113,7 +113,7 @@ Every pool build is tagged (see the checklist), so going back is checking out th
 
 ```bash
 git checkout pool-2026-10-10 && git submodule update --init --recursive
-pixi install --frozen && pixi run --frozen build && pixi run --frozen fetch-weights
+pixi install --frozen -e jetson && pixi run --frozen -e jetson build && pixi run --frozen -e jetson fetch-weights
 ```
 
 This needs no network if the tag's packages are still in pixi's cache (`~/.cache/rattler`) and its models in `weights/` (`fetch-weights` keeps the replaced file as `.old`). A clean build of the FLIR driver downloads the Spinnaker SDK, so do not `pixi run clean` on the vehicle away from a network.

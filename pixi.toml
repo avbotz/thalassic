@@ -4,32 +4,37 @@
 #   pixi run build      colcon build
 #   pixi run sim        ros2 launch sub_bringup sim_launch.py
 #   pixi shell          interactive shell with ROS, the workspace, and DDS set up
+#
+# On the vehicle, name its environment: pixi run -e jetson <task>, pixi shell -e jetson.
 
 [workspace]
 name = "thalassic"
 version = "0.1.0"
 description = "ROS 2 Jazzy stack for AVBotz's Marlin V3 AUV"
-# isaac-forge is NVIDIA's TensorRT (and Isaac ROS, unused) packaged for RoboStack. It is
-# listed last, and the one dependency taken from it names it, so it shadows nothing.
+# The priority keeps RoboStack ahead of the jetson environment's isaac-forge channel.
 channels = [
-  "https://prefix.dev/robostack-jazzy",
+  { channel = "https://prefix.dev/robostack-jazzy", priority = 2 },
   "https://prefix.dev/conda-forge",
-  "https://prefix.dev/isaac-forge/jazzy",
 ]
-# pixi installs the first entry the machine satisfies. linux-64-cuda: a developer machine with
-# an NVIDIA GPU and a driver for CUDA 12 or newer, which gets ONNX Runtime's CUDA build.
-# linux-64: every other developer machine, and CI. jetson: the AGX Orin on JetPack 7.2, whose
-# driver is CUDA 13 and whose GPU is compute capability 8.7, which selects the Orin build of
-# TensorRT; a Jetson that does not show pixi both cannot install at all, by design.
+# Each environment installs the first of its entries the machine satisfies.
+# default environment (vision in ONNX Runtime):
+#   linux-64-cuda: an x86 machine with an NVIDIA GPU and a driver for CUDA 12 or newer, which
+#                  gets ONNX Runtime's CUDA build.
+#   linux-64:      every other x86 machine, and CI.
+#   linux-aarch64: any Arm machine, on the CPU.
+# jetson environment (vision in TensorRT): the AGX Orin on JetPack 7.2, whose driver is CUDA 13
+#   and whose GPU is compute capability 8.7, which selects the Orin build of TensorRT.
 platforms = [
   { name = "linux-64-cuda", platform = "linux-64", cuda = "12" },
   "linux-64",
+  "linux-aarch64",
   { name = "jetson", platform = "linux-aarch64", glibc = "2.38", cuda = { driver = "13", arch = "8.7" } },
 ]
 requires-pixi = ">=0.81"
 
 [dependencies]
-# 3.12 is the only Python isaac-forge builds tensorrt-python for (it is also the Jetson's own).
+# 3.12 is the only Python isaac-forge builds tensorrt-python for (it is also the Jetson's own),
+# and both environments share it.
 python = ">=3.12.14,<3.13"
 
 # --- build tooling ---
@@ -92,13 +97,30 @@ clang-format = ">=23.1.1,<24"    # C/C++: formatter, reads .clang-format
 mdformat = ">=1.0.0,<2"
 go-shfmt = ">=3.14.1,<4"
 
+# The default environment's platforms. Everything it installs is in [dependencies].
+[feature.ort]
+platforms = ["linux-64-cuda", "linux-64", "linux-aarch64"]
+
 # The Jetson's GPU stack. JetPack provides the driver and nothing else the stack uses; see
 # docs/decisions.md, Decision 5.
-[target.linux-aarch64.dependencies]
+[feature.jetson]
+platforms = ["jetson"]
+# NVIDIA's TensorRT (and Isaac ROS, unused) packaged for RoboStack, between RoboStack and
+# conda-forge.
+channels = [{ channel = "https://prefix.dev/isaac-forge/jazzy", priority = 1 }]
+
+[feature.jetson.dependencies]
 # JetPack 7.2.1's TensorRT, built for the Orin. Engines are tied to this version.
 tensorrt-python = { version = "10.16.2.*", channel = "https://prefix.dev/isaac-forge/jazzy" }
 cuda-bindings = "13.2.*"       # cuda.bindings.runtime, the CUDA runtime API (part of cuda-python)
 cuda-version = "13.2.*"        # every CUDA library at the driver's version (JetPack 7.2.1)
+
+[feature.jetson.tasks]
+build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/ that has none, checking each against ONNX Runtime" }
+
+[environments]
+default = ["ort"]
+jetson = ["jetson"]
 
 # Environment activation: workspace overlay, DDS profile, FLIR GenTL path
 [activation]
@@ -109,7 +131,6 @@ build = { cmd = "colcon build", description = "Build the workspace" }
 clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
 prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
 fetch-weights = { cmd = "python scripts/fetch_weights.py", description = "Download the models in weights/manifest.toml into weights/, checking each sha256 (--check only reports)" }
-build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/ that has none, checking each against ONNX Runtime (Jetson only)" }
 test = { cmd = "colcon test --return-code-on-test-failure && colcon test-result --verbose", description = "Run every package's tests; non-zero if any fails (colcon test-result --verbose shows which)" }
 format = { cmd = "scripts/format.sh", description = "Format all tracked Python and C/C++ (excludes submodules)" }
 lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }
