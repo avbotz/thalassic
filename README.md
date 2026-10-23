@@ -20,7 +20,7 @@ Common tasks (`pixi task list` shows all):
 | `pixi run build` | `colcon build` with the repo defaults (symlink + merge install) |
 | `pixi run prune-symlinks` | removes the dangling symlinks that deleted files leave in `build/` and `install/` |
 | `pixi run sim` | launch simulation |
-| `pixi run pool` | launch with real hardware in pool |
+| `pixi run -e jetson pool` | launch with real hardware in pool (on the vehicle, in its own environment) |
 | `pixi run preflight` | check the running stack before it goes in the water (`--sim` for the simulator) |
 | `pixi run test` | every package's tests, including a headless-simulator run of the whole stack |
 | `pixi run format` | format Python (ruff) and C/C++ (clang-format) |

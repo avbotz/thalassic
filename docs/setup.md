@@ -7,7 +7,8 @@ Thalassic uses [pixi](https://pixi.sh) with the [RoboStack](https://robostack.gi
 | Platform | Notes |
 |---|---|
 | Ubuntu / any Linux (x86_64) | Native. Stonefish needs OpenGL 4.3 (Mesa or NVIDIA drivers on the host). |
-| Jetson AGX Orin (aarch64) | Native. See [deployment.md](deployment.md) for vehicle-only OS setup. |
+| Jetson AGX Orin (aarch64) | Native, in the `jetson` environment. See [deployment.md](deployment.md) for vehicle-only OS setup. |
+| Any other Linux on Arm (aarch64) | Native, CPU only: vision runs in ONNX Runtime on the CPU. Stonefish needs OpenGL 4.3, as on x86. |
 | Windows / MacOS | Not supported (there is no container). Use a Linux machine or VM. |
 
 The only host tools the workspace uses outside pixi are `lsb_release` and `dpkg`, which the FLIR driver unpacks its SDK with at build time (Linux only).
@@ -22,7 +23,7 @@ cd thalassic
 scripts/install.sh
 ```
 
-`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default`, runs the first `colcon build`, and downloads the model weights ([vision.md](vision.md#model-weights)). Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
+`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default` (on a Jetson, `-e jetson` into `.pixi/envs/jetson`), runs the first `colcon build`, and downloads the model weights ([vision.md](vision.md#model-weights)). Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
 
 ## Everyday workflow
 
@@ -132,10 +133,13 @@ Commit the submodule pointer when the version should become the team default.
 
 ## GPU inference
 
-The default environment installs CPU builds of ONNX Runtime and, on `linux-64`, of PyTorch; they are enough for the simulator.
+`pixi.toml` defines two environments. Each installs the first of its platform entries the machine satisfies, and each entry is solved separately, so a developer switching machines rebuilds the workspace rather than copying `install/` across.
 
-- **Jetson:** the `linux-aarch64` environment carries JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from the isaac-forge channel) and the CUDA 13.2 runtime and bindings from conda-forge; JetPack only has to provide the driver. `sub_vision` runs TensorRT engines that `pixi run build-engines` builds from the ONNX models and checks against ONNX Runtime ([deployment.md](deployment.md#the-gpu-stack)).
-- **x86 with an NVIDIA GPU:** on a machine whose driver supports CUDA 12 or newer, `pixi install` picks the `linux-64-cuda` entry of `pixi.toml` and the environment's ONNX Runtime has the CUDA provider; `device: auto` uses it. Nothing to opt into, and nothing changes for CI or machines without NVIDIA hardware, which get the plain `linux-64` entry. PyTorch stays the CPU build everywhere. The two entries are solved separately, so a developer switching machines rebuilds the workspace rather than copying `install/` across.
+- **`default`**, every machine but the vehicle, runs the models in ONNX Runtime, which is enough for the simulator:
+  - `linux-64-cuda`: x86 with an NVIDIA GPU whose driver supports CUDA 12 or newer. ONNX Runtime has the CUDA provider and `device: auto` uses it. Nothing to opt into.
+  - `linux-64`: every other x86 machine, and CI. ONNX Runtime's CPU build.
+  - `linux-aarch64`: every Arm machine, on the CPU with ONNX Runtime's CPU build. An NVIDIA GPU in one goes unused.
+- **`jetson`**, the vehicle: the same packages plus JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from the isaac-forge channel) and the CUDA 13.2 runtime and bindings from conda-forge; JetPack only has to provide the driver. `sub_vision` runs TensorRT engines that `pixi run -e jetson build-engines` builds from the ONNX models ([deployment.md](deployment.md#the-gpu-stack)). Every command on the vehicle names it (`pixi run -e jetson <task>`, `pixi shell -e jetson`); `scripts/setup.sh` warns when a Jetson activates the default environment instead, because both build into the same `build/` and `install/`.
 
 ## Updating dependencies
 

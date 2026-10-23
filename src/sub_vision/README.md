@@ -131,8 +131,8 @@ Selection, per the `device` param (`backends.open_runner`):
    for the current ONNX file; it never falls back to the CPU.
    `pool_test_launch.py` sets it for the vehicle.
 2. `cuda` and `cpu` run the ONNX file in ONNX Runtime; `cuda` uses the CPU
-   when ONNX Runtime has no CUDA provider (the default pixi environment). On the
-   CPU it runs 4 threads that sleep between operators (`CPU_THREADS` in
+   when ONNX Runtime has no CUDA provider (every pixi platform but
+   `linux-64-cuda`). On the CPU it runs 4 threads that sleep between operators (`CPU_THREADS` in
    `backends.py`): its default, a spinning thread per core, kept 7.7 cores busy for
    the gate model at 24 Hz on the dev laptop, against 2.7 for 35 ms instead of 25
    per frame.
@@ -147,8 +147,8 @@ Selection, per the `device` param (`backends.open_runner`):
    fails the load, and the previous model stays active.
 
 `onnxruntime` comes from pixi everywhere; `tensorrt` and `cuda-bindings`
-(`cuda.bindings.runtime`) too, on `linux-aarch64` only (`pixi.toml`). Both
-imports are lazy, so the package builds and lints on a machine without them.
+(`cuda.bindings.runtime`) too, in the `jetson` environment only (`pixi.toml`).
+Both imports are lazy, so the package builds and lints on a machine without them.
 
 ---
 

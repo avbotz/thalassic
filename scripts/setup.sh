@@ -5,6 +5,12 @@ if [ -z "$PIXI_PROJECT_ROOT" ]; then
   return 0
 fi
 
+# The Jetson has an environment of its own. The default one shares build/ and install/ with it,
+# so a workspace built in one would run against the other's libraries.
+if [ -e /etc/nv_tegra_release ] && [ "$PIXI_ENVIRONMENT_NAME" != jetson ]; then
+  echo "thalassic: this is a Jetson; use 'pixi run -e jetson <task>' or 'pixi shell -e jetson'." >&2
+fi
+
 # Source the colcon workspace overlay if it has been built
 if [ -n "$ZSH_VERSION" ]; then
   _thalassic_sh=zsh

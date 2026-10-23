@@ -30,8 +30,8 @@ pixi run build
 # Run simulation
 pixi run sim
 
-# Run pool test (vehicle)
-pixi run pool
+# Run pool test (vehicle, which has an environment of its own)
+pixi run -e jetson pool
 
 # Interactive shell with ROS 2, the workspace, and the DDS profile set up
 pixi shell
