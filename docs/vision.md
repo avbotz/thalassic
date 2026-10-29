@@ -35,7 +35,7 @@ Models are `<task>.onnx` in `weights/` at the workspace root, except where `sub_
 
 ## Model weights
 
-The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device and the TensorRT version, so `pixi run build-engines` builds them on the Jetson from the ONNX files, named by each file's checksum, and checks each against ONNX Runtime ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
+The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device and the TensorRT version, so `pixi run -e jetson build-engines` builds them on the Jetson from the ONNX files, named by each file's checksum, and checks each against ONNX Runtime ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
 
 To add or update a model, upload it to a new release and point the manifest at it:
 

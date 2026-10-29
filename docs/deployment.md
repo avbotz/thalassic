@@ -66,18 +66,6 @@ Nothing drives until the kill switch has been engaged and released *after* the s
 1. In the water, killed: check `control/status` in Foxglove: `dvl_ok` once the DVL has bottom lock, `depth_ok`, `imu_ok`.
 1. Release the kill switch, watch `armed` come up, and run.
 
-### Starting at boot
-
-`deploy/jetson/setup.sh` installs a `thalassic` systemd service that runs `pixi run --frozen -e jetson pool` as `avbotz`, with launch arguments from `/etc/thalassic/pool.env` (e.g. `POOL_ARGS=mission:=competition record:=true`), and restarts it if it crashes. It is not enabled by default:
-
-```bash
-sudo systemctl enable --now thalassic    # start now and at every boot
-journalctl -u thalassic -f               # its output
-sudo systemctl disable --now thalassic   # back to launching by hand
-```
-
-With it, a brownout in the water leaves the stack coming back up on its own, waiting for the kill switch to be cycled, instead of a vehicle without software until someone connects. Do not also run `pixi run -e jetson pool` by hand while it is enabled: two stacks on one vehicle fight over the serial ports.
-
 ### maritime
 
 The thruster board runs [maritime](https://github.com/avbotz/maritime). `sub_low` needs firmware with protocol 2: older firmware does not understand its `m` thruster lines and has no command watchdog to stop the thrusters when the commands stop. `/diagnostics_agg` shows the protocol the board reports under `sub_low: board`. Build and flash it as maritime's README says (`west build -b rpi_pico`, then `west flash -r uf2`, or copy `build/zephyr/zephyr.uf2` to the board in BOOTSEL mode).

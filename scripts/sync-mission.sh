@@ -60,7 +60,7 @@ fi
 if grep -q '^<f+++++++++ ' <<<"$changes"; then
   echo "==> Building sub_mission on $VEHICLE to link the new files"
   # Not a login shell, so pixi is not on the PATH yet.
-  "${SSH[@]}" "$VEHICLE" "cd $REMOTE && PATH=\$HOME/.pixi/bin:\$PATH pixi run --frozen colcon build --packages-select sub_mission"
+  "${SSH[@]}" "$VEHICLE" "cd $REMOTE && PATH=\$HOME/.pixi/bin:\$PATH pixi run --frozen -e jetson colcon build --packages-select sub_mission"
 fi
 
 echo "sync-mission: done; under restart, the next release runs these trees"
