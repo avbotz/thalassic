@@ -20,7 +20,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 VEHICLE="${1:-avbotz@192.168.5.245}"
-REMOTE=thalassic  # the vehicle's checkout, from its user's home (docs/deployment.md)
+REMOTE=thalassic # the vehicle's checkout, from its user's home (docs/deployment.md)
 
 echo "==> Testing sub_mission"
 colcon build --packages-select sub_mission
