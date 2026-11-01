@@ -12,26 +12,54 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-26.04, ubuntu-24.04-arm, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      # Identify the compiler by its contents rather than its timestamp.
+      CCACHE_COMPILERCHECK: content
+      CCACHE_MAXSIZE: 500M
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: prefix-dev/setup-pixi@v0.10.2
+      - uses: prefix-dev/setup-pixi@v0.11.3
         with:
-          pixi-version: v0.81.0
-          # Exactly what pixi.lock says; fails if pixi.toml and the lock disagree.
+          pixi-version: v0.83.0
           frozen: true
           cache: true
 
       - name: Lint
-        run: pixi run lint
+        run: pixi run format --check
 
-      # The FLIR driver downloads the Spinnaker SDK while it builds.
+      # Restores the newest cache from this branch or main
+      - uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ matrix.runner }}-
+
       - name: Build
-        run: pixi run build --event-handlers console_cohesion+
+        id: build
+        run: |
+          pixi run ccache --zero-stats
+          pixi run build --event-handlers console_cohesion+
+
+      - name: ccache stats
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        run: pixi run ccache --show-stats
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Test
         run: pixi run test
@@ -42,8 +70,8 @@ jobs:
 
       - name: Upload logs
         if: failure()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7
         with:
-          name: colcon-logs
+          name: colcon-logs-${{ matrix.runner }}
           path: log/
-          retention-days: 14
+          retention-days: 7
