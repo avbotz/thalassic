@@ -15,4 +15,3 @@ sudo deploy/jetson/setup.sh
 | Socket buffers, 10 MB | `/etc/sysctl.d/60-thalassic-gige.conf` | The GigE camera bursts a frame faster than the default receive buffer holds. |
 | udev rules from `../udev` | `/etc/udev/rules.d/` | Stable device names (`/dev/maritime`, `/dev/naviguider_imu`, `/dev/front_camera`). |
 | user added to `dialout` and `video` groups | `/etc/group` | Allows for non-root access to MCUs and cameras. |
-| `THALASSIC_DDS_PROFILE=vehicle` | `/etc/profile.d/thalassic.sh` | Subnet DDS discovery on the vehicle domain for every login shell. |

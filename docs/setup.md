@@ -11,7 +11,7 @@ Thalassic uses [pixi](https://pixi.sh) with the [RoboStack](https://robostack.gi
 | Any other Linux on Arm (aarch64) | Native, CPU only: vision runs in ONNX Runtime on the CPU. Stonefish needs OpenGL 4.3, as on x86. |
 | Windows / MacOS | Not supported (there is no container). Use a Linux machine or VM. |
 
-The only host tools the workspace uses outside pixi are `lsb_release` and `dpkg`, which the FLIR driver unpacks its SDK with at build time (Linux only).
+The only host tools the workspace uses outside pixi are `lsb_release`, `dpkg`, and `git`, which the FLIR driver unpacks its SDK with at build time (Linux only).
 
 **Do not install or source an apt ROS 2 on a machine that uses this workspace.** This was previously done manually with `source setup.sh`, though it is no longer needed as pixi should setup the paths properly.
 
@@ -23,7 +23,7 @@ cd thalassic
 scripts/install.sh
 ```
 
-`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default` (on a Jetson, `-e jetson` into `.pixi/envs/jetson`), runs the first `colcon build`, and downloads the model weights ([vision.md](vision.md#model-weights)). Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
+`install.sh` installs pixi to `~/.pixi/bin` if it is missing (add that directory to your `PATH`), fetches the submodules, runs `pixi install --frozen` to materialise `pixi.lock` into `.pixi/envs/default` (on a Jetson, `-e jetson` into `.pixi/envs/jetson`), installs the [git hooks](#git-hooks), runs the first `colcon build`, and downloads the model weights ([vision.md](vision.md#model-weights)). Expect several GB of downloads the first time; pixi caches packages in `~/.cache/rattler` so later workspaces are fast.
 
 ## Everyday workflow
 
@@ -70,18 +70,30 @@ pixi run format     # rewrite every file this repo owns
 pixi run lint       # check only; non-zero exit if anything is off
 ```
 
-Two tools, one per language, both pinned in `pixi.lock` so a rebuild never reformats the tree under someone:
+One tool per language, each pinned in `pixi.lock` so a rebuild never reformats the tree under someone:
 
 | Language | Tool | Config |
 |---|---|---|
 | Python | `ruff` (formatter + linter) | `ruff.toml` — 100 columns, `py312` |
 | C / C++ | `clang-format` | `.clang-format` — 4-space indent, 120 columns |
+| Shell (`scripts/`, `deploy/`) | `shfmt` | `.editorconfig` — 2-space indent |
+| Markdown (`docs/`) | `mdformat` | none |
 
 `scripts/format.sh` builds its file list with `git ls-files`, which lists submodule directories but not their contents, so upstream code under `src/sub_sim/stonefish_ros2`, `src/sub_sim/stonefish_vendor/stonefish`, `src/sub_drivers/flir_camera_driver` and `src/sub_drivers/waterlinked_dvl` is never reformatted.
 
-Run `pixi run format` before committing. If the formatter and a hand-aligned block disagree and the block is right — a lookup table, say — wrap it in `// clang-format off` / `// clang-format on`.
+If the formatter and a hand-aligned block disagree and the block is right — a lookup table, say — wrap it in `// clang-format off` / `// clang-format on`.
 
 Packages no longer carry `ament_lint_auto` blocks, so `colcon test` (`pixi run test`) runs tests rather than a second, contradictory style check. See [Decision 9](decisions.md).
+
+### Git hooks
+
+[pre-commit](https://pre-commit.com) runs the same checks as `pixi run lint` on the files in each commit, with the same tools from `pixi.lock` (`.pre-commit-config.yaml`), so a file they pass also passes CI's lint step. They only check, and leave your files alone; when one fails, run `pixi run format`, `git add` what it changed, and commit again.
+
+`install.sh` installs the hooks. In a clone from before they existed, run `pixi run pre-commit install` once.
+
+The hooks use the environment as it is (`pixi run --as-is`), so a commit never installs anything, and a checkout with no `.pixi/envs/default` has to run `pixi install` before it can commit. The Jetson has no default environment and `install.sh` leaves its hooks out, so a commit made on the vehicle during a pool test is not held up over formatting; CI still checks it once it is pushed.
+
+`git commit --no-verify` skips the hooks. `pixi run pre-commit run --all-files` runs them on every tracked file.
 
 ## Tests and CI
 
@@ -89,7 +101,7 @@ Packages no longer carry `ament_lint_auto` blocks, so `colcon test` (`pixi run t
 
 pytest is pinned below 9 in `pixi.toml`: Jazzy's `launch_testing` plugins do not load under pytest 9.
 
-`.github/workflows/ci.yml` runs `pixi run lint`, `pixi run build` and `pixi run test` on every pull request and every push to `main`, from `pixi.lock` (`--frozen`), on linux-64. Make its `build-and-test` check required for `main` in the repository settings (Branches, branch protection), together with one approving review, so nothing merges red or unread.
+`.github/workflows/ci.yml` runs `pixi run lint`, `pixi run build` and `pixi run test` on every pull request and every push to `main`, from `pixi.lock` (`--frozen`), on Ubuntu 24.04 and 26.04, each on x86 and Arm, all in the `default` environment. Compiles go through ccache, with a cache per runner; the `ccache stats` step shows how many it reused. Make its four `build-and-test` checks required for `main` in the repository settings (Branches, branch protection), together with one approving review, so nothing merges red or unread.
 
 ## DDS profiles
 
@@ -137,8 +149,8 @@ Commit the submodule pointer when the version should become the team default.
 
 - **`default`**, every machine but the vehicle, runs the models in ONNX Runtime, which is enough for the simulator:
   - `linux-64-cuda`: x86 with an NVIDIA GPU whose driver supports CUDA 12 or newer. ONNX Runtime has the CUDA provider and `device: auto` uses it. Nothing to opt into.
-  - `linux-64`: every other x86 machine, and CI. ONNX Runtime's CPU build.
-  - `linux-aarch64`: every Arm machine, on the CPU with ONNX Runtime's CPU build. An NVIDIA GPU in one goes unused.
+  - `linux-64`: every other x86 machine, including CI's. ONNX Runtime's CPU build.
+  - `linux-aarch64`: every Arm machine, including CI's, on the CPU with ONNX Runtime's CPU build. An NVIDIA GPU in one goes unused.
 - **`jetson`**, the vehicle: the same packages plus JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from the isaac-forge channel) and the CUDA 13.2 runtime and bindings from conda-forge; JetPack only has to provide the driver. `sub_vision` runs TensorRT engines that `pixi run -e jetson build-engines` builds from the ONNX models ([deployment.md](deployment.md#the-gpu-stack)). Every command on the vehicle names it (`pixi run -e jetson <task>`, `pixi shell -e jetson`); `scripts/setup.sh` warns when a Jetson activates the default environment instead, because both build into the same `build/` and `install/`.
 
 ## Updating dependencies

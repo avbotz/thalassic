@@ -1,14 +1,5 @@
-# Sourced by pixi on every `pixi run` / `pixi shell` (see [activation] in pixi.toml).
-
-if [ -z "$PIXI_PROJECT_ROOT" ]; then
-  echo "thalassic: run 'pixi shell' (or 'pixi run <task>') instead of sourcing this file." >&2
-  return 0
-fi
-
-# The Jetson has an environment of its own. The default one shares build/ and install/ with it,
-# so a workspace built in one would run against the other's libraries.
 if [ -e /etc/nv_tegra_release ] && [ "$PIXI_ENVIRONMENT_NAME" != jetson ]; then
-  echo "thalassic: this is a Jetson; use 'pixi run -e jetson <task>' or 'pixi shell -e jetson'." >&2
+  echo "This is a Jetson. Use 'pixi run -e jetson <task>' or 'pixi shell -e jetson'." >&2
 fi
 
 # Source the colcon workspace overlay if it has been built
@@ -24,27 +15,4 @@ if [ -f "$_thalassic_overlay" ]; then
   . "$_thalassic_overlay"
 fi
 
-# DDS profile
-# dev (default): discovery limited to this machine, computers on the same network will not conflict
-# vehicle:       the Jetson (selected system-wide by /etc/profile.d/thalassic.sh) and any laptop plugged into the sub.
-#                Discovery spans the subnet on a fixed domain.
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-if [ "${THALASSIC_DDS_PROFILE:-dev}" = vehicle ]; then
-  export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
-else
-  export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-fi
-
-# FLIR camera setup
-_thalassic_cti="$PIXI_PROJECT_ROOT/install/lib/spinnaker-gentl/Spinnaker_GenTL.cti"
-if [ -f "$_thalassic_cti" ]; then
-  export SPINNAKER_GENTL64_CTI="$_thalassic_cti"
-fi
-
-# conda provides SDL2 using a shim that passes calls to SDL3
-# SDL2 uses x11 by default, while SDL3 uses wayland
-# When using Wayland, the title bar disappears.
-# Switches back to x11. No issues with this approach, can be removed when Stonefish migrates to SDL3.
-export SDL_VIDEODRIVER=x11
-
-unset _thalassic_sh _thalassic_overlay _thalassic_cti
+unset _thalassic_sh _thalassic_overlay
