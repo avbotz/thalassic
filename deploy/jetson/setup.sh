@@ -34,9 +34,6 @@ step "Socket buffers (GigE down camera)"
 install -m 0644 "$FILES/60-thalassic-gige.conf" /etc/sysctl.d/
 sysctl --system >/dev/null
 
-step "DDS profile for login shells"
-install -m 0644 "$FILES/thalassic.sh" /etc/profile.d/
-
 step "NTP server"
 install -m 0644 "$FILES/thalassic-ntp.conf" /etc/chrony/conf.d/thalassic.conf
 systemctl enable chrony

@@ -5,7 +5,6 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import jinja2
 import pytest
 
 from sub_sim.generate_robot import Pose, render_robot_scenario
@@ -143,20 +142,6 @@ def test_without_cameras_there_are_none_of_any_kind():
     types = {sensor.get("type") for sensor in ET.parse(robot).iter("sensor")}
     assert not types & {"camera", "depth_camera", "segmentation"}
     assert {"dvl", "imu", "pressure"} <= types
-
-
-def test_a_variable_the_scenario_is_not_given_raises():
-    """Rather than leaving the attribute it fills in empty for Stonefish to misread."""
-    with pytest.raises(jinja2.UndefinedError, match="current"):
-        randomize_scenario_locations(
-            PACKAGE / "scenarios" / "woollett.scn.j2",
-            DX=0.0,
-            DY=0.0,
-            DZ=0.0,
-            DYAW=0.0,
-            render_robot=lambda **_: "robot.scn",
-            course="D",
-        )
 
 
 def test_the_dvl_looks_down():

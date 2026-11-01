@@ -1,0 +1,31 @@
+# Runs linting on files being committed.
+# Uses local hooks rather than the tools' pre-commit mirrors so the versions of the tools installed with pixi are used.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: pixi run --as-is ruff format --check
+        language: unsupported
+        files: \.py$
+      - id: ruff-check
+        name: ruff check
+        entry: pixi run --as-is ruff check
+        language: unsupported
+        files: \.py$
+      - id: clang-format
+        name: clang-format
+        entry: pixi run --as-is clang-format --dry-run --Werror
+        language: unsupported
+        files: \.(c|h|cpp|hpp)$
+      - id: shfmt
+        name: shfmt
+        entry: pixi run --as-is shfmt -l
+        language: unsupported
+        files: ^(scripts|deploy)/
+        types: [shell]
+      - id: mdformat
+        name: mdformat
+        entry: pixi run --as-is mdformat --check
+        language: unsupported
+        files: ^docs/.*\.md$

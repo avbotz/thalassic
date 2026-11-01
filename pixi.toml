@@ -1,113 +1,105 @@
-# Everything the workspace needs is declared here and pinned in pixi.lock.
-# Nothing is installed with apt or pip.
-#
-#   pixi run build      colcon build
-#   pixi run sim        ros2 launch sub_bringup sim_launch.py
-#   pixi shell          interactive shell with ROS, the workspace, and DDS set up
-#
-# On the vehicle, name its environment: pixi run -e jetson <task>, pixi shell -e jetson.
-
 [workspace]
 name = "thalassic"
 version = "0.1.0"
-description = "ROS 2 Jazzy stack for AVBotz's Marlin V3 AUV"
-# The priority keeps RoboStack ahead of the jetson environment's isaac-forge channel.
+description = "ROS Codebase for AVBotz AUVs"
 channels = [
+  # Priority keeps robostack-jazzy ahead of isaac-forge
   { channel = "https://prefix.dev/robostack-jazzy", priority = 2 },
   "https://prefix.dev/conda-forge",
 ]
-# Each environment installs the first of its entries the machine satisfies.
-# default environment (vision in ONNX Runtime):
-#   linux-64-cuda: an x86 machine with an NVIDIA GPU and a driver for CUDA 12 or newer, which
-#                  gets ONNX Runtime's CUDA build.
-#   linux-64:      every other x86 machine, and CI.
-#   linux-aarch64: any Arm machine, on the CPU.
-# jetson environment (vision in TensorRT): the AGX Orin on JetPack 7.2, whose driver is CUDA 13
-#   and whose GPU is compute capability 8.7, which selects the Orin build of TensorRT.
 platforms = [
   { name = "linux-64-cuda", platform = "linux-64", cuda = "12" },
   "linux-64",
   "linux-aarch64",
-  { name = "jetson", platform = "linux-aarch64", glibc = "2.38", cuda = { driver = "13", arch = "8.7" } },
+  { name = "jetson", platform = "linux-aarch64", glibc = "2.39", cuda = { driver = "13", arch = "8.7" } },
 ]
-requires-pixi = ">=0.81"
+requires-pixi = ">=0.83"
 
-[dependencies]
-# 3.12 is the only Python isaac-forge builds tensorrt-python for (it is also the Jetson's own),
-# and both environments share it.
-python = ">=3.12.14,<3.13"
+[environments]
+default = ["dev"]
+jetson = ["jetson"]
 
-# --- build tooling ---
-compilers = ">=2.0.0,<3"
-cmake = ">=4.4.3,<5"
-make = ">=4.4.1,<5"
-pkg-config = ">=0.29.2,<0.30"
-git = ">=2.55.0,<3"
-colcon-common-extensions = ">=0.3.0,<0.4"
-
-ros-jazzy-ros-base = ">=0.11.0,<0.12"
-ros-jazzy-ament-cmake-vendor-package = ">=2.5.6,<3"   # stonefish_vendor
-ros-jazzy-eigen3-cmake-module = ">=0.3.1,<0.4"          # libwaterlinked
-ros-jazzy-generate-parameter-library = ">=0.7.6,<0.8"   # sub_control, waterlinked_dvl_driver
-ros-jazzy-rviz2 = ">=14.1.23,<15"
-ros-jazzy-tf2-tools = ">=0.36.22,<0.37"
-ros-jazzy-tf2-geometry-msgs = ">=0.36.22,<0.37"
-ros-jazzy-foxglove-bridge = ">=3.4.3,<4"
-ros-jazzy-robot-localization = ">=3.8.3,<4"           # EKF
-ros-jazzy-behaviortree-cpp = ">=4.9.1,<5"             # sub_mission
-ros-jazzy-marine-acoustic-msgs = ">=2.1.0,<3"         # DVL messages
-ros-jazzy-cv-bridge = ">=4.1.0,<5"
-ros-jazzy-vision-msgs = ">=4.1.1,<5"
-ros-jazzy-diagnostic-updater = ">=4.2.7,<5"           # drivers', sub_control's and sub_vision's /diagnostics
-ros-jazzy-diagnostic-aggregator = ">=4.2.7,<5"        # /diagnostics_agg (config/diagnostics.yaml)
-ros-jazzy-rclcpp-components = ">=28.1.21,<29"            # sub_sim_sensors
-ros-jazzy-image-transport = ">=5.1.8,<6"
-ros-jazzy-image-transport-plugins = ">=4.0.7,<5"      # compressed image transport for off-board vision
-ros-jazzy-camera-info-manager = ">=5.1.8,<6"          # spinnaker_camera_driver
-ros-jazzy-pcl-conversions = ">=2.6.5,<3"              # stonefish_ros2
-ros-jazzy-usb-cam = ">=0.8.1,<0.9"                      # Logitech C922 front camera
-
-# --- native libraries ---
-pcl = ">=1.15.1,<2"                                    # stonefish_ros2
-eigen = ">=5.0.1,<6"                                  # libwaterlinked
-nlohmann_json = ">=3.12.0,<4"                          # libwaterlinked
-yaml-cpp = ">=0.8.0,<0.9"                               # spinnaker_camera_driver
-libusb = ">=1.0.29,<2"                                 # Spinnaker SDK runtime
-ffmpeg = ">=9.0.1,<10"                                 # Spinnaker SDK runtime
-sdl2 = ">=2.32.56,<3"                                   # Stonefish
-freetype = ">=2.14.3,<3"                               # Stonefish
-glm = ">=1.0.3,<2"                                    # Stonefish
-libgl-devel = ">=1.7.0,<2"                            # OpenGL headers for Stonefish
-llvm-openmp = ">=23.1.1,<24"                            # Spinnaker SDK runtime (libomp)
-
-# --- Python ---
-numpy = ">=2.5.3,<3"
-opencv = ">=4.13.0,<5"                                 # must be the conda build: cv_bridge links against it
-pyyaml = ">=6.0.3,<7"                                 # sub_bringup vehicle description
-jinja2 = ">=3.1.6,<4"                                 # sub_sim scenario templates
-onnxruntime = ">=1.30.0,<2"
-
-# Below 9: Jazzy's launch_testing pytest plugins fail to load under pytest 9
-# (fixed in Rolling by ros2/launch#972, not backported).
-pytest = ">=8.4,<9"
-
-# lint and format
-ruff = ">=0.16.7,<0.17"          # Python: formatter and linter
-clang-format = ">=23.1.1,<24"    # C/C++: formatter, reads .clang-format
-mdformat = ">=1.0.0,<2"
-go-shfmt = ">=3.14.1,<4"
-
-# The default environment's platforms. Everything it installs is in [dependencies].
-[feature.ort]
+[feature.dev]
 platforms = ["linux-64-cuda", "linux-64", "linux-aarch64"]
 
-# The Jetson's GPU stack. JetPack provides the driver and nothing else the stack uses; see
-# docs/decisions.md, Decision 5.
 [feature.jetson]
 platforms = ["jetson"]
-# NVIDIA's TensorRT (and Isaac ROS, unused) packaged for RoboStack, between RoboStack and
-# conda-forge.
 channels = [{ channel = "https://prefix.dev/isaac-forge/jazzy", priority = 1 }]
+
+[dependencies]
+# 3.12 is the only Python isaac-forge builds tensorrt-python for (it is also the Jetson's own).
+python = ">=3.12,<3.13"
+
+# Build tooling
+c-compiler = ">=2,<3"
+cxx-compiler = ">=2,<3"
+cmake = ">=4,<5"
+make = ">=4,<5"
+colcon-common-extensions = ">=0.3,<0.4"
+
+# ROS packages
+ros-jazzy-ros-base = ">=0.11,<0.12"
+ros-jazzy-eigen3-cmake-module = ">=0.3,<0.4"          # libwaterlinked
+ros-jazzy-generate-parameter-library = ">=0.7,<0.8"   # sub_control, waterlinked_dvl_driver
+ros-jazzy-tf2-geometry-msgs = ">=0.36,<0.37"
+ros-jazzy-tf2-tools = ">=0.36,<0.37"
+ros-jazzy-foxglove-bridge = ">=3,<4"
+ros-jazzy-robot-localization = ">=3,<4"               # EKF
+ros-jazzy-behaviortree-cpp = ">=4,<5"                 # sub_mission
+ros-jazzy-marine-acoustic-msgs = ">=2,<3"             # DVL messages
+ros-jazzy-cv-bridge = ">=4,<5"
+ros-jazzy-vision-msgs = ">=4,<5"
+ros-jazzy-diagnostic-updater = ">=4,<5"               # drivers', sub_control's and sub_vision's /diagnostics
+ros-jazzy-diagnostic-aggregator = ">=4,<5"            # /diagnostics_agg (config/diagnostics.yaml)
+ros-jazzy-image-transport = ">=5,<6"
+ros-jazzy-image-transport-plugins = ">=4,<5"          # compressed image transport for off-board vision
+ros-jazzy-camera-info-manager = ">=5,<6"              # spinnaker_camera_driver
+ros-jazzy-usb-cam = ">=0.8,<0.9"                      # Logitech C922 front camera
+
+# Native libraries
+eigen = ">=5,<6"                                      # libwaterlinked
+nlohmann_json = ">=3,<4"                              # libwaterlinked
+yaml-cpp = ">=0.8,<0.9"                               # spinnaker_camera_driver
+libusb = ">=1,<2"                                     # Spinnaker SDK runtime
+ffmpeg = ">=9,<10"                                    # Spinnaker SDK runtime
+llvm-openmp = ">=23,<24"                              # Spinnaker SDK runtime
+
+# Python
+numpy = ">=2,<3"
+opencv = ">=4,<5"                                     # cv_bridge
+pyyaml = ">=6,<7"                                     # sub_bringup
+onnxruntime = ">=1,<2"
+setuptools = "<80"                                    # needed for colcon (see colcon/colcon-core#696 and RoboStack/ros-jazzy#103)
+
+# Jazzy's launch_testing pytest plugins fail to load under pytest 9 (fixed in Rolling by ros2/launch#972).
+pytest = ">=8,<9"
+
+[feature.dev.dependencies]
+# ROS packages
+ros-jazzy-rviz2 = ">=14,<15"
+ros-jazzy-ament-cmake-vendor-package = ">=2,<3"       # stonefish_vendor
+ros-jazzy-pcl-conversions = ">=2,<3"                  # stonefish_ros2
+ros-jazzy-rclcpp-components = ">=28,<29"              # sub_sim_sensors
+
+# Native libraries needed by Stonefish
+pcl = ">=1,<2"
+sdl2 = ">=2,<3"
+freetype = ">=2,<3"
+glm = ">=1,<2"
+libgl-devel = ">=1,<2"
+
+# Python
+jinja2 = ">=3,<4"                                     # sub_sim
+
+# Linting and formatting
+ruff = ">=0.17,<0.18"
+clang-format = ">=23,<24"
+mdformat = ">=1,<2"
+go-shfmt = ">=3,<4"
+pre-commit = ">=4,<5"
+
+# Compile cache for CI builds
+ccache = ">=4,<5"
 
 [feature.jetson.dependencies]
 # JetPack 7.2.1's TensorRT, built for the Orin. Engines are tied to this version.
@@ -115,27 +107,38 @@ tensorrt-python = { version = "10.16.2.*", channel = "https://prefix.dev/isaac-f
 cuda-bindings = "13.2.*"       # cuda.bindings.runtime, the CUDA runtime API (part of cuda-python)
 cuda-version = "13.2.*"        # every CUDA library at the driver's version (JetPack 7.2.1)
 
+[tasks]
+build = { cmd = "colcon build", depends-on = ["_prune-symlinks"], description = "Build the workspace" }
+clean = { cmd = "rm -rf build install log", description = "Remove build, install, and log directories" }
+test = { cmd = "colcon test --return-code-on-test-failure && colcon test-result --verbose", description = "Run tests" }
+fetch-weights = { cmd = "python scripts/fetch_weights.py", description = "Download the models in weights/manifest.toml into weights/ (--check only reports)" }
+up = { cmd = "ros2 launch sub_bringup {{ target }}_launch.py", args = [{ arg = "target", default = "sim"  }], description = "Launch the $arg_launch.py" }
+preflight = { cmd = "ros2 run sub_bringup preflight", description = "Check a running stack before it goes in the water (--sim for the simulator)" }
+reset = { cmd = "ros2 daemon stop; pkill -f '(^|/)ros2 ' || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Stop all ROS2 processes and clear stale Fast DDS shared memory" }
+
+_prune-symlinks = "scripts/prune-symlinks.sh"
+
+[feature.dev.tasks]
+format = { cmd = "scripts/format.sh", description = "Format files (--check just lints)" }
+lint = { cmd = "scripts/format.sh --check", description = "Lint files" }
+sync-mission = { cmd = "scripts/sync-mission.sh", description = "Test the mission behavior trees and copy them to the vehicle" }
+
 [feature.jetson.tasks]
-build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/ that has none, checking each against ONNX Runtime" }
+build = { cmd = "colcon build --packages-skip-regex '^(stonefish_.*|sub_sim.*)$'", depends-on = ["_prune-symlinks"], description = "Build the workspace (skips the simulator)" }
+build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/" }
 
-[environments]
-default = ["ort"]
-jetson = ["jetson"]
-
-# Environment activation: workspace overlay, DDS profile, FLIR GenTL path
 [activation]
 scripts = ["scripts/setup.sh"]
 
-[tasks]
-build = { cmd = "colcon build", description = "Build the workspace" }
-clean = { cmd = "rm -rf build install log", description = "Remove colcon build, install and log directories" }
-prune-symlinks = { cmd = "scripts/prune-symlinks.sh", description = "Delete dangling symlinks left in build and install" }
-fetch-weights = { cmd = "python scripts/fetch_weights.py", description = "Download the models in weights/manifest.toml into weights/, checking each sha256 (--check only reports)" }
-test = { cmd = "colcon test --return-code-on-test-failure && colcon test-result --verbose", description = "Run every package's tests; non-zero if any fails (colcon test-result --verbose shows which)" }
-format = { cmd = "scripts/format.sh", description = "Format all tracked Python and C/C++ (excludes submodules)" }
-lint = { cmd = "scripts/format.sh --check", description = "Check formatting and run the Python linter without rewriting" }
-sim = { cmd = "ros2 launch sub_bringup sim_launch.py", description = "Run the Stonefish simulation" }
-pool = { cmd = "ros2 launch sub_bringup pool_test_launch.py", description = "Run the hardware stack (vehicle only)" }
-preflight = { cmd = "ros2 run sub_bringup preflight", description = "Check a running stack before it goes in the water (--sim for the simulator)" }
-sync-mission = { cmd = "scripts/sync-mission.sh", description = "Test the mission trees, then copy them to the vehicle (default avbotz@192.168.5.245) for its next release" }
-reset-dds = { cmd = "pkill -f ros2 || true; rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*", description = "Kill stray ROS processes and stale Fast DDS shared memory (Linux)" }
+[activation.env]
+RMW_IMPLEMENTATION = "rmw_fastrtps_cpp"
+SPINNAKER_GENTL64_CTI = "$PIXI_PROJECT_ROOT/install/lib/spinnaker-gentl/Spinnaker_GenTL.cti"
+
+[feature.dev.activation.env]
+ROS_AUTOMATIC_DISCOVERY_RANGE = "${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}"
+# conda provides SDL2 using a shim that passes calls to SDL3. SDL2 uses X11 by default, while SDL3 uses Wayland.
+# When using Wayland, the title bar disappear, so this line switches back to x11. Can be removed when Stonefish migrates to SDL3.
+SDL_VIDEODRIVER = "x11"
+
+[feature.jetson.activation.env]
+ROS_AUTOMATIC_DISCOVERY_RANGE = "SUBNET"
