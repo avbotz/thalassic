@@ -42,8 +42,8 @@ jobs:
       - uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ccache
-          key: ccache-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ccache-${{ matrix.runner }}-
+          key: ccache-${{ matrix.runner }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ matrix.runner }}-run-
 
       - name: Build
         id: build
@@ -59,7 +59,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
         with:
           path: ~/.cache/ccache
-          key: ccache-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ccache-${{ matrix.runner }}-run-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Test
         run: pixi run test
