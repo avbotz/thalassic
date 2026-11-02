@@ -3,8 +3,7 @@ name = "thalassic"
 version = "0.1.0"
 description = "ROS Codebase for AVBotz AUVs"
 channels = [
-  # Priority keeps robostack-jazzy ahead of isaac-forge
-  { channel = "https://prefix.dev/robostack-jazzy", priority = 2 },
+  "https://prefix.dev/robostack-jazzy",
   "https://prefix.dev/conda-forge",
 ]
 platforms = [
@@ -24,10 +23,9 @@ platforms = ["linux-64-cuda", "linux-64", "linux-aarch64"]
 
 [feature.jetson]
 platforms = ["jetson"]
-channels = [{ channel = "https://prefix.dev/isaac-forge/jazzy", priority = 1 }]
 
 [dependencies]
-# 3.12 is the only Python isaac-forge builds tensorrt-python for (it is also the Jetson's own).
+# Holds ROS at its last 3.12 build: RoboStack has since moved Jazzy to 3.14 (RoboStack/robostack#61).
 python = ">=3.12,<3.13"
 
 # Build tooling
@@ -102,10 +100,8 @@ pre-commit = ">=4,<5"
 ccache = ">=4,<5"
 
 [feature.jetson.dependencies]
-# JetPack 7.2.1's TensorRT, built for the Orin. Engines are tied to this version.
-tensorrt-python = { version = "10.16.2.*", channel = "https://prefix.dev/isaac-forge/jazzy" }
-cuda-bindings = "13.2.*"       # cuda.bindings.runtime, the CUDA runtime API (part of cuda-python)
-cuda-version = "13.2.*"        # every CUDA library at the driver's version (JetPack 7.2.1)
+# CUDA 13 build, JetPack 7.2's major version. Has sm_80 kernels (which should be compatiable with the Jetson's sm_87)
+onnxruntime = { version = ">=1,<2", build = "*cuda13*" }
 
 [tasks]
 build = { cmd = "colcon build", depends-on = ["_prune-symlinks"], description = "Build the workspace" }
@@ -125,7 +121,6 @@ sync-mission = { cmd = "scripts/sync-mission.sh", description = "Test the missio
 
 [feature.jetson.tasks]
 build = { cmd = "colcon build --packages-skip-regex '^(stonefish_.*|sub_sim.*)$'", depends-on = ["_prune-symlinks"], description = "Build the workspace (skips the simulator)" }
-build-engines = { cmd = "ros2 run sub_vision build_engines", description = "Build a TensorRT engine for each ONNX model in weights/" }
 
 [activation]
 scripts = ["scripts/setup.sh"]

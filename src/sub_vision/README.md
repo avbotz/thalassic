@@ -1,12 +1,10 @@
 # sub_vision
 
 Perception for the Marlin V3 AUV: YOLO detection and segmentation with
-per-task OpenCV post-processing. Every model is an ONNX file; it runs through
-**TensorRT** on the Jetson AGX Orin, from an engine built from that file on
-the vehicle, and through **ONNX Runtime** (CUDA or CPU) on any dev machine.
-Pre-processing (letterbox) and post-processing (decode, box rescaling,
-instance masks) live in `backends.py` and are the **same code** on both; only
-the runner under them differs.
+per-task OpenCV post-processing. Every model is an ONNX file, and runs in
+**ONNX Runtime** on every machine: on the GPU where it has a provider for one,
+else on the CPU. Pre-processing (letterbox), post-processing (decode, box
+rescaling, instance masks) and the choice of provider live in `backends.py`.
 
 The pipeline is two ROS 2 (Jazzy) packages in this directory:
 
@@ -21,8 +19,7 @@ The pipeline is two ROS 2 (Jazzy) packages in this directory:
 > Segmentation exports add mask coefficients to each box and a
 > `(1, 32, H, W)` prototype output; the backend turns them into one
 > image-sized mask per detection for the post-processors. Which head a model
-> has comes from its export metadata (`end2end`, `names`), which
-> `build_engines` copies into each TensorRT engine file.
+> has comes from its export metadata (`end2end`, `names`).
 
 ---
 
@@ -99,23 +96,6 @@ and on the vehicle). `pixi run fetch-weights` downloads the ones listed in
 `weights/manifest.toml` from the GitHub releases
 ([docs/vision.md](../../docs/vision.md#model-weights)).
 
-A TensorRT engine is a cache of an ONNX file, not a second model: `pixi run
-build-engines` (on the Jetson; minutes per model) writes
-`<model>.<sha256 prefix>.trt<version>.engine` beside each ONNX file that has
-none, with the export's metadata ahead of the serialized engine. The name ties
-it to the exact export and TensorRT version, so a retrained model or a
-TensorRT update cannot run a stale engine: it fails to load until
-`build-engines` runs again. Engines from older exports are never loaded and
-can be deleted.
-
-Each new engine is then checked against ONNX Runtime on the CPU
-(`check_engines`): the same frames through both, an end-to-end head compared
-box by box (same class, overlapping, scored alike), every other output element
-by element within what FP16 allows. `pixi run check-engines` repeats it for
-every engine, and `--bag bags/<run>` or `--images '*.jpg'` replaces the
-synthetic frames with real ones, which a detector needs before it produces
-boxes worth comparing.
-
 The model is the task's name unless `model_manager.TASK_MODELS` maps it to
 another file: `gate` runs `ffc_rs_26`.
 
@@ -127,17 +107,18 @@ task's (`gate_survey` → `gate`). The suffix affects only that lookup: loading
 
 Selection, per the `device` param (`backends.open_runner`):
 
-1. `tensorrt` runs the model's engine, and fails the load if there is none
-   for the current ONNX file; it never falls back to the CPU.
+1. `auto` (default) tries each of `backends.GPU_PROVIDERS` (CUDA, MIGraphX,
+   WebGPU) that the installed ONNX Runtime has, in that order, and keeps the
+   first that runs the model; failing that it runs on the CPU and logs why.
+   Each provider must get through a real inference first: a build lists every
+   provider it was compiled with, and one with no kernels for this GPU only
+   fails when it runs. Any operator a provider lacks runs on the CPU.
+2. `gpu` is the same, but fails the load instead of using the CPU.
    `pool_test_launch.py` sets it for the vehicle.
-2. `cuda` and `cpu` run the ONNX file in ONNX Runtime; `cuda` uses the CPU
-   when ONNX Runtime has no CUDA provider (every pixi platform but
-   `linux-64-cuda`). On the CPU it runs 4 threads that sleep between operators (`CPU_THREADS` in
+3. `cpu` never tries a GPU. On the CPU it runs 4 threads that sleep between operators (`CPU_THREADS` in
    `backends.py`): its default, a spinning thread per core, kept 7.7 cores busy for
    the gate model at 24 Hz on the dev laptop, against 2.7 for 35 ms instead of 25
    per frame.
-3. `auto` (default) is `tensorrt` where the `tensorrt` module imports (the
-   Jetson), else `cuda`.
 4. `Detector` owns all pre/post processing: letterbox to the square network
    input (gray padding), BGR→RGB CHW float normalization, decode of an
    end-to-end head (or a raw YOLOv8/11 head + NMS) and its segment masks, and
@@ -146,9 +127,12 @@ Selection, per the `device` param (`backends.open_runner`):
    frame; mean/last timings are reported on `/diagnostics`. A warmup failure
    fails the load, and the previous model stays active.
 
-`onnxruntime` comes from pixi everywhere; `tensorrt` and `cuda-bindings`
-(`cuda.bindings.runtime`) too, in the `jetson` environment only (`pixi.toml`).
-Both imports are lazy, so the package builds and lints on a machine without them.
+`onnxruntime` comes from pixi everywhere, and which build it is decides the
+providers: CUDA on the `linux-64-cuda` platform and in the `jetson` environment,
+only the CPU elsewhere ([docs/setup.md](../../docs/setup.md#gpu-inference)). Once
+a session has started it stays on its provider: ONNX Runtime's own fallback to
+the CPU is turned off, so a GPU failing later fails frames, in the log, instead
+of quietly slowing every one.
 
 ---
 
@@ -182,8 +166,7 @@ No core edits — add a model and a post-processor:
 
 1. **Model:** drop `<model_dir>/<task>.onnx` (an ultralytics detect or segment
    export at a fixed input size: end-to-end YOLOv10/YOLO26, or a raw
-   YOLOv8/11 head), and run `pixi run build-engines` on the Jetson, which
-   builds and checks its engine.
+   YOLOv8/11 head).
 2. **Post-processor:** add `sub_vision/post_processors/<task>.py`:
 
    ```python
@@ -363,6 +346,6 @@ adds:
 colcon test --packages-select sub_vision --merge-install
 ```
 
-There is no unit-test suite yet (and no ament linters by design: `pixi run
-lint` checks it with ruff, with the rest of the repo); the command above is a
-build/packaging sanity check.
+`test/test_backends.py` checks the choice of execution provider against a
+stand-in for ONNX Runtime. The rest has no unit tests yet (and no ament linters
+by design: `pixi run lint` checks it with ruff, with the rest of the repo).

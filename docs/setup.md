@@ -147,11 +147,13 @@ Commit the submodule pointer when the version should become the team default.
 
 `pixi.toml` defines two environments. Each installs the first of its platform entries the machine satisfies, and each entry is solved separately, so a developer switching machines rebuilds the workspace rather than copying `install/` across.
 
-- **`default`**, every machine but the vehicle, runs the models in ONNX Runtime, which is enough for the simulator:
+- **`default`**, every machine but the vehicle:
   - `linux-64-cuda`: x86 with an NVIDIA GPU whose driver supports CUDA 12 or newer. ONNX Runtime has the CUDA provider and `device: auto` uses it. Nothing to opt into.
   - `linux-64`: every other x86 machine, including CI's. ONNX Runtime's CPU build.
   - `linux-aarch64`: every Arm machine, including CI's, on the CPU with ONNX Runtime's CPU build. An NVIDIA GPU in one goes unused.
-- **`jetson`**, the vehicle: the same packages plus JetPack 7.2.1's TensorRT (10.16.2, built for the Orin, from the isaac-forge channel) and the CUDA 13.2 runtime and bindings from conda-forge; JetPack only has to provide the driver. `sub_vision` runs TensorRT engines that `pixi run -e jetson build-engines` builds from the ONNX models ([deployment.md](deployment.md#the-gpu-stack)). Every command on the vehicle names it (`pixi run -e jetson <task>`, `pixi shell -e jetson`); `scripts/setup.sh` warns when a Jetson activates the default environment instead, because both build into the same `build/` and `install/`.
+- **`jetson`**, the vehicle: the same packages without the simulator and the developer tools, with ONNX Runtime's CUDA 13 build and the CUDA 13.4 libraries from conda-forge; JetPack only has to provide the driver ([deployment.md](deployment.md#the-gpu-stack)). Every command on the vehicle names it (`pixi run -e jetson <task>`, `pixi shell -e jetson`); `scripts/setup.sh` warns when a Jetson activates the default environment instead, because both build into the same `build/` and `install/`.
+
+`sub_vision` tries the GPU providers the installed build has, then the CPU ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
 
 ## Updating dependencies
 

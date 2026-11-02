@@ -19,12 +19,11 @@ setup(
     zip_safe=True,
     maintainer="AVBotz",
     maintainer_email="software@avbotz.com",
-    description="YOLO detection pipeline (ONNX Runtime / TensorRT) for the Marlin V3 AUV.",
+    description="YOLO detection pipeline (ONNX Runtime) for the Marlin V3 AUV.",
     license="MIT",
     entry_points={
         "console_scripts": [
             "sub_vision = sub_vision.vision_node:main",
-            "build_engines = sub_vision.build_engines:main",
         ],
     },
 )

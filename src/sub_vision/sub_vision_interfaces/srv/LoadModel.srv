@@ -1,5 +1,5 @@
 # Request the perception node load (and make active) the model for a task.
-# Resolves to <model_dir>/<model>.{engine|onnx}, where <model> is the task unless
+# Resolves to <model_dir>/<model>.onnx, where <model> is the task unless
 # sub_vision's model_manager.TASK_MODELS maps it to another file. If the task is
 # already the active model this is a no-op that still returns success; if the
 # load fails, the previous model stays active.

@@ -48,7 +48,10 @@ class DepthModel:
         if not rate_hz > 0.0:
             raise ValueError(f"depth rate {rate_hz} Hz is not positive")
         self._runner = backends.open_runner(
-            os.path.join(model_dir, f"{name}.onnx"), device_pref, (1, 3, input_size, input_size)
+            os.path.join(model_dir, f"{name}.onnx"),
+            device_pref,
+            (1, 3, input_size, input_size),
+            log,
         )
         self.input_size = int(self._runner.input_shape[2])
 

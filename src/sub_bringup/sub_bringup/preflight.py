@@ -8,9 +8,8 @@
 It listens for a few seconds and checks that every sensor and controller
 topic arrives at its rate, that the kill switch is reported, that both
 cameras are calibrated, that nothing in /diagnostics_agg is in error or
-stale, and that every released model (and on the vehicle its TensorRT
-engine) is on disk. It sends nothing and moves nothing. docs/deployment.md
-has the pool-day checklist it belongs to.
+stale, and that every released model is on disk. It sends nothing and moves
+nothing. docs/deployment.md has the pool-day checklist it belongs to.
 """
 
 import argparse
@@ -122,8 +121,8 @@ class Preflight(Node):
             self.diagnostics[status.name] = status
 
 
-def check_models(root: Path, engines: bool) -> list[str]:
-    """Problems with weights/: released models missing, or (on the vehicle) their engines."""
+def check_models(root: Path) -> list[str]:
+    """Problems with weights/: released models missing."""
     manifest = root / "weights" / "manifest.toml"
     if not manifest.is_file():
         return [f"{manifest} missing: is --root the workspace?"]
@@ -132,12 +131,6 @@ def check_models(root: Path, engines: bool) -> list[str]:
         path = root / "weights" / name
         if not path.exists():
             problems.append(f"weights/{name} missing: pixi run fetch-weights")
-        elif (
-            engines
-            and path.suffix == ".onnx"
-            and not list(path.parent.glob(f"{path.stem}.*.engine"))
-        ):
-            problems.append(f"no TensorRT engine for weights/{name}: pixi run build-engines")
     return problems
 
 
@@ -210,7 +203,7 @@ def main(argv=None) -> int:
         elif status.level == DiagnosticStatus.WARN:
             warnings.append(f"{name}: {status.message}")
 
-    failures += check_models(args.root, engines=not args.sim)
+    failures += check_models(args.root)
 
     node.destroy_node()
     rclpy.shutdown()

@@ -3,19 +3,17 @@
 # sub_bringup/entities.py); they are relative to the node namespace.
 /**:
   ros__parameters:
-    # Where the <task>.onnx models, and the TensorRT engines built from them,
-    # live; relative to the workspace root (PIXI_PROJECT_ROOT). Tasks with
-    # another model file are mapped in model_manager.TASK_MODELS
-    # (gate -> ffc_rs_26).
+    # Where the <task>.onnx models live; relative to the workspace root
+    # (PIXI_PROJECT_ROOT). Tasks with another model file are mapped in
+    # model_manager.TASK_MODELS (gate -> ffc_rs_26).
     model_dir: "weights"
 
     # Pre-load this task on startup ("" = wait for a load_model service call).
     default_task: ""
 
-    # device: tensorrt runs the engine `pixi run build-engines` built from the
-    # ONNX file, and fails to load without one; cpu and cuda run the ONNX file
-    # in ONNX Runtime. auto is tensorrt where it is installed (the Jetson), else
-    # cuda when ONNX Runtime has the CUDA provider, else cpu.
+    # device: auto runs a model on the first GPU execution provider of ONNX
+    # Runtime that can run it (backends.GPU_PROVIDERS), else on the CPU. gpu
+    # fails to load the model instead of using the CPU; cpu never tries a GPU.
     device: "auto"
     input_size: 640  # used only by exports without a fixed input size
     conf_threshold: 0.25

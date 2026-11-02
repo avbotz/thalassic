@@ -9,10 +9,9 @@ As the vehicle user (`avbotz`, created when the Jetson is flashed):
 ```bash
 git clone --recurse-submodules https://github.com/avbotz/thalassic.git ~/thalassic
 cd ~/thalassic
-scripts/install.sh                            # pixi + the jetson environment (TensorRT and CUDA included) + build
+scripts/install.sh                            # pixi + the jetson environment (ONNX Runtime on CUDA included) + build
 sudo apt install chrony                       # only NTP server, needs a network once
 sudo deploy/jetson/setup.sh                   # OS configuration, see below
-pixi run -e jetson build-engines              # TensorRT engines from weights/*.onnx, minutes each, checked
 ```
 
 Then reboot, so the new groups and the DDS profile apply.
@@ -44,9 +43,16 @@ The GigE camera is opened through a GenTL producer shipped with the source-built
 
 ### The GPU stack
 
-JetPack 7.2 provides the GPU driver (CUDA 13.2) and nothing else the stack uses. TensorRT (10.16.2, JetPack 7.2.1's version, built for the Orin), the CUDA 13.2 runtime libraries and `cuda-bindings` are the `jetson` environment's dependencies in `pixi.toml`, about 3 GB, so `pixi install --frozen -e jetson` is the whole GPU install and only a `pixi.lock` change can change them ([Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack)). `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and pixi checks both against the host when it installs, so a JetPack upgrade to a newer CUDA major version means updating that entry. If `pixi install` reports that the host has no `__cuda`, the driver is not visible to pixi: `CONDA_OVERRIDE_CUDA=13.2 CONDA_OVERRIDE_CUDA_ARCH=8.7 pixi install --frozen -e jetson` declares it by hand.
+JetPack 7.2 provides the GPU driver (CUDA 13.2) and nothing else the stack uses. ONNX Runtime's CUDA 13 build and the CUDA 13.4 libraries it depends on (cuDNN, cuBLAS and the runtime) are the `jetson` environment's dependencies in `pixi.toml`, about 1.7 GB to download, so `pixi install --frozen -e jetson` is the whole GPU install and only a `pixi.lock` change can change them ([Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack)). `pixi.toml` declares the Jetson platform with its driver (CUDA 13) and compute capability (8.7), and pixi checks both against the host when it installs, so a JetPack upgrade to a newer CUDA major version means updating that entry. If `pixi install` reports that the host has no `__cuda`, the driver is not visible to pixi: `CONDA_OVERRIDE_CUDA=13.2 CONDA_OVERRIDE_CUDA_ARCH=8.7 pixi install --frozen -e jetson` declares it by hand.
 
-`pixi run -e jetson build-engines` builds an engine for each ONNX model that has none, then runs each new one against ONNX Runtime on the CPU and fails on any output that disagrees beyond FP16 ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)). `pixi run check-engines` repeats that for every engine; with `--bag bags/<run>` it uses frames from a recording instead of synthetic ones, which is what makes the box comparison mean something.
+To see what a model runs on, load it with the stack running. The reply names the provider and the time per inference:
+
+```bash
+ros2 service call /marlin_v3/sub_vision/load_model sub_vision_interfaces/srv/LoadModel "{task: 'gate'}"
+# message: loaded 'gate' (ffc_rs_26) via onnxruntime/cuda (warmup 25.0 ms/iter)
+```
+
+The vehicle's launch file sets `device: gpu`, so a GPU that cannot run a model fails this call and says why, rather than leaving the model on the CPU ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
 
 ## Running
 
@@ -61,7 +67,7 @@ Nothing drives until the kill switch has been engaged and released *after* the s
 
 ### Pool-day checklist
 
-1. On the bench, with the stack running and the vehicle killed: `pixi run -e jetson preflight`. It listens for 5 s and fails on any sensor or controller topic below its rate, a missing kill switch state, an uncalibrated camera, anything in error or stale on `/diagnostics_agg`, or a missing model or TensorRT engine. Fix what it reports.
+1. On the bench, with the stack running and the vehicle killed: `pixi run -e jetson preflight`. It listens for 5 s and fails on any sensor or controller topic below its rate, a missing kill switch state, an uncalibrated camera, anything in error or stale on `/diagnostics_agg`, or a missing model. Fix what it reports.
 1. Tag what is running: `git tag pool-$(date +%F) && git push origin pool-$(date +%F)` (bags record `git describe`, so each bag then names its tag).
 1. In the water, killed: check `control/status` in Foxglove: `dvl_ok` once the DVL has bottom lock, `depth_ok`, `imu_ok`.
 1. Release the kill switch, watch `armed` come up, and run.
@@ -86,10 +92,7 @@ git pull --recurse-submodules
 pixi install --frozen -e jetson        # only changes anything if pixi.lock changed
 pixi run --frozen -e jetson build
 pixi run --frozen -e jetson fetch-weights   # downloads only models whose manifest entry changed
-pixi run --frozen -e jetson build-engines   # engines only for models that changed, each checked
 ```
-
-`sub_vision` refuses to load a model on the vehicle until its engine is built, rather than run it on the CPU. Engines are tied to the TensorRT version, which `pixi.lock` pins, so a lockfile update that changes TensorRT needs `build-engines` too; the old engines are ignored, not loaded.
 
 `--frozen` installs `pixi.lock` as it is: it never re-solves or rewrites the lockfile, even if `pixi.toml` has changed without it, which is what you want on a competition day.
 
@@ -120,6 +123,7 @@ THALASSIC_DDS_PROFILE=vehicle pixi shell
 
 ## Open items
 
+- ONNX Runtime's CUDA provider has not been run on the Orin. Load each model on the bench as in [The GPU stack](#the-gpu-stack) and compare its time per inference with what the missions need; [Decision 5](decisions.md#5-the-jetsons-gpu-stack-comes-from-pixi-not-jetpack) has the way out if it fails.
 - The down camera still takes its address from DHCP; it should be static like the DVL.
 - Camera calibrations are not in the repository: neither camera config sets a `camera_info_url`, so on a vehicle without `~/.ros/camera_info/` files every bearing is 0. `sub_vision` reports it on `/diagnostics` and `preflight` fails on it; calibrate both cameras underwater (`camera_calibration`) and commit the files under `sub_bringup/config/devices/`.
 - An offline bundle (a packed environment and built `install/`) for updating the vehicle without the internet.

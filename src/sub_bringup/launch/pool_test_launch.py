@@ -123,9 +123,9 @@ def generate_launch_description():
             # it to rerun.
             *common_launch_include(gains="control/gains.yaml", restart="true"),
             OpaqueFunction(function=_vehicle_entities),
-            # TensorRT is pinned, not auto, so a vehicle without it or without
-            # an engine fails to load models instead of running them on the CPU.
-            *vision_entities({"device": "tensorrt"}),
+            # gpu, not auto, so a vehicle whose GPU cannot run a model fails to
+            # load it instead of running it on the CPU.
+            *vision_entities({"device": "gpu"}),
             recorder(
                 exclude=[
                     # Recorded as JPEG (image_raw/compressed): a tenth the size or less.

@@ -1,33 +1,32 @@
 from __future__ import annotations
 
 import ast
-import hashlib
-import importlib.util
-import json
 import os
-import struct
-from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 import numpy.typing as npt
+import onnxruntime as ort
 
 MatLike = npt.NDArray[np.uint8]
 
-# The values the device preference takes. "auto" is TensorRT where it is installed (the Jetson),
-# else ONNX Runtime on CUDA when its provider is available, else on the CPU.
-DEVICES = ("auto", "cpu", "cuda", "tensorrt")
+# The values the device preference takes. "auto" runs a model on the first of GPU_PROVIDERS that
+# can run it, else on the CPU; "gpu" fails to load it instead of using the CPU.
+DEVICES = ("auto", "cpu", "gpu")
+
+# ONNX Runtime's execution providers for a GPU on Linux, in its own order of preference. An
+# installed build has at most a few of them; the rest are skipped. Named rather than taken from
+# what the build lists: conda-forge's x86 CUDA build also lists TensorRT, first, uninstalled.
+GPU_PROVIDERS = ("CUDAExecutionProvider", "MIGraphXExecutionProvider", "WebGpuExecutionProvider")
+CPU_PROVIDER = "CPUExecutionProvider"
 
 NMS_IOU_THRESHOLD = 0.45
 _PAD_COLOR = (114, 114, 114)
 
-# Threads of ONNX Runtime on the CPU (see OnnxRunner)
+# Threads of ONNX Runtime on the CPU (see Runner)
 CPU_THREADS = 4
-
-# An engine file starts with the ONNX export's metadata as JSON, after its length as a
-# little-endian uint32, then holds the serialized engine: TensorRT keeps no metadata of its own.
-_HEADER_LEN = struct.Struct("<I")
 
 
 @dataclass(frozen=True)
@@ -238,31 +237,11 @@ class Detector:
         return tuple(masks)
 
 
-class Runner(ABC):
-    """One network loaded for inference, with a fixed input shape."""
+class Runner:
+    """One network in an ONNX Runtime session on one execution provider, with a fixed input shape.
+    Any operator the provider lacks runs on the CPU."""
 
-    name: str  # what runs it, for logs: "tensorrt", "onnxruntime/cuda" or "onnxruntime/cpu"
-    input_shape: tuple[int, ...]
-    metadata: dict[str, str]  # the ONNX export's custom metadata, {} if it has none
-
-    @abstractmethod
-    def run(self, x: np.ndarray) -> list[np.ndarray]:
-        """Every output for input ``x``, in graph order."""
-
-    def close(self) -> None:  # noqa: B027  (an optional hook, not an abstract method)
-        """Release the runner's resources. Default is a no-op."""
-
-
-class OnnxRunner(Runner):
-    """ONNX Runtime, on CUDA when its provider is available and wanted, else on the CPU."""
-
-    def __init__(self, onnx_path: str, device: str, fallback_input_shape: tuple[int, ...]):
-        import onnxruntime as ort
-
-        wanted = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        if device == "cpu":
-            wanted = wanted[1:]
-        providers = [p for p in wanted if p in ort.get_available_providers()]
+    def __init__(self, onnx_path: str, provider: str, fallback_input_shape: tuple[int, ...]):
         # On the CPU: by default a thread per core, each spinning between operators and frames.
         # On the laptop that took 7.7 cores for 24 Hz of the gate model, and starved the
         # simulator; 4 sleeping threads keep 24 Hz (35 ms instead of 25 per frame) on 2.7.
@@ -270,10 +249,16 @@ class OnnxRunner(Runner):
         options.intra_op_num_threads = CPU_THREADS
         options.add_session_config_entry("session.intra_op.allow_spinning", "0")
         options.add_session_config_entry("session.inter_op.allow_spinning", "0")
-        self._session = ort.InferenceSession(onnx_path, options, providers=providers)
-        # ONNX Runtime falls back to the CPU, with only a warning, when the CUDA provider fails
-        cuda = "CUDAExecutionProvider" in self._session.get_providers()
-        self.name = f"onnxruntime/{'cuda' if cuda else 'cpu'}"
+        # Left to itself, ONNX Runtime moves a session to the CPU with only a printed warning when
+        # a provider fails to start or fails a run. Which provider runs a model is open_runner's
+        # decision, so a failure has to reach it.
+        self._session = ort.InferenceSession(
+            onnx_path, options, providers=[provider], enable_fallback=0
+        )
+        active = self._session.get_providers()[0]
+        if active != provider:  # also how a provider that cannot start shows, without an exception
+            raise RuntimeError(f"{provider} did not start, the session is on {active}")
+        self.name = f"onnxruntime/{provider.removesuffix('ExecutionProvider').lower()}"
         self.metadata = dict(self._session.get_modelmeta().custom_metadata_map)
 
         model_input = self._session.get_inputs()[0]
@@ -283,214 +268,46 @@ class OnnxRunner(Runner):
         self.input_shape = tuple(model_input.shape) if static else fallback_input_shape
 
     def run(self, x: np.ndarray) -> list[np.ndarray]:
+        """Every output for input ``x``, in graph order."""
         return self._session.run(None, {self._input_name: x})
 
-
-class TensorRTRunner(Runner):
-    """Runs a one-input engine made by :func:`build_engine` through CUDA-Python."""
-
-    name = "tensorrt"
-
-    def __init__(self, engine_path: str):
-        import tensorrt as trt
-        from cuda.bindings import runtime as cudart
-
-        self._cudart = cudart
-
-        self._load_engine(engine_path, trt)
-        try:
-            self._allocate_buffers()
-        except Exception:
-            self.close()  # free what was allocated before the failure
-            raise
-
-    def _load_engine(self, engine_path: str, trt_module):
-        """Deserializes the TensorRT engine and extracts metadata."""
-        with open(engine_path, "rb") as f:
-            (header_len,) = _HEADER_LEN.unpack(f.read(_HEADER_LEN.size))
-            self.metadata = json.loads(f.read(header_len))
-            serialized = f.read()
-
-        # The runtime must outlive every engine it deserializes
-        self._logger = trt_module.Logger(trt_module.Logger.WARNING)
-        self._runtime = trt_module.Runtime(self._logger)
-        self._engine = self._runtime.deserialize_cuda_engine(serialized)
-
-        if self._engine is None:
-            raise RuntimeError(f"Failed to deserialize TensorRT engine '{engine_path}'")
-
-        self._context = self._engine.create_execution_context()
-        if self._context is None:
-            raise RuntimeError("Failed to create TensorRT execution context")
-
-        # Identify input and output tensor names
-        names = [self._engine.get_tensor_name(i) for i in range(self._engine.num_io_tensors)]
-        inputs = [
-            n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.INPUT
-        ]
-        self._output_names = tuple(
-            n for n in names if self._engine.get_tensor_mode(n) == trt_module.TensorIOMode.OUTPUT
-        )
-        if len(inputs) != 1 or not self._output_names:
-            raise ValueError(
-                f"TensorRT engine has {len(inputs)} inputs and {len(self._output_names)} outputs;"
-                " expected one input and at least one output"
-            )
-        self._input_name = inputs[0]
-
-        self.input_shape = tuple(self._engine.get_tensor_shape(self._input_name))
-        self._input_dtype = np.dtype(
-            trt_module.nptype(self._engine.get_tensor_dtype(self._input_name))
-        )
-        self._output_specs = []
-        for name in self._output_names:
-            shape = tuple(self._context.get_tensor_shape(name))
-            if -1 in shape:
-                raise ValueError(f"TensorRT output '{name}' has unresolved dimensions {shape}")
-            dtype = np.dtype(trt_module.nptype(self._engine.get_tensor_dtype(name)))
-            self._output_specs.append((name, shape, dtype))
-
-    def _allocate_buffers(self):
-        """Allocates GPU memory pointers and streams for execution."""
-        self._host_outputs = {
-            name: np.empty(shape, dtype=dtype) for name, shape, dtype in self._output_specs
-        }
-
-        in_bytes = int(np.prod(self.input_shape)) * self._input_dtype.itemsize
-        self._d_input = self._check_cuda(self._cudart.cudaMalloc(in_bytes))
-        # Filled one at a time so close() can free the ones allocated before a failure
-        self._d_outputs = {}
-        for name, host in self._host_outputs.items():
-            self._d_outputs[name] = self._check_cuda(self._cudart.cudaMalloc(host.nbytes))
-        self._stream = self._check_cuda(self._cudart.cudaStreamCreate())
-
-        self._context.set_tensor_address(self._input_name, self._d_input)
-        for name, device_output in self._d_outputs.items():
-            self._context.set_tensor_address(name, device_output)
-
-    def _check_cuda(self, result):
-        """Unwrap a cuda-python result, raising an exception on error."""
-        err, *values = result
-        if err != self._cudart.cudaError_t.cudaSuccess:
-            raise RuntimeError(f"CUDA runtime error: {err}")
-        return values[0] if values else None
-
-    def run(self, x: np.ndarray) -> list[np.ndarray]:
-        """Executes inference on the GPU, returning a copy of every output in engine order."""
-        x = np.ascontiguousarray(x, dtype=self._input_dtype)
-        if x.shape != self.input_shape:
-            raise ValueError(f"TensorRT engine expects input {self.input_shape}, got {x.shape}")
-
-        # 1. Copy input data to GPU
-        self._check_cuda(
-            self._cudart.cudaMemcpyAsync(
-                self._d_input,
-                x.ctypes.data,
-                x.nbytes,
-                self._cudart.cudaMemcpyKind.cudaMemcpyHostToDevice,
-                self._stream,
-            )
-        )
-
-        # 2. Run inference
-        if not self._context.execute_async_v3(self._stream):
-            raise RuntimeError("TensorRT inference failed")
-
-        # 3. Copy results back to Host
-        for name, host_output in self._host_outputs.items():
-            self._check_cuda(
-                self._cudart.cudaMemcpyAsync(
-                    host_output.ctypes.data,
-                    self._d_outputs[name],
-                    host_output.nbytes,
-                    self._cudart.cudaMemcpyKind.cudaMemcpyDeviceToHost,
-                    self._stream,
-                )
-            )
-
-        # 4. Wait for completion
-        self._check_cuda(self._cudart.cudaStreamSynchronize(self._stream))
-
-        # Must return copies so the arrays safely survive frame-to-frame buffer reuse
-        return [self._host_outputs[name].copy() for name in self._output_names]
-
     def close(self) -> None:
-        """Safely free CUDA device buffers and engines."""
-        cudart = getattr(self, "_cudart", None)
-        if not cudart:
-            return
-
-        if getattr(self, "_d_input", None) is not None:
-            cudart.cudaFree(self._d_input)
-        for device_output in getattr(self, "_d_outputs", {}).values():
-            cudart.cudaFree(device_output)
-        if getattr(self, "_stream", None) is not None:
-            cudart.cudaStreamDestroy(self._stream)
-
-        self._d_input = self._stream = None
-        self._d_outputs = {}
-        self._context = self._engine = self._runtime = self._logger = None
+        """Release the session, and any GPU memory it holds."""
+        self._session = None
 
 
-def engine_path(onnx_path: str) -> str:
-    """Where the engine :func:`build_engine` makes from ``onnx_path`` lives: beside it, named by
-    the export's sha256 and the TensorRT version, so neither a changed export nor a JetPack
-    upgrade can run an engine built from something else."""
-    import tensorrt as trt
-
-    with open(onnx_path, "rb") as f:
-        digest = hashlib.file_digest(f, "sha256").hexdigest()
-    return f"{os.path.splitext(onnx_path)[0]}.{digest[:12]}.trt{trt.__version__}.engine"
-
-
-def build_engine(onnx_path: str) -> str:
-    """Build the FP16 TensorRT engine for ``onnx_path`` at its :func:`engine_path`, which is
-    returned. Takes minutes; only on the device that runs it, as engines are specific to it."""
-    import onnxruntime as ort
-    import tensorrt as trt
-
-    # TensorRT's parser drops the export's metadata, so read it with ONNX Runtime
-    session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    header = json.dumps(dict(session.get_modelmeta().custom_metadata_map)).encode()
-
-    logger = trt.Logger(trt.Logger.WARNING)
-    builder = trt.Builder(logger)
-    network = builder.create_network(0)  # explicit batch, the only kind in TensorRT 10
-    parser = trt.OnnxParser(network, logger)
-    if not parser.parse_from_file(onnx_path):
-        errors = "; ".join(str(parser.get_error(i)) for i in range(parser.num_errors))
-        raise ValueError(f"TensorRT cannot parse '{onnx_path}': {errors}")
-    for i in range(network.num_inputs):
-        if -1 in tuple(network.get_input(i).shape):
-            raise ValueError(f"'{onnx_path}' has a dynamic input; export it at a fixed size")
-    config = builder.create_builder_config()
-    config.set_flag(trt.BuilderFlag.FP16)
-    serialized = builder.build_serialized_network(network, config)
-    if serialized is None:
-        raise RuntimeError(f"TensorRT failed to build an engine from '{onnx_path}'")
-
-    # Written aside and renamed, so an interrupted build leaves no engine to load
-    path = engine_path(onnx_path)
-    with open(path + ".part", "wb") as f:
-        f.write(_HEADER_LEN.pack(len(header)) + header)
-        f.write(serialized)
-    os.replace(path + ".part", path)
-    return path
-
-
-def open_runner(onnx_path: str, device: str, fallback_input_shape: tuple[int, ...]) -> Runner:
-    """``onnx_path`` loaded for inference on ``device`` (one of :data:`DEVICES`).
-
-    TensorRT runs the engine :func:`build_engine` made from that file; a missing one is an error,
-    never a fall back to the CPU. ``fallback_input_shape`` stands in for a dynamic ONNX input.
+def open_runner(
+    onnx_path: str,
+    device: str,
+    fallback_input_shape: tuple[int, ...],
+    log: Callable[[str], None],
+) -> Runner:
+    """``onnx_path`` loaded for inference on ``device`` (one of :data:`DEVICES`): on the first of
+    :data:`GPU_PROVIDERS` that runs it, then on the CPU, which ``log`` is told the reason for when
+    a GPU was tried. ``fallback_input_shape`` stands in for a dynamic ONNX input.
     """
     if not os.path.exists(onnx_path):
         raise FileNotFoundError(f"Missing ONNX model: {onnx_path}")
-    if device == "tensorrt" or (device == "auto" and importlib.util.find_spec("tensorrt")):
-        path = engine_path(onnx_path)
-        if not os.path.exists(path):
-            raise FileNotFoundError(
-                f"no TensorRT engine for '{onnx_path}' at '{path}': run `pixi run build-engines`"
-            )
-        return TensorRTRunner(path)
-    return OnnxRunner(onnx_path, device, fallback_input_shape)
+    if device == "cpu":
+        return Runner(onnx_path, CPU_PROVIDER, fallback_input_shape)
+
+    available = ort.get_available_providers()
+    failures = []
+    for provider in GPU_PROVIDERS:
+        if provider not in available:
+            continue
+        try:
+            runner = Runner(onnx_path, provider, fallback_input_shape)
+            # A build lists every provider it was compiled with, and one with no kernels for this
+            # GPU only fails on its first inference.
+            runner.run(np.zeros(runner.input_shape, dtype=np.float32))
+            return runner
+        except Exception as error:  # the next provider may run it
+            failures.append(f"{provider}: {error}")
+
+    if device == "gpu":
+        reason = "; ".join(failures) or f"ONNX Runtime only has {available}"
+        raise RuntimeError(f"no GPU can run '{onnx_path}': {reason}")
+    if failures:
+        log(f"running '{onnx_path}' on the CPU: {'; '.join(failures)}")
+    return Runner(onnx_path, CPU_PROVIDER, fallback_input_shape)

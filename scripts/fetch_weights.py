@@ -19,9 +19,8 @@ from pathlib import Path
 WEIGHTS = Path(__file__).resolve().parent.parent / "weights"
 MANIFEST = WEIGHTS / "manifest.toml"
 CHUNK = 1 << 20
-# Kept in weights/ but never listed: TensorRT engines are built on the Jetson
-# from the ONNX files, and the rest are this script's own.
-UNLISTED = {".engine", ".old", ".part"}
+# Kept in weights/ but never listed: this script's own.
+UNLISTED = {".old", ".part"}
 
 
 def sha256(path: Path) -> str:

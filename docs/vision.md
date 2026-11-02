@@ -31,11 +31,11 @@ Each task's post-processor in `sub_vision` shapes what missions see. Every `extr
 
 The trees also load `torp_fire_blood` (front camera in `torp.xml`, down in `bins.xml`), which has no post-processor: 2D boxes and bearings only, `distance_m` NaN.
 
-Models are `<task>.onnx` in `weights/` at the workspace root, except where `sub_vision/model_manager.py` maps a task to another model (`gate` → `ffc_rs_26`). On the Jetson they run as TensorRT engines built from those files.
+Models are `<task>.onnx` in `weights/` at the workspace root, except where `sub_vision/model_manager.py` maps a task to another model (`gate` → `ffc_rs_26`). They run in ONNX Runtime on every machine, on a GPU where it has a provider for one ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
 
 ## Model weights
 
-The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports. TensorRT engines are not in it: they are specific to the device and the TensorRT version, so `pixi run -e jetson build-engines` builds them on the Jetson from the ONNX files, named by each file's checksum, and checks each against ONNX Runtime ([sub_vision README](../src/sub_vision/README.md#model-loading--device-selection)).
+The ONNX models, and `ffc_rs_26.pt` that `ffc_rs_26.onnx` was exported from, are assets of the repository's [GitHub releases](https://github.com/avbotz/thalassic/releases), not in git. `weights/manifest.toml` lists each file's URL and sha256, and `pixi run fetch-weights` (run by `scripts/install.sh`) downloads any that are missing or differ, keeping a replaced file as `<file>.old`; `pixi run fetch-weights --check` only reports.
 
 To add or update a model, upload it to a new release and point the manifest at it:
 

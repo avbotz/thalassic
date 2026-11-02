@@ -54,7 +54,7 @@ class VisionNode(Node):
 
         self.declare_parameter("model_dir", "weights")
         self.declare_parameter("default_task", "")
-        self.declare_parameter("device", "auto")  # auto|cpu|cuda|tensorrt
+        self.declare_parameter("device", "auto")  # auto|cpu|gpu
         self.declare_parameter("input_size", 640)
         self.declare_parameter("conf_threshold", 0.25)
         self.declare_parameter("warmup_iterations", 3)

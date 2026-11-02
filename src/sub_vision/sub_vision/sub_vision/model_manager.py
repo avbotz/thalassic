@@ -107,6 +107,7 @@ class ModelManager:
                 os.path.join(self._model_dir, f"{model}.onnx"),
                 self._device_pref,
                 (1, 3, self._input_size, self._input_size),
+                self._log,
             )
             backend = backends.Detector(runner, self._conf_threshold)
         except Exception as exc:  # report load failures to the caller
