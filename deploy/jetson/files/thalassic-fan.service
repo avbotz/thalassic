@@ -1,6 +1,6 @@
 [Unit]
 Description=Thalassic: Jetson fan at full speed
-Documentation=https://github.com/avbotz/thalassic/blob/main/deploy/jetson/README.md
+Documentation=https://sw.avbotz.com/thalassic/jetson-os/
 # Must disable nvfancontrol to manually control fan speed
 After=nvfancontrol.service
 Conflicts=nvfancontrol.service

@@ -52,7 +52,7 @@
       anti_windup: 5.0  # 1/s, how fast integrators shed what the thrusters could not produce
 
     # Disturbance observer bandwidth per axis [rad/s]; 0 is off. Turn it on
-    # once the model is identified (docs/control.md#disturbance-observer).
+    # once the model is identified (https://sw.avbotz.com/thalassic/control/#disturbance-observer).
     observer:
       bandwidth: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -67,7 +67,7 @@
     #   ros2 param set /<robot_name>/sub_control failed_thrusters "[3]"
     thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
-    # Arming and watchdogs [s] (docs/control.md#safety). Ages are by message stamp.
+    # Arming and watchdogs [s] (https://sw.avbotz.com/thalassic/control/#safety). Ages are by message stamp.
     safety:
       require_kill_cycle: true  # arm only after the kill switch has been engaged since startup
       state_timeout: 0.5    # no odometry: thrusters off

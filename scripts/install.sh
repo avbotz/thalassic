@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Setup on a fresh machine. Safe to re-run:
+# Setup on a fresh machine.
 #  - installs pixi if it is missing
 #  - fetches the submodules
-#  - creates the environment from pixi.lock (on the Jetson, its own: jetson)
+#  - creates the environment from pixi.lock
 #  - installs the git hooks (not on the Jetson)
 #  - builds the workspace
 #  - downloads the model weights in weights/manifest.toml
-#
-# Jetson configuration is described in `deploy/jetson`.
 
 set -euo pipefail
 

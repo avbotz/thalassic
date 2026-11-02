@@ -24,8 +24,3 @@ repos:
         language: unsupported
         files: ^(scripts|deploy)/
         types: [shell]
-      - id: mdformat
-        name: mdformat
-        entry: pixi run --as-is mdformat --check
-        language: unsupported
-        files: ^docs/.*\.md$

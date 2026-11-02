@@ -1,6 +1,6 @@
 # Files are stored in thalassic GitHub repo's releases.
 # `pixi run fetch-weights` downloads the weights.
-# To add or update a model, see docs/vision.md#model-weights.
+# To add or update a model, see https://sw.avbotz.com/thalassic/vision/#model-weights.
 
 ["bins_blood.onnx"]
 url = "https://github.com/avbotz/thalassic/releases/download/v2026.0.1/bins_blood.onnx"

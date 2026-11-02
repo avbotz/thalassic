@@ -1,5 +1,5 @@
 # sub_control's state, every control cycle except while it waits for the EKF's
-# pose reset after a kill-switch release (docs/control.md#diagnostics). Axes
+# pose reset after a kill-switch release (https://sw.avbotz.com/thalassic/control/#diagnostics). Axes
 # are [x, y, z, roll, pitch, yaw]; translation is in odom ENU and rotation in
 # ZYX Euler angles unless a field says body (FLU).
 std_msgs/Header header

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Identify sub_control's vehicle model from open-loop steps.
 
-See docs/control.md#identifying-the-model. With the stack running and the
+See https://sw.avbotz.com/thalassic/control/#identifying-the-model. With the stack running and the
 vehicle unkilled in open water (2 m or more from walls and the bottom):
 
     ros2 run sub_control identify_model --ros-args -r __ns:=/marlin_v3

@@ -7,7 +7,7 @@
 #
 # Sizes are NUM_THRUSTERS (8) and NUM_DOF (6) from utils.hpp. Every double is
 # checked finite first: rsl's bounds let NaN through. The values come from
-# src/sub_bringup/config/control/gains*.yaml (docs/control.md#configuration).
+# src/sub_bringup/config/control/gains*.yaml (https://sw.avbotz.com/thalassic/control/#configuration).
 sub_control:
   # Only read at startup, so read-only: a change would be silently ignored.
   control_rate_hz:
@@ -303,7 +303,7 @@ sub_control:
         finite: null
         gt<>: [0.0]
 
-  # Arming and watchdogs [s]; ages are by message stamp (docs/control.md#safety).
+  # Arming and watchdogs [s]; ages are by message stamp (https://sw.avbotz.com/thalassic/control/#safety).
   safety:
     require_kill_cycle:
       type: bool

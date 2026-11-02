@@ -39,7 +39,7 @@
 
 // The sub_control node: trajectory generator -> control law -> thrust
 // allocation, plus arming and the watchdogs that decide which axes still have
-// feedback and whether the thrusters may run at all. See docs/control.md.
+// feedback and whether the thrusters may run at all. See https://sw.avbotz.com/thalassic/control/.
 class SubControl : public rclcpp::Node {
    public:
     SubControl();

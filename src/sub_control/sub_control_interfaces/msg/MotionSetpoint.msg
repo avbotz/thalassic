@@ -1,7 +1,7 @@
 # One motion command for sub_control, with a mode per axis so that, e.g., the
 # vehicle can surge at a set speed while holding depth and heading. Axes are
 # [x, y, z, roll, pitch, yaw]; an axis left at KEEP carries on with whatever
-# it was doing. See docs/control.md#command-interface.
+# it was doing. See https://sw.avbotz.com/thalassic/control/#command-interface.
 #
 # Frames: positions are in the odom frame (REP-103 ENU, z up). x, y and yaw
 # are zeroed where the kill switch was last released (or sub_control's

@@ -1,7 +1,7 @@
 """Checks a running stack before it goes in the water; exits non-zero on any failure.
 
-    ros2 run sub_bringup preflight            # the vehicle (pixi run pool)
-    ros2 run sub_bringup preflight --sim      # the simulator (pixi run sim)
+    ros2 run sub_bringup preflight            # the vehicle (pixi run -e jetson up pool_test)
+    ros2 run sub_bringup preflight --sim      # the simulator (pixi run up)
 
 (A headless simulator has no cameras, so their checks fail there.)
 
@@ -9,7 +9,7 @@ It listens for a few seconds and checks that every sensor and controller
 topic arrives at its rate, that the kill switch is reported, that both
 cameras are calibrated, that nothing in /diagnostics_agg is in error or
 stale, and that every released model is on disk. It sends nothing and moves
-nothing. docs/deployment.md has the pool-day checklist it belongs to.
+nothing. https://sw.avbotz.com/thalassic/deployment/ has the pool-day checklist it belongs to.
 """
 
 import argparse

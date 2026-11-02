@@ -12,7 +12,7 @@ class MissionNode;
 //   WaitForDetection   -- block until a matching detection arrives, or time out
 //   SearchForDetection -- move at a fixed velocity until one arrives
 //   AlignToDetection   -- closed-loop yaw/depth centering on a detection
-// and the sweeps, approaches and centerings built on them (docs/mission.md).
+// and the sweeps, approaches and centerings built on them (https://sw.avbotz.com/thalassic/mission).
 // Task trees compose these in XML.
 void registerVisionNodes(BT::BehaviorTreeFactory &factory, MissionNode &node, rclcpp::Logger logger,
                          SetpointPublisher::SharedPtr setpoint_publisher, rclcpp::Clock::SharedPtr clock);

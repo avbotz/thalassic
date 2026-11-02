@@ -4,23 +4,13 @@
 #
 #   pixi run sync-mission                  to avbotz@192.168.5.245
 #   pixi run sync-mission user@host        to another vehicle
-#
-# Run it with the vehicle killed. Under `restart`, each release starts a new
-# mission process, which reads the XML from disk, so the next release runs the
-# synced trees; a stack launched without `restart` has to be relaunched. The
-# install space links to src (symlink-install, colcon_defaults.yaml), so an
-# edited file needs no build; a new file needs its link, and this builds
-# sub_mission on the vehicle to make it.
-#
-# The tests load every mission against this checkout's C++ nodes, so they only
-# vouch for the vehicle while its sub_mission sources are the same: the script
-# stops before copying anything if they are not.
+
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 VEHICLE="${1:-avbotz@192.168.5.245}"
-REMOTE=thalassic # the vehicle's checkout, from its user's home (docs/deployment.md)
+REMOTE=thalassic # the vehicle's checkout relative to it's user's home directory
 
 echo "==> Testing sub_mission"
 colcon build --packages-select sub_mission

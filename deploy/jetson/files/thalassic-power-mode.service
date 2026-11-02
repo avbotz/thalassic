@@ -1,7 +1,7 @@
 # Installed at /etc/systemd/system/thalassic-power-mode.service.
 [Unit]
 Description=Thalassic: Jetson power mode for the vehicle
-Documentation=https://github.com/avbotz/thalassic/blob/main/deploy/jetson/README.md
+Documentation=https://sw.avbotz.com/thalassic/jetson-os/
 After=nvpmodel.service
 ConditionPathExists=/usr/sbin/nvpmodel
 

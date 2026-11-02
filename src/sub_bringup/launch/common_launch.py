@@ -97,7 +97,7 @@ def generate_launch_description():
     )
 
     # Run only when mission is passed. Under restart, sub_mission's supervisor
-    # runs it in a child process instead (docs/mission.md#restart-supervisor).
+    # runs it in a child process instead (https://sw.avbotz.com/thalassic/mission/#restart-supervisor).
     has_mission = NotEqualsSubstitution(mission, "")
     restart = LaunchConfiguration("restart")
     mission_parameters = [

@@ -62,5 +62,5 @@ netplan apply
 cat <<EOF
 
 Done. Remaining manual steps:
-  * Log out and back in (or reboot) so the new groups and the DDS profile apply.
+  * Log out and back in (or reboot) so the new groups apply.
 EOF
