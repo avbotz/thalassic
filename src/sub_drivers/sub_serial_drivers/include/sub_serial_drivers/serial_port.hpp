@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -16,19 +17,17 @@ class SerialPort {
     SerialPort(const SerialPort&) = delete;
     SerialPort& operator=(const SerialPort&) = delete;
 
-    // Appends whatever has arrived to `buffer`. False once the device is gone
-    // (unplugged, reset).
+    // Appends whatever has arrived to `buffer`. False once the device is gone (unplugged, reset).
     bool read(std::string& buffer);
-    // Writes all of `data`, waiting up to `timeout` for the device to take it.
-    // False if it could not.
+    // Writes all of `data`, waiting up to `timeout` for the device to take it. False if it could not.
     bool write(std::string_view data, std::chrono::milliseconds timeout);
-    // Whether the USB adapter passes on what it receives at once (an FTDI within
-    // 1 ms instead of 16).
-    bool low_latency() const { return low_latency_; }
+    // How long the USB adapter holds what it receives before passing it on [ms], as its driver reports
+    // it: 1 for an FTDI in low-latency mode, 16 otherwise. Nothing if it has no such timer (a CDC-ACM board).
+    std::optional<int> latency_timer() const { return latency_timer_; }
 
    private:
     int fd_{-1};
-    bool low_latency_{false};
+    std::optional<int> latency_timer_;
 };
 
 }  // namespace sub_serial_drivers

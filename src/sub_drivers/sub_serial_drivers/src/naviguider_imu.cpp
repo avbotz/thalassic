@@ -1,8 +1,8 @@
 #include "sub_serial_drivers/naviguider_imu.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <format>
-#include <stdexcept>
 
 #include <rclcpp_components/register_node_macro.hpp>
 
@@ -32,44 +32,27 @@ std::optional<Sample> parse_line(std::string_view line) {
 
 }  // namespace naviguider
 
-namespace {
-
-// The longest line, a quaternion (the manual's example) [bytes]. At 8N1 a byte
-// is 10 bits on the wire.
-constexpr int LINE_BYTES = 70;
-
-}  // namespace
-
 NaviGuiderImu::NaviGuiderImu(const rclcpp::NodeOptions& options)
-    : SerialNode("naviguider_imu", options, "/dev/ttyUSB0"),
-      // Output rates [Hz] (0-400). Each gyro sample is one message, so the gyro
-      // cannot be disabled; 0 disables the accelerometer or the orientation, whose
-      // covariance is then marked not provided. At 115200 baud the three fit up to
-      // about 50 Hz each, the gyro and orientation alone about 80 Hz.
-      sensors_{{{naviguider::ACCELEROMETER, "accelerometer", declare_parameter("accel_rate", 50), {}, {}},
-                {naviguider::GYROSCOPE, "gyro", declare_parameter("gyro_rate", 50), {}, {}},
-                {naviguider::GAME_ROTATION_VECTOR, "orientation", declare_parameter("orientation_rate", 50), {}, {}}}},
-      // Oldest accelerometer or orientation sample a gyro sample is published with [s].
-      max_sample_age_(declare_seconds("max_sample_age", 0.2)) {
-    if (sensor(naviguider::GYROSCOPE).rate <= 0) {
-        throw std::invalid_argument("gyro_rate must be positive: each gyro sample is a message");
-    }
-    std::int64_t lines = 0;
+    : SerialNode("naviguider_imu", options),
+      // Read-only, so the listener is not needed after this.
+      params_(naviguider_imu::ParamListener(get_node_parameters_interface(), get_logger()).get_params()),
+      sensors_{{{naviguider::ACCELEROMETER, "accelerometer", params_.accel_rate, {}, {}},
+                {naviguider::GYROSCOPE, "gyro", params_.gyro_rate, {}, {}},
+                {naviguider::GAME_ROTATION_VECTOR, "orientation", params_.orientation_rate, {}, {}}}} {
+    std::int64_t bytes_per_second = 0;
     for (const Sensor& s : sensors_) {
-        lines += std::max<std::int64_t>(s.rate, 0);
+        bytes_per_second += s.rate * naviguider::line_bytes(s.id);
     }
-    const int baud = static_cast<int>(get_parameter("baud").as_int());
-    if (lines * LINE_BYTES * 10 > baud) {
-        RCLCPP_WARN(get_logger(), "%ld lines/s may not fit through %d baud: the module would drop samples", lines,
-                    baud);
+    // At 8N1 a byte is 10 bits on the wire.
+    const auto baud = get_parameter("baud").as_int();
+    if (bytes_per_second * 10 > naviguider::LINK_BUDGET * static_cast<double>(baud)) {
+        RCLCPP_WARN(get_logger(),
+                    "these rates need up to %ld bytes/s, more than %g%% of %ld baud: the module would drop samples",
+                    bytes_per_second, naviguider::LINK_BUDGET * 100.0, baud);
     }
 
-    msg_.header.frame_id = declare_parameter<std::string>("frame_id", "imu_link");
-    msg_.orientation_covariance = sensor(naviguider::GAME_ROTATION_VECTOR).rate > 0 ? naviguider::ORIENTATION_COVARIANCE
-                                                                                    : naviguider::NOT_PROVIDED;
+    msg_.header.frame_id = params_.frame_id;
     msg_.angular_velocity_covariance = naviguider::GYRO_COVARIANCE;
-    msg_.linear_acceleration_covariance =
-        sensor(naviguider::ACCELEROMETER).rate > 0 ? naviguider::ACCEL_COVARIANCE : naviguider::NOT_PROVIDED;
     imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("imu/data", rclcpp::QoS(10).reliable());
 
     diagnostics_->setHardwareID("naviguider");
@@ -93,28 +76,34 @@ void NaviGuiderImu::on_connect() {
     for (Sensor& s : sensors_) {
         s.last_heard.reset();
         s.accuracy.reset();
+        s.fresh = false;
     }
-    // Commands are case-sensitive and end with a carriage return.
+    // Commands are case-sensitive and end with a carriage return. Each one is sent
+    // even if it is the default: the module keeps settings from an earlier session.
     std::string commands =
         "M1\r"   // standard mounting
-        "V0\r"   // non-verbose: numeric sensor IDs in the stream
-        "J4\r";  // ENU orientation frame (ROS convention)
+        "V0\r"   // non-verbose: numeric sensor IDs in the stream, the shortest lines
+        "J4\r"   // ENU orientation frame (ROS convention)
+        "m0\r"   // no meta events (stillness, calibration changes): nothing reads them
+        "D1\r";  // sensor data shown, in case a terminal session turned it off
     // Disabled ones too: one left running by an earlier session would only crowd the link.
     for (const Sensor& s : sensors_) {
-        commands += std::format("s {},{}\r", s.id, std::max<std::int64_t>(s.rate, 0));
+        commands += std::format("s {},{}\r", s.id, s.rate);
     }
     write(commands);
 }
 
-bool NaviGuiderImu::handle_line(std::string_view line) {
-    const auto sample = naviguider::parse_line(line);
+bool NaviGuiderImu::handle_record(std::string_view line) {
+    const auto sample = naviguider::parse_line(trim(line));
     if (!sample || sensor(sample->sensor).rate <= 0) {
         return false;
     }
     const auto& v = sample->values;
     if (sample->sensor == naviguider::GAME_ROTATION_VECTOR) {
-        // An all-zero quaternion is not a rotation; normalizing it downstream gives NaN.
-        if (v[0] == 0.0 && v[1] == 0.0 && v[2] == 0.0 && v[3] == 0.0) {
+        // Not a rotation: all zero (as the module sends while starting; normalizing it
+        // downstream gives NaN), or digits lost on the link.
+        const double norm = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]);
+        if (std::abs(norm - 1.0) > naviguider::MAX_QUATERNION_NORM_ERROR) {
             return false;
         }
         msg_.orientation.x = v[0];
@@ -138,6 +127,7 @@ bool NaviGuiderImu::handle_line(std::string_view line) {
     Sensor& s = sensor(sample->sensor);
     s.last_heard = now;
     s.accuracy = sample->accuracy;
+    s.fresh = true;
     return sample->sensor == naviguider::GYROSCOPE && publish(now);
 }
 
@@ -145,15 +135,24 @@ bool NaviGuiderImu::publish(SteadyTime now) {
     // Until the accelerometer and the orientation have reported since the sensors
     // started, the message's acceleration and orientation are unmeasured defaults;
     // once one stops, they are stale. Either way, nothing goes out.
+    const std::chrono::duration<double> max_age(params_.max_sample_age);
     for (const Sensor& s : sensors_) {
-        if (s.id != naviguider::GYROSCOPE && s.rate > 0 && (!s.last_heard || now - *s.last_heard > max_sample_age_)) {
+        if (s.id != naviguider::GYROSCOPE && s.rate > 0 && (!s.last_heard || now - *s.last_heard > max_age)) {
             ++stale_skipped_;
             return false;
         }
     }
+    // A disabled sensor is never fresh, so its field is never provided.
+    msg_.orientation_covariance =
+        sensor(naviguider::GAME_ROTATION_VECTOR).fresh ? naviguider::ORIENTATION_COVARIANCE : naviguider::NOT_PROVIDED;
+    msg_.linear_acceleration_covariance =
+        sensor(naviguider::ACCELEROMETER).fresh ? naviguider::ACCEL_COVARIANCE : naviguider::NOT_PROVIDED;
     msg_.header.stamp = this->now();
     imu_pub_->publish(msg_);
     imu_diagnostic_->tick();
+    for (Sensor& s : sensors_) {
+        s.fresh = false;
+    }
     return true;
 }
 

@@ -1,0 +1,33 @@
+# Every serial driver's link parameters, for generate_parameter_library. It
+# generates sub_serial_drivers/serial_node_parameters.hpp (serial_node::Params),
+# used by SerialNode. All are read once at startup, so read-only: a change would
+# be silently ignored.
+serial_node:
+  # No default: the launch file passes the udev name (deploy/udev).
+  device:
+    type: string
+    description: "The serial device, such as /dev/maritime"
+    read_only: true
+  baud:
+    type: int
+    default_value: 115200
+    description: "Baud rate [bit/s]"
+    read_only: true
+    validation:
+      one_of<>: [[9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]]
+  reconnect_period:
+    type: double
+    default_value: 1.0
+    description: "How often to try the port again while it is gone [s]"
+    read_only: true
+    validation:
+      sub_serial_drivers::finite: null
+      gt<>: [0.0]
+  data_timeout:
+    type: double
+    default_value: 1.0
+    description: "How long the device may send nothing useful before the port is reopened [s]"
+    read_only: true
+    validation:
+      sub_serial_drivers::finite: null
+      gt<>: [0.0]

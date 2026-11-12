@@ -54,7 +54,7 @@ LEVELS = {
 
 
 def rates() -> list[Rate]:
-    # Well under each stream's rate (IMU 50 Hz, 30 in the simulator; depth 5; DVL
+    # Well under each stream's rate (IMU 100 Hz, 30 in the simulator; depth 5; DVL
     # 4-15; control 50; cameras 24 and 5): these catch a dead or collapsing
     # stream, not a few hertz of jitter.
     return [

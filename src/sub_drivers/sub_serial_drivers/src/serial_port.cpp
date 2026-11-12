@@ -9,12 +9,20 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <stdexcept>
 #include <system_error>
+#include <thread>
+
+using namespace std::chrono_literals;
 
 namespace sub_serial_drivers {
 namespace {
+
+// The longest closing waits for what was last written to reach the device.
+constexpr auto DRAIN_TIMEOUT = 50ms;
 
 speed_t to_speed(int baud) {
     switch (baud) {
@@ -41,6 +49,21 @@ speed_t to_speed(int baud) {
 
 [[noreturn]] void fail(const char* what, const std::string& device) {
     throw std::system_error(errno, std::generic_category(), std::format("{} {}", what, device));
+}
+
+// The latency timer [ms] the USB adapter's driver reports in sysfs, if it has one (FTDI does).
+std::optional<int> read_latency_timer(const std::string& device) {
+    std::error_code error;
+    const std::filesystem::path tty = std::filesystem::canonical(device, error).filename();
+    if (error) {
+        return std::nullopt;
+    }
+    std::ifstream file(std::filesystem::path("/sys/class/tty") / tty / "device" / "latency_timer");
+    int milliseconds = 0;
+    if (file >> milliseconds) {
+        return milliseconds;
+    }
+    return std::nullopt;
 }
 
 }  // namespace
@@ -84,7 +107,9 @@ SerialPort::SerialPort(const std::string& device, int baud) {
         // CSTOPB - Clears 2 stop bit flag and uses 1 stop bit
         tio.c_cflag &= ~(CRTSCTS | CSTOPB);
 
-        // read will block until 1 byte is available in the buffer
+        // The port is non-blocking, so these do not make read() wait. With VMIN 1 a read with nothing
+        // to return fails with EAGAIN; with VMIN 0 it would return 0, which read() takes as the device
+        // hanging up.
         tio.c_cc[VMIN] = 1;
         // No timing component (either intercharacter or overall timeout)
         tio.c_cc[VTIME] = 0;
@@ -100,23 +125,30 @@ SerialPort::SerialPort(const std::string& device, int baud) {
         throw;
     }
 
-    // Modem control lines not used.
-    int lines = TIOCM_DTR | TIOCM_RTS;
-    ::ioctl(fd_, TIOCMBIC, &lines);
+    // DTR and RTS stay as opening left them, raised: a CDC-ACM board can take DTR as "the host has
+    // the port open", and the NaviGuider ran that way under pyserial.
 
     // An FTDI adapter holds what it receives for up to 16 ms (its latency timer)
     // before passing it on; in low-latency mode, 1 ms.
     serial_struct serial{};
     if (::ioctl(fd_, TIOCGSERIAL, &serial) == 0) {
         serial.flags |= ASYNC_LOW_LATENCY;
-        low_latency_ = ::ioctl(fd_, TIOCSSERIAL, &serial) == 0;
+        ::ioctl(fd_, TIOCSSERIAL, &serial);
     }
+    latency_timer_ = read_latency_timer(device);
     // Nothing from before this open counts.
     ::tcflush(fd_, TCIOFLUSH);
 }
 
 SerialPort::~SerialPort() {
-    // Unsent output first: otherwise closing waits up to 30 s for a device that
+    // What was just written (sub_low's stop on exit) gets a moment to reach the device: discarding
+    // output cancels even what is on its way over USB.
+    const auto deadline = std::chrono::steady_clock::now() + DRAIN_TIMEOUT;
+    int queued = 0;
+    while (::ioctl(fd_, TIOCOUTQ, &queued) == 0 && queued > 0 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(1ms);
+    }
+    // Then what is left: otherwise closing waits up to 30 s for a device that
     // has stopped reading to take it.
     ::tcflush(fd_, TCOFLUSH);
     ::close(fd_);

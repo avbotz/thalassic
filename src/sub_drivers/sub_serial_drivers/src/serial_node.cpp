@@ -1,52 +1,42 @@
 #include "sub_serial_drivers/serial_node.hpp"
 
 #include <format>
-#include <stdexcept>
 
 using namespace std::chrono_literals;
 
 namespace sub_serial_drivers {
 namespace {
 
-// How often the port is read: the longest a line waits to be handled.
+// How often the port is read: the longest a record waits to be handled.
 constexpr auto POLL_PERIOD = 5ms;
 // The longest a write waits for a device that has stopped taking input.
 constexpr auto WRITE_TIMEOUT = 50ms;
-// Neither device sends lines anywhere near this long.
-constexpr size_t MAX_LINE_LENGTH = 256;
+// Neither device sends records anywhere near this long.
+constexpr size_t MAX_RECORD_LENGTH = 256;
 
 }  // namespace
 
-SerialNode::SerialNode(const std::string& name, const rclcpp::NodeOptions& options, const std::string& default_device)
+SerialNode::SerialNode(const std::string& name, const rclcpp::NodeOptions& options, char delimiter)
     : Node(name, options),
-      device_(declare_parameter("device", default_device)),
-      baud_(declare_parameter("baud", 115200)),
-      // How often to try the port again while it is gone [s].
-      reconnect_period_(declare_seconds("reconnect_period", 1.0)),
-      // How long the device may send nothing useful before the port is reopened [s].
-      data_timeout_(declare_seconds("data_timeout", 1.0)) {
+      // Read-only, so the listener is not needed after this.
+      serial_params_(serial_node::ParamListener(get_node_parameters_interface(), get_logger()).get_params()),
+      reconnect_period_(serial_params_.reconnect_period),
+      data_timeout_(serial_params_.data_timeout),
+      delimiter_(delimiter) {
     diagnostics_ = std::make_unique<diagnostic_updater::Updater>(this);
     diagnostics_->add("serial link", this, &SerialNode::diagnose);
     poll_timer_ = create_wall_timer(POLL_PERIOD, [this]() { poll(); });
-}
-
-std::chrono::duration<double> SerialNode::declare_seconds(const std::string& name, double default_value) {
-    const double value = declare_parameter(name, default_value);
-    if (!std::isfinite(value) || value <= 0.0) {
-        throw std::invalid_argument(std::format("{} must be a finite, positive number of seconds", name));
-    }
-    return std::chrono::duration<double>(value);
 }
 
 diagnostic_updater::FrequencyStatusParam SerialNode::min_rate(double rate) {
     return {&min_rates_.emplace_back(rate), &no_max_rate_};
 }
 
-bool SerialNode::write(std::string_view text) {
+bool SerialNode::write(std::string_view data) {
     if (!port_) {
         return false;
     }
-    if (port_->write(text, WRITE_TIMEOUT)) {
+    if (port_->write(data, WRITE_TIMEOUT)) {
         return true;
     }
     disconnect("the device is not taking writes");
@@ -65,12 +55,17 @@ void SerialNode::poll() {
         disconnect("the device is gone");
         return;
     }
-    // handle_line() may write, and a failed write disconnects: stop there.
+    if (now - connected_at_ < SETTLE_TIME) {
+        // What the device kept from before the open: old, but it would look current.
+        received_.clear();
+        return;
+    }
+    // handle_record() may write, and a failed write disconnects: stop there.
     size_t start = 0;
-    for (size_t end; port_ && (end = received_.find('\n', start)) != std::string::npos; start = end + 1) {
-        if (skip_line_) {
-            skip_line_ = false;
-        } else if (handle_line(trim(std::string_view(received_).substr(start, end - start)))) {
+    for (size_t end; port_ && (end = received_.find(delimiter_, start)) != std::string::npos; start = end + 1) {
+        if (skip_record_) {
+            skip_record_ = false;
+        } else if (handle_record(std::string_view(received_).substr(start, end - start))) {
             last_data_ = now;
         }
     }
@@ -78,9 +73,9 @@ void SerialNode::poll() {
         return;
     }
     received_.erase(0, start);
-    if (received_.size() > MAX_LINE_LENGTH) {
+    if (received_.size() > MAX_RECORD_LENGTH) {
         received_.clear();
-        skip_line_ = true;
+        skip_record_ = true;
     }
     if (now - last_data_.value_or(connected_at_) > data_timeout_) {
         disconnect(std::format("nothing from the device for {:g} s", data_timeout_.count()));
@@ -91,17 +86,19 @@ void SerialNode::connect() {
     const SteadyTime now = std::chrono::steady_clock::now();
     last_open_attempt_ = now;
     try {
-        port_ = std::make_unique<SerialPort>(device_, baud_);
+        port_ = std::make_unique<SerialPort>(serial_params_.device, static_cast<int>(serial_params_.baud));
     } catch (const std::exception& e) {
         RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 10000, "%s; retrying", e.what());
         return;
     }
     received_.clear();
-    skip_line_ = true;
+    skip_record_ = true;
     connected_at_ = now;
     last_data_.reset();
-    RCLCPP_INFO(get_logger(), "connected to %s at %d baud%s", device_.c_str(), baud_,
-                port_->low_latency() ? "" : " (no low-latency mode)");
+    const std::optional<int> latency_timer = port_->latency_timer();
+    const std::string latency = latency_timer ? std::format(", latency timer {} ms", *latency_timer) : "";
+    RCLCPP_INFO(get_logger(), "connected to %s at %ld baud%s", serial_params_.device.c_str(), serial_params_.baud,
+                latency.c_str());
     on_connect();
 }
 
@@ -111,13 +108,15 @@ void SerialNode::disconnect(const std::string& reason) {
     }
     port_.reset();
     ++disconnects_;
-    RCLCPP_ERROR(get_logger(), "%s: %s lost, reconnecting", reason.c_str(), device_.c_str());
+    RCLCPP_ERROR(get_logger(), "%s: %s lost, reconnecting", reason.c_str(), serial_params_.device.c_str());
 }
 
 void SerialNode::diagnose(diagnostic_updater::DiagnosticStatusWrapper& status) {
-    status.add("device", device_);
+    status.add("device", serial_params_.device);
     status.add("connected", connected() ? "true" : "false");
-    status.add("low-latency mode", connected() && port_->low_latency() ? "true" : "false");
+    // 1 ms is low-latency mode; "none" for a board on CDC-ACM, which has no such timer.
+    const std::optional<int> latency_timer = connected() ? port_->latency_timer() : std::nullopt;
+    status.add("latency timer [ms]", latency_timer ? std::to_string(*latency_timer) : "none");
     status.add("disconnects", disconnects_);
     status.add("last data", since(last_data_));
     if (connected()) {

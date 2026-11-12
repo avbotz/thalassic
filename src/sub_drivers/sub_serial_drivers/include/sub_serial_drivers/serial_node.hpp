@@ -16,34 +16,40 @@
 #include <diagnostic_updater/publisher.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include "sub_serial_drivers/serial_node_parameters.hpp"
 #include "sub_serial_drivers/serial_port.hpp"
 
 namespace sub_serial_drivers {
 
 using SteadyTime = std::chrono::steady_clock::time_point;
 
-// A node that talks to one serial device sending newline-terminated text. It
-// keeps the link up by itself: whenever the device goes away (unplugged,
-// reset), stops taking writes, or sends nothing handle_line() accepts for
+// How long after the port opens everything received is dropped. A CDC-ACM board
+// keeps what it sent while the port was closed (the maritime board's USB buffer
+// holds several seconds of state frames) and delivers it within milliseconds of
+// the open; an FTDI adapter keeps up to a few hundred bytes.
+constexpr std::chrono::milliseconds SETTLE_TIME{100};
+
+// A node that talks to one serial device sending records, each ended by a
+// delimiter: lines of text ('\n'), or binary frames ('\0'). It keeps the link
+// up by itself: whenever the device goes away (unplugged, reset), stops taking
+// writes, or sends nothing handle_record() accepts for
 // `data_timeout`, the port is closed and tried again every `reconnect_period`,
 // and on_connect() runs once it is back. Everything runs on the executor's
-// thread and nothing blocks for long, so there are no threads or locks.
+// thread and nothing blocks for long, so there are no threads or locks. Its
+// parameters are in serial_node_parameters.yaml.
 class SerialNode : public rclcpp::Node {
    protected:
-    SerialNode(const std::string& name, const rclcpp::NodeOptions& options, const std::string& default_device);
+    SerialNode(const std::string& name, const rclcpp::NodeOptions& options, char delimiter = '\n');
 
-    // One line from the device, trimmed. True if it shows the device working.
-    virtual bool handle_line(std::string_view line) = 0;
+    // What the device sent before the next delimiter. True if it shows the device working.
+    virtual bool handle_record(std::string_view record) = 0;
     // The port has just been opened: tell the device whatever it needs to know.
     virtual void on_connect() {}
 
-    // Sends `text` to the device. False if not connected, or if the device would
+    // Sends `data` to the device. False if not connected, or if the device would
     // not take it, in which case the port is reopened.
-    bool write(std::string_view text);
+    bool write(std::string_view data);
     bool connected() const { return port_ != nullptr; }
-
-    // Declares parameter `name`, which must be a finite, positive number of seconds.
-    std::chrono::duration<double> declare_seconds(const std::string& name, double default_value);
 
     // Its "serial link" status is already added.
     std::unique_ptr<diagnostic_updater::Updater> diagnostics_;
@@ -57,16 +63,16 @@ class SerialNode : public rclcpp::Node {
     void disconnect(const std::string& reason);
     void diagnose(diagnostic_updater::DiagnosticStatusWrapper& status);
 
-    std::string device_;
-    int baud_;
-    std::chrono::duration<double> reconnect_period_;
-    std::chrono::duration<double> data_timeout_;
+    const serial_node::Params serial_params_;
+    const std::chrono::duration<double> reconnect_period_;
+    const std::chrono::duration<double> data_timeout_;
+    const char delimiter_;
 
     std::unique_ptr<SerialPort> port_;
     std::string received_;
-    // Dropping what arrives up to the next newline: the rest of a line cut off
-    // when the port opened, or of one too long to be real.
-    bool skip_line_{true};
+    // Dropping what arrives up to the next delimiter: the rest of a record cut
+    // off when SETTLE_TIME ended, or of one too long to be real.
+    bool skip_record_{true};
     std::optional<SteadyTime> last_open_attempt_;
     SteadyTime connected_at_;
     std::optional<SteadyTime> last_data_;
