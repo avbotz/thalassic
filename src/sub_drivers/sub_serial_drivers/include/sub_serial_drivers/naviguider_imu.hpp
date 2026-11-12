@@ -8,13 +8,14 @@
 
 #include <sensor_msgs/msg/imu.hpp>
 
+#include "sub_serial_drivers/naviguider_imu_parameters.hpp"
 #include "sub_serial_drivers/serial_node.hpp"
 
 namespace sub_serial_drivers {
 
 // The NaviGuider's UART protocol (NaviGuider UART user manual V1.7). In
 // non-verbose mode (V0) each line is "<timestamp>, <sensor ID>, <values>...",
-// and lines end with LF CR.
+// and lines end with LF CR. The link is fixed at 115200 baud.
 namespace naviguider {
 
 // Virtual sensor IDs (manual, Table 4-2).
@@ -22,11 +23,30 @@ constexpr int ACCELEROMETER = 1;          // X, Y, Z [m/s^2], accuracy
 constexpr int GYROSCOPE = 4;              // X, Y, Z [rad/s], accuracy
 constexpr int GAME_ROTATION_VECTOR = 15;  // 6-DOF accel+gyro quaternion: QX, QY, QZ, QW, accuracy
 
+// The longest line each sends [bytes]: a 10-digit timestamp, the ID, each value
+// as %f (", -1.234567"; up to "-19.613300" for an acceleration), LF CR.
+constexpr int line_bytes(int sensor) {
+    switch (sensor) {
+        case ACCELEROMETER:
+            return 61;
+        case GYROSCOPE:
+            return 58;
+        default:
+            return 70;
+    }
+}
+// The share of the link's bytes the sensors may use, leaving room for the
+// module's own timing and the odd command reply.
+constexpr double LINK_BUDGET = 0.9;
+
 // The accelerometer's and the gyroscope's accuracy is the calibration status of
 // the module's SENtral-A2 fusion hub, on Android's scale (SENSOR_STATUS_*):
 // 0 unreliable, 1 low, 2 medium, 3 high. A still gyro reports 2 or 3. The manual
 // does not define the game rotation vector's: it is in the diagnostics, unused.
 constexpr double ACCURACY_MEDIUM = 2.0;
+// A unit quaternion printed to six decimals has a norm within about 1e-5 of 1;
+// one with digits lost on the link usually does not.
+constexpr double MAX_QUATERNION_NORM_ERROR = 0.01;
 
 // Measured still on the bench (June 2026): roll, pitch, yaw [rad^2].
 constexpr std::array<double, 9> ORIENTATION_COVARIANCE = {2.071706e-07,  -9.010312e-08, -1.519626e-08,  //
@@ -69,12 +89,16 @@ std::optional<Sample> parse_line(std::string_view line);
 // Each gyroscope sample is published with the latest orientation and
 // acceleration, but only while both are fresh (`max_sample_age`): a sensor that
 // stops reporting makes imu/data stop, which sub_control treats as losing
-// attitude, rather than repeating its last value. Nothing published for
-// `data_timeout` (the module rebooted, or missed its start commands while it was
-// booting) reopens the port and restarts the sensors.
+// attitude, rather than repeating its last value. An orientation or
+// acceleration that has not changed since the previous message is marked not
+// provided (covariance -1), so the EKF fuses each sample once while the gyro
+// runs faster. Nothing published for `data_timeout` (the module rebooted, or
+// missed its start commands while it was booting) reopens the port and
+// restarts the sensors.
 //
 // Below medium accuracy the gyro's bias is not trusted: the published rate
 // covariance includes a typical uncalibrated offset, and the diagnostics warn.
+// Its parameters are in naviguider_imu_parameters.yaml.
 class NaviGuiderImu : public SerialNode {
    public:
     explicit NaviGuiderImu(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
@@ -88,17 +112,19 @@ class NaviGuiderImu : public SerialNode {
         // Since the sensors were last started.
         std::optional<SteadyTime> last_heard;
         std::optional<double> accuracy;
+        // A sample has arrived since the last message.
+        bool fresh{false};
     };
 
-    bool handle_line(std::string_view line) override;
+    bool handle_record(std::string_view line) override;
     void on_connect() override;
     // Publishes the message unless the acceleration or orientation in it is stale. Whether it did.
     bool publish(SteadyTime now);
     Sensor& sensor(int id);
     void diagnose(diagnostic_updater::DiagnosticStatusWrapper& status);
 
+    const naviguider_imu::Params params_;
     std::array<Sensor, 3> sensors_;
-    std::chrono::duration<double> max_sample_age_;
 
     sensor_msgs::msg::Imu msg_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;

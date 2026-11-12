@@ -1,0 +1,30 @@
+# sub_low's parameters besides the link's (serial_node_parameters.yaml), for
+# generate_parameter_library: sub_serial_drivers/sub_low_parameters.hpp
+# (sub_low::Params). Read once at startup, so read-only.
+sub_low:
+  command_timeout:
+    type: double
+    default_value: 0.5
+    description: "A thruster command older than this when it arrives is not acted on [s]"
+    read_only: true
+    validation:
+      sub_serial_drivers::finite: null
+      gt<>: [0.0]
+  depth_frame_id:
+    type: string
+    default_value: "odom"
+    description: "Frame of odometry/depth"
+    read_only: true
+  depth_child_frame_id:
+    type: string
+    default_value: "base_link"
+    description: "Child frame of odometry/depth: where the pressure sensor is"
+    read_only: true
+  depth_z_variance:
+    type: double
+    default_value: 0.01
+    description: "Variance of the published depth [m^2]"
+    read_only: true
+    validation:
+      sub_serial_drivers::finite: null
+      gt<>: [0.0]

@@ -94,6 +94,7 @@ def driver_entities(vehicle: Vehicle) -> list[Node]:
             executable="sub_low",
             name="sub_low",
             namespace=vehicle.name,
+            output="both",
             respawn=True,
             respawn_delay=1.0,
             parameters=[

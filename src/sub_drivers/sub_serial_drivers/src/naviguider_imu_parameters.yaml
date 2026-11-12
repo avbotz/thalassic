@@ -1,0 +1,46 @@
+# The NaviGuider driver's parameters besides the link's
+# (serial_node_parameters.yaml), for generate_parameter_library:
+# sub_serial_drivers/naviguider_imu_parameters.hpp (naviguider_imu::Params).
+# Read once at startup, so read-only.
+#
+# Output rates [Hz], 0 disabling a sensor (the module takes 0-400). The link is
+# fixed at 115200 baud of ASCII, so the rates share about 11 500 bytes/s: a
+# gyro line is up to 58 bytes, an accelerometer one 61, an orientation one 70.
+# The defaults use 81% of it. The accelerometer is off because nothing reads
+# it: the EKF fuses only orientation and rates (sub_bringup/config/ekf.yaml).
+naviguider_imu:
+  # Each gyro sample is one imu/data message, so the gyro cannot be disabled.
+  gyro_rate:
+    type: int
+    default_value: 100
+    description: "Gyroscope output rate, and so the imu/data rate [Hz]"
+    read_only: true
+    validation:
+      bounds<>: [1, 400]
+  orientation_rate:
+    type: int
+    default_value: 50
+    description: "Game rotation vector (accelerometer + gyro quaternion) output rate [Hz]; 0 disables it"
+    read_only: true
+    validation:
+      bounds<>: [0, 400]
+  accel_rate:
+    type: int
+    default_value: 0
+    description: "Accelerometer output rate [Hz]; 0 disables it"
+    read_only: true
+    validation:
+      bounds<>: [0, 400]
+  max_sample_age:
+    type: double
+    default_value: 0.2
+    description: "Oldest accelerometer or orientation sample a gyro sample is published with [s]"
+    read_only: true
+    validation:
+      sub_serial_drivers::finite: null
+      gt<>: [0.0]
+  frame_id:
+    type: string
+    default_value: "imu_link"
+    description: "Frame of imu/data"
+    read_only: true

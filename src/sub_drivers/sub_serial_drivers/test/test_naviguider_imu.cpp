@@ -48,14 +48,17 @@ class NaviGuiderImuTest : public ::testing::Test {
             overrides));
         subscription =
             rig->peer->create_subscription<Imu>("imu/data", 10, [this](const Imu& msg) { received.add(msg); });
-        // Connecting starts the sensors.
-        ASSERT_TRUE(module.wait_for("s 4,50"));
+        // Connecting sets the module up and starts the sensors, the orientation last.
+        ASSERT_TRUE(module.wait_for(starts_with("s 15,")));
+        start_commands = module.log();
         connected();
         ASSERT_TRUE(eventually([this]() { return subscription->get_publisher_count() > 0; }));
     }
 
-    // The driver drops the first line after connecting, as the end of one cut off.
+    // The driver drops everything for SETTLE_TIME after connecting, then the first
+    // line, as the end of one cut off.
     void connected() {
+        std::this_thread::sleep_for(sub_serial_drivers::SETTLE_TIME + 50ms);
         module.send("\n");
         module.clear();
     }
@@ -69,10 +72,17 @@ class NaviGuiderImuTest : public ::testing::Test {
     std::unique_ptr<Rig<NaviGuiderImu>> rig;
     rclcpp::Subscription<Imu>::SharedPtr subscription;
     Inbox<Imu> received;
+    std::vector<std::string> start_commands;
 };
 
-TEST_F(NaviGuiderImuTest, PublishesEachGyroSampleOnceAccelAndOrientationHaveReported) {
+TEST_F(NaviGuiderImuTest, ConnectingSetsTheModuleUp) {
     ASSERT_NO_FATAL_FAILURE(start());
+    // Non-verbose, no meta events, data shown; the accelerometer off by default.
+    EXPECT_EQ(start_commands, (std::vector<std::string>{"M1", "V0", "J4", "m0", "D1", "s 1,0", "s 4,100", "s 15,50"}));
+}
+
+TEST_F(NaviGuiderImuTest, PublishesEachGyroSampleOnceAccelAndOrientationHaveReported) {
+    ASSERT_NO_FATAL_FAILURE(start({{"accel_rate", 50}}));
     module.send(GYRO);
     std::this_thread::sleep_for(200ms);
     EXPECT_EQ(received.size(), 0u);
@@ -83,6 +93,14 @@ TEST_F(NaviGuiderImuTest, PublishesEachGyroSampleOnceAccelAndOrientationHaveRepo
     EXPECT_DOUBLE_EQ(msg.angular_velocity.z, 0.3);
     EXPECT_DOUBLE_EQ(msg.orientation.w, 1.0);
     EXPECT_DOUBLE_EQ(msg.linear_acceleration.z, 9.8);
+    EXPECT_GT(msg.orientation_covariance[0], 0.0);
+    EXPECT_GT(msg.linear_acceleration_covariance[0], 0.0);
+    // The second carries no new orientation or acceleration: marked not provided,
+    // so the EKF does not fuse the same sample twice.
+    const Imu again = received.items()[1];
+    EXPECT_EQ(again.orientation_covariance[0], -1.0);
+    EXPECT_EQ(again.linear_acceleration_covariance[0], -1.0);
+    EXPECT_EQ(again.angular_velocity_covariance, naviguider::GYRO_COVARIANCE);
 }
 
 TEST_F(NaviGuiderImuTest, ASensorThatStopsStopsTheMessages) {
@@ -108,6 +126,11 @@ TEST_F(NaviGuiderImuTest, GarbageAndNonFiniteValuesAreIgnored) {
     module.send(std::string(ACCEL) + std::string(ORIENTATION) + "1.0,4,0.1,0.2,0.3\n");
     std::this_thread::sleep_for(100ms);
     EXPECT_EQ(received.size(), 0u);
+    // Nor is a quaternion that is not a rotation (a digit lost on the link) an orientation.
+    std::this_thread::sleep_for(200ms);
+    module.send("1.0,15,0.0,0.0,0.0,0.5,3\n" + std::string(GYRO));
+    std::this_thread::sleep_for(100ms);
+    EXPECT_EQ(received.size(), 0u);
     module.send(std::string(ACCEL) + std::string(ORIENTATION) + std::string(GYRO));
     EXPECT_TRUE(eventually([this]() { return received.size() == 1; }));
 }
@@ -121,7 +144,7 @@ TEST_F(NaviGuiderImuTest, GyroAccuracySetsTheRateCovariance) {
 }
 
 TEST_F(NaviGuiderImuTest, ADisabledAccelerometerIsNotWaitedFor) {
-    ASSERT_NO_FATAL_FAILURE(start({{"accel_rate", 0}}));
+    ASSERT_NO_FATAL_FAILURE(start());
     module.send(std::string(ORIENTATION) + std::string(GYRO));
     ASSERT_TRUE(eventually([this]() { return received.size() == 1; }));
     EXPECT_EQ(received.items()[0].linear_acceleration_covariance[0], -1.0);
@@ -131,7 +154,7 @@ TEST_F(NaviGuiderImuTest, ADisabledAccelerometerIsNotWaitedFor) {
 TEST_F(NaviGuiderImuTest, ASilentModuleIsRestarted) {
     ASSERT_NO_FATAL_FAILURE(start({{"data_timeout", 0.3}}));
     // Nothing comes back: the port is reopened and the sensors started again.
-    ASSERT_TRUE(module.wait_for("s 4,50"));
+    ASSERT_TRUE(module.wait_for(starts_with("s 15,")));
     connected();
     module.send(std::string(ACCEL) + std::string(ORIENTATION) + std::string(GYRO));
     EXPECT_TRUE(eventually([this]() { return received.size() == 1; }));

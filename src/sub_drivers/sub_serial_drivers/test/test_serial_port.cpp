@@ -13,6 +13,8 @@ using sub_serial_drivers::SerialPort;
 TEST(SerialPort, ReadsWhatArrivesAndNoticesTheDeviceGoing) {
     FakeDevice device;
     SerialPort port(device.path(), 115200);
+    // A pseudo-terminal, like a CDC-ACM board, has no latency timer.
+    EXPECT_FALSE(port.latency_timer().has_value());
     std::string received;
     EXPECT_TRUE(port.read(received));
     EXPECT_EQ(received, "");

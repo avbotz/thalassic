@@ -38,7 +38,7 @@ colcon-common-extensions = ">=0.3,<0.4"
 # ROS packages
 ros-jazzy-ros-base = ">=0.11,<0.12"
 ros-jazzy-eigen3-cmake-module = ">=0.3,<0.4"          # libwaterlinked
-ros-jazzy-generate-parameter-library = ">=0.7,<0.8"   # sub_control, waterlinked_dvl_driver
+ros-jazzy-generate-parameter-library = ">=0.7,<0.8"   # sub_control, sub_serial_drivers, waterlinked_dvl_driver
 ros-jazzy-tf2-geometry-msgs = ">=0.36,<0.37"
 ros-jazzy-tf2-tools = ">=0.36,<0.37"
 ros-jazzy-foxglove-bridge = ">=3,<4"
