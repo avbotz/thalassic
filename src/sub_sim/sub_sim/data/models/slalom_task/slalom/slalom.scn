@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="slalom" gray="1.0" roughness="0.1" texture="models/slalom_task/slalom/slalom.png" />
+    <look name="slalom" gray="$(arg gray)" roughness="0.1" texture="models/slalom_task/slalom/slalom.png" />
   </looks>
 
   <static name="slalom" type="model">

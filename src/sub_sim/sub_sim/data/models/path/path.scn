@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="path" gray="1.0" roughness="0.1" texture="models/path/path.png" />
+    <look name="path" gray="$(arg gray)" roughness="0.1" texture="models/path/path.png" />
   </looks>
 
   <static name="path" type="model">

@@ -41,7 +41,11 @@ from sub_sim.generate_robot import (
     render_robot_scenario,
     thruster_specs,
 )
-from sub_sim.randomize_locs import randomize_scenario_locations
+from sub_sim.randomize_locs import (
+    appearance_rng,
+    randomize_scenario_locations,
+    vary_appearance,
+)
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
 
@@ -54,10 +58,17 @@ def _render_scn(context, *_, **__):
     # Always seeded, so the seed recorded with the run reproduces its scenario.
     seed = LaunchConfiguration("seed").perform(context) or str(random.randrange(2**31))
     # As IfCondition reads them (true, false, 1 or 0; anything else is an error).
-    sensor_noise, segmentation_camera, depth_camera, headless = (
+    sensor_noise, segmentation_camera, depth_camera, headless, camera_effects = (
         IfCondition(LaunchConfiguration(k)).evaluate(context)
-        for k in ("sensor_noise", "segmentation_camera", "depth_camera", "headless")
+        for k in (
+            "sensor_noise",
+            "segmentation_camera",
+            "depth_camera",
+            "headless",
+            "camera_effects",
+        )
     )
+    appearance = float(LaunchConfiguration("appearance").perform(context))
     if headless and segmentation_camera:
         raise ValueError("The segmentation camera needs cameras, which headless:=true has none of")
 
@@ -87,6 +98,22 @@ def _render_scn(context, *_, **__):
     )
     battery_voltage = float(LaunchConfiguration("battery_voltage").perform(context))
 
+    # With appearance, the front camera's exposure and colour balance stray from the
+    # ones tuned to the pool footage, as a camera's do from day to day.
+    look_rng = appearance_rng(int(seed), "camera")
+    camera_look = {
+        "exposure_compensation": vary_appearance(look_rng, appearance, -0.7, -1.5, 0.2),
+        "white_balance": (
+            (
+                vary_appearance(look_rng, appearance, 1.0, 0.8, 1.4),
+                1.0,
+                vary_appearance(look_rng, appearance, 1.0, 0.75, 1.2),
+            )
+            if appearance > 0.0
+            else None
+        ),
+    }
+
     # The scenario template calls back into this with the robot's pose.
     rendered_robot = None
 
@@ -104,6 +131,8 @@ def _render_scn(context, *_, **__):
             cameras=not headless,
             hydrodynamics=hydrodynamics,
             battery_voltage=battery_voltage,
+            camera_effects=camera_effects,
+            camera_look=camera_look,
         )
         return rendered_robot.as_posix()
 
@@ -111,6 +140,7 @@ def _render_scn(context, *_, **__):
         scenario_template_file=sub_sim_share / "scenarios" / "woollett.scn.j2",
         seed=int(seed),
         render_robot=render_robot,
+        appearance=appearance,
         course=LaunchConfiguration("course").perform(context),
         **offsets,
     )
@@ -371,6 +401,24 @@ def sim_entities() -> list:
             description=(
                 "Give the simulated DVL, IMU and pressure sensor the errors of the real ones: "
                 "noise, bias, latency, dropouts and lost DVL beams"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "camera_effects",
+            default_value="true",
+            description=(
+                "Give the cameras' images motion blur, sensor noise and, for the front "
+                "camera, MJPEG artifacts"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "appearance",
+            default_value="0.0",
+            description=(
+                "How far the scene's look strays from the one tuned to the pool footage, 0 to "
+                "1: the water's clarity, the sun, the ripples, the floor, the props' prints and "
+                "the front camera's exposure and colour balance are drawn from the seed "
+                "(for training data that does not all look alike)"
             ),
         ),
         DeclareLaunchArgument(

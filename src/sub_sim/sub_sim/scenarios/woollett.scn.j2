@@ -4,17 +4,22 @@
   <environment>
     <ned latitude="33.701722" longitude="-117.780354" />
 
+    <!-- The look of the water and the light is the one tuned to the July 2026 Woollett
+         footage. vary(base, low, high) gives that base, or with the appearance launch
+         argument a value drawn from the range: clearer or murkier water, a calmer or
+         choppier surface, a cleaner or duller floor, and the sun anywhere a pool day
+         puts it. -->
     <ocean>
-      <water density="1000.0" jerlov="0.20" />
-      <waves height="0" ripples="0.05" />
+      <water density="1000.0" jerlov="{{ vary(0.20, 0.05, 0.45) }}" />
+      <waves height="0" ripples="{{ vary(0.05, 0.02, 0.10) }}" />
       <particles enabled="false" />
       <!-- The pool's floor (bottom.obj): the light it reflects, and the surface reflects
            back down, is what lights everything that the sun does not -->
-      <bottom depth="2.15" albedo="0.85" />
+      <bottom depth="2.15" albedo="{{ vary(0.85, 0.60, 0.95) }}" />
     </ocean>
 
     <atmosphere>
-      <sun azimuth="130" elevation="72" />
+      <sun azimuth="{{ vary(130, 0, 360) }}" elevation="{{ vary(72, 25, 85) }}" />
     </atmosphere>
   </environment>
 
@@ -127,6 +132,8 @@
   <!-- Course area {{ name }} -->
 
   <include file="models/gate_task/gate/gate.scn">
+    <!-- How faded its print is -->
+    <arg name="gray" value="{{ vary(1.0, 0.7, 1.0) }}" />
     <arg name="x" value="{{ fuzz(gx, DX) }}" />
     <arg name="y" value="{{ fuzz(gy, DY) }}" />
     <arg name="z" value="{{ fuzz_z(0.2, DZ) }}" />
@@ -139,6 +146,8 @@
 
   {% for px, py, pyaw in area.paths %}
   <include file="models/path/path.scn">
+    <!-- How faded its print is -->
+    <arg name="gray" value="{{ vary(1.0, 0.7, 1.0) }}" />
     <arg name="x" value="{{ fuzz(px, 0.05) }}" />
     <arg name="y" value="{{ fuzz(py, 0.05) }}" />
     <arg name="z" value="{{ fuzz_z(2.1, 0.10) }}" />
@@ -151,6 +160,8 @@
   <!-- Avoid Debris -->
   {% for dx, dy in slalom_sets %}
   <include file="models/slalom_task/slalom/slalom.scn">
+    <!-- How faded its print is -->
+    <arg name="gray" value="{{ vary(1.0, 0.7, 1.0) }}" />
     <arg name="x" value="{{ fuzz(sx + dx, 0.05) }}" />
     <arg name="y" value="{{ fuzz(sy + dy, 0.05) }}" />
     <arg name="z" value="{{ rand(1.05, 1.35) }}" />
@@ -162,6 +173,8 @@
 
   <!-- Recon -->
   <include file="models/bin_task/bin/bin.scn">
+    <!-- How faded its print is -->
+    <arg name="gray" value="{{ vary(1.0, 0.7, 1.0) }}" />
     <arg name="x" value="{{ fuzz(bx, DX) }}" />
     <arg name="y" value="{{ fuzz(by, DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.1, DZ) }}" />
@@ -172,6 +185,8 @@
 
   <!-- Deploy -->
   <include file="models/torpedoes_task/{{ choose(['torpboard_v1/torpboard_v1.scn', 'torpboard_v2/torpboard_v2.scn']) }}">
+    <!-- How faded its print is -->
+    <arg name="gray" value="{{ vary(1.0, 0.7, 1.0) }}" />
     <arg name="x" value="{{ fuzz(tx, DX) }}" />
     <arg name="y" value="{{ fuzz(ty, DY) }}" />
     <arg name="z" value="{{ fuzz_z(2.0, DZ) }}" />

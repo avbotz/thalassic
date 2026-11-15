@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="bin" gray="1.0" roughness="0.1" texture="models/bin_task/bin/bin.png" />
+    <look name="bin" gray="$(arg gray)" roughness="0.1" texture="models/bin_task/bin/bin.png" />
   </looks>
 
   <static name="bin" type="model">

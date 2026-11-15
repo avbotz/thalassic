@@ -590,10 +590,21 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1920" resolution_y="1080" horizontal_fov="70.4" />
-      <!-- Exposed like the real one in the July 2026 Woollett footage -->
-      <rendering exposure_compensation="-0.7" />
+      <!-- Exposed like the real one in the July 2026 Woollett footage (camera_look
+           moves it, with the appearance launch argument). With camera_effects, what a
+           webcam does to its image: it blurs with the vehicle's motion over its
+           exposure, its sensor is noisy, and it sends MJPEG, whose artifacts the
+           decoded frames keep. The values are typical of such a camera, not measured
+           on ours. -->
+      <rendering exposure_compensation="{{ camera_look.exposure_compensation }}"{% if camera_effects %} exposure_time="0.01"{% endif %} />
+      {% if camera_effects %}
+      <noise read="0.004" shot="0.02" />
+      {% endif %}
+      {% if camera_look.white_balance %}
+      <white_balance gains="{{ camera_look.white_balance | join(' ') }}" />
+      {% endif %}
       <origin xyz="{{ front.xyz | join(' ') }}" rpy="{{ front.rpy | join(' ') }}" />
-      <ros_publisher topic="/marlin_v3/front_camera" />
+      <ros_publisher topic="/marlin_v3/front_camera"{% if camera_effects %} jpeg_quality="80"{% endif %} />
     </sensor>
 
     {% set down = frames.down_camera %}
@@ -602,6 +613,12 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1280" resolution_y="1024" horizontal_fov="69.0" />
+      {% if camera_effects %}
+      <!-- A fixed 2 ms exposure with automatic gain (config/devices/flir_blackfly_s.yaml):
+           little motion blur, more noise; its frames are not compressed -->
+      <rendering exposure_time="0.002" />
+      <noise read="0.006" shot="0.03" />
+      {% endif %}
       <origin xyz="{{ down.xyz | join(' ') }}" rpy="{{ down.rpy | join(' ') }}" />
       <ros_publisher topic="/marlin_v3/down_camera" />
     </sensor>
@@ -632,7 +649,9 @@
       <origin xyz="{{ front.xyz | join(' ') }}" rpy="{{ front.rpy | join(' ') }}" />
       <paired_camera name="front_camera" />
 
-      <ros_publisher topic="/marlin_v3/sim/segment" />
+      <!-- sim/segment/boxes: the bounding box of every object with 100 pixels or more
+           in view, named like the labels, to annotate the front camera's frames -->
+      <ros_publisher topic="/marlin_v3/sim/segment" boxes_topic="/marlin_v3/sim/segment/boxes" boxes_min_pixels="100" />
     </sensor>
     {% endif %}
 

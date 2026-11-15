@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <scenario>
   <looks>
-    <look name="torpboard_v2" gray="1.0" roughness="0.1" texture="models/torpedoes_task/torpboard_v2/torpboard_v2.png" />
+    <look name="torpboard_v2" gray="$(arg gray)" roughness="0.1" texture="models/torpedoes_task/torpboard_v2/torpboard_v2.png" />
   </looks>
 
   <static name="torpboard_v2" type="model">

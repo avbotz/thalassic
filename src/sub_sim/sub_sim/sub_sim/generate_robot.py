@@ -28,6 +28,9 @@ class Pose:
         return Pose(tuple(transform.t), transform.rpy())
 
 
+# The front camera as tuned to the July 2026 Woollett footage.
+DEFAULT_CAMERA_LOOK = {"exposure_compensation": -0.7, "white_balance": None}
+
 # Standard gravity and fresh water, as the scenario defines them.
 GRAVITY = 9.81
 WATER_DENSITY = 1000.0
@@ -152,6 +155,8 @@ def render_robot_scenario(
     hydrodynamics: Hydrodynamics | None = None,
     thrust: dict[str, str] | None = None,
     battery_voltage: float = 16.0,
+    camera_effects: bool = True,
+    camera_look: Mapping | None = None,
 ) -> Path:
     """Render the robot at a pose.
 
@@ -171,6 +176,12 @@ def render_robot_scenario(
     it Stonefish estimates them from the robot's geometry. `thrust` is the
     thrusters' thrust curve (thrust_curve(), sub_control's own by default) and
     `battery_voltage` the supply voltage they start at.
+
+    `camera_effects` gives the cameras what real ones do to an image: motion blur,
+    sensor noise and, for the front camera, MJPEG artifacts. `camera_look` is the
+    front camera's `exposure_compensation` [EV] and `white_balance` gains (red,
+    green, blue; None leaves the colours as rendered); DEFAULT_CAMERA_LOOK by
+    default.
 
     The template's world_pose(*poses, offset, rpy) places a free body (a torpedo,
     the dropper's ball) that starts attached to the robot: it chains `poses`, given
@@ -216,6 +227,8 @@ def render_robot_scenario(
         hydrodynamics=hydrodynamics,
         thrust=thrust or thrust_curve(),
         battery_voltage=battery_voltage,
+        camera_effects=camera_effects,
+        camera_look={**DEFAULT_CAMERA_LOOK, **(camera_look or {})},
     )
 
     fd, temp_path = tempfile.mkstemp(
