@@ -40,6 +40,7 @@ setup(
         "console_scripts": [
             "static_transforms = sub_bringup.static_transforms:main",
             "preflight = sub_bringup.preflight:main",
+            "replay = sub_bringup.replay:main",
         ],
     },
 )
