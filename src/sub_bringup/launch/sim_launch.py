@@ -368,7 +368,10 @@ def sim_entities() -> list:
         DeclareLaunchArgument(
             "sensor_noise",
             default_value="true",
-            description="Give the simulated DVL, IMU and pressure sensor the noise of the real ones",
+            description=(
+                "Give the simulated DVL, IMU and pressure sensor the errors of the real ones: "
+                "noise, bias, latency, dropouts and lost DVL beams"
+            ),
         ),
         DeclareLaunchArgument(
             "battery_voltage",

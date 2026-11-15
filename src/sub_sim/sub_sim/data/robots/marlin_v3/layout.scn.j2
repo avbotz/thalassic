@@ -503,13 +503,21 @@
     <sensor name="dvl_link" rate="10.0" type="dvl">
       <link name="base_link_ned" />
 
-      <!-- The beams look down dvl_link's +z (the frame is FRD, as the A50's) -->
-      <specs beam_angle="30.0" beam_positive_z="true" />
-      <range velocity="3.75 3.75 3.75" altitude_min="0.00" altitude_max="50.0" />
+      <!-- The beams look down dvl_link's +z (the frame is FRD, as the A50's), 22.5 degrees
+           off it. It needs three of the four on the bottom, 5 cm to 50 m away, for a
+           velocity. With sensor_noise a beam that only grazes what it hits is lost, as
+           beside a wall (65 degrees is an estimate, not a measurement of the A50). -->
+      <specs beam_angle="22.5" beam_positive_z="true" max_incidence_angle="{{ 65.0 if sensor_noise else 90.0 }}" />
+      <range velocity="3.75 3.75 3.75" altitude_min="0.05" altitude_max="50.0" />
       <water_layer minimum_layer_thickness="10.0" boundary_near="10.0" boundary_far="30.0" />
       {% if sensor_noise %}
       <!-- A50: a few mm/s of noise in a pool, plus 1% of speed -->
       <noise velocity_percent="1.0" velocity="0.005" altitude="0.01" water_velocity_percent="0.0" water_velocity="0.00" />
+      <!-- Its reports are stamped with their time of validity and arrive 0.1 to 0.2 s
+           after it (as sub_bringup's ekf.yaml notes), and now and then it loses the
+           bottom for a few reports (once in 20 s here; in a pool it can be worse). -->
+      <latency value="0.15" jitter="0.02" />
+      <dropouts rate="0.05" duration="0.3" />
       {% else %}
       <noise velocity_percent="0.00" velocity="0.00" altitude="0.00" water_velocity_percent="0.0" water_velocity="0.00" />
       {% endif %}
@@ -520,7 +528,8 @@
       <ros_publisher topic="/marlin_v3/sim/dvl" />
     </sensor>
 
-    <sensor name="imu_link" rate="30.0" type="imu">
+    <!-- The NaviGuider reports its orientation at 50 Hz -->
+    <sensor name="imu_link" rate="50.0" type="imu">
       <link name="base_link_ned"/>
 
       <range angular_velocity="100.0 100.0 50.0" linear_acceleration="30.0 30.0 30.0"/>
@@ -528,6 +537,13 @@
       <!-- NaviGuider class: ~0.1 deg attitude noise, ~0.2 deg/s gyro noise and
            ~10 deg/hr yaw drift (it has no magnetometer to correct it) -->
       <noise angle="0.002 0.002 0.002" angular_velocity="0.003 0.003 0.003" yaw_drift="0.00005" linear_acceleration="0.02 0.02 0.02"/>
+      <!-- What white noise leaves out, and dead reckoning feels: the yaw wanders rather
+           than drifting at one rate (about 0.3 degrees after 100 s), and each gyro has
+           a small offset that is different every run and slowly changes. Estimates for
+           this class of sensor, not measurements of ours. -->
+      <bias channel="2" random_walk="0.0005" />
+      <bias quantity="angular_velocity" initial="0.002" random_walk="0.0002" correlation_time="300.0" />
+      <latency value="0.01" />
       {% else %}
       <noise angle="0.0 0.0 0.0" angular_velocity="0.0 0.0 0.0" yaw_drift="0.0" linear_acceleration="0.00 0.00 0.00"/>
       {% endif %}
@@ -539,12 +555,18 @@
       <ros_publisher topic="/marlin_v3/sim/imu"/>
     </sensor>
 
-    <sensor name="pressure_link" rate="30.0" type="pressure">
+    <!-- The firmware reports the depth at 5 Hz -->
+    <sensor name="pressure_link" rate="5.0" type="pressure">
       <link name="base_link_ned" />
 
       <range pressure="10000000.0" />
       <!-- Bar30: ~3 mm of water -->
       <noise pressure="{{ 30.0 if sensor_noise else 0.0 }}" />
+      {% if sensor_noise %}
+      <!-- It resolves 0.2 mbar (2 mm), and its zero is off by a centimetre or so -->
+      <resolution quantity="pressure" value="20.0" />
+      <bias quantity="pressure" initial="100.0" />
+      {% endif %}
       <origin xyz="{{ frames.pressure_link.xyz | join(' ') }}" rpy="{{ frames.pressure_link.rpy | join(' ') }}" />
 
       <ros_publisher topic="/marlin_v3/sim/pressure" />
