@@ -141,7 +141,10 @@ def _render_scn(context, *_, **__):
 def _stonefish(context, *_, **__):
     """The simulator, whose camera parameters are named after the robot's camera topics."""
     robot_name = LaunchConfiguration("robot_name").perform(context)
-    headless = IfCondition(LaunchConfiguration("headless")).evaluate(context)
+    headless, offscreen, lock_step = (
+        IfCondition(LaunchConfiguration(k)).evaluate(context)
+        for k in ("headless", "offscreen", "lock_step")
+    )
     window = (
         []
         if headless
@@ -173,6 +176,13 @@ def _stonefish(context, *_, **__):
                     "publish_clock": True,
                     "use_sim_time": False,
                     "realtime_factor": 1.0,
+                    # The same sensor noise for the same seed, and every frame of the
+                    # cameras rendered at the step it is due: a run does not depend on
+                    # how fast the computer is, only its speed does.
+                    "seed": int(LaunchConfiguration("seed").perform(context)),
+                    "lock_step": lock_step,
+                    # No window: only the cameras are rendered, and no display is needed.
+                    "offscreen": offscreen,
                     # /clock and the robot's joint and thruster states, published from the
                     # physics thread at a cost per subscriber, and every node on sim time
                     # subscribes to /clock. A whole number of physics steps, into which the
@@ -286,7 +296,10 @@ def sim_entities() -> list:
         DeclareLaunchArgument(
             "seed",
             default_value="",
-            description="Seed for the scenario's random placement; empty picks one at random",
+            description=(
+                "Seed for the scenario's random placement and the simulated sensors' noise; "
+                "empty picks one at random"
+            ),
         ),
         # Half-widths of the uniform jitter the scenario's random placements get.
         DeclareLaunchArgument("DX", default_value="0.25", description="Placement jitter in x [m]"),
@@ -332,6 +345,24 @@ def sim_entities() -> list:
             description=(
                 "Run Stonefish without a window or GPU (stonefish_simulator_nogpu): no cameras, "
                 "so no vision; for control, safety and mission-logic tests"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "offscreen",
+            default_value="false",
+            description=(
+                "Render the cameras without a window, so without a display; with "
+                "LIBGL_ALWAYS_SOFTWARE=1 in the environment also without a GPU, slowly "
+                "(unlike headless, the cameras and so vision still run)"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "lock_step",
+            default_value="true",
+            description=(
+                "Make the simulation wait for the cameras' frames: each is rendered at the "
+                "step it is due and none is skipped, so on a slow computer the simulation "
+                "runs slower instead of the cameras dropping frames"
             ),
         ),
         DeclareLaunchArgument(
