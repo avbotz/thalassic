@@ -36,7 +36,7 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
 
         axis_index_ = (axis == "z") ? 2 : (axis == "y") ? 1 : 0;
         threshold_ = threshold >= 0.0 ? threshold : (axis_index_ == 2) ? 0.25 : 0.8;
-        deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_msec);
+        deadline_ = MissionClock::now() + std::chrono::milliseconds(timeout_msec);
         initial_speed_ = measuredSpeed();
         if (std::fabs(initial_speed_) <= 0.03) {
             RCLCPP_INFO(logger_, "WaitUntilHit initial speed is low; assuming already hit object.");
@@ -54,7 +54,7 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
         if (current_speed / initial_speed_ < threshold_ || std::fabs(current_speed) < 0.01) {
             return BT::NodeStatus::SUCCESS;
         }
-        if (std::chrono::steady_clock::now() >= deadline_) {
+        if (MissionClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "WaitUntilHit timed out. initial=%.3f current=%.3f", initial_speed_, current_speed);
             return BT::NodeStatus::FAILURE;
         }
@@ -74,7 +74,7 @@ class WaitUntilHitAction : public BT::StatefulActionNode {
     std::size_t axis_index_ = 0;
     double threshold_ = 0.8;
     double initial_speed_ = 0.0;
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

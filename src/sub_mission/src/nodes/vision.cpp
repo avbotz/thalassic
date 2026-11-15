@@ -43,7 +43,7 @@ namespace {
 
 using sub_vision_interfaces::msg::Detection;
 using sub_vision_interfaces::srv::LoadModel;
-using SteadyClock = std::chrono::steady_clock;
+using SteadyClock = MissionClock;
 
 // The (camera, task, class_id, min_score) ports shared by every vision leaf.
 struct DetectionFilter {

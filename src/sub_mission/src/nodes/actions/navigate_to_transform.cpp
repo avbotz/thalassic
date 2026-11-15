@@ -114,7 +114,7 @@ class NavigateToTransformAction : public BT::StatefulActionNode {
             (!active_axes_[2] || freshAndWithinTolerance(2))) {
             return BT::NodeStatus::SUCCESS;
         }
-        if (std::chrono::steady_clock::now() >= deadline_) {
+        if (MissionClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "NavigateToTransform timed out; error xyz=(%.3f, %.3f, %.3f).",
                         node_.control_errors[0], node_.control_errors[1], node_.control_errors[2]);
             return BT::NodeStatus::FAILURE;
@@ -128,7 +128,7 @@ class NavigateToTransformAction : public BT::StatefulActionNode {
     rclcpp::Logger logger_;
     std::array<bool, 3> active_axes_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

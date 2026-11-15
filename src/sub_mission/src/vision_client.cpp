@@ -31,7 +31,7 @@ VisionClient::VisionClient(rclcpp::Node &node) {
             [this, snapshot = &source.snapshot](sub_vision_interfaces::msg::DetectionArray::ConstSharedPtr msg) {
                 const std::lock_guard<std::mutex> lock(mutex_);
                 snapshot->detections = std::move(msg);
-                snapshot->received_at = std::chrono::steady_clock::now();
+                snapshot->received_at = MissionClock::now();
             });
 
         source.load_model_client = node.create_client<sub_vision_interfaces::srv::LoadModel>(spec.load_model_service);

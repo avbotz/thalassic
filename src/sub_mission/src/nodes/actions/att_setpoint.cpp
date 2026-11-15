@@ -79,7 +79,7 @@ class AttSetpointAction : public BT::StatefulActionNode {
             return BT::NodeStatus::SUCCESS;
         }
 
-        if (std::chrono::steady_clock::now() >= deadline_) {
+        if (MissionClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "AttSetpoint timed out; error rpy=(%.3f, %.3f, %.3f).", node_.control_errors[6],
                         node_.control_errors[7], node_.control_errors[8]);
             return BT::NodeStatus::FAILURE;
@@ -93,7 +93,7 @@ class AttSetpointAction : public BT::StatefulActionNode {
     rclcpp::Logger logger_;
     std::array<bool, 3> active_axes_ = {};
     std::array<std::uint64_t, 12> start_updates_ = {};
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

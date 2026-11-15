@@ -50,6 +50,7 @@ add_library(mission_core STATIC
     src/nodes/actions/velocity_setpoint.cpp
     src/nodes/actions/wait_until_hit.cpp
     src/nodes/node.cpp
+    src/mission_clock.cpp
     src/nodes/vision.cpp
     src/utils.cpp
     src/vision_client.cpp

@@ -12,7 +12,7 @@
 
 namespace {
 
-using SteadyClock = std::chrono::steady_clock;
+using SteadyClock = MissionClock;
 
 // Inside the octagon: turn in yaw_step_deg steps, looking at the front camera,
 // until a surface_class_id image is in view, then rise to surface_z. The first
