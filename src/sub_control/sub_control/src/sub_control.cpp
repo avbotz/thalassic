@@ -211,6 +211,7 @@ void SubControl::apply_parameters(const sub_control::Params& params) {
     limits_.rotation_leash = params.trajectory.rotation_leash;
 
     thruster_settings_.power_limit = params.power_limit;
+    set_thruster_voltage(params.thruster_voltage);
     thruster_settings_.max_command_rate = layout.max_command_rate;
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
         thruster_settings_.reversed[t] = layout.thruster_reversed[t];

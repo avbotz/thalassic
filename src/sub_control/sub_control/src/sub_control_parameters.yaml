@@ -32,6 +32,14 @@ sub_control:
       finite: null
       bounds<>: [0.0, 0.6]  # MAX_POWER_LIMIT
 
+  thruster_voltage:
+    type: double
+    default_value: 16.0
+    description: "Supply (battery) voltage the thrust curve is taken at [V]; the ESCs are open loop, so thrust falls with it"
+    validation:
+      finite: null
+      bounds<>: [10.0, 20.0]  # the range the T200's thrust was measured over (data/t200_thrust.csv)
+
   allocation:
     # From config/vehicles/<robot_name>.yaml via the launch file
     # (sub_bringup/vehicle.py), base_link FLU; no default.

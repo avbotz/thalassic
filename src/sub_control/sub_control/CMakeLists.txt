@@ -22,6 +22,17 @@ find_package(robot_localization REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
+# The thrusters' measured thrust curves, the only copy of them: the lookup table
+# is generated from the file the simulator also reads.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(THRUST_TABLE_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+add_custom_command(
+  OUTPUT ${THRUST_TABLE_DIR}/sub_control/thrust_table.hpp
+  COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_thrust_table
+    ${CMAKE_CURRENT_SOURCE_DIR}/data/t200_thrust.csv ${THRUST_TABLE_DIR}/sub_control/thrust_table.hpp
+  DEPENDS scripts/generate_thrust_table data/t200_thrust.csv
+  VERBATIM)
+
 # The control law, trajectory generator and allocator, free of ROS so the unit
 # tests can drive them directly.
 add_library(${PROJECT_NAME}_core STATIC
@@ -30,8 +41,9 @@ add_library(${PROJECT_NAME}_core STATIC
   src/reference_generator.cpp
   src/safety.cpp
   src/trajectory.cpp
-  src/utils.cpp)
-target_include_directories(${PROJECT_NAME}_core PUBLIC include)
+  src/utils.cpp
+  ${THRUST_TABLE_DIR}/sub_control/thrust_table.hpp)
+target_include_directories(${PROJECT_NAME}_core PUBLIC include PRIVATE ${THRUST_TABLE_DIR})
 target_link_libraries(${PROJECT_NAME}_core PUBLIC Eigen3::Eigen)
 set_target_properties(${PROJECT_NAME}_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -52,6 +64,7 @@ install(TARGETS
   ${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/identify_model DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY data DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
