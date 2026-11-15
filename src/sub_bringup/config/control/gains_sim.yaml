@@ -3,9 +3,14 @@
     control_rate_hz: 50.0
     power_limit: 0.6
 
-    # Vehicle sim model
+    # The simulated vehicle. This block also defines it: sim_launch.py builds
+    # the simulator's robot from these numbers (sub_sim's model_hydrodynamics()),
+    # so the controller's model is exact unless model_error asks otherwise.
+    # They are what identify_model found when Stonefish still estimated the
+    # hydrodynamics from the robot's geometry; replace them with the real
+    # vehicle's once it is identified, and the simulator follows.
     model:
-      mass: [112.2, 94.1, 137.7]     # kg; Stonefish's added mass is large
+      mass: [112.2, 94.1, 137.7]     # kg, with the added mass
       inertia: [12.24, 15.46, 13.99] # kg m^2
       net_buoyancy: 20.8             # N
       buoyancy: 401.0                # N, from the scene's volume

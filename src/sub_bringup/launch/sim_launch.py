@@ -7,6 +7,7 @@ the same estimation, control, vision and mission stack the vehicle runs.
 import random
 from pathlib import Path
 
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
@@ -33,7 +34,13 @@ from sub_bringup.entities import (
     vision_entities,
 )
 from sub_bringup.vehicle import load_vehicle
-from sub_sim.generate_robot import mount_poses, render_robot_scenario, thruster_specs
+from sub_sim.generate_robot import (
+    base_link_ned_pose,
+    model_hydrodynamics,
+    mount_poses,
+    render_robot_scenario,
+    thruster_specs,
+)
 from sub_sim.randomize_locs import randomize_scenario_locations
 from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
@@ -62,6 +69,24 @@ def _render_scn(context, *_, **__):
     thrusters = thruster_specs(vehicle.thrusters)
     frames = mount_poses(vehicle)
 
+    # The simulated vehicle is the one sub_control's model describes: the `model`
+    # block of the gains file it runs with, so the two cannot drift apart. A real
+    # vehicle differs from its model, which model_error stands for.
+    gains_file = (
+        Path(get_package_share_directory("sub_bringup"))
+        / "config"
+        / LaunchConfiguration("gains").perform(context)
+    )
+    model = yaml.safe_load(gains_file.read_text())["/**"]["ros__parameters"]["model"]
+    hydrodynamics = model_hydrodynamics(
+        model,
+        base_link_ned_pose(vehicle),
+        error=float(LaunchConfiguration("model_error").perform(context)),
+        # Its own stream, so that it does not change the scenario the seed gives.
+        rng=random.Random(f"model {seed}"),
+    )
+    battery_voltage = float(LaunchConfiguration("battery_voltage").perform(context))
+
     # The scenario template calls back into this with the robot's pose.
     rendered_robot = None
 
@@ -77,6 +102,8 @@ def _render_scn(context, *_, **__):
             depth_camera=depth_camera,
             # Stonefish without a GPU cannot render cameras.
             cameras=not headless,
+            hydrodynamics=hydrodynamics,
+            battery_voltage=battery_voltage,
         )
         return rendered_robot.as_posix()
 
@@ -311,6 +338,24 @@ def sim_entities() -> list:
             "sensor_noise",
             default_value="true",
             description="Give the simulated DVL, IMU and pressure sensor the noise of the real ones",
+        ),
+        DeclareLaunchArgument(
+            "battery_voltage",
+            default_value="16.0",
+            description=(
+                "Supply voltage of the simulated thrusters [V], 10 to 20; their thrust falls with "
+                "it, while sub_control assumes its thruster_voltage (sim/battery_voltage changes "
+                "it while running)"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "model_error",
+            default_value="0.0",
+            description=(
+                "How far the simulated vehicle is from sub_control's model of it: each of its "
+                "mass, inertia, buoyancy and drag terms is scaled by a random factor within this "
+                "fraction of 1 (0.2 is +/-20%), from the seed"
+            ),
         ),
         DeclareLaunchArgument(
             "vision_depth",
