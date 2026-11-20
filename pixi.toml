@@ -66,7 +66,7 @@ llvm-openmp = ">=23,<24"                              # Spinnaker SDK runtime
 numpy = ">=2,<3"
 opencv = ">=4,<5"                                     # cv_bridge
 pyyaml = ">=6,<7"                                     # sub_bringup
-onnxruntime = ">=1,<2"
+onnxruntime = ">=1.32,<2"
 setuptools = "<80"                                    # needed for colcon (see colcon/colcon-core#696 and RoboStack/ros-jazzy#103)
 
 # Jazzy's launch_testing pytest plugins fail to load under pytest 9 (fixed in Rolling by ros2/launch#972).
