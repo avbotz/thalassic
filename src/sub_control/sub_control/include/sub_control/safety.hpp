@@ -5,15 +5,12 @@
 #include <string>
 #include <vector>
 
-// A stamp further ahead of this node's clock than this is not believed: the
-// clock went back (the simulator restarted), or the sender's clock is not
-// synced with this one (the DVL stamps its reports with its own clock).
-inline constexpr double FUTURE_STAMP_TOLERANCE = 0.25;  // [s]
-
 // How old a message stamped `stamp` is at `now` (both clock seconds): infinite
-// if there is none or it is stamped further ahead than FUTURE_STAMP_TOLERANCE,
-// zero if it is stamped a little ahead.
-double message_age(const std::optional<double>& stamp, double now);
+// if there is none or it is stamped more than `max_lead` ahead, zero if it is
+// stamped a little ahead. A stamp further ahead is not believed: the clock went
+// back (the simulator restarted), or the sender's clock is not synced with this
+// one (the DVL stamps its reports with its own clock).
+double message_age(const std::optional<double>& stamp, double now, double max_lead);
 
 // Ages [s] of what the vehicle needs to be measured to be driven at all.
 struct ArmingInputs {

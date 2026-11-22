@@ -3,12 +3,12 @@
 #include <format>
 #include <limits>
 
-double message_age(const std::optional<double>& stamp, double now) {
+double message_age(const std::optional<double>& stamp, double now, double max_lead) {
     if (!stamp) {
         return std::numeric_limits<double>::infinity();
     }
     const double age = now - *stamp;
-    if (age < -FUTURE_STAMP_TOLERANCE) {
+    if (age < -max_lead) {
         return std::numeric_limits<double>::infinity();
     }
     return age > 0.0 ? age : 0.0;

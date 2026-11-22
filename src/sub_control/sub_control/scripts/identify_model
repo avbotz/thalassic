@@ -284,22 +284,26 @@ class Identifier(Node):
             "    model:",
             f"      mass: [{', '.join(f'{m:.1f}' for m in mass)}]",
             f"      inertia: [{', '.join(f'{j:.2f}' for j in inertia)}]",
-            f"      net_buoyancy: {net:.1f}",
-            f"      linear_drag: [{', '.join(f'{d:.2f}' for d in linear)}]",
-            f"      quadratic_drag: [{', '.join(f'{d:.2f}' for d in quadratic)}]",
+            "      restoring:",
+            f"        net_buoyancy: {net:.1f}",
         ]
         if righting:
             # roll: k_c = -B r_y; pitch: k_c = B r_x; both: k_s = B r_z (r = CB - CG).
             moment = [value("pitch", "trim"), -value("roll", "trim"), float(np.mean(righting))]
             if buoyancy > 0:
-                lines.append(f"      buoyancy: {buoyancy:.1f}")
+                lines.append(f"        buoyancy: {buoyancy:.1f}")
                 lines.append(
-                    "      # center_of_buoyancy: center_of_gravity + "
+                    "        # center_of_buoyancy: center_of_gravity + "
                     f"[{moment[0] / buoyancy:.4f}, {moment[1] / buoyancy:.4f}, {moment[2] / buoyancy:.4f}]"
                 )
             lines.append(
-                f"      # buoyancy x (CB - CG) [N m]: [{moment[0]:.2f}, {moment[1]:.2f}, {moment[2]:.2f}]"
+                f"        # buoyancy x (CB - CG) [N m]: [{moment[0]:.2f}, {moment[1]:.2f}, {moment[2]:.2f}]"
             )
+        lines += [
+            "      drag:",
+            f"        linear: [{', '.join(f'{d:.2f}' for d in linear)}]",
+            f"        quadratic: [{', '.join(f'{d:.2f}' for d in quadratic)}]",
+        ]
         print(
             "\nIdentified model; paste into the gains file and check the fits above:\n"
             + "\n".join(lines)

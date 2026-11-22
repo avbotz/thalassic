@@ -85,10 +85,10 @@ class SubControl : public rclcpp::Node {
     // Since an event this node timed itself (infinite if none, or if the clock went back).
     double seconds_since(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now) const;
     // Age of the latest message on a topic, by its stamp (see message_age()).
-    static double age(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now);
+    double age(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now) const;
     // The time a message describes: its stamp, or its arrival if it has none.
     rclcpp::Time stamp_of(const std_msgs::msg::Header& header) const;
-    // The DVL altitude, or NaN if it is older than safety.altitude_timeout.
+    // The DVL altitude, or NaN if it is older than safety.altitude.depth_hold_after.
     double fresh_altitude(const rclcpp::Time& now) const;
     ArmingInputs arming_inputs(const rclcpp::Time& now) const;
     ArmingLimits arming_limits() const;

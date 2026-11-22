@@ -118,8 +118,9 @@ def model_hydrodynamics(
     def point(values: Sequence[float]) -> tuple[float, float, float]:
         return tuple(sign * values[axis] + shift() for axis, sign in axes)
 
-    buoyancy = model["buoyancy"] * scale()
-    weight = buoyancy - model["net_buoyancy"]
+    restoring, drag = model["restoring"], model["drag"]
+    buoyancy = restoring["buoyancy"] * scale()
+    weight = buoyancy - restoring["net_buoyancy"]
     if not (buoyancy > 0.0 and weight > 0.0):
         raise ValueError("The vehicle model needs a positive buoyancy and weight")
     mass = weight / GRAVITY
@@ -128,13 +129,13 @@ def model_hydrodynamics(
         raise ValueError("The vehicle model's mass is less than its weight gives")
     return Hydrodynamics(
         mass=mass,
-        center_of_gravity=point(model["center_of_gravity"]),
+        center_of_gravity=point(restoring["center_of_gravity"]),
         inertia=per_axis(model["inertia"]),
         added_mass=added_mass,
-        linear_damping=per_axis(model["linear_drag"]),
-        quadratic_damping=per_axis(model["quadratic_drag"]),
+        linear_damping=per_axis(drag["linear"]),
+        quadratic_damping=per_axis(drag["quadratic"]),
         displaced_volume=buoyancy / (WATER_DENSITY * GRAVITY),
-        center_of_buoyancy=point(model["center_of_buoyancy"]),
+        center_of_buoyancy=point(restoring["center_of_buoyancy"]),
     )
 
 
