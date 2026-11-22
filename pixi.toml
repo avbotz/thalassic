@@ -99,8 +99,7 @@ pre-commit = ">=4,<5"
 ccache = ">=4,<5"
 
 [feature.jetson.dependencies]
-# CUDA 13 build, JetPack 7.2's major version. Has sm_80 kernels (which should be compatiable with the Jetson's sm_87)
-onnxruntime = { version = ">=1,<2", build = "*cuda13*" }
+onnxruntime = { version = ">=1.32,<2", build = "*cuda13*" }
 
 [tasks]
 build = { cmd = "colcon build", depends-on = ["_prune-symlinks"], description = "Build the workspace" }
