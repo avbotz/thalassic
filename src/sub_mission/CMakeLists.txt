@@ -22,6 +22,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sub_control_interfaces REQUIRED)
 find_package(sub_driver_interfaces REQUIRED)
@@ -65,6 +66,7 @@ ament_target_dependencies(mission_core PUBLIC
     "behaviortree_cpp"
     "geometry_msgs"
     "nav_msgs"
+    "sensor_msgs"
     "std_msgs"
     "sub_control_interfaces"
     "sub_driver_interfaces"

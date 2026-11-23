@@ -498,6 +498,32 @@ TEST_F(MissionTest, DownAlignMovesOverTheTarget) {
     // right, so a target up and right of the center is ahead and to the right.
     auto t = tree(R"(<DownAlignToDetection task="bin" tolerance="0.1" update_msec="1" timeout_msec="300"/>)");
     watch(t, "down", "bin", {{"0", 0.9, 0.2, -0.2}}, 1s);
+    // No altitude set, no detection distance: falls back to default_distance=1.0.
+    EXPECT_NEAR(node->commanded_pos[0], std::tan(0.2), 1e-6);
+    EXPECT_NEAR(node->commanded_pos[1], -std::tan(0.2), 1e-6);
+}
+
+TEST_F(MissionTest, DownAlignScalesOffsetByAltitude) {
+    // With a fresh DVL altitude of 2.5 m (no TF offset in tests: camera_dvl_z_offset=0),
+    // the projection distance is 2.5 m instead of the default 1.0 m.
+    node->altitude_range = 2.5;
+    node->altitude_stamp = node->get_clock()->now();
+    auto t = tree(
+        R"(<DownAlignToDetection task="bin" tolerance="0.1" update_msec="1" timeout_msec="300"
+                                 use_altitude="true"/>)");
+    watch(t, "down", "bin", {{"0", 0.9, 0.2, -0.2}}, 1s);
+    EXPECT_NEAR(node->commanded_pos[0], 2.5 * std::tan(0.2), 1e-6);
+    EXPECT_NEAR(node->commanded_pos[1], -2.5 * std::tan(0.2), 1e-6);
+}
+
+TEST_F(MissionTest, DownAlignFallsBackToDefaultWhenAltitudeStale) {
+    // A stale altitude (epoch stamp) must not be used; fall back to default_distance=1.0.
+    node->altitude_range = 2.5;
+    // altitude_stamp left at its initial ROS-time epoch (0), which is always stale.
+    auto t = tree(
+        R"(<DownAlignToDetection task="bin" tolerance="0.1" update_msec="1" timeout_msec="300"
+                                 use_altitude="true" altitude_timeout_msec="1000"/>)");
+    watch(t, "down", "bin", {{"0", 0.9, 0.2, -0.2}}, 1s);
     EXPECT_NEAR(node->commanded_pos[0], std::tan(0.2), 1e-6);
     EXPECT_NEAR(node->commanded_pos[1], -std::tan(0.2), 1e-6);
 }

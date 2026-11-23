@@ -17,6 +17,7 @@
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/range.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "sub_control_interfaces/msg/error.hpp"
 #include "sub_mission/nodes/commands.hpp"
@@ -52,6 +53,7 @@ class MissionNode : public rclcpp::Node {
     void kill_callback(const std_msgs::msg::Bool &msg);
     void control_error_callback(const sub_control_interfaces::msg::Error &msg);
     void odometry_callback(const nav_msgs::msg::Odometry &msg);
+    void altitude_callback(const sensor_msgs::msg::Range &msg);
 
     // Name (resources/missions/<name>.xml) or path of the mission tree to run.
     std::string mission;
@@ -118,6 +120,11 @@ class MissionNode : public rclcpp::Node {
     // and Spin measure the vehicle's speed against.
     std::array<double, 3> last_velocity_setpoint = {};
     std::array<double, 3> last_angvel_setpoint = {};
+    // The latest valid DVL altitude (sensor_msgs/Range from the `altitude` topic) and
+    // when it arrived. NaN until the first valid reading. Guarded by state_mutex.
+    double altitude_range = std::numeric_limits<double>::quiet_NaN();
+    // On the node's clock (RCL_ROS_TIME): subtracting times from different clocks throws.
+    rclcpp::Time altitude_stamp{0, 0, RCL_ROS_TIME};
 
    private:
     static constexpr std::array<double, 3> UNSET = {std::numeric_limits<double>::quiet_NaN(),
@@ -147,6 +154,7 @@ class MissionNode : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_sub;
     rclcpp::Subscription<sub_control_interfaces::msg::Error>::SharedPtr control_error_sub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_sub;
+    rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr altitude_sub;
     std::unique_ptr<VisionClient> vision_client;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer;
     std::unique_ptr<tf2_ros::TransformListener> tf_listener;
