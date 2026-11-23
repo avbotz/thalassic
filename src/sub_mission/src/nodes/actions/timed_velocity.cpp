@@ -57,7 +57,7 @@ class TimedVelocityAction : public BT::StatefulActionNode {
         }
         node_.releasePosition(target);
         setpoint_publisher_->publish(linearVelocityCommand(*clock_, target));
-        deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(duration_msec);
+        deadline_ = MissionClock::now() + std::chrono::milliseconds(duration_msec);
         RCLCPP_INFO(logger_, "TimedVelocity: xyz=(%.3f, %.3f, %.3f) for %dms.", target[0], target[1], target[2],
                     duration_msec);
         return BT::NodeStatus::RUNNING;
@@ -67,7 +67,7 @@ class TimedVelocityAction : public BT::StatefulActionNode {
         if (!node_.subAlive()) {
             return BT::NodeStatus::FAILURE;
         }
-        if (std::chrono::steady_clock::now() < deadline_) {
+        if (MissionClock::now() < deadline_) {
             return BT::NodeStatus::RUNNING;
         }
         hold();
@@ -84,7 +84,7 @@ class TimedVelocityAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<bool, 3> moved_ = {};
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

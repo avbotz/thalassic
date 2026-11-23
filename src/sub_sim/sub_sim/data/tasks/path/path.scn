@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="path" gray="$(arg gray)" roughness="0.1" texture="tasks/path/path.png" />
+  </looks>
+
+  <static name="path" type="model">
+    <physical>
+      <mesh filename="tasks/path/path_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="tasks/path/path.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="pvc" />
+    <look name="path" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

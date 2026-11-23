@@ -31,6 +31,41 @@ TEST(ThrustCurve, NaNIsOffNotFullScale) {
     }
 }
 
+TEST(ThrustCurve, MatchesTheMeasuredCurveAtSixteenVolts) {
+    // BlueRobotics' data for the T200 at 16 V: 5.25 kgf forward and 4.07 kgf in
+    // reverse at full command, and nothing within 7% of zero.
+    EXPECT_EQ(thruster_voltage(), DEFAULT_THRUSTER_VOLTAGE);
+    EXPECT_NEAR(norm_to_force(1.0), 51.44, 0.01);
+    EXPECT_NEAR(norm_to_force(-1.0), -39.91, 0.01);
+    EXPECT_EQ(norm_to_force(0.07), 0.0);
+    EXPECT_EQ(norm_to_force(-0.07), 0.0);
+    EXPECT_GT(norm_to_force(0.08), 0.0);
+    EXPECT_LT(norm_to_force(-0.08), 0.0);
+}
+
+TEST(ThrustCurve, FollowsTheSupplyVoltage) {
+    const double at_16 = norm_to_force(0.6);
+    set_thruster_voltage(12.0);
+    EXPECT_EQ(thruster_voltage(), 12.0);
+    const double at_12 = norm_to_force(0.6);
+    EXPECT_LT(at_12, 0.8 * at_16);
+    // The same force needs a larger command on a lower battery.
+    EXPECT_GT(force_to_norm(10.0), 0.3);
+    for (double force = -25.0; force <= 30.0; force += 0.5) {
+        EXPECT_NEAR(norm_to_force(force_to_norm(force)), force, 0.1) << "force " << force;
+    }
+    // Between two measured voltages the curve is interpolated, and outside
+    // their range it is the nearest one.
+    set_thruster_voltage(14.0);
+    const double at_14 = norm_to_force(0.6);
+    set_thruster_voltage(13.0);
+    EXPECT_NEAR(norm_to_force(0.6), 0.5 * (at_12 + at_14), 1e-9);
+    set_thruster_voltage(5.0);
+    EXPECT_EQ(thruster_voltage(), 10.0);
+    set_thruster_voltage(DEFAULT_THRUSTER_VOLTAGE);
+    EXPECT_NEAR(norm_to_force(0.6), at_16, 1e-12);
+}
+
 TEST(Attitude, ErrorIsBodyRotationVector) {
     const Eigen::Quaterniond level = quaternion_from_rpy({0.0, 0.0, 0.0});
     EXPECT_NEAR(attitude_error(level, level).norm(), 0.0, 1e-12);

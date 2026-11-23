@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="slalom" gray="$(arg gray)" roughness="0.1" texture="tasks/slalom_task/slalom/slalom.png" />
+  </looks>
+
+  <static name="slalom" type="model">
+    <physical>
+      <mesh filename="tasks/slalom_task/slalom/slalom_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="tasks/slalom_task/slalom/slalom.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="pvc" />
+    <look name="slalom" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

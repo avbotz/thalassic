@@ -1,13 +1,58 @@
+import csv
 import math
 import os
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from ament_index_python.packages import get_package_share_directory
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from sub_sim.robot_scenario_to_urdf import Transform
+Vec3 = tuple[float, float, float]
+Mat3 = list[list[float]]
+
+
+@dataclass(frozen=True)
+class Transform:
+    """A rotation matrix R (a list of rows), then a translation t."""
+
+    R: Mat3
+    t: Vec3
+
+    @staticmethod
+    def identity() -> "Transform":
+        return Transform([[1, 0, 0], [0, 1, 0], [0, 0, 1]], (0.0, 0.0, 0.0))
+
+    @staticmethod
+    def from_xyz_rpy(xyz: Vec3, rpy: Vec3) -> "Transform":
+        """Roll, pitch and yaw as Stonefish applies them: R = Rz(yaw) Ry(pitch) Rx(roll)."""
+        cr, cp, cy = (math.cos(a) for a in rpy)
+        sr, sp, sy = (math.sin(a) for a in rpy)
+        R = [
+            [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+            [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+            [-sp, cp * sr, cp * cr],
+        ]
+        return Transform(R, xyz)
+
+    def rpy(self) -> Vec3:
+        """The roll, pitch and yaw of R. At pitch ±90°, where only their sum or difference is
+        defined, yaw is 0."""
+        R = self.R
+        cp = math.sqrt(R[0][0] * R[0][0] + R[1][0] * R[1][0])
+        pitch = math.atan2(-R[2][0], cp)
+        if cp < 1e-9:
+            return (math.atan2(-R[1][2], R[1][1]), pitch, 0.0)
+        return (math.atan2(R[2][1], R[2][2]), pitch, math.atan2(R[1][0], R[0][0]))
+
+    def __matmul__(self, other: "Transform") -> "Transform":
+        A, B, v = self.R, other.R, other.t
+        R = [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+        tx, ty, tz = (
+            self.t[i] + (A[i][0] * v[0] + A[i][1] * v[1] + A[i][2] * v[2]) for i in range(3)
+        )
+        return Transform(R, (tx, ty, tz))
 
 
 @dataclass(frozen=True)
@@ -25,6 +70,27 @@ class Pose:
         return Pose(tuple(transform.t), transform.rpy())
 
 
+# The front camera as tuned to the July 2026 Woollett footage.
+DEFAULT_CAMERA_LOOK = {"exposure_compensation": -0.7, "white_balance": None}
+
+
+def thrust_curve(path: Path | str | None = None) -> dict[str, str]:
+    """The thrusters' measured thrust curves as the thruster template takes them:
+    `commands`, the supply `voltages` [V] and the `forces` [N] of every voltage one
+    after another, space separated. From sub_control's data/t200_thrust.csv, the
+    only copy of the curve, which sub_control builds its own lookup table from."""
+    if path is None:
+        path = Path(get_package_share_directory("sub_control")) / "data" / "t200_thrust.csv"
+    with open(path, newline="") as f:
+        rows = list(csv.reader(line for line in f if not line.startswith("#")))
+    header, data = rows[0], rows[1:]
+    return {
+        "commands": " ".join(row[0] for row in data),
+        "voltages": " ".join(name.removesuffix("V") for name in header[1:]),
+        "forces": "  ".join(" ".join(row[k] for row in data) for k in range(1, len(header))),
+    }
+
+
 def render_robot_scenario(
     robot_template_file: Path | str,
     x: float = 0.0,
@@ -39,6 +105,10 @@ def render_robot_scenario(
     segmentation_camera: bool = False,
     depth_camera: bool = False,
     cameras: bool = True,
+    thrust: dict[str, str] | None = None,
+    battery_voltage: float = 16.0,
+    camera_effects: bool = True,
+    camera_look: Mapping | None = None,
 ) -> Path:
     """Render the robot at a pose.
 
@@ -52,6 +122,16 @@ def render_robot_scenario(
     depth camera, which nothing in the stack reads yet. Without `cameras` the
     robot has no camera at all (Stonefish without a GPU cannot render one), and
     neither of those either.
+
+    `thrust` is the
+    thrusters' thrust curve (thrust_curve(), sub_control's own by default) and
+    `battery_voltage` the supply voltage they start at.
+
+    `camera_effects` gives the cameras what real ones do to an image: motion blur,
+    sensor noise and, for the front camera, MJPEG artifacts. `camera_look` is the
+    front camera's `exposure_compensation` [EV] and `white_balance` gains (red,
+    green, blue; None leaves the colours as rendered); DEFAULT_CAMERA_LOOK by
+    default.
 
     The template's world_pose(*poses, offset, rpy) places a free body (a torpedo,
     the dropper's ball) that starts attached to the robot: it chains `poses`, given
@@ -94,6 +174,10 @@ def render_robot_scenario(
         segmentation_camera=segmentation_camera and cameras,
         depth_camera=depth_camera and cameras,
         cameras=cameras,
+        thrust=thrust or thrust_curve(),
+        battery_voltage=battery_voltage,
+        camera_effects=camera_effects,
+        camera_look={**DEFAULT_CAMERA_LOOK, **(camera_look or {})},
     )
 
     fd, temp_path = tempfile.mkstemp(
@@ -134,6 +218,21 @@ def _inverse(transform: Transform) -> Transform:
     rt = [list(row) for row in zip(*transform.R, strict=True)]
     t = transform.t
     return Transform(rt, tuple(-sum(rt[i][k] * t[k] for k in range(3)) for i in range(3)))
+
+
+def base_link_ned_pose(vehicle) -> Transform:
+    """The pose in base_link of base_link_ned, the simulated robot's base link."""
+    by_child = {t.child_frame_id: t for t in vehicle.transforms}
+    frame = vehicle.frame("base_link_ned")
+    pose = Transform.identity()
+    while frame != vehicle.frame("base_link"):
+        if frame not in by_child:
+            raise ValueError(
+                f"{vehicle.name}'s description has no transform from base_link to base_link_ned"
+            )
+        pose = _transform(by_child[frame]) @ pose
+        frame = by_child[frame].header.frame_id
+    return pose
 
 
 def mount_poses(vehicle) -> dict[str, Pose]:

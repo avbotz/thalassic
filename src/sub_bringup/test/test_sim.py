@@ -2,8 +2,8 @@
 
 It must arm once the simulated kill switch is released, run the pid_tuning
 mission (position, relative and attitude moves, each completed only on an
-acknowledged control/error) to SUCCESS, and cut the thrusters when the IMU
-stops. No GPU or display
+acknowledged control/error) to SUCCESS, drop z feedback when depth stops, and
+cut the thrusters when the IMU stops. No GPU or display
 is needed, so it runs in CI; it takes a minute or two.
 
 It runs on its own ROS domain and Foxglove port, so a simulator someone already
@@ -55,6 +55,10 @@ class TestSimulatedRun(unittest.TestCase):
         proc_output.assertWaitFor(
             "Mission 'pid_tuning' finished with SUCCESS", timeout=MISSION_TIMEOUT
         )
+
+        # Losing depth (its bridge unloaded) must show in the EKF's z variance.
+        unload_component("/marlin_v3/sim_sensors_container", "/marlin_v3/sim_pressure_to_depth")
+        proc_output.assertWaitFor("(no depth?): z feedback off, floating up", timeout=20)
 
         # Losing the IMU (its bridge unloaded from the sensor container) must cut the thrusters.
         unload_component("/marlin_v3/sim_sensors_container", "/marlin_v3/sim_imu_remapper")

@@ -13,6 +13,15 @@ using Vector6d = Eigen::Matrix<double, NUM_DOF, 1>;
 // pitch, yaw], or positions then ZYX Euler angles.
 enum Axis { X = 0, Y = 1, Z = 2, ROLL = 3, PITCH = 4, YAW = 5 };
 
+// The ESCs drive the thrusters open loop, so their thrust depends on the supply
+// (battery) voltage. The thrust curves below are those measured by BlueRobotics
+// for the T200 at 10 to 20 V (data/t200_thrust.csv, the only copy: the simulator
+// reads the same file), interpolated to the voltage set here, which is limited
+// to that range.
+inline constexpr double DEFAULT_THRUSTER_VOLTAGE = 16.0;
+void set_thruster_voltage(double voltage);
+double thruster_voltage();
+
 // Invert the BlueRobotics T200 thrust curve of a right-hand propeller: desired
 // force [N] along the thruster's +X -> normalized command in [-1, 1] (+/-1 ==
 // +/-400 PWM counts == full range). The curve's deadband collapses to 0. This is

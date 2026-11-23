@@ -19,7 +19,7 @@ DEVICES = ("auto", "cpu", "gpu")
 # ONNX Runtime's execution providers for a GPU on Linux, in its own order of preference. An
 # installed build has at most a few of them; the rest are skipped. Named rather than taken from
 # what the build lists: conda-forge's x86 CUDA build also lists TensorRT, first, uninstalled.
-GPU_PROVIDERS = ("CUDAExecutionProvider", "MIGraphXExecutionProvider", "WebGpuExecutionProvider")
+GPU_PROVIDERS = ("CUDAExecutionProvider",)
 CPU_PROVIDER = "CPUExecutionProvider"
 
 NMS_IOU_THRESHOLD = 0.45

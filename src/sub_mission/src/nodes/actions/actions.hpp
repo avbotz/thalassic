@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sub_mission/mission_clock.hpp"
 #include "sub_mission/nodes/commands.hpp"
 
 #include <chrono>
@@ -29,12 +30,13 @@ inline BT::PortsList::value_type moveTimeoutPort() {
 }
 
 // When a move started now gives up: after timeout_msec (the port) if it is
-// positive, else after moveTimeout().
-inline std::chrono::steady_clock::time_point moveDeadline(const int timeout_msec, const double horizontal,
-                                                          const double vertical, const double angle) {
+// positive, else after moveTimeout(). On the mission's clock, so in simulation
+// the move has that long in the simulator's time.
+inline MissionClock::time_point moveDeadline(const int timeout_msec, const double horizontal, const double vertical,
+                                             const double angle) {
     const auto timeout =
         timeout_msec > 0 ? std::chrono::milliseconds(timeout_msec) : moveTimeout(horizontal, vertical, angle);
-    return std::chrono::steady_clock::now() + timeout;
+    return MissionClock::now() + timeout;
 }
 
 void registerPosSetpointAction(BT::BehaviorTreeFactory &factory, MissionNode &node,

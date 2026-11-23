@@ -218,9 +218,6 @@
       "topics": {
         "/marlin_v3/odometry/filtered": {
           "visible": true
-        },
-        "/marlin_v3/robot_description": {
-          "visible": true
         }
       },
       "layers": {

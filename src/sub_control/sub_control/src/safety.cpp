@@ -3,12 +3,12 @@
 #include <format>
 #include <limits>
 
-double message_age(const std::optional<double>& stamp, double now) {
+double message_age(const std::optional<double>& stamp, double now, double max_lead) {
     if (!stamp) {
         return std::numeric_limits<double>::infinity();
     }
     const double age = now - *stamp;
-    if (age < -FUTURE_STAMP_TOLERANCE) {
+    if (age < -max_lead) {
         return std::numeric_limits<double>::infinity();
     }
     return age > 0.0 ? age : 0.0;
@@ -29,6 +29,11 @@ std::vector<std::string> arming_blockers(const ArmingInputs& inputs, const Armin
     };
     check("state estimate (odometry/filtered)", inputs.state_age, limits.state_timeout);
     check("IMU (imu/data)", inputs.imu_age, limits.attitude_timeout);
-    check("depth (odometry/depth)", inputs.depth_age, limits.depth_timeout);
+    if (!(inputs.z_variance <= limits.z_variance_max)) {
+        blockers.push_back(
+            std::format("depth: the state estimate's z variance is {:.3g} m^2 (limit {:.3g}); is "
+                        "odometry/depth publishing?",
+                        inputs.z_variance, limits.z_variance_max));
+    }
     return blockers;
 }

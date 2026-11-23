@@ -1,32 +1,26 @@
 /**:
   ros__parameters:
     control_rate_hz: 50.0
-    power_limit: 0.6
 
-    # Vehicle model
+    # [x, y, z, roll, pitch, yaw], base_link FLU (REP-103).
     model:
-      # Rigid body plus added mass
-      mass: [50.0, 60.0, 70.0] # kg
-      # Rigid body plus added inertia
-      inertia: [1.5, 2.0, 2.0] # kg m^2
-      # Buoyancy minus weight
-      net_buoyancy: 0.0 # N
-      # For the righting moment
-      buoyancy: 0.0  # N
-      # Relative to base_link
-      center_of_gravity: [0.0, 0.0, 0.08]   # m
-      center_of_buoyancy: [0.0, 0.0, 0.08]  # m
-      linear_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      quadratic_drag: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      mass: [50.0, 60.0, 70.0]  # kg, rigid body + added, x y z
+      inertia: [1.5, 2.0, 2.0]  # kg m^2, rigid body + added, roll pitch yaw
+      restoring:
+        net_buoyancy: 0.0                     # N, buoyancy - weight (+ floats)
+        buoyancy: 0.0                         # N, for the righting moment
+        center_of_gravity: [0.0, 0.0, 0.08]   # m
+        center_of_buoyancy: [0.0, 0.0, 0.08]  # m, above CG or there's no righting moment
+      drag:  # force opposes motion: F = -(linear*v + quadratic*|v|*v)
+        linear: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]     # N/(m/s), N m/(rad/s)
+        quadratic: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # N/(m/s)^2, N m/(rad/s)^2
 
-    # Fraction of each feedforward term applied; bring them in one at a time.
-    feedforward:
+    feedforward:  # fraction of each term applied
       acceleration: 1.0
-      drag: 1.0
-      restoring: 1.0
+      drag: 0.0
+      restoring: 0.0
 
-    # Smooth reference: [max velocity, max acceleration, max jerk] per group,
-    # m and rad. Keep them inside what the thrusters can do at power_limit.
+    # Smooth reference [max velocity, max acceleration, max jerk] per group,
     trajectory:
       horizontal: [0.5, 0.25, 0.5]
       vertical: [0.3, 0.2, 0.4]
@@ -36,44 +30,48 @@
       translation_leash: 0.5  # m the reference may get ahead of the vehicle
       rotation_leash: 0.5     # rad
 
-    # Feedback, [kp, ki, kd] per axis, as accelerations: a = kp*e + ki*int(e) + kd*de/dt
-    # (1/s^2, 1/s^3, 1/s). Multiplied by model.mass/inertia these are exactly
-    # the pool-tuned cascade gains this replaced (position P into velocity PI,
-    # attitude P into rate P):
-    #   kp = (Kv*Kp_pos + Ki_vel)/m, kd = Kv/m, ki = Ki_vel*Kp_pos/m
     gains:
-      x: [7.14, 0.612, 10.2]
-      y: [5.95, 0.51, 8.5]
-      z: [8.6, 1.62, 10.29]
-      roll: [9.6, 0.0, 8.0]
-      pitch: [7.2, 0.0, 6.0]
-      yaw: [28.35, 0.9, 23.0]
-      integral_limit: [1.0, 1.0, 1.0, 6.0, 6.0, 6.0]  # m/s^2, rad/s^2
-      anti_windup: 5.0  # 1/s, how fast integrators shed what the thrusters could not produce
+      anti_windup: 5.0  # 1/s
+      x:     {kp: 7.14,  ki: 0.612, kd: 10.2,  integral_limit: 1.0}
+      y:     {kp: 5.95,  ki: 0.51,  kd: 8.5,   integral_limit: 1.0}
+      z:     {kp: 8.6,   ki: 1.62,  kd: 10.29, integral_limit: 1.0}
+      roll:  {kp: 9.6,   ki: 0.0,   kd: 8.0,   integral_limit: 6.0}
+      pitch: {kp: 7.2,   ki: 0.0,   kd: 6.0,   integral_limit: 6.0}
+      yaw:   {kp: 28.35, ki: 0.9,   kd: 23.0,  integral_limit: 6.0}
 
     # Disturbance observer bandwidth per axis [rad/s]; 0 is off. Turn it on
     # once the model is identified (https://sw.avbotz.com/thalassic/control/#disturbance-observer).
     observer:
       bandwidth: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-    # What to keep when the wrench is out of reach (saturation, a failed
-    # thruster): heave and attitude, then heading, then surge and sway.
     allocation:
+      power_limit: 0.6
       axis_weights: [1.0, 1.0, 100.0, 100.0, 100.0, 10.0]
-      max_command_rate: 4.0  # 1/s on the normalized command: no current spikes from instant reversals
+      max_command_rate: 4.0  # 1/s on the normalized command
 
-    # Fraction of nominal thrust each thruster delivers; 0 marks it failed.
-    # failed_thrusters (e.g. "[3]") does the same at runtime:
-    #   ros2 param set /<robot_name>/sub_control failed_thrusters "[3]"
-    thruster_health: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    # Names in allocation order (use your own). Mark one failed at runtime with
+    #   ros2 param set /<robot_name>/sub_control thrusters.fwd_port_vert.health 0.0
+    thruster_names: [fwd_port_vert, fwd_stbd_vert, aft_port_vert, aft_stbd_vert,
+                     fwd_port_horiz, fwd_stbd_horiz, aft_port_horiz, aft_stbd_horiz]
+    thrusters:
+      fwd_port_vert:  {health: 1.0}
+      fwd_stbd_vert:  {health: 1.0}
+      aft_port_vert:  {health: 1.0}
+      aft_stbd_vert:  {health: 1.0}
+      fwd_port_horiz: {health: 1.0}
+      fwd_stbd_horiz: {health: 1.0}
+      aft_port_horiz: {health: 1.0}
+      aft_stbd_horiz: {health: 1.0}
 
-    # Arming and watchdogs [s] (https://sw.avbotz.com/thalassic/control/#safety). Ages are by message stamp.
+    # [s], ages by message stamp. dvl and depth are variances in odometry/filtered
+    # instead, which grow while those sensors are not fused; at ekf.yaml's
+    # process noise these cross after about 1.5 s and 1.0 s without them.
     safety:
-      require_kill_cycle: true  # arm only after the kill switch has been engaged since startup
-      state_timeout: 0.5    # no odometry: thrusters off
-      imu_timeout: 0.2      # rate feedback falls back to the EKF's
-      attitude_timeout: 1.0 # no IMU: thrusters off (the EKF's attitude would only drift)
-      dvl_timeout: 1.5      # x/y feedback off
-      depth_timeout: 1.0    # z feedback off, float up
-      altitude_timeout: 1.0 # altitude hold becomes depth hold
-      cmd_vel_timeout: 0.5  # cmd_vel stream stopped: stop
+      require_kill_cycle: true
+      max_stamp_lead: 0.05  # stamps further ahead of now are a fault
+      odometry: {thrusters_off_after: 0.5}
+      imu:      {rate_from_ekf_after: 0.2, thrusters_off_after: 1.0}
+      dvl:      {xy_feedback_off_above: 0.1}   # m^2/s^2, x/y velocity
+      depth:    {z_feedback_off_above: 0.07}  # m^2, z; drops z feedforward too, so it floats
+      altitude: {depth_hold_after: 1.0}
+      cmd_vel:  {stop_after: 0.5}

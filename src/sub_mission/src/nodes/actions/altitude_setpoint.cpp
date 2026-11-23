@@ -67,7 +67,7 @@ class AltitudeSetpointAction : public BT::StatefulActionNode {
             std::fabs(node_.control_errors[2]) <= POSITION_TOLERANCE) {
             return BT::NodeStatus::SUCCESS;
         }
-        if (std::chrono::steady_clock::now() >= deadline_) {
+        if (MissionClock::now() >= deadline_) {
             RCLCPP_WARN(logger_, "AltitudeSetpoint timed out; z error %.3f.", node_.control_errors[2]);
             return BT::NodeStatus::FAILURE;
         }
@@ -79,7 +79,7 @@ class AltitudeSetpointAction : public BT::StatefulActionNode {
     rclcpp::Clock::SharedPtr clock_;
     rclcpp::Logger logger_;
     std::array<std::uint64_t, 12> start_updates_ = {};
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

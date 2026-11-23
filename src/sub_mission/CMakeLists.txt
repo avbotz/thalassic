@@ -1,15 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(sub_mission)
 
-# Default to C99
-if(NOT CMAKE_C_STANDARD)
-    set(CMAKE_C_STANDARD 99)
-endif()
-
-# Default to C++17
-if(NOT CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 17)
-endif()
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
@@ -50,6 +44,7 @@ add_library(mission_core STATIC
     src/nodes/actions/velocity_setpoint.cpp
     src/nodes/actions/wait_until_hit.cpp
     src/nodes/node.cpp
+    src/mission_clock.cpp
     src/nodes/vision.cpp
     src/utils.cpp
     src/vision_client.cpp

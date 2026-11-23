@@ -78,10 +78,10 @@ SubControl::SubControl() : Node("sub_control") {
         param_listener_ =
             std::make_unique<sub_control::ParamListener>(this->get_node_parameters_interface(), this->get_logger());
     } catch (const rclcpp::exceptions::ParameterUninitializedException& e) {
-        // Only the thruster layout has no default.
+        // Only the thrusters have no defaults.
         throw std::invalid_argument(std::string(e.what()) +
-                                    ". The thruster layout comes from the vehicle description; launch "
-                                    "sub_control through sub_bringup.");
+                                    ". The thruster layout comes from the vehicle description, and the thrusters' "
+                                    "names and health from the gains file; launch sub_control through sub_bringup.");
     }
     const std::string invalid = invalid_parameters(param_listener_->get_params());
     if (!invalid.empty()) {
@@ -99,18 +99,6 @@ SubControl::SubControl() : Node("sub_control") {
     altitude_sub_ = this->create_subscription<sensor_msgs::msg::Range>(
         "altitude", rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::Range::SharedPtr msg) { altitude_callback(msg); });
-    // Only their stamps matter here: they say whether the EKF's x/y and z are
-    // being corrected or only predicted. By stamp, not arrival, so that a
-    // delayed stream (the EKF drops what is older than its history) counts as
-    // missing, and a DVL whose clock is not synced to this one is noticed.
-    dvl_sub_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
-        "dvl/velocity", rclcpp::SensorDataQoS(),
-        [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg) {
-            dvl_time_ = stamp_of(msg->header);
-        });
-    depth_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "odometry/depth", rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::Odometry::SharedPtr msg) { depth_time_ = stamp_of(msg->header); });
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         "kill_switch", rclcpp::QoS(1).transient_local(),
         [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
@@ -176,26 +164,31 @@ void SubControl::apply_parameters(const sub_control::Params& params) {
     const auto& layout = params.allocation;
     const bool geometry_changed = layout.thruster_positions != params_.allocation.thruster_positions ||
                                   layout.thruster_directions != params_.allocation.thruster_directions ||
-                                  params.model.center_of_gravity != params_.model.center_of_gravity;
+                                  params.model.restoring.center_of_gravity != params_.model.restoring.center_of_gravity;
     params_ = params;
 
     model_.mass = vector3(params.model.mass);
     model_.inertia = vector3(params.model.inertia);
-    model_.net_buoyancy = params.model.net_buoyancy;
-    model_.buoyancy = params.model.buoyancy;
-    model_.center_of_gravity = vector3(params.model.center_of_gravity);
-    model_.center_of_buoyancy = vector3(params.model.center_of_buoyancy);
-    model_.linear_drag = vector6(params.model.linear_drag);
-    model_.quadratic_drag = vector6(params.model.quadratic_drag);
+    model_.net_buoyancy = params.model.restoring.net_buoyancy;
+    model_.buoyancy = params.model.restoring.buoyancy;
+    model_.center_of_gravity = vector3(params.model.restoring.center_of_gravity);
+    model_.center_of_buoyancy = vector3(params.model.restoring.center_of_buoyancy);
+    model_.linear_drag = vector6(params.model.drag.linear);
+    model_.quadratic_drag = vector6(params.model.drag.quadratic);
 
-    const std::array pid{&params.gains.x,    &params.gains.y,     &params.gains.z,
-                         &params.gains.roll, &params.gains.pitch, &params.gains.yaw};
-    for (int axis = 0; axis < NUM_DOF; ++axis) {
-        gains_.kp[axis] = (*pid[axis])[0];
-        gains_.ki[axis] = (*pid[axis])[1];
-        gains_.kd[axis] = (*pid[axis])[2];
-    }
-    gains_.integral_limit = vector6(params.gains.integral_limit);
+    // A template, as each axis's parameters are a struct type of their own.
+    const auto set_axis = [this](Axis axis, const auto& gains) {
+        gains_.kp[axis] = gains.kp;
+        gains_.ki[axis] = gains.ki;
+        gains_.kd[axis] = gains.kd;
+        gains_.integral_limit[axis] = gains.integral_limit;
+    };
+    set_axis(X, params.gains.x);
+    set_axis(Y, params.gains.y);
+    set_axis(Z, params.gains.z);
+    set_axis(ROLL, params.gains.roll);
+    set_axis(PITCH, params.gains.pitch);
+    set_axis(YAW, params.gains.yaw);
     gains_.anti_windup = params.gains.anti_windup;
     gains_.observer_bandwidth = vector6(params.observer.bandwidth);
     gains_.acceleration_feedforward = params.feedforward.acceleration;
@@ -210,7 +203,8 @@ void SubControl::apply_parameters(const sub_control::Params& params) {
     limits_.translation_leash = params.trajectory.translation_leash;
     limits_.rotation_leash = params.trajectory.rotation_leash;
 
-    thruster_settings_.power_limit = params.power_limit;
+    thruster_settings_.power_limit = layout.power_limit;
+    set_thruster_voltage(params.thruster_voltage);
     thruster_settings_.max_command_rate = layout.max_command_rate;
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
         thruster_settings_.reversed[t] = layout.thruster_reversed[t];
@@ -230,19 +224,16 @@ void SubControl::apply_parameters(const sub_control::Params& params) {
 }
 
 void SubControl::update_health() {
-    std::array<bool, NUM_THRUSTERS> failed{};
-    for (const int64_t t : params_.failed_thrusters) {
-        failed[t] = true;
-    }
     std::array<bool, NUM_THRUSTERS> usable{};
     for (int t = 0; t < NUM_THRUSTERS; ++t) {
-        const double health = failed[t] ? 0.0 : std::clamp(params_.thruster_health[t], 0.0, 1.0);
+        const std::string& name = params_.thruster_names[t];
+        const double health = params_.thrusters.thruster_names_map.at(name).health;
         if (health != thruster_settings_.health[t]) {
             if (health < 1.0) {
-                RCLCPP_WARN(this->get_logger(), "thruster %d at %.0f%% health; allocating around it", t,
+                RCLCPP_WARN(this->get_logger(), "thruster %s at %.0f%% health; allocating around it", name.c_str(),
                             100.0 * health);
             } else {
-                RCLCPP_INFO(this->get_logger(), "thruster %d healthy", t);
+                RCLCPP_INFO(this->get_logger(), "thruster %s healthy", name.c_str());
             }
         }
         thruster_settings_.health[t] = health;
@@ -280,7 +271,12 @@ void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     state_.position = {p.position.x, p.position.y, p.position.z};
     state_.orientation = orientation.normalized();
     state_.linear_velocity = {t.linear.x, t.linear.y, t.linear.z};
-    if (age(imu_rate_time_, this->now()) > params_.safety.imu_timeout) {
+    // Whether the EKF's x/y and z are being corrected or only predicted. Unlike
+    // the sensors' own streams, this also counts what the EKF rejects or drops.
+    const auto variance = [](double v) { return std::isfinite(v) ? v : std::numeric_limits<double>::infinity(); };
+    xy_velocity_variance_ = std::max(variance(msg->twist.covariance[0]), variance(msg->twist.covariance[7]));
+    z_variance_ = variance(msg->pose.covariance[14]);
+    if (age(imu_rate_time_, this->now()) > params_.safety.imu.rate_from_ekf_after) {
         state_.angular_velocity = {t.angular.x, t.angular.y, t.angular.z};
     }
     odom_time_ = stamp_of(msg->header);
@@ -358,12 +354,13 @@ void SubControl::set_armed(bool armed) {
 }
 
 ArmingInputs SubControl::arming_inputs(const rclcpp::Time& now) const {
-    return {kill_seen_, age(odom_time_, now), age(imu_time_, now), age(depth_time_, now)};
+    return {kill_seen_, age(odom_time_, now), age(imu_time_, now), z_variance_};
 }
 
 ArmingLimits SubControl::arming_limits() const {
     const auto& safety = params_.safety;
-    return {safety.require_kill_cycle, safety.state_timeout, safety.attitude_timeout, safety.depth_timeout};
+    return {safety.require_kill_cycle, safety.odometry.thrusters_off_after, safety.imu.thrusters_off_after,
+            safety.depth.z_feedback_off_above};
 }
 
 bool SubControl::try_arm(const rclcpp::Time& now) {
@@ -399,6 +396,9 @@ void SubControl::request_pose_reset(const rclcpp::Time& now) {
     request->pose.header.frame_id = params_.robot_name.empty() ? "odom" : params_.robot_name + "/odom";
     request->pose.header.stamp = now;
     request->pose.pose.pose.position.z = state_.position.z();
+    // The EKF takes the reset's covariance as its own: keep z's, which says
+    // whether depth is being measured (a NaN one counts as unknown).
+    request->pose.pose.covariance[14] = std::isfinite(z_variance_) ? z_variance_ : 1e6;
     request->pose.pose.pose.orientation.w = level_heading.w();
     request->pose.pose.pose.orientation.x = level_heading.x();
     request->pose.pose.pose.orientation.y = level_heading.y();
@@ -488,8 +488,9 @@ double SubControl::seconds_since(const std::optional<rclcpp::Time>& stamp, const
     return stamp && *stamp <= now ? (now - *stamp).seconds() : std::numeric_limits<double>::infinity();
 }
 
-double SubControl::age(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now) {
-    return message_age(stamp ? std::optional<double>(stamp->seconds()) : std::nullopt, now.seconds());
+double SubControl::age(const std::optional<rclcpp::Time>& stamp, const rclcpp::Time& now) const {
+    return message_age(stamp ? std::optional<double>(stamp->seconds()) : std::nullopt, now.seconds(),
+                       params_.safety.max_stamp_lead);
 }
 
 rclcpp::Time SubControl::stamp_of(const std_msgs::msg::Header& header) const {
@@ -498,8 +499,9 @@ rclcpp::Time SubControl::stamp_of(const std_msgs::msg::Header& header) const {
 }
 
 double SubControl::fresh_altitude(const rclcpp::Time& now) const {
-    return age(altitude_time_, now) <= params_.safety.altitude_timeout ? altitude_
-                                                                       : std::numeric_limits<double>::quiet_NaN();
+    return age(altitude_time_, now) <= params_.safety.altitude.depth_hold_after
+               ? altitude_
+               : std::numeric_limits<double>::quiet_NaN();
 }
 
 void SubControl::apply_command(const MotionCommand& command, const std::string& source,
@@ -573,7 +575,7 @@ void SubControl::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg
     MotionCommand command;
     command.mode.fill(AxisMode::VELOCITY);
     command.velocity << msg->linear.x, msg->linear.y, msg->linear.z, msg->angular.x, msg->angular.y, msg->angular.z;
-    command.expires = this->now().seconds() + params_.safety.cmd_vel_timeout;
+    command.expires = this->now().seconds() + params_.safety.cmd_vel.stop_after;
     apply_command(command, "cmd_vel");
 }
 
@@ -597,7 +599,7 @@ void SubControl::run() {
         last_update_time_ ? std::clamp((now - *last_update_time_).seconds(), 1e-4, 0.1) : 1.0 / params_.control_rate_hz;
     last_update_time_ = now;
 
-    imu_ok_ = age(imu_time_, now) <= params_.safety.attitude_timeout;
+    imu_ok_ = age(imu_time_, now) <= params_.safety.imu.thrusters_off_after;
 
     if (killed_ || (!armed_ && !try_arm(now))) {
         publish_zero_thrusters(now);
@@ -609,10 +611,10 @@ void SubControl::run() {
     // predicts it, and acting on a drifting attitude can roll the vehicle):
     // nothing sensible to do but let the positively buoyant hull float up.
     std::string failsafe;
-    if (age(odom_time_, now) > params_.safety.state_timeout) {
-        failsafe = std::format("no odometry for {:.2f} s", params_.safety.state_timeout);
+    if (age(odom_time_, now) > params_.safety.odometry.thrusters_off_after) {
+        failsafe = std::format("no odometry for {:.2f} s", params_.safety.odometry.thrusters_off_after);
     } else if (!imu_ok_) {
-        failsafe = std::format("no IMU for {:.2f} s", params_.safety.attitude_timeout);
+        failsafe = std::format("no IMU for {:.2f} s", params_.safety.imu.thrusters_off_after);
     }
     if (!failsafe.empty()) {
         if (!failsafe_ || failsafe != failsafe_reason_) {
@@ -662,29 +664,33 @@ void SubControl::run() {
     }
 
     // Which axes still have feedback. The EKF keeps predicting through a
-    // sensor gap, so its estimate stays fresh while drifting: without DVL
-    // updates x/y velocity is only a guess, and without depth so is z.
-    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl_timeout;
-    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth_timeout;
+    // sensor gap, so its estimate stays fresh while drifting, but its variance
+    // grows: without DVL updates x/y velocity is only a guess, and without
+    // depth so is z. A pose reset shrinks the x/y velocity variance (not z's,
+    // see request_pose_reset()), so x/y can take about 2 s to go off after one
+    // without a DVL; the EKF's velocity is held at zero meanwhile.
+    const bool dvl_ok = xy_velocity_variance_ <= params_.safety.dvl.xy_feedback_off_above;
+    const bool depth_ok = z_variance_ <= params_.safety.depth.z_feedback_off_above;
     if (dvl_ok != dvl_ok_) {
         if (dvl_ok) {
-            RCLCPP_INFO(this->get_logger(), "DVL back: x/y feedback on");
+            RCLCPP_INFO(this->get_logger(), "x/y velocity measured again: x/y feedback on");
         } else {
-            RCLCPP_WARN(this->get_logger(), "no DVL for %.1f s: x/y feedback off until it returns",
-                        params_.safety.dvl_timeout);
+            RCLCPP_WARN(this->get_logger(),
+                        "x/y velocity variance %.3g m^2/s^2 above %.3g (no DVL?): x/y feedback off until it returns",
+                        xy_velocity_variance_, params_.safety.dvl.xy_feedback_off_above);
         }
     }
     if (depth_ok != depth_ok_) {
         if (depth_ok) {
-            RCLCPP_INFO(this->get_logger(), "depth back: z feedback on");
+            RCLCPP_INFO(this->get_logger(), "z measured again: z feedback on");
         } else {
-            RCLCPP_ERROR(this->get_logger(), "no depth for %.1f s: z feedback off, floating up",
-                         params_.safety.depth_timeout);
+            RCLCPP_ERROR(this->get_logger(), "z variance %.3g m^2 above %.3g (no depth?): z feedback off, floating up",
+                         z_variance_, params_.safety.depth.z_feedback_off_above);
         }
     }
     dvl_ok_ = dvl_ok;
     depth_ok_ = depth_ok;
-    const bool altitude_ok = age(altitude_time_, now) <= params_.safety.altitude_timeout;
+    const bool altitude_ok = age(altitude_time_, now) <= params_.safety.altitude.depth_hold_after;
     if (generator_.altitude() && !altitude_ok) {
         RCLCPP_WARN(this->get_logger(), "lost DVL altitude: holding depth instead");
         generator_.drop_altitude(state_.position.z());
@@ -819,7 +825,7 @@ void SubControl::publish_diagnostics(const rclcpp::Time& now, const ThrusterOutp
     status.imu_ok = imu_ok_;
     status.dvl_ok = dvl_ok_;
     status.depth_ok = depth_ok_;
-    status.altitude_ok = age(altitude_time_, now) <= params_.safety.altitude_timeout;
+    status.altitude_ok = age(altitude_time_, now) <= params_.safety.altitude.depth_hold_after;
     status.state_age = std::min(age(odom_time_, now), 1e9);
     status.command_id = command_id_;
     status.command_rejected = !command_rejected_.empty();
@@ -855,12 +861,12 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     };
     add_age("odometry/filtered", odom_time_);
     add_age("imu/data", imu_time_);
-    add_age("odometry/depth", depth_time_);
-    add_age("dvl/velocity", dvl_time_);
     add_age("altitude", altitude_time_);
-    const bool state_ok = age(odom_time_, now) <= params_.safety.state_timeout;
-    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth_timeout;
-    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl_timeout;
+    status.add("x/y velocity variance [m^2/s^2]", std::format("{:.3g}", xy_velocity_variance_));
+    status.add("z variance [m^2]", std::format("{:.3g}", z_variance_));
+    const bool state_ok = age(odom_time_, now) <= params_.safety.odometry.thrusters_off_after;
+    const bool depth_ok = z_variance_ <= params_.safety.depth.z_feedback_off_above;
+    const bool dvl_ok = xy_velocity_variance_ <= params_.safety.dvl.xy_feedback_off_above;
     std::vector<std::string> missing;
     for (const auto& [ok, name] : {std::pair{state_ok, "state estimate"}, {imu_ok_, "IMU"}, {depth_ok, "depth"}}) {
         if (!ok) {
@@ -870,7 +876,7 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     if (!missing.empty()) {
         status.summary(DiagnosticStatus::ERROR, "stale or missing: " + join(missing, ", "));
     } else if (!dvl_ok) {
-        status.summary(DiagnosticStatus::WARN, "no DVL velocity (bottom lock?): x/y feedback off");
+        status.summary(DiagnosticStatus::WARN, "x/y velocity not measured (DVL bottom lock?): x/y feedback off");
     } else {
         status.summary(DiagnosticStatus::OK, "all fresh");
     }

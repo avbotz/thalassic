@@ -33,13 +33,20 @@ from sub_bringup.entities import (
     vision_entities,
 )
 from sub_bringup.vehicle import load_vehicle
-from sub_sim.generate_robot import mount_poses, render_robot_scenario, thruster_specs
-from sub_sim.randomize_locs import randomize_scenario_locations
-from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
+from sub_sim.generate_robot import (
+    mount_poses,
+    render_robot_scenario,
+    thruster_specs,
+)
+from sub_sim.randomize_locs import (
+    appearance_rng,
+    randomize_scenario_locations,
+    vary_appearance,
+)
 
 
 def _render_scn(context, *_, **__):
-    """Render a randomised scenario and the URDF of the robot placed in it."""
+    """Render a randomised scenario with the robot placed in it."""
     robot_name = LaunchConfiguration("robot_name").perform(context)
     offsets = {
         k: float(LaunchConfiguration(k).perform(context)) for k in ("DX", "DY", "DZ", "DYAW")
@@ -47,10 +54,17 @@ def _render_scn(context, *_, **__):
     # Always seeded, so the seed recorded with the run reproduces its scenario.
     seed = LaunchConfiguration("seed").perform(context) or str(random.randrange(2**31))
     # As IfCondition reads them (true, false, 1 or 0; anything else is an error).
-    sensor_noise, segmentation_camera, depth_camera, headless = (
+    sensor_noise, segmentation_camera, depth_camera, headless, camera_effects = (
         IfCondition(LaunchConfiguration(k)).evaluate(context)
-        for k in ("sensor_noise", "segmentation_camera", "depth_camera", "headless")
+        for k in (
+            "sensor_noise",
+            "segmentation_camera",
+            "depth_camera",
+            "headless",
+            "camera_effects",
+        )
     )
+    appearance = float(LaunchConfiguration("appearance").perform(context))
     if headless and segmentation_camera:
         raise ValueError("The segmentation camera needs cameras, which headless:=true has none of")
 
@@ -61,6 +75,24 @@ def _render_scn(context, *_, **__):
     vehicle = load_vehicle(robot_name)
     thrusters = thruster_specs(vehicle.thrusters)
     frames = mount_poses(vehicle)
+
+    battery_voltage = float(LaunchConfiguration("battery_voltage").perform(context))
+
+    # With appearance, the front camera's exposure and colour balance stray from the
+    # ones tuned to the pool footage, as a camera's do from day to day.
+    look_rng = appearance_rng(int(seed), "camera")
+    camera_look = {
+        "exposure_compensation": vary_appearance(look_rng, appearance, -0.7, -1.5, 0.2),
+        "white_balance": (
+            (
+                vary_appearance(look_rng, appearance, 1.0, 0.8, 1.4),
+                1.0,
+                vary_appearance(look_rng, appearance, 1.0, 0.75, 1.2),
+            )
+            if appearance > 0.0
+            else None
+        ),
+    }
 
     # The scenario template calls back into this with the robot's pose.
     rendered_robot = None
@@ -77,6 +109,9 @@ def _render_scn(context, *_, **__):
             depth_camera=depth_camera,
             # Stonefish without a GPU cannot render cameras.
             cameras=not headless,
+            battery_voltage=battery_voltage,
+            camera_effects=camera_effects,
+            camera_look=camera_look,
         )
         return rendered_robot.as_posix()
 
@@ -84,19 +119,12 @@ def _render_scn(context, *_, **__):
         scenario_template_file=sub_sim_share / "scenarios" / "woollett.scn.j2",
         seed=int(seed),
         render_robot=render_robot,
+        appearance=appearance,
         course=LaunchConfiguration("course").perform(context),
         **offsets,
     )
     if rendered_robot is None:
         raise RuntimeError("The scenario template did not render a robot")
-
-    urdf = robot_scenario_to_urdf(
-        scenario_xml=rendered_robot,
-        robot_name=robot_name,
-        mesh_prefix=f"file://{sub_sim_share / 'data'}/",
-    )
-    robot_description = urdf.read_text()
-    urdf.unlink()
 
     # The rendered files are temporary, and Stonefish reads them only as it starts.
     def remove_scenario(*_):
@@ -106,7 +134,6 @@ def _render_scn(context, *_, **__):
     return [
         SetLaunchConfiguration("seed", seed),
         SetLaunchConfiguration("scenario_file", scenario.as_posix()),
-        SetLaunchConfiguration("robot_description", robot_description),
         RegisterEventHandler(OnShutdown(on_shutdown=remove_scenario)),
     ]
 
@@ -114,7 +141,10 @@ def _render_scn(context, *_, **__):
 def _stonefish(context, *_, **__):
     """The simulator, whose camera parameters are named after the robot's camera topics."""
     robot_name = LaunchConfiguration("robot_name").perform(context)
-    headless = IfCondition(LaunchConfiguration("headless")).evaluate(context)
+    headless, offscreen, lock_step = (
+        IfCondition(LaunchConfiguration(k)).evaluate(context)
+        for k in ("headless", "offscreen", "lock_step")
+    )
     window = (
         []
         if headless
@@ -146,6 +176,13 @@ def _stonefish(context, *_, **__):
                     "publish_clock": True,
                     "use_sim_time": False,
                     "realtime_factor": 1.0,
+                    # The same sensor noise for the same seed, and every frame of the
+                    # cameras rendered at the step it is due: a run does not depend on
+                    # how fast the computer is, only its speed does.
+                    "seed": int(LaunchConfiguration("seed").perform(context)),
+                    "lock_step": lock_step,
+                    # No window: only the cameras are rendered, and no display is needed.
+                    "offscreen": offscreen,
                     # /clock and the robot's joint and thruster states, published from the
                     # physics thread at a cost per subscriber, and every node on sim time
                     # subscribes to /clock. A whole number of physics steps, into which the
@@ -253,13 +290,14 @@ def _sim_sensors(context, *_, **__):
 
 
 def sim_entities() -> list:
-    robot_name = LaunchConfiguration("robot_name")
-
     args = [
         DeclareLaunchArgument(
             "seed",
             default_value="",
-            description="Seed for the scenario's random placement; empty picks one at random",
+            description=(
+                "Seed for the scenario's random placement and the simulated sensors' noise; "
+                "empty picks one at random"
+            ),
         ),
         # Half-widths of the uniform jitter the scenario's random placements get.
         DeclareLaunchArgument("DX", default_value="0.25", description="Placement jitter in x [m]"),
@@ -308,9 +346,57 @@ def sim_entities() -> list:
             ),
         ),
         DeclareLaunchArgument(
+            "offscreen",
+            default_value="false",
+            description=(
+                "Render the cameras without a window, so without a display; with "
+                "LIBGL_ALWAYS_SOFTWARE=1 in the environment also without a GPU, slowly "
+                "(unlike headless, the cameras and so vision still run)"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "lock_step",
+            default_value="true",
+            description=(
+                "Make the simulation wait for the cameras' frames: each is rendered at the "
+                "step it is due and none is skipped, so on a slow computer the simulation "
+                "runs slower instead of the cameras dropping frames"
+            ),
+        ),
+        DeclareLaunchArgument(
             "sensor_noise",
             default_value="true",
-            description="Give the simulated DVL, IMU and pressure sensor the noise of the real ones",
+            description=(
+                "Give the simulated DVL, IMU and pressure sensor the errors of the real ones: "
+                "noise, bias, latency, dropouts and lost DVL beams"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "camera_effects",
+            default_value="true",
+            description=(
+                "Give the cameras' images motion blur, sensor noise and, for the front "
+                "camera, MJPEG artifacts"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "appearance",
+            default_value="0.0",
+            description=(
+                "How far the scene's look strays from the one tuned to the pool footage, 0 to "
+                "1: the water's clarity, the sun, the ripples, the floor, the props' prints and "
+                "the front camera's exposure and colour balance are drawn from the seed "
+                "(for training data that does not all look alike)"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "battery_voltage",
+            default_value="16.0",
+            description=(
+                "Supply voltage of the simulated thrusters [V], 10 to 20; their thrust falls with "
+                "it, while sub_control assumes its thruster_voltage (sim/battery_voltage changes "
+                "it while running)"
+            ),
         ),
         DeclareLaunchArgument(
             "vision_depth",
@@ -322,29 +408,11 @@ def sim_entities() -> list:
         ),
     ]
 
-    # Publishes the URDF rendered from the scenario; the vehicle has no equivalent.
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        namespace=robot_name,
-        parameters=[
-            # As a string: launch_ros otherwise parses it as YAML, which folds its lines
-            # and would cut it at a " #" or reject it at a ": ".
-            {
-                "robot_description": ParameterValue(
-                    LaunchConfiguration("robot_description"), value_type=str
-                )
-            }
-        ],
-    )
-
     return [
         *args,
         OpaqueFunction(function=_render_scn),
         OpaqueFunction(function=_stonefish),
         OpaqueFunction(function=_sim_sensors),
-        robot_state_publisher,
     ]
 
 

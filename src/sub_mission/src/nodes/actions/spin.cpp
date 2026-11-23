@@ -77,7 +77,8 @@ class SpinAction : public BT::StatefulActionNode {
 
         // The measured rate is per second of ROS time (the simulator's clock in
         // simulation, which falls behind the wall clock when it cannot keep
-        // up), so dt is too. The deadline stays on the steady clock.
+        // up), so dt is too. The deadline is on the mission's clock, which is
+        // that time in simulation.
         const rclcpp::Time now = clock_->now();
         const double dt = (now - last_time_).seconds();
         last_time_ = now;
@@ -95,7 +96,7 @@ class SpinAction : public BT::StatefulActionNode {
             return BT::NodeStatus::SUCCESS;
         }
 
-        if (std::chrono::steady_clock::now() >= deadline_) {
+        if (MissionClock::now() >= deadline_) {
             // Hold the heading it got to, rather than a zero rate that lets it drift.
             RCLCPP_WARN(logger_, "Spin timed out after %.2f of %.2f rad.", accumulated_, target_);
             node_.last_angvel_setpoint[2] = 0.0;
@@ -147,7 +148,7 @@ class SpinAction : public BT::StatefulActionNode {
     bool settling_ = false;
     std::array<std::uint64_t, 12> start_updates_ = {};
     rclcpp::Time last_time_;
-    std::chrono::steady_clock::time_point deadline_;
+    MissionClock::time_point deadline_;
 };
 
 }  // namespace

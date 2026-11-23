@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Generate sub_control/thrust_table.hpp from the thruster's measured thrust curves.
+
+    generate_thrust_table data/t200_thrust.csv thrust_table.hpp
+
+The CSV (see its header) has one row per normalised command and one column of
+thrust [N] per supply voltage. It is the only copy of the curve: the simulator
+reads the same file (sub_sim.generate_robot.thrust_curve()).
+"""
+
+import csv
+import sys
+from pathlib import Path
+
+
+def read_thrust_table(path: Path) -> tuple[list[float], list[float], list[list[float]]]:
+    """The supply voltages [V], the commands, and one list of thrusts [N] per voltage."""
+    with open(path, newline="") as f:
+        rows = list(csv.reader(line for line in f if not line.startswith("#")))
+    header, data = rows[0], rows[1:]
+    if header[0] != "command" or not all(name.endswith("V") for name in header[1:]):
+        raise ValueError(f"{path}: expected a header of 'command' and one '<volts>V' per voltage")
+    voltages = [float(name[:-1]) for name in header[1:]]
+    commands = [float(row[0]) for row in data]
+    forces = [[float(row[k + 1]) for row in data] for k in range(len(voltages))]
+    if voltages != sorted(voltages) or commands != sorted(commands):
+        raise ValueError(f"{path}: voltages and commands must increase")
+    return voltages, commands, forces
+
+
+def main() -> None:
+    source, target = Path(sys.argv[1]), Path(sys.argv[2])
+    voltages, commands, forces = read_thrust_table(source)
+
+    def array(values: list[float]) -> str:
+        return "{" + ", ".join(repr(v) for v in values) + "}"
+
+    lines = [
+        f"// Generated from {source.name} by scripts/generate_thrust_table. Do not edit.",
+        "#ifndef SUB_CONTROL_THRUST_TABLE_HPP_",
+        "#define SUB_CONTROL_THRUST_TABLE_HPP_",
+        "",
+        "#include <array>",
+        "",
+        f"inline constexpr int THRUST_VOLTAGE_COUNT = {len(voltages)};",
+        f"inline constexpr int THRUST_COMMAND_COUNT = {len(commands)};",
+        "",
+        "// Supply voltages the thrust was measured at [V], increasing.",
+        f"inline constexpr std::array<double, THRUST_VOLTAGE_COUNT> THRUST_VOLTAGES = {array(voltages)};",
+        "// Normalised commands, -1 to 1 (1100 to 1900 us), increasing.",
+        f"inline constexpr std::array<double, THRUST_COMMAND_COUNT> THRUST_COMMANDS = {array(commands)};",
+        "// Thrust [N] of a right-hand propeller at each voltage and command.",
+        "inline constexpr std::array<std::array<double, THRUST_COMMAND_COUNT>, THRUST_VOLTAGE_COUNT> THRUST_FORCES = {{",
+        *(f"    {array(curve)}," for curve in forces),
+        "}};",
+        "",
+        "#endif  // SUB_CONTROL_THRUST_TABLE_HPP_",
+        "",
+    ]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()

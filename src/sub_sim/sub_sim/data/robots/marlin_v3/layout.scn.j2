@@ -12,7 +12,8 @@
   </looks>
 
   <solver>
-    <global_damping value="0.35"/>
+    <!-- No damping but the water's -->
+    <global_damping value="0.0"/>
     <!-- The fluid forces of the scene's few small bodies are quicker to compute
          on the physics thread than to hand out to worker threads every step -->
     <multithreading max_physics_threads="1" />
@@ -367,6 +368,18 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
+
+      <!-- The vehicle's mass properties, added mass and damping, from CFD and mechanical,
+           in base_link_ned: X right, Y back, Z down, so sway, surge, heave (and roll
+           about X, pitch about Y, yaw about Z). Stonefish computes whatever is left
+           out from the parts above. Every attribute is optional:
+      <mass value="kg" />
+      <cg xyz="x y z" rpy="0.0 0.0 0.0" />
+      <inertia xyz="Ixx Iyy Izz" />
+      <hydrodynamics added_mass="X Y Z" added_inertia="K M N"
+                     linear_damping="X Y Z K M N" quadratic_damping="X Y Z K M N"
+                     displaced_volume="m^3" center_of_buoyancy="x y z" />
+      -->
     </base_link>
 
 
@@ -385,6 +398,8 @@
         <mesh filename="robots/marlin_v3/grabber/left/left.obj" scale="1.0" />
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
+
+      <mass value="0.069" />
 
       <material name="plastic" />
       <look name="white" />
@@ -419,6 +434,8 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
 
+      <mass value="0.043" />
+
       <material name="plastic" />
       <look name="white" />
     </link>
@@ -449,6 +466,8 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
 
+      <mass value="0.018" />
+
       <material name="plastic"/>
       <look name="white"/>
     </link>
@@ -472,13 +491,21 @@
     <sensor name="dvl_link" rate="10.0" type="dvl">
       <link name="base_link_ned" />
 
-      <!-- The beams look down dvl_link's +z (the frame is FRD, as the A50's) -->
-      <specs beam_angle="30.0" beam_positive_z="true" />
-      <range velocity="3.75 3.75 3.75" altitude_min="0.00" altitude_max="50.0" />
+      <!-- The beams look down dvl_link's +z (the frame is FRD, as the A50's), 22.5 degrees
+           off it. It needs three of the four on the bottom, 5 cm to 50 m away, for a
+           velocity. With sensor_noise a beam that only grazes what it hits is lost, as
+           beside a wall (65 degrees is an estimate, not a measurement of the A50). -->
+      <specs beam_angle="22.5" beam_positive_z="true" max_incidence_angle="{{ 65.0 if sensor_noise else 90.0 }}" />
+      <range velocity="3.75 3.75 3.75" altitude_min="0.05" altitude_max="50.0" />
       <water_layer minimum_layer_thickness="10.0" boundary_near="10.0" boundary_far="30.0" />
       {% if sensor_noise %}
       <!-- A50: a few mm/s of noise in a pool, plus 1% of speed -->
       <noise velocity_percent="1.0" velocity="0.005" altitude="0.01" water_velocity_percent="0.0" water_velocity="0.00" />
+      <!-- Its reports are stamped with their time of validity and arrive 0.1 to 0.2 s
+           after it (as sub_bringup's ekf.yaml notes), and now and then it loses the
+           bottom for a few reports (once in 20 s here; in a pool it can be worse). -->
+      <latency value="0.15" jitter="0.02" />
+      <dropouts rate="0.05" duration="0.3" />
       {% else %}
       <noise velocity_percent="0.00" velocity="0.00" altitude="0.00" water_velocity_percent="0.0" water_velocity="0.00" />
       {% endif %}
@@ -489,7 +516,8 @@
       <ros_publisher topic="/marlin_v3/sim/dvl" />
     </sensor>
 
-    <sensor name="imu_link" rate="30.0" type="imu">
+    <!-- The NaviGuider reports its orientation at 50 Hz -->
+    <sensor name="imu_link" rate="50.0" type="imu">
       <link name="base_link_ned"/>
 
       <range angular_velocity="100.0 100.0 50.0" linear_acceleration="30.0 30.0 30.0"/>
@@ -497,6 +525,13 @@
       <!-- NaviGuider class: ~0.1 deg attitude noise, ~0.2 deg/s gyro noise and
            ~10 deg/hr yaw drift (it has no magnetometer to correct it) -->
       <noise angle="0.002 0.002 0.002" angular_velocity="0.003 0.003 0.003" yaw_drift="0.00005" linear_acceleration="0.02 0.02 0.02"/>
+      <!-- What white noise leaves out, and dead reckoning feels: the yaw wanders rather
+           than drifting at one rate (about 0.3 degrees after 100 s), and each gyro has
+           a small offset that is different every run and slowly changes. Estimates for
+           this class of sensor, not measurements of ours. -->
+      <bias channel="2" random_walk="0.0005" />
+      <bias quantity="angular_velocity" initial="0.002" random_walk="0.0002" correlation_time="300.0" />
+      <latency value="0.01" />
       {% else %}
       <noise angle="0.0 0.0 0.0" angular_velocity="0.0 0.0 0.0" yaw_drift="0.0" linear_acceleration="0.00 0.00 0.00"/>
       {% endif %}
@@ -508,12 +543,18 @@
       <ros_publisher topic="/marlin_v3/sim/imu"/>
     </sensor>
 
-    <sensor name="pressure_link" rate="30.0" type="pressure">
+    <!-- The firmware reports the depth at 5 Hz -->
+    <sensor name="pressure_link" rate="5.0" type="pressure">
       <link name="base_link_ned" />
 
       <range pressure="10000000.0" />
       <!-- Bar30: ~3 mm of water -->
       <noise pressure="{{ 30.0 if sensor_noise else 0.0 }}" />
+      {% if sensor_noise %}
+      <!-- It resolves 0.2 mbar (2 mm), and its zero is off by a centimetre or so -->
+      <resolution quantity="pressure" value="20.0" />
+      <bias quantity="pressure" initial="100.0" />
+      {% endif %}
       <origin xyz="{{ frames.pressure_link.xyz | join(' ') }}" rpy="{{ frames.pressure_link.rpy | join(' ') }}" />
 
       <ros_publisher topic="/marlin_v3/sim/pressure" />
@@ -537,10 +578,21 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1920" resolution_y="1080" horizontal_fov="70.4" />
-      <!-- Exposed like the real one in the July 2026 Woollett footage -->
-      <rendering exposure_compensation="-0.7" />
+      <!-- Exposed like the real one in the July 2026 Woollett footage (camera_look
+           moves it, with the appearance launch argument). With camera_effects, what a
+           webcam does to its image: it blurs with the vehicle's motion over its
+           exposure, its sensor is noisy, and it sends MJPEG, whose artifacts the
+           decoded frames keep. The values are typical of such a camera, not measured
+           on ours. -->
+      <rendering exposure_compensation="{{ camera_look.exposure_compensation }}"{% if camera_effects %} exposure_time="0.01"{% endif %} />
+      {% if camera_effects %}
+      <noise read="0.004" shot="0.02" />
+      {% endif %}
+      {% if camera_look.white_balance %}
+      <white_balance gains="{{ camera_look.white_balance | join(' ') }}" />
+      {% endif %}
       <origin xyz="{{ front.xyz | join(' ') }}" rpy="{{ front.rpy | join(' ') }}" />
-      <ros_publisher topic="/marlin_v3/front_camera" />
+      <ros_publisher topic="/marlin_v3/front_camera"{% if camera_effects %} jpeg_quality="80"{% endif %} />
     </sensor>
 
     {% set down = frames.down_camera %}
@@ -549,6 +601,12 @@
       <link name="base_link_ned" />
 
       <specs resolution_x="1280" resolution_y="1024" horizontal_fov="69.0" />
+      {% if camera_effects %}
+      <!-- A fixed 2 ms exposure with automatic gain (config/devices/flir_blackfly_s.yaml):
+           little motion blur, more noise; its frames are not compressed -->
+      <rendering exposure_time="0.002" />
+      <noise read="0.006" shot="0.03" />
+      {% endif %}
       <origin xyz="{{ down.xyz | join(' ') }}" rpy="{{ down.rpy | join(' ') }}" />
       <ros_publisher topic="/marlin_v3/down_camera" />
     </sensor>
@@ -579,7 +637,9 @@
       <origin xyz="{{ front.xyz | join(' ') }}" rpy="{{ front.rpy | join(' ') }}" />
       <paired_camera name="front_camera" />
 
-      <ros_publisher topic="/marlin_v3/sim/segment" />
+      <!-- sim/segment/boxes: the bounding box of every object with 100 pixels or more
+           in view, named like the labels, to annotate the front camera's frames -->
+      <ros_publisher topic="/marlin_v3/sim/segment" boxes_topic="/marlin_v3/sim/segment/boxes" boxes_min_pixels="100" />
     </sensor>
     {% endif %}
 
@@ -590,6 +650,8 @@
     {% for thruster in thrusters %}
     {{ thruster_actuator(
       name="thruster_" ~ loop.index0,
+      thrust=thrust,
+      battery_voltage=battery_voltage,
       link_name="base_link_ned",
       xyz=thruster.xyz,
       rpy=thruster.rpy,
@@ -600,7 +662,9 @@
     <ros_base_link_transform publish="false" />
 
     <ros_publisher servos="/marlin_v3/sim/joint_states" thrusters="/marlin_v3/sim/thruster_states" />
-    <ros_subscriber servos="/marlin_v3/sim/joint_setpoints" thrusters="/marlin_v3/sim/thruster_setpoints" />
+    <!-- sim/battery_voltage (std_msgs/Float64) sets the thrusters' supply voltage, to run a
+         battery down. -->
+    <ros_subscriber servos="/marlin_v3/sim/joint_setpoints" thrusters="/marlin_v3/sim/thruster_setpoints" supply_voltage="/marlin_v3/sim/battery_voltage" />
 
     <world_transform xyz="{{ x }} {{ y }} {{ z }}" rpy="{{ roll }} {{ pitch }} {{ yaw }}" />
   </robot>

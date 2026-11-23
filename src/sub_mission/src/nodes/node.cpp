@@ -19,6 +19,7 @@
 
 #include "actions/actions.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "sub_mission/mission_clock.hpp"
 #include "sub_mission/nodes/commands.hpp"
 #include "sub_mission/nodes/mission.hpp"
 #include "sub_mission/nodes/vision.hpp"
@@ -102,6 +103,10 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         "control/armed", rclcpp::QoS(1).transient_local(),
         [this](const std_msgs::msg::Bool &msg) { this->armed = msg.data; });
     this->setpoint_publisher = std::make_shared<SetpointPublisher>(*this, "motion_setpoint");
+
+    // Before anything times a wait: in simulation the mission's waits run on
+    // the simulator's time.
+    MissionClock::follow(this->get_clock(), this->get_parameter("use_sim_time").as_bool());
 
     this->vision_client = std::make_unique<VisionClient>(*this);
     // The vehicle's mounts, from /tf_static only: they are all NavigateToTransform
@@ -350,8 +355,8 @@ void MissionNode::activate() {
 
     RCLCPP_INFO(this->get_logger(), "Wait for motors to start up");
     // In steps, so that an interrupt need not wait it out.
-    const auto motors_ready = std::chrono::steady_clock::now() + 4s;
-    while (rclcpp::ok() && !this->interrupted && std::chrono::steady_clock::now() < motors_ready) {
+    const auto motors_ready = MissionClock::now() + 4s;
+    while (rclcpp::ok() && !this->interrupted && MissionClock::now() < motors_ready) {
         std::this_thread::sleep_for(100ms);
     }
 }

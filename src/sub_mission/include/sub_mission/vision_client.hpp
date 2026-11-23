@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include "sub_mission/mission_clock.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "sub_vision_interfaces/msg/detection.hpp"
@@ -23,7 +24,7 @@ class VisionClient {
    public:
     struct Snapshot {
         sub_vision_interfaces::msg::DetectionArray::ConstSharedPtr detections;
-        std::chrono::steady_clock::time_point received_at{};
+        MissionClock::time_point received_at{};
     };
 
     explicit VisionClient(rclcpp::Node &node);

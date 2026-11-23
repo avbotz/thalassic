@@ -16,7 +16,7 @@ namespace {
 
 using LaunchTorpedo = sub_driver_interfaces::srv::LaunchTorpedo;
 using SetDropper = sub_driver_interfaces::srv::SetDropper;
-using SteadyClock = std::chrono::steady_clock;
+using SteadyClock = MissionClock;
 
 class DropBallsAction : public BT::StatefulActionNode {
    public:

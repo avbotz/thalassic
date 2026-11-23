@@ -24,13 +24,13 @@ sub_control:
     description: "Namespace prefix for frame ids"
     read_only: true
 
-  power_limit:
+  thruster_voltage:
     type: double
-    default_value: 0.6
-    description: "Max |normalized thruster command|, up to MAX_POWER_LIMIT (allocator.hpp)"
+    default_value: 16.0
+    description: "Supply (battery) voltage the thrust curve is taken at [V]; the ESCs are open loop, so thrust falls with it"
     validation:
       finite: null
-      bounds<>: [0.0, 0.6]  # MAX_POWER_LIMIT
+      bounds<>: [10.0, 20.0]  # the range the T200's thrust was measured over (data/t200_thrust.csv)
 
   allocation:
     # From config/vehicles/<robot_name>.yaml via the launch file
@@ -55,6 +55,13 @@ sub_control:
       read_only: true
       validation:
         fixed_size<>: 8
+    power_limit:
+      type: double
+      default_value: 0.6
+      description: "Max |normalized thruster command|, up to MAX_POWER_LIMIT (allocator.hpp)"
+      validation:
+        finite: null
+        bounds<>: [0.0, 0.6]  # MAX_POWER_LIMIT
     axis_weights:
       type: double_array
       default_value: [1.0, 1.0, 100.0, 100.0, 100.0, 10.0]
@@ -71,20 +78,23 @@ sub_control:
         finite: null
         gt_eq<>: [0.0]
 
-  thruster_health:
-    type: double_array
-    default_value: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-    description: "Fraction of nominal thrust each thruster delivers; 0 failed"
+  # No defaults, so that a gains file without them (one in another format, whose
+  # gains would all read as zero) fails at startup instead of running.
+  thruster_names:
+    type: string_array
+    description: "A name for each thruster, in allocation order"
+    read_only: true
     validation:
       fixed_size<>: 8
-      finite_elements: null
-      element_bounds<>: [0.0, 1.0]
-  failed_thrusters:
-    type: int_array
-    default_value: []
-    description: "Indices of failed thrusters, which count as health 0"
-    validation:
-      element_bounds<>: [0, 7]
+      unique<>: null
+  thrusters:
+    __map_thruster_names:
+      health:
+        type: double
+        description: "Fraction of nominal thrust the thruster delivers; 0 failed"
+        validation:
+          finite: null
+          bounds<>: [0.0, 1.0]
 
   model:
     mass:
@@ -103,48 +113,50 @@ sub_control:
         fixed_size<>: 3
         finite_elements: null
         gt_elements: [0.0]
-    net_buoyancy:
-      type: double
-      default_value: 0.0
-      description: "Buoyancy minus weight [N]; positive floats"
-      validation:
-        finite: null
-    buoyancy:
-      type: double
-      default_value: 0.0
-      description: "Buoyancy alone [N], for its righting moment"
-      validation:
-        finite: null
-    center_of_gravity:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "base_link [x, y, z] [m]; thruster moments are about it"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-    center_of_buoyancy:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "base_link [x, y, z] [m]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-    linear_drag:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      description: "[x, y, z, roll, pitch, yaw] [N/(m/s), N m/(rad/s)]"
-      validation:
-        fixed_size<>: 6
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    quadratic_drag:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      description: "[x, y, z, roll, pitch, yaw] [N/(m/s)^2, N m/(rad/s)^2]"
-      validation:
-        fixed_size<>: 6
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
+    restoring:
+      net_buoyancy:
+        type: double
+        default_value: 0.0
+        description: "Buoyancy minus weight [N]; positive floats"
+        validation:
+          finite: null
+      buoyancy:
+        type: double
+        default_value: 0.0
+        description: "Buoyancy alone [N], for its righting moment"
+        validation:
+          finite: null
+      center_of_gravity:
+        type: double_array
+        default_value: [0.0, 0.0, 0.0]
+        description: "base_link [x, y, z] [m]; thruster moments are about it"
+        validation:
+          fixed_size<>: 3
+          finite_elements: null
+      center_of_buoyancy:
+        type: double_array
+        default_value: [0.0, 0.0, 0.0]
+        description: "base_link [x, y, z] [m]"
+        validation:
+          fixed_size<>: 3
+          finite_elements: null
+    drag:
+      linear:
+        type: double_array
+        default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        description: "[x, y, z, roll, pitch, yaw] [N/(m/s), N m/(rad/s)]"
+        validation:
+          fixed_size<>: 6
+          finite_elements: null
+          lower_element_bounds<>: [0.0]
+      quadratic:
+        type: double_array
+        default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        description: "[x, y, z, roll, pitch, yaw] [N/(m/s)^2, N m/(rad/s)^2]"
+        validation:
+          fixed_size<>: 6
+          finite_elements: null
+          lower_element_bounds<>: [0.0]
 
   # Fraction of each feedforward term applied, normally 0 to 1.
   feedforward:
@@ -171,62 +183,6 @@ sub_control:
         gt_eq<>: [0.0]
 
   gains:
-    x:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    y:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    z:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    roll:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    pitch:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    yaw:
-      type: double_array
-      default_value: [0.0, 0.0, 0.0]
-      description: "[kp, ki, kd] [1/s^2, 1/s^3, 1/s]"
-      validation:
-        fixed_size<>: 3
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
-    integral_limit:
-      type: double_array
-      default_value: [1.0, 1.0, 1.0, 6.0, 6.0, 6.0]
-      description: "Integrator clamp [x, y, z, roll, pitch, yaw] [m/s^2, rad/s^2]"
-      validation:
-        fixed_size<>: 6
-        finite_elements: null
-        lower_element_bounds<>: [0.0]
     anti_windup:
       type: double
       default_value: 5.0
@@ -234,6 +190,48 @@ sub_control:
       validation:
         finite: null
         gt_eq<>: [0.0]
+    x: &translation_gains
+      kp:
+        type: double
+        default_value: 0.0
+        description: "Proportional gain [1/s^2]"
+        validation:
+          finite: null
+          gt_eq<>: [0.0]
+      ki:
+        type: double
+        default_value: 0.0
+        description: "Integral gain [1/s^3]"
+        validation:
+          finite: null
+          gt_eq<>: [0.0]
+      kd:
+        type: double
+        default_value: 0.0
+        description: "Derivative gain [1/s]"
+        validation:
+          finite: null
+          gt_eq<>: [0.0]
+      integral_limit:
+        type: double
+        default_value: 1.0
+        description: "Integrator clamp [m/s^2]"
+        validation:
+          finite: null
+          gt_eq<>: [0.0]
+    y: *translation_gains
+    z: *translation_gains
+    roll: &rotation_gains
+      <<: *translation_gains
+      integral_limit:
+        type: double
+        default_value: 6.0
+        description: "Integrator clamp [rad/s^2]"
+        validation:
+          finite: null
+          gt_eq<>: [0.0]
+    pitch: *rotation_gains
+    yaw: *rotation_gains
 
   observer:
     # Also below control_rate_hz: invalid_parameters() in sub_control.cpp.
@@ -303,58 +301,72 @@ sub_control:
         finite: null
         gt<>: [0.0]
 
-  # Arming and watchdogs [s]; ages are by message stamp (https://sw.avbotz.com/thalassic/control/#safety).
+  # Arming and watchdogs (https://sw.avbotz.com/thalassic/control/#safety): ages [s]
+  # by message stamp, and variances from odometry/filtered's covariance.
   safety:
     require_kill_cycle:
       type: bool
       default_value: true
       description: "Arm only after the kill switch has been engaged since startup"
-    state_timeout:
+    max_stamp_lead:
       type: double
-      default_value: 0.5
-      description: "No odometry: thrusters off [s]"
+      default_value: 0.25
+      description: "A stamp further ahead of this node's clock counts as no message [s]"
       validation:
         finite: null
-        gt<>: [0.0]
-    imu_timeout:
-      type: double
-      default_value: 0.2
-      description: "Rate feedback falls back to the EKF's [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
-    attitude_timeout:
-      type: double
-      default_value: 1.0
-      description: "No IMU: thrusters off [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
-    dvl_timeout:
-      type: double
-      default_value: 1.5
-      description: "x/y feedback off [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
-    depth_timeout:
-      type: double
-      default_value: 1.0
-      description: "z feedback off, float up [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
-    altitude_timeout:
-      type: double
-      default_value: 1.0
-      description: "Altitude hold becomes depth hold [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
-    cmd_vel_timeout:
-      type: double
-      default_value: 0.5
-      description: "cmd_vel stream stopped: stop [s]"
-      validation:
-        finite: null
-        gt<>: [0.0]
+        gt_eq<>: [0.0]
+    odometry:
+      thrusters_off_after:
+        type: double
+        default_value: 0.5
+        description: "No odometry: thrusters off [s]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+    imu:
+      rate_from_ekf_after:
+        type: double
+        default_value: 0.2
+        description: "Rate feedback falls back to the EKF's [s]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+      thrusters_off_after:
+        type: double
+        default_value: 1.0
+        description: "No IMU: thrusters off [s]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+    dvl:
+      xy_feedback_off_above:
+        type: double
+        default_value: 0.1
+        description: "x/y feedback off above this x/y velocity variance in odometry/filtered [m^2/s^2]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+    depth:
+      z_feedback_off_above:
+        type: double
+        default_value: 0.07
+        description: "z feedback off, float up, above this z variance in odometry/filtered [m^2]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+    altitude:
+      depth_hold_after:
+        type: double
+        default_value: 1.0
+        description: "Altitude hold becomes depth hold [s]"
+        validation:
+          finite: null
+          gt<>: [0.0]
+    cmd_vel:
+      stop_after:
+        type: double
+        default_value: 0.5
+        description: "cmd_vel stream stopped: stop [s]"
+        validation:
+          finite: null
+          gt<>: [0.0]

@@ -7,9 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sub_sim.generate_robot import Pose, render_robot_scenario
+from sub_sim.generate_robot import Pose, Transform, render_robot_scenario
 from sub_sim.randomize_locs import randomize_scenario_locations
-from sub_sim.robot_scenario_to_urdf import Transform, robot_scenario_to_urdf
 
 PACKAGE = Path(__file__).parents[1]
 DATA = PACKAGE / "data"
@@ -154,15 +153,3 @@ def test_the_dvl_looks_down():
         (0.0, 0.0, 0.0), tuple(float(v) for v in origin.get("rpy").split())
     ).R
     assert beams * rotation[2][2] > 0.0
-
-
-def test_the_urdf_links_every_joint_and_finds_every_mesh():
-    _, [(_, robot)] = render()
-    urdf = ET.parse(robot_scenario_to_urdf(robot, "marlin_v3", mesh_prefix=f"{DATA}/")).getroot()
-    links = {link.get("name") for link in urdf.iter("link")}
-    assert "marlin_v3/base_link_ned" in links
-    for joint in urdf.iter("joint"):
-        assert {joint.find(end).get("link") for end in ("parent", "child")} <= links
-    meshes = [mesh.get("filename") for mesh in urdf.iter("mesh")]
-    assert meshes
-    assert [mesh for mesh in meshes if not Path(mesh).is_file()] == []

@@ -5,29 +5,26 @@
 #include <string>
 #include <vector>
 
-// A stamp further ahead of this node's clock than this is not believed: the
-// clock went back (the simulator restarted), or the sender's clock is not
-// synced with this one (the DVL stamps its reports with its own clock).
-inline constexpr double FUTURE_STAMP_TOLERANCE = 0.25;  // [s]
-
 // How old a message stamped `stamp` is at `now` (both clock seconds): infinite
-// if there is none or it is stamped further ahead than FUTURE_STAMP_TOLERANCE,
-// zero if it is stamped a little ahead.
-double message_age(const std::optional<double>& stamp, double now);
+// if there is none or it is stamped more than `max_lead` ahead, zero if it is
+// stamped a little ahead. A stamp further ahead is not believed: the clock went
+// back (the simulator restarted), or the sender's clock is not synced with this
+// one (the DVL stamps its reports with its own clock).
+double message_age(const std::optional<double>& stamp, double now, double max_lead);
 
-// Ages [s] of what the vehicle needs to be measured to be driven at all.
+// What the vehicle needs to be measured to be driven at all.
 struct ArmingInputs {
     bool kill_cycle_seen{false};  // the kill switch has been engaged since startup
-    double state_age{0.0};        // odometry/filtered
-    double imu_age{0.0};          // attitude and rates
-    double depth_age{0.0};        // odometry/depth
+    double state_age{0.0};        // [s] odometry/filtered
+    double imu_age{0.0};          // [s] attitude and rates
+    double z_variance{0.0};       // [m^2] in odometry/filtered: small while depth is fused
 };
 
 struct ArmingLimits {
     bool require_kill_cycle{true};
     double state_timeout{0.5};
     double attitude_timeout{1.0};
-    double depth_timeout{1.0};
+    double z_variance_max{0.07};
 };
 
 // Why sub_control may not arm after a kill switch release (empty if it may).
