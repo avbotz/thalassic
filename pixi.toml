@@ -118,7 +118,7 @@ lint = { cmd = "scripts/format.sh --check", description = "Lint files" }
 sync-mission = { cmd = "scripts/sync-mission.sh", description = "Test the mission behavior trees and copy them to the vehicle" }
 
 [feature.jetson.tasks]
-build = { cmd = "colcon build --packages-skip-regex '^(stonefish_.*|sub_sim.*)$'", depends-on = ["_prune-symlinks"], description = "Build the workspace (skips the simulator)" }
+build = { cmd = "colcon build --packages-ignore-regex '^(stonefish_.*|sub_sim.*)$'", depends-on = ["_prune-symlinks"], description = "Build the workspace (skips the simulator)" }
 
 [activation]
 scripts = ["scripts/setup.sh"]
