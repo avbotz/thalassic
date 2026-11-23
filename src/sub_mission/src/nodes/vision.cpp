@@ -129,6 +129,30 @@ Match latestMatch(MissionNode &node, const DetectionFilter &filter, const Steady
 
 bool validDistanceValue(const double distance) { return std::isfinite(distance) && distance > 0.0; }
 
+// Distance from the down camera to the detection (or to the floor when target_height=0).
+// Priority: (1) detection's own distance_m; (2) DVL altitude minus the camera-to-DVL height
+// offset and the target's height above the floor; (3) default_distance.
+// camera_dvl_z_offset: translation.z from dvl_link to down_camera in NED (positive = camera is
+// below the DVL, i.e. closer to the floor).
+double projectionDistance(const Detection &detection, const MissionNode &node, const rclcpp::Clock &clock,
+                          const double camera_dvl_z_offset, const bool use_altitude,
+                          const double target_height, const int altitude_timeout_msec,
+                          const double default_distance) {
+    if (validDistanceValue(detection.distance_m)) {
+        return detection.distance_m;
+    }
+    if (use_altitude && std::isfinite(node.altitude_range)) {
+        const int64_t age_msec = (clock.now() - node.altitude_stamp).nanoseconds() / 1'000'000LL;
+        if (age_msec >= 0 && age_msec <= altitude_timeout_msec) {
+            const double camera_altitude = node.altitude_range - camera_dvl_z_offset;
+            if (camera_altitude > target_height) {
+                return camera_altitude - target_height;
+            }
+        }
+    }
+    return default_distance;
+}
+
 double radians(const double degrees) { return degrees * M_PI / 180.0; }
 
 // Empty unless the value is all one finite number: a post-processor's "nan"
@@ -2461,7 +2485,10 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("lateral_sweep_step", 1.0,
                                       "Right/left search step when no down-camera detection is visible"),
                 BT::InputPort<int>("update_msec", 300, "Minimum time between movement corrections"),
-                BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS (the sweep: FAILURE)")};
+                BT::InputPort<int>("timeout_msec", 30000, "Maximum align time before SUCCESS (the sweep: FAILURE)"),
+                BT::InputPort<bool>("use_altitude", true, "Use DVL altitude to compute projection distance"),
+                BT::InputPort<double>("target_height", 0.0, "Target object height above the floor (m)"),
+                BT::InputPort<int>("altitude_timeout_msec", 1000, "Max age of a DVL altitude reading (ms)")};
     }
 
     BT::NodeStatus onStart() override {
@@ -2475,17 +2502,34 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
         getInput("lateral_sweep_step", lateral_sweep_step_);
         getInput("update_msec", update_msec_);
         getInput("timeout_msec", timeout_msec_);
+        getInput("use_altitude", use_altitude_);
+        getInput("target_height", target_height_);
+        getInput("altitude_timeout_msec", altitude_timeout_msec_);
 
         if (filter_.task.empty()) {
             RCLCPP_ERROR(logger_, "DownForwardAlign needs a task port, e.g. <DownForwardAlign task=\"bins\"/>.");
             return BT::NodeStatus::FAILURE;
         }
         if (max_dist_ <= 0.0 || forward_step_ <= 0.0 || default_distance_ <= 0.0 || center_gain_ < 0.0 ||
-            lateral_sweep_step_ <= 0.0 || update_msec_ <= 0 || timeout_msec_ <= 0) {
+            lateral_sweep_step_ <= 0.0 || update_msec_ <= 0 || timeout_msec_ <= 0 || altitude_timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_,
                          "DownForwardAlign max_dist, forward_step, default_distance, lateral_sweep_step, "
-                         "update_msec and timeout_msec must be positive, and center_gain not negative.");
+                         "update_msec, timeout_msec and altitude_timeout_msec must be positive, "
+                         "and center_gain not negative.");
             return BT::NodeStatus::FAILURE;
+        }
+
+        camera_dvl_z_offset_ = 0.0;
+        if (use_altitude_) {
+            try {
+                camera_dvl_z_offset_ =
+                    node_.tfBuffer()
+                        .lookupTransform(node_.frame("dvl_link"), node_.frame("down_camera"), tf2::TimePointZero)
+                        .transform.translation.z;
+            } catch (const tf2::TransformException &error) {
+                RCLCPP_WARN(logger_, "DownForwardAlign: no dvl_link/down_camera transform (%s); "
+                            "using DVL altitude without height offset.", error.what());
+            }
         }
 
         initial_pos_ = actualPosition(node_);
@@ -2550,8 +2594,10 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
             // along the heading the camera saw it from, not the commanded one.
             if (match.detection != nullptr) {
                 last_processed_ = match.received_at;
-                const double distance =
-                    validDistanceValue(match.detection->distance_m) ? match.detection->distance_m : default_distance_;
+                const double distance = projectionDistance(*match.detection, node_, *clock_,
+                                                           camera_dvl_z_offset_, use_altitude_,
+                                                           target_height_, altitude_timeout_msec_,
+                                                           default_distance_);
                 const auto offset = downOffset(*match.detection, distance);
                 addBodyOffset(target, center_gain_ * offset[0], center_gain_ * offset[1], actualYaw(node_));
             }
@@ -2586,9 +2632,13 @@ class DownForwardAlignAction : public BT::StatefulActionNode {
     double sweep_direction_ = -1.0;  // the next search step: 1 left, -1 right
     double track_yaw_ = 0.0;
     double track_progress_ = 0.0;
+    double camera_dvl_z_offset_ = 0.0;
+    double target_height_ = 0.0;
     int update_msec_ = 300;
     int timeout_msec_ = 30000;
+    int altitude_timeout_msec_ = 1000;
     bool sweep_when_missing_ = false;
+    bool use_altitude_ = true;
 };
 
 // Searches sideways over the down camera: lateral_step right of where it
@@ -2738,6 +2788,9 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
                 BT::InputPort<double>("distance_tolerance", 0.5, "Distance error allowed at completion (m)"),
                 BT::InputPort<double>("default_distance", 1.0, "Distance used when detection distance is unavailable"),
                 BT::InputPort<double>("center_gain", 1.0, "Scale factor for down-camera x/y centering offsets"),
+                BT::InputPort<bool>("use_altitude", true, "Use DVL altitude to compute projection distance"),
+                BT::InputPort<double>("target_height", 0.0, "Target object height above the floor (m)"),
+                BT::InputPort<int>("altitude_timeout_msec", 1000, "Max age of a DVL altitude reading (ms)"),
                 BT::InputPort<bool>("orient", true, "Yaw to detection orientation metadata when present"),
                 BT::InputPort<bool>("require_orientation", false,
                                     "Only align with the orientation, not on the center alone"),
@@ -2759,6 +2812,9 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         getInput("distance_tolerance", distance_tolerance_);
         getInput("default_distance", default_distance_);
         getInput("center_gain", center_gain_);
+        getInput("use_altitude", use_altitude_);
+        getInput("target_height", target_height_);
+        getInput("altitude_timeout_msec", altitude_timeout_msec_);
         getInput("orient", orient_);
         getInput("require_orientation", require_orientation_);
         getInput("orientation_settle_frames", orientation_settle_frames_);
@@ -2775,11 +2831,25 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         // A desired_distance at or below zero would hold the vehicle descending.
         if (tolerance_ <= 0.0 || (std::isfinite(desired_distance_) && desired_distance_ <= 0.0) ||
             default_distance_ <= 0.0 || center_gain_ <= 0.0 || update_msec_ <= 0 || orientation_settle_frames_ <= 0 ||
-            orientation_consistency_deg_ <= 0.0) {
+            orientation_consistency_deg_ <= 0.0 || altitude_timeout_msec_ <= 0) {
             RCLCPP_ERROR(logger_,
                          "DownAlignToDetection tolerance, desired_distance (when set), default_distance, "
-                         "center_gain, update_msec and the orientation filter's settings must be positive.");
+                         "center_gain, update_msec, altitude_timeout_msec and the orientation filter's "
+                         "settings must be positive.");
             return BT::NodeStatus::FAILURE;
+        }
+
+        camera_dvl_z_offset_ = 0.0;
+        if (use_altitude_) {
+            try {
+                camera_dvl_z_offset_ =
+                    node_.tfBuffer()
+                        .lookupTransform(node_.frame("dvl_link"), node_.frame("down_camera"), tf2::TimePointZero)
+                        .transform.translation.z;
+            } catch (const tf2::TransformException &error) {
+                RCLCPP_WARN(logger_, "DownAlignToDetection: no dvl_link/down_camera transform (%s); "
+                            "using DVL altitude without height offset.", error.what());
+            }
         }
 
         orientation_.reset();
@@ -2838,7 +2908,10 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
         last_processed_ = match.received_at;
 
         const Detection &detection = *match.detection;
-        const double distance = validDistanceValue(detection.distance_m) ? detection.distance_m : default_distance_;
+        const double distance = projectionDistance(detection, node_, *clock_,
+                                                   camera_dvl_z_offset_, use_altitude_,
+                                                   target_height_, altitude_timeout_msec_,
+                                                   default_distance_);
         const auto orient_error = orient_ ? filterOrientation(orientationYaw(detection)) : std::nullopt;
         const bool hold_distance = std::isfinite(desired_distance_);
         const bool centered = std::fabs(detection.bearing_horizontal) <= tolerance_ &&
@@ -2889,6 +2962,8 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
     double distance_tolerance_ = 0.5;
     double default_distance_ = 1.0;
     double center_gain_ = 1.0;
+    double camera_dvl_z_offset_ = 0.0;
+    double target_height_ = 0.0;
     double orient_tolerance_deg_ = 5.0;
     double orientation_consistency_deg_ = 10.0;
     std::optional<double> orientation_;
@@ -2897,8 +2972,10 @@ class DownAlignToDetectionAction : public BT::StatefulActionNode {
     int min_msec_ = 3000;
     int timeout_msec_ = 30000;
     int update_msec_ = 200;
+    int altitude_timeout_msec_ = 1000;
     bool orient_ = true;
     bool require_orientation_ = false;
+    bool use_altitude_ = true;
 };
 
 }  // namespace

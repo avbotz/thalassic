@@ -18,6 +18,7 @@
  */
 
 #include "actions/actions.hpp"
+#include "sensor_msgs/msg/range.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "sub_mission/nodes/commands.hpp"
 #include "sub_mission/nodes/mission.hpp"
@@ -98,6 +99,9 @@ MissionNode::MissionNode() : rclcpp::Node("mission") {
         "control/error", 10, std::bind(&MissionNode::control_error_callback, this, std::placeholders::_1));
     this->odometry_sub = this->create_subscription<nav_msgs::msg::Odometry>(
         "odometry/filtered", 10, std::bind(&MissionNode::odometry_callback, this, std::placeholders::_1));
+    this->altitude_sub = this->create_subscription<sensor_msgs::msg::Range>(
+        "altitude", rclcpp::SensorDataQoS(),
+        std::bind(&MissionNode::altitude_callback, this, std::placeholders::_1));
     this->armed_sub = this->create_subscription<std_msgs::msg::Bool>(
         "control/armed", rclcpp::QoS(1).transient_local(),
         [this](const std_msgs::msg::Bool &msg) { this->armed = msg.data; });
@@ -210,6 +214,15 @@ std::optional<std::array<double, 3>> MissionNode::horizontalPoseAt(const rclcpp:
         before.pose[1] + t * (after->pose[1] - before.pose[1]),
         normalizeAngle(before.pose[2] + t * normalizeAngle(after->pose[2] - before.pose[2])),
     };
+}
+
+void MissionNode::altitude_callback(const sensor_msgs::msg::Range &msg) {
+    if (!std::isfinite(msg.range) || msg.range < msg.min_range || msg.range > msg.max_range) {
+        return;
+    }
+    const std::lock_guard<std::mutex> lock(this->state_mutex);
+    this->altitude_range = msg.range;
+    this->altitude_stamp = this->get_clock()->now();
 }
 
 void MissionNode::commandPosition(const std::array<double, 3> &target, const bool altitude) {
