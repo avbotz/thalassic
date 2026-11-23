@@ -1,7 +1,6 @@
 import csv
 import math
 import os
-import random
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -10,7 +9,50 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from sub_sim.robot_scenario_to_urdf import Transform
+Vec3 = tuple[float, float, float]
+Mat3 = list[list[float]]
+
+
+@dataclass(frozen=True)
+class Transform:
+    """A rotation matrix R (a list of rows), then a translation t."""
+
+    R: Mat3
+    t: Vec3
+
+    @staticmethod
+    def identity() -> "Transform":
+        return Transform([[1, 0, 0], [0, 1, 0], [0, 0, 1]], (0.0, 0.0, 0.0))
+
+    @staticmethod
+    def from_xyz_rpy(xyz: Vec3, rpy: Vec3) -> "Transform":
+        """Roll, pitch and yaw as Stonefish applies them: R = Rz(yaw) Ry(pitch) Rx(roll)."""
+        cr, cp, cy = (math.cos(a) for a in rpy)
+        sr, sp, sy = (math.sin(a) for a in rpy)
+        R = [
+            [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+            [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+            [-sp, cp * sr, cp * cr],
+        ]
+        return Transform(R, xyz)
+
+    def rpy(self) -> Vec3:
+        """The roll, pitch and yaw of R. At pitch ±90°, where only their sum or difference is
+        defined, yaw is 0."""
+        R = self.R
+        cp = math.sqrt(R[0][0] * R[0][0] + R[1][0] * R[1][0])
+        pitch = math.atan2(-R[2][0], cp)
+        if cp < 1e-9:
+            return (math.atan2(-R[1][2], R[1][1]), pitch, 0.0)
+        return (math.atan2(R[2][1], R[2][2]), pitch, math.atan2(R[1][0], R[0][0]))
+
+    def __matmul__(self, other: "Transform") -> "Transform":
+        A, B, v = self.R, other.R, other.t
+        R = [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+        tx, ty, tz = (
+            self.t[i] + (A[i][0] * v[0] + A[i][1] * v[1] + A[i][2] * v[2]) for i in range(3)
+        )
+        return Transform(R, (tx, ty, tz))
 
 
 @dataclass(frozen=True)
@@ -31,10 +73,6 @@ class Pose:
 # The front camera as tuned to the July 2026 Woollett footage.
 DEFAULT_CAMERA_LOOK = {"exposure_compensation": -0.7, "white_balance": None}
 
-# Standard gravity and fresh water, as the scenario defines them.
-GRAVITY = 9.81
-WATER_DENSITY = 1000.0
-
 
 def thrust_curve(path: Path | str | None = None) -> dict[str, str]:
     """The thrusters' measured thrust curves as the thruster template takes them:
@@ -53,92 +91,6 @@ def thrust_curve(path: Path | str | None = None) -> dict[str, str]:
     }
 
 
-@dataclass(frozen=True)
-class Hydrodynamics:
-    """The vehicle model of sub_control as Stonefish takes it: about the simulated
-    robot's base link (base_link_ned), which shares base_link's origin."""
-
-    mass: float  # rigid body [kg]
-    center_of_gravity: tuple[float, float, float]
-    inertia: tuple[float, float, float]  # with the added inertia [kg m^2]
-    added_mass: tuple[float, float, float]  # [kg]
-    linear_damping: tuple[float, ...]  # [N s/m] x3, [N m s/rad] x3
-    quadratic_damping: tuple[float, ...]  # [N s^2/m^2] x3, [N m s^2/rad^2] x3
-    displaced_volume: float  # [m^3]
-    center_of_buoyancy: tuple[float, float, float]
-
-
-def model_hydrodynamics(
-    model: Mapping,
-    base_link_ned: Transform,
-    error: float = 0.0,
-    rng: random.Random | None = None,
-) -> Hydrodynamics:
-    """sub_control's vehicle model (the `model` block of a gains file, in base_link
-    FLU) in the frame and the terms the simulated robot is defined in, so that the
-    simulator's vehicle is the controller's.
-
-    `base_link_ned` is that frame's pose in base_link; its axes must lie along
-    base_link's, as the model has one coefficient per axis. The rigid body's mass is
-    what gives the model's weight (buoyancy less net buoyancy), and the rest of the
-    model's mass is added mass.
-
-    A real vehicle is never quite its model. With `error`, each term is scaled by a
-    random factor within that fraction of 1 (drawn from `rng`), and the centres of
-    gravity and buoyancy move by up to that fraction of 10 cm, so that the
-    controller can be tried on a vehicle that differs from the one it expects.
-    """
-    R = base_link_ned.R
-    # Which base_link axis each axis of base_link_ned lies along, and its sign.
-    axes = []
-    for column in range(3):
-        along = [round(R[row][column]) for row in range(3)]
-        if sorted(abs(v) for v in along) != [0, 0, 1] or any(
-            abs(R[row][column] - along[row]) > 1e-6 for row in range(3)
-        ):
-            raise ValueError("base_link_ned's axes must lie along base_link's")
-        axes.append((along.index(1) if 1 in along else along.index(-1), sum(along)))
-
-    rng = rng or random.Random()
-
-    def scale() -> float:
-        return 1.0 + rng.uniform(-error, error) if error else 1.0
-
-    def shift() -> float:
-        return 0.1 * rng.uniform(-error, error) if error else 0.0
-
-    def per_axis(values: Sequence[float]) -> tuple[float, ...]:
-        """One value per axis: translation, then rotation if there are six."""
-        return tuple(
-            values[offset + axis] * scale()
-            for offset in range(0, len(values), 3)
-            for axis, _ in axes
-        )
-
-    def point(values: Sequence[float]) -> tuple[float, float, float]:
-        return tuple(sign * values[axis] + shift() for axis, sign in axes)
-
-    restoring, drag = model["restoring"], model["drag"]
-    buoyancy = restoring["buoyancy"] * scale()
-    weight = buoyancy - restoring["net_buoyancy"]
-    if not (buoyancy > 0.0 and weight > 0.0):
-        raise ValueError("The vehicle model needs a positive buoyancy and weight")
-    mass = weight / GRAVITY
-    added_mass = tuple(m - mass for m in per_axis(model["mass"]))
-    if min(added_mass) < 0.0:
-        raise ValueError("The vehicle model's mass is less than its weight gives")
-    return Hydrodynamics(
-        mass=mass,
-        center_of_gravity=point(restoring["center_of_gravity"]),
-        inertia=per_axis(model["inertia"]),
-        added_mass=added_mass,
-        linear_damping=per_axis(drag["linear"]),
-        quadratic_damping=per_axis(drag["quadratic"]),
-        displaced_volume=buoyancy / (WATER_DENSITY * GRAVITY),
-        center_of_buoyancy=point(restoring["center_of_buoyancy"]),
-    )
-
-
 def render_robot_scenario(
     robot_template_file: Path | str,
     x: float = 0.0,
@@ -153,7 +105,6 @@ def render_robot_scenario(
     segmentation_camera: bool = False,
     depth_camera: bool = False,
     cameras: bool = True,
-    hydrodynamics: Hydrodynamics | None = None,
     thrust: dict[str, str] | None = None,
     battery_voltage: float = 16.0,
     camera_effects: bool = True,
@@ -172,9 +123,7 @@ def render_robot_scenario(
     robot has no camera at all (Stonefish without a GPU cannot render one), and
     neither of those either.
 
-    `hydrodynamics` (model_hydrodynamics()) makes the robot the vehicle model that
-    sub_control uses: its mass, inertia, buoyancy, added mass and damping. Without
-    it Stonefish estimates them from the robot's geometry. `thrust` is the
+    `thrust` is the
     thrusters' thrust curve (thrust_curve(), sub_control's own by default) and
     `battery_voltage` the supply voltage they start at.
 
@@ -225,7 +174,6 @@ def render_robot_scenario(
         segmentation_camera=segmentation_camera and cameras,
         depth_camera=depth_camera and cameras,
         cameras=cameras,
-        hydrodynamics=hydrodynamics,
         thrust=thrust or thrust_curve(),
         battery_voltage=battery_voltage,
         camera_effects=camera_effects,

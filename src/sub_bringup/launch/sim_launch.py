@@ -7,7 +7,6 @@ the same estimation, control, vision and mission stack the vehicle runs.
 import random
 from pathlib import Path
 
-import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
@@ -35,8 +34,6 @@ from sub_bringup.entities import (
 )
 from sub_bringup.vehicle import load_vehicle
 from sub_sim.generate_robot import (
-    base_link_ned_pose,
-    model_hydrodynamics,
     mount_poses,
     render_robot_scenario,
     thruster_specs,
@@ -46,11 +43,10 @@ from sub_sim.randomize_locs import (
     randomize_scenario_locations,
     vary_appearance,
 )
-from sub_sim.robot_scenario_to_urdf import robot_scenario_to_urdf
 
 
 def _render_scn(context, *_, **__):
-    """Render a randomised scenario and the URDF of the robot placed in it."""
+    """Render a randomised scenario with the robot placed in it."""
     robot_name = LaunchConfiguration("robot_name").perform(context)
     offsets = {
         k: float(LaunchConfiguration(k).perform(context)) for k in ("DX", "DY", "DZ", "DYAW")
@@ -80,22 +76,6 @@ def _render_scn(context, *_, **__):
     thrusters = thruster_specs(vehicle.thrusters)
     frames = mount_poses(vehicle)
 
-    # The simulated vehicle is the one sub_control's model describes: the `model`
-    # block of the gains file it runs with, so the two cannot drift apart. A real
-    # vehicle differs from its model, which model_error stands for.
-    gains_file = (
-        Path(get_package_share_directory("sub_bringup"))
-        / "config"
-        / LaunchConfiguration("gains").perform(context)
-    )
-    model = yaml.safe_load(gains_file.read_text())["/**"]["ros__parameters"]["model"]
-    hydrodynamics = model_hydrodynamics(
-        model,
-        base_link_ned_pose(vehicle),
-        error=float(LaunchConfiguration("model_error").perform(context)),
-        # Its own stream, so that it does not change the scenario the seed gives.
-        rng=random.Random(f"model {seed}"),
-    )
     battery_voltage = float(LaunchConfiguration("battery_voltage").perform(context))
 
     # With appearance, the front camera's exposure and colour balance stray from the
@@ -129,7 +109,6 @@ def _render_scn(context, *_, **__):
             depth_camera=depth_camera,
             # Stonefish without a GPU cannot render cameras.
             cameras=not headless,
-            hydrodynamics=hydrodynamics,
             battery_voltage=battery_voltage,
             camera_effects=camera_effects,
             camera_look=camera_look,
@@ -147,14 +126,6 @@ def _render_scn(context, *_, **__):
     if rendered_robot is None:
         raise RuntimeError("The scenario template did not render a robot")
 
-    urdf = robot_scenario_to_urdf(
-        scenario_xml=rendered_robot,
-        robot_name=robot_name,
-        mesh_prefix=f"file://{sub_sim_share / 'data'}/",
-    )
-    robot_description = urdf.read_text()
-    urdf.unlink()
-
     # The rendered files are temporary, and Stonefish reads them only as it starts.
     def remove_scenario(*_):
         for path in (scenario, rendered_robot):
@@ -163,7 +134,6 @@ def _render_scn(context, *_, **__):
     return [
         SetLaunchConfiguration("seed", seed),
         SetLaunchConfiguration("scenario_file", scenario.as_posix()),
-        SetLaunchConfiguration("robot_description", robot_description),
         RegisterEventHandler(OnShutdown(on_shutdown=remove_scenario)),
     ]
 
@@ -320,8 +290,6 @@ def _sim_sensors(context, *_, **__):
 
 
 def sim_entities() -> list:
-    robot_name = LaunchConfiguration("robot_name")
-
     args = [
         DeclareLaunchArgument(
             "seed",
@@ -431,15 +399,6 @@ def sim_entities() -> list:
             ),
         ),
         DeclareLaunchArgument(
-            "model_error",
-            default_value="0.0",
-            description=(
-                "How far the simulated vehicle is from sub_control's model of it: each of its "
-                "mass, inertia, buoyancy and drag terms is scaled by a random factor within this "
-                "fraction of 1 (0.2 is +/-20%), from the seed"
-            ),
-        ),
-        DeclareLaunchArgument(
             "vision_depth",
             default_value="false",
             description=(
@@ -449,29 +408,11 @@ def sim_entities() -> list:
         ),
     ]
 
-    # Publishes the URDF rendered from the scenario; the vehicle has no equivalent.
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        namespace=robot_name,
-        parameters=[
-            # As a string: launch_ros otherwise parses it as YAML, which folds its lines
-            # and would cut it at a " #" or reject it at a ": ".
-            {
-                "robot_description": ParameterValue(
-                    LaunchConfiguration("robot_description"), value_type=str
-                )
-            }
-        ],
-    )
-
     return [
         *args,
         OpaqueFunction(function=_render_scn),
         OpaqueFunction(function=_stonefish),
         OpaqueFunction(function=_sim_sensors),
-        robot_state_publisher,
     ]
 
 

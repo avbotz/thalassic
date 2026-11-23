@@ -301,7 +301,8 @@ sub_control:
         finite: null
         gt<>: [0.0]
 
-  # Arming and watchdogs [s]; ages are by message stamp (https://sw.avbotz.com/thalassic/control/#safety).
+  # Arming and watchdogs (https://sw.avbotz.com/thalassic/control/#safety): ages [s]
+  # by message stamp, and variances from odometry/filtered's covariance.
   safety:
     require_kill_cycle:
       type: bool
@@ -338,18 +339,18 @@ sub_control:
           finite: null
           gt<>: [0.0]
     dvl:
-      xy_feedback_off_after:
+      xy_feedback_off_above:
         type: double
-        default_value: 1.5
-        description: "x/y feedback off [s]"
+        default_value: 0.1
+        description: "x/y feedback off above this x/y velocity variance in odometry/filtered [m^2/s^2]"
         validation:
           finite: null
           gt<>: [0.0]
     depth:
-      z_feedback_off_after:
+      z_feedback_off_above:
         type: double
-        default_value: 1.0
-        description: "z feedback off, float up [s]"
+        default_value: 0.07
+        description: "z feedback off, float up, above this z variance in odometry/filtered [m^2]"
         validation:
           finite: null
           gt<>: [0.0]

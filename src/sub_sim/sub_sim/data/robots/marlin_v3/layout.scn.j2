@@ -3,12 +3,6 @@
   {% from "thruster.j2" import thruster_actuator, thruster_visual %}
   {% from "torpedo.j2" import torpedo_robot with context %}
 
-  {#- What the base link carries, which the vehicle model's weight includes: the masses of
-      the jaws and the dropper's gate [kg] (they displace no water here), and the weight
-      in water of the two torpedoes and the two balls it starts with, as mass [kg]. #}
-  {% set link_masses = {"left_grabber_link": 0.069, "right_grabber_link": 0.043, "dropper_link": 0.018} %}
-  {% set payload_mass = 2 * (0.016 - 0.0154) + 2 * (0.039 - 0.0156) %}
-
   <looks>
     <look name="white" gray="0.9" roughness="0.5" />
     <look name="gray" gray="0.5" roughness="0.5" />
@@ -18,8 +12,8 @@
   </looks>
 
   <solver>
-    <!-- No damping but the water's: the robot's comes from its vehicle model, below. -->
-    <global_damping value="{{ 0.0 if hydrodynamics else 0.35 }}"/>
+    <!-- No damping but the water's -->
+    <global_damping value="0.0"/>
     <!-- The fluid forces of the scene's few small bodies are quicker to compute
          on the physics thread than to hand out to worker threads every step -->
     <multithreading max_physics_threads="1" />
@@ -375,23 +369,17 @@
         <compound_transform xyz="0.237215 0.0 0.0" rpy="0.0 0.0 0.0" />
       </internal_part>
 
-      {% if hydrodynamics %}
-      <!-- The vehicle model that sub_control uses (the `model` block of its gains file,
-           through model_hydrodynamics()), instead of what Stonefish estimates from the
-           parts above, which then only give the robot its looks, its collisions and
-           the shape that floats at the surface. Identify the real vehicle
-           (sub_control's identify_model), put the result in the gains file, and the
-           simulated one follows. -->
-      {% set h = hydrodynamics %}
-      <mass value="{{ h.mass - (link_masses.values() | sum) - payload_mass }}" />
-      <cg xyz="{{ h.center_of_gravity | join(' ') }}" rpy="0.0 0.0 0.0" />
-      <inertia xyz="{{ h.inertia | join(' ') }}" />
-      <hydrodynamics added_mass="{{ h.added_mass | join(' ') }}" added_inertia="0.0 0.0 0.0"
-                     linear_damping="{{ h.linear_damping | join(' ') }}"
-                     quadratic_damping="{{ h.quadratic_damping | join(' ') }}"
-                     displaced_volume="{{ h.displaced_volume }}"
-                     center_of_buoyancy="{{ h.center_of_buoyancy | join(' ') }}" />
-      {% endif %}
+      <!-- The vehicle's mass properties, added mass and damping, from CFD and mechanical,
+           in base_link_ned: X right, Y back, Z down, so sway, surge, heave (and roll
+           about X, pitch about Y, yaw about Z). Stonefish computes whatever is left
+           out from the parts above. Every attribute is optional:
+      <mass value="kg" />
+      <cg xyz="x y z" rpy="0.0 0.0 0.0" />
+      <inertia xyz="Ixx Iyy Izz" />
+      <hydrodynamics added_mass="X Y Z" added_inertia="K M N"
+                     linear_damping="X Y Z K M N" quadratic_damping="X Y Z K M N"
+                     displaced_volume="m^3" center_of_buoyancy="x y z" />
+      -->
     </base_link>
 
 
@@ -411,7 +399,7 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
 
-      <mass value="{{ link_masses.left_grabber_link }}" />
+      <mass value="0.069" />
 
       <material name="plastic" />
       <look name="white" />
@@ -446,7 +434,7 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
 
-      <mass value="{{ link_masses.right_grabber_link }}" />
+      <mass value="0.043" />
 
       <material name="plastic" />
       <look name="white" />
@@ -478,7 +466,7 @@
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       </visual>
 
-      <mass value="{{ link_masses.dropper_link }}" />
+      <mass value="0.018" />
 
       <material name="plastic"/>
       <look name="white"/>

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="octagon" gray="1.0" roughness="0.7" texture="tasks/octagon_task/octagon/octagon.png" />
+  </looks>
+
+  <!-- The ring and the four images hanging inside it: Survey on its +y side, Search
+       on -x, Repair on -y and Rescue on +x -->
+  <static name="octagon" type="model">
+    <physical>
+      <mesh filename="tasks/octagon_task/octagon/octagon.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+
+    <material name="plastic" />
+    <look name="octagon" />
+
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

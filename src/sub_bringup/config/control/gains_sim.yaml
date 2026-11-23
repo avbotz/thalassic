@@ -3,6 +3,9 @@
     control_rate_hz: 50.0
 
     # [x, y, z, roll, pitch, yaw], base_link FLU (REP-103).
+    # The controller's model of the simulated vehicle, identified from the simulator
+    # (identify_model). The simulator does not read it: its vehicle comes from
+    # the robot's layout.scn.j2 in sub_sim.
     model:
       mass: [112.2, 94.1, 137.7]      # kg, rigid body + added, x y z
       inertia: [12.24, 15.46, 13.99]  # kg m^2, rigid body + added, roll pitch yaw
@@ -61,13 +64,15 @@
       aft_port_horiz: {health: 1.0}
       aft_stbd_horiz: {health: 1.0}
 
-    # [s], ages by message stamp
+    # [s], ages by message stamp. dvl and depth are variances in odometry/filtered
+    # instead, which grow while those sensors are not fused; at ekf.yaml's
+    # process noise these cross after about 1.5 s and 1.0 s without them.
     safety:
       require_kill_cycle: true
       max_stamp_lead: 0.25  # stamps further ahead of now are a fault
       odometry: {thrusters_off_after: 0.5}
       imu:      {rate_from_ekf_after: 0.2, thrusters_off_after: 1.0}
-      dvl:      {xy_feedback_off_after: 1.5}
-      depth:    {z_feedback_off_after: 1.0}  # drops z feedforward too, so it floats
+      dvl:      {xy_feedback_off_above: 0.1}   # m^2/s^2, x/y velocity
+      depth:    {z_feedback_off_above: 0.07}  # m^2, z; drops z feedforward too, so it floats
       altitude: {depth_hold_after: 1.0}
       cmd_vel:  {stop_after: 0.5}

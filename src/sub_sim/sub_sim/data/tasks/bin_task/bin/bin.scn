@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="bin" gray="$(arg gray)" roughness="0.1" texture="tasks/bin_task/bin/bin.png" />
+  </looks>
+
+  <static name="bin" type="model">
+    <physical>
+      <mesh filename="tasks/bin_task/bin/bin_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="tasks/bin_task/bin/bin.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="plastic" />
+    <look name="bin" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

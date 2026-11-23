@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenario>
+  <looks>
+    <look name="torpboard_v2" gray="$(arg gray)" roughness="0.1" texture="tasks/torpedoes_task/torpboard_v2/torpboard_v2.png" />
+  </looks>
+
+  <static name="torpboard_v2" type="model">
+    <physical>
+      <mesh filename="tasks/torpedoes_task/torpboard_v2/torpboard_v2_collision.obj" scale="1.0" convex="false" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </physical>
+    <visual>
+      <mesh filename="tasks/torpedoes_task/torpboard_v2/torpboard_v2.obj" scale="1.0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </visual>
+
+    <material name="plastic" />
+    <look name="torpboard_v2" />
+    <world_transform xyz="$(arg x) $(arg y) $(arg z)" rpy="$(arg roll) $(arg pitch) $(arg yaw)" />
+  </static>
+</scenario>

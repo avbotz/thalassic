@@ -9,7 +9,7 @@ namespace {
 constexpr double MAX_LEAD = 0.25;
 constexpr double INF = std::numeric_limits<double>::infinity();
 
-ArmingInputs fresh() { return {true, 0.02, 0.02, 0.1}; }
+ArmingInputs fresh() { return {true, 0.02, 0.02, 0.01}; }
 
 }  // namespace
 
@@ -50,7 +50,7 @@ TEST(ArmingBlockers, AReleaseWithoutAKillSinceStartupBlocksUnlessNotRequired) {
 }
 
 TEST(ArmingBlockers, EachStaleSensorBlocks) {
-    for (double ArmingInputs::*age : {&ArmingInputs::state_age, &ArmingInputs::imu_age, &ArmingInputs::depth_age}) {
+    for (double ArmingInputs::*age : {&ArmingInputs::state_age, &ArmingInputs::imu_age, &ArmingInputs::z_variance}) {
         ArmingInputs inputs = fresh();
         inputs.*age = 5.0;
         EXPECT_EQ(arming_blockers(inputs, ArmingLimits{}).size(), 1u);
@@ -59,12 +59,15 @@ TEST(ArmingBlockers, EachStaleSensorBlocks) {
     }
     ArmingInputs inputs = fresh();
     inputs.kill_cycle_seen = false;
-    inputs.state_age = inputs.imu_age = inputs.depth_age = INF;
+    inputs.state_age = inputs.imu_age = inputs.z_variance = INF;
     EXPECT_EQ(arming_blockers(inputs, ArmingLimits{}).size(), 4u);
 }
 
 TEST(ArmingBlockers, NanAgeBlocks) {
     ArmingInputs inputs = fresh();
     inputs.imu_age = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_EQ(arming_blockers(inputs, ArmingLimits{}).size(), 1u);
+    inputs = fresh();
+    inputs.z_variance = std::numeric_limits<double>::quiet_NaN();
     EXPECT_EQ(arming_blockers(inputs, ArmingLimits{}).size(), 1u);
 }

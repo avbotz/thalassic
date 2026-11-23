@@ -8,6 +8,11 @@
     # Waterlinked a50 DVL can output measurements at 4 Hz - 15 Hz
     sensor_timeout: 0.50
 
+    # x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az.
+    # Unknown z and velocity until measured, rather than the default 1e-9:
+    # sub_control reads their variance as whether depth and the DVL are fused.
+    initial_estimate_covariance: [1e-9, 1e-9, 1.0, 1e-9, 1e-9, 1e-9, 1.0, 1.0, 1.0, 1e-9, 1e-9, 1e-9, 1e-9, 1e-9, 1e-9]
+
     # Allows processing delayed measurements by "rewinding" time rather than treating
     # them as current measurements.
     # Useful for the DVL which stamps velocity with when it was valid, which might

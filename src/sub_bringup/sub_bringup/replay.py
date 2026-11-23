@@ -1,6 +1,6 @@
 """Replay a recorded run's thruster commands through the simulator and compare the motion.
 
-    ros2 run sub_bringup replay <bag> [--gains control/gains_sim.yaml] [--out replay]
+    ros2 run sub_bringup replay <bag> [--out replay]
 
 How far the simulator is from the vehicle, as numbers: the bag's thruster
 commands (control/thrusters) are fed to the simulated vehicle, open loop, and its
@@ -14,13 +14,12 @@ the computer. Open loop the two drift apart, which is why the windows are
 short. The simulated vehicle starts each one at rest, so a window ends where
 the recorded one is nearly at rest too (or after twice its length), and the
 first seconds of each are left out of the errors. So is the time the recorded
-vehicle spends at the surface, where it is not the submerged vehicle the model
-describes.
+vehicle spends at the surface, where it is not the submerged vehicle the
+simulation describes.
 
 It prints the RMS velocity error per axis and writes the velocities
-(<out>.csv) and a plot of them (<out>.png). The simulated vehicle is the model
-block of --gains, so the errors measure that model: identify the vehicle, put
-the model in the gains file, and rerun to see what is left.
+(<out>.csv) and a plot of them (<out>.png). Against a pool bag the errors
+measure the simulated vehicle's physics (the robot's layout.scn.j2 in sub_sim).
 """
 
 import argparse
@@ -37,7 +36,6 @@ from pathlib import Path
 import numpy as np
 import rclpy
 import rosbag2_py
-import yaml
 from ament_index_python.packages import get_package_share_directory
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -51,7 +49,6 @@ from sub_bringup.vehicle import load_vehicle
 from sub_control_interfaces.msg import ThrusterCommand
 from sub_sim.generate_robot import (
     base_link_ned_pose,
-    model_hydrodynamics,
     mount_poses,
     render_robot_scenario,
     thruster_specs,
@@ -220,11 +217,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[1])
     parser.add_argument("bag", type=Path, help="the recorded run (a rosbag2 directory)")
     parser.add_argument("--robot", default="marlin_v3")
-    parser.add_argument(
-        "--gains",
-        default="control/gains_sim.yaml",
-        help="the gains file whose model block is the simulated vehicle",
-    )
     parser.add_argument("--window", type=float, default=10.0, help="length of a window [s]")
     parser.add_argument(
         "--warmup", type=float, default=3.0, help="start of each window left out of the errors [s]"
@@ -255,8 +247,6 @@ def main():
         raise SystemExit("Too little of the bag has both commands and odometry")
 
     vehicle = load_vehicle(args.robot)
-    gains = Path(get_package_share_directory("sub_bringup")) / "config" / args.gains
-    model = yaml.safe_load(gains.read_text())["/**"]["ros__parameters"]["model"]
     base_link_ned = np.array(base_link_ned_pose(vehicle).R)
     robot_template = (
         Path(get_package_share_directory("sub_sim"))
@@ -298,7 +288,6 @@ def main():
                 frames=mount_poses(vehicle),
                 sensor_noise=False,
                 cameras=False,
-                hydrodynamics=model_hydrodynamics(model, base_link_ned_pose(vehicle)),
                 battery_voltage=args.battery_voltage,
             )
             with tempfile.NamedTemporaryFile("w", suffix=".scn", delete=False) as scenario:
@@ -345,7 +334,7 @@ def main():
     data = np.array(rows, dtype=float)
     scored = data[data[:, 1] > 0.5]
     recorded, simulated = scored[:, 2:8], scored[:, 8:14]
-    print(f"\n{args.bag.name}: {len(scored) / 50.0:.0f} s compared, model of {args.gains}")
+    print(f"\n{args.bag.name}: {len(scored) / 50.0:.0f} s compared")
     print(f"{'axis':<11}{'RMS error':>11}{'RMS recorded':>14}{'error / recorded':>18}")
     for k, axis in enumerate(AXES):
         error = math.sqrt(float(np.mean((simulated[:, k] - recorded[:, k]) ** 2)))

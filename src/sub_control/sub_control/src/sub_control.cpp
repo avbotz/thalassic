@@ -99,18 +99,6 @@ SubControl::SubControl() : Node("sub_control") {
     altitude_sub_ = this->create_subscription<sensor_msgs::msg::Range>(
         "altitude", rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::Range::SharedPtr msg) { altitude_callback(msg); });
-    // Only their stamps matter here: they say whether the EKF's x/y and z are
-    // being corrected or only predicted. By stamp, not arrival, so that a
-    // delayed stream (the EKF drops what is older than its history) counts as
-    // missing, and a DVL whose clock is not synced to this one is noticed.
-    dvl_sub_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
-        "dvl/velocity", rclcpp::SensorDataQoS(),
-        [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg) {
-            dvl_time_ = stamp_of(msg->header);
-        });
-    depth_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "odometry/depth", rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::Odometry::SharedPtr msg) { depth_time_ = stamp_of(msg->header); });
     kill_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         "kill_switch", rclcpp::QoS(1).transient_local(),
         [this](const std_msgs::msg::Bool::SharedPtr msg) { kill_callback(msg); });
@@ -283,6 +271,11 @@ void SubControl::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     state_.position = {p.position.x, p.position.y, p.position.z};
     state_.orientation = orientation.normalized();
     state_.linear_velocity = {t.linear.x, t.linear.y, t.linear.z};
+    // Whether the EKF's x/y and z are being corrected or only predicted. Unlike
+    // the sensors' own streams, this also counts what the EKF rejects or drops.
+    const auto variance = [](double v) { return std::isfinite(v) ? v : std::numeric_limits<double>::infinity(); };
+    xy_velocity_variance_ = std::max(variance(msg->twist.covariance[0]), variance(msg->twist.covariance[7]));
+    z_variance_ = variance(msg->pose.covariance[14]);
     if (age(imu_rate_time_, this->now()) > params_.safety.imu.rate_from_ekf_after) {
         state_.angular_velocity = {t.angular.x, t.angular.y, t.angular.z};
     }
@@ -361,13 +354,13 @@ void SubControl::set_armed(bool armed) {
 }
 
 ArmingInputs SubControl::arming_inputs(const rclcpp::Time& now) const {
-    return {kill_seen_, age(odom_time_, now), age(imu_time_, now), age(depth_time_, now)};
+    return {kill_seen_, age(odom_time_, now), age(imu_time_, now), z_variance_};
 }
 
 ArmingLimits SubControl::arming_limits() const {
     const auto& safety = params_.safety;
     return {safety.require_kill_cycle, safety.odometry.thrusters_off_after, safety.imu.thrusters_off_after,
-            safety.depth.z_feedback_off_after};
+            safety.depth.z_feedback_off_above};
 }
 
 bool SubControl::try_arm(const rclcpp::Time& now) {
@@ -403,6 +396,9 @@ void SubControl::request_pose_reset(const rclcpp::Time& now) {
     request->pose.header.frame_id = params_.robot_name.empty() ? "odom" : params_.robot_name + "/odom";
     request->pose.header.stamp = now;
     request->pose.pose.pose.position.z = state_.position.z();
+    // The EKF takes the reset's covariance as its own: keep z's, which says
+    // whether depth is being measured (a NaN one counts as unknown).
+    request->pose.pose.covariance[14] = std::isfinite(z_variance_) ? z_variance_ : 1e6;
     request->pose.pose.pose.orientation.w = level_heading.w();
     request->pose.pose.pose.orientation.x = level_heading.x();
     request->pose.pose.pose.orientation.y = level_heading.y();
@@ -668,24 +664,28 @@ void SubControl::run() {
     }
 
     // Which axes still have feedback. The EKF keeps predicting through a
-    // sensor gap, so its estimate stays fresh while drifting: without DVL
-    // updates x/y velocity is only a guess, and without depth so is z.
-    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl.xy_feedback_off_after;
-    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth.z_feedback_off_after;
+    // sensor gap, so its estimate stays fresh while drifting, but its variance
+    // grows: without DVL updates x/y velocity is only a guess, and without
+    // depth so is z. A pose reset shrinks the x/y velocity variance (not z's,
+    // see request_pose_reset()), so x/y can take about 2 s to go off after one
+    // without a DVL; the EKF's velocity is held at zero meanwhile.
+    const bool dvl_ok = xy_velocity_variance_ <= params_.safety.dvl.xy_feedback_off_above;
+    const bool depth_ok = z_variance_ <= params_.safety.depth.z_feedback_off_above;
     if (dvl_ok != dvl_ok_) {
         if (dvl_ok) {
-            RCLCPP_INFO(this->get_logger(), "DVL back: x/y feedback on");
+            RCLCPP_INFO(this->get_logger(), "x/y velocity measured again: x/y feedback on");
         } else {
-            RCLCPP_WARN(this->get_logger(), "no DVL for %.1f s: x/y feedback off until it returns",
-                        params_.safety.dvl.xy_feedback_off_after);
+            RCLCPP_WARN(this->get_logger(),
+                        "x/y velocity variance %.3g m^2/s^2 above %.3g (no DVL?): x/y feedback off until it returns",
+                        xy_velocity_variance_, params_.safety.dvl.xy_feedback_off_above);
         }
     }
     if (depth_ok != depth_ok_) {
         if (depth_ok) {
-            RCLCPP_INFO(this->get_logger(), "depth back: z feedback on");
+            RCLCPP_INFO(this->get_logger(), "z measured again: z feedback on");
         } else {
-            RCLCPP_ERROR(this->get_logger(), "no depth for %.1f s: z feedback off, floating up",
-                         params_.safety.depth.z_feedback_off_after);
+            RCLCPP_ERROR(this->get_logger(), "z variance %.3g m^2 above %.3g (no depth?): z feedback off, floating up",
+                         z_variance_, params_.safety.depth.z_feedback_off_above);
         }
     }
     dvl_ok_ = dvl_ok;
@@ -861,12 +861,12 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     };
     add_age("odometry/filtered", odom_time_);
     add_age("imu/data", imu_time_);
-    add_age("odometry/depth", depth_time_);
-    add_age("dvl/velocity", dvl_time_);
     add_age("altitude", altitude_time_);
+    status.add("x/y velocity variance [m^2/s^2]", std::format("{:.3g}", xy_velocity_variance_));
+    status.add("z variance [m^2]", std::format("{:.3g}", z_variance_));
     const bool state_ok = age(odom_time_, now) <= params_.safety.odometry.thrusters_off_after;
-    const bool depth_ok = age(depth_time_, now) <= params_.safety.depth.z_feedback_off_after;
-    const bool dvl_ok = age(dvl_time_, now) <= params_.safety.dvl.xy_feedback_off_after;
+    const bool depth_ok = z_variance_ <= params_.safety.depth.z_feedback_off_above;
+    const bool dvl_ok = xy_velocity_variance_ <= params_.safety.dvl.xy_feedback_off_above;
     std::vector<std::string> missing;
     for (const auto& [ok, name] : {std::pair{state_ok, "state estimate"}, {imu_ok_, "IMU"}, {depth_ok, "depth"}}) {
         if (!ok) {
@@ -876,7 +876,7 @@ void SubControl::diagnose_sensors(diagnostic_updater::DiagnosticStatusWrapper& s
     if (!missing.empty()) {
         status.summary(DiagnosticStatus::ERROR, "stale or missing: " + join(missing, ", "));
     } else if (!dvl_ok) {
-        status.summary(DiagnosticStatus::WARN, "no DVL velocity (bottom lock?): x/y feedback off");
+        status.summary(DiagnosticStatus::WARN, "x/y velocity not measured (DVL bottom lock?): x/y feedback off");
     } else {
         status.summary(DiagnosticStatus::OK, "all fresh");
     }
